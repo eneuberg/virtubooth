@@ -126,6 +126,7 @@ default.
 | `VB_UPLOADS_PER_IP_PER_MIN` | `60` | Uploads per IP per minute. |
 | `VB_UPLOADS_GLOBAL_PER_MIN` | `300` | Uploads per minute for the whole party. |
 | `VB_NEW_USERS_PER_IP_PER_10MIN` | `120` | New guest identities per IP per 10 minutes. |
+| `VB_API_REQUESTS_PER_IP_PER_MIN` | `1200` | All API requests per IP per minute. |
 | `VB_ADMIN_SESSION_HOURS` | `12` | Admin login lifetime. |
 | `VB_HOST` | `127.0.0.1` | Listen address of `virtubooth serve`. Docker pins `0.0.0.0`. |
 | `VB_PORT` | `8000` | Listen port. Docker pins `8000`. |
@@ -137,7 +138,7 @@ default.
 Rate limits count per IP address. Guests on the same venue Wi-Fi (or behind
 carrier NAT) share one IP, so for a big crowd on one network raise
 `VB_UPLOADS_PER_IP_PER_MIN` and `VB_NEW_USERS_PER_IP_PER_10MIN`. The general
-API budget is 600 requests per IP per minute.
+API budget is `VB_API_REQUESTS_PER_IP_PER_MIN` (default 1200).
 
 ## Running with Docker
 
@@ -345,10 +346,8 @@ Data layout inside `/data`: `virtubooth.db` (+ `-wal`/`-shm`),
 
 - **Party token.** Everything a guest sees requires the token from the QR
   code. It is a shared secret: whoever has a code (or a photo of it) is in.
-  The token is removed from the URL right after the scan and pages send
-  `Referrer-Policy: no-referrer`, but the access log records the scan request
-  with its `?t=` once per scan, so treat `docker compose logs` as secret as
-  `.env`.
+  The token is removed from the URL right after the scan, pages send
+  `Referrer-Policy: no-referrer`, and the access log masks it (`?t=***`).
 - **Rotating the token** (a code leaked, or the party is over): change
   `VB_PARTY_TOKEN` in `.env`, run `docker compose up -d`, reprint the codes.
   Every guest must scan again; their pseudonym and photos stay theirs. Steps:

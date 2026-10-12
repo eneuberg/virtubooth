@@ -302,8 +302,8 @@ docker compose logs -f --since 10m app
 docker stats                          # CPU / memory against the limits in compose.yaml
 ```
 
-Logs rotate at 5 x 10 MB. The access log contains the `?t=<token>` of every
-QR scan, so share logs as carefully as `.env`. Limits (`VB_CPU_LIMIT`,
+Logs rotate at 5 x 10 MB. The access log masks the party token (`?t=***`)
+and skips `/healthz`. Limits (`VB_CPU_LIMIT`,
 `VB_MEM_LIMIT`) are set in `.env`; the CPU limit must not exceed the
 server's CPU count or Docker refuses to start the container.
 

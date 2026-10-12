@@ -20,6 +20,7 @@ from .db import Database
 from .errors import ApiError
 from .events import EventBus
 from .extension import Extension, discover_extensions, validate_extension
+from .logs import install_access_log_filter
 from .middleware import GuardMiddleware, SecurityHeadersMiddleware
 from .deps import has_access
 from .pages import STATIC_DIR, gate_page, not_found_page
@@ -48,6 +49,8 @@ def create_app(settings: Settings, *, extensions: Sequence[Extension] | None = N
     @asynccontextmanager
     async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
         core.bus.bind_loop(asyncio.get_running_loop())
+        # after uvicorn configured logging, so the filter isn't replaced
+        install_access_log_filter()
         yield
 
     app = FastAPI(

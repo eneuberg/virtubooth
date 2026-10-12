@@ -273,3 +273,26 @@ def test_pseudonyms_are_grammatical_and_unique():
     for name in names:
         adjective, animal = name.split(" ")[:2]
         assert adjective[-1] in "res" and animal[0].isupper()
+
+
+def test_access_log_masks_token_and_skips_healthz():
+    import logging
+
+    from virtubooth.logs import AccessLogFilter
+
+    f = AccessLogFilter()
+
+    def record(path: str) -> logging.LogRecord:
+        return logging.LogRecord(
+            "uvicorn.access", logging.INFO, "", 0, '%s - "%s %s HTTP/%s" %d',
+            ("1.2.3.4:5", "GET", path, "1.1", 303), None,
+        )
+
+    r = record(f"/x/beer/?debug=1&t={PARTY_TOKEN}")
+    assert f.filter(r)
+    assert PARTY_TOKEN not in r.getMessage() and "t=***" in r.getMessage()
+    assert not f.filter(record("/healthz"))
+
+
+def test_healthz_head(client):
+    assert client.head("/healthz").status_code == 200

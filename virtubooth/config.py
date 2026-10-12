@@ -102,6 +102,9 @@ class Settings:
             new_users_per_ip_per_10min=opt_int(
                 "VB_NEW_USERS_PER_IP_PER_10MIN", defaults["new_users_per_ip_per_10min"].default
             ),
+            api_requests_per_ip_per_min=opt_int(
+                "VB_API_REQUESTS_PER_IP_PER_MIN", defaults["api_requests_per_ip_per_min"].default
+            ),
             admin_session_hours=opt_int(
                 "VB_ADMIN_SESSION_HOURS", defaults["admin_session_hours"].default
             ),

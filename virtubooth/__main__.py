@@ -19,7 +19,8 @@ def gen_env() -> str:
             "VB_INSTAGRAM_ACCOUNT=",
             "# public URL guests open (used for QR codes), e.g. https://party.example.com",
             "VB_PUBLIC_BASE_URL=http://localhost:8000",
-            "VB_DATA_DIR=./data",
+            "# defaults to ./data; Docker pins /data",
+            "# VB_DATA_DIR=./data",
             "# true behind an https reverse proxy",
             "VB_COOKIE_SECURE=auto",
             "",
@@ -31,11 +32,11 @@ def main(argv: list[str] | None = None) -> None:
     parser = argparse.ArgumentParser(prog="virtubooth")
     sub = parser.add_subparsers(dest="cmd")
     serve = sub.add_parser("serve", help="run the web server (default)")
-    serve.add_argument("--host", default=os.environ.get("VB_HOST", "127.0.0.1"))
-    serve.add_argument("--port", type=int, default=int(os.environ.get("VB_PORT", "8000")))
+    serve.add_argument("--host", default=os.environ.get("VB_HOST") or "127.0.0.1")
+    serve.add_argument("--port", type=int, default=int(os.environ.get("VB_PORT") or "8000"))
     serve.add_argument(
         "--forwarded-allow-ips",
-        default=os.environ.get("VB_FORWARDED_ALLOW_IPS", "127.0.0.1"),
+        default=os.environ.get("VB_FORWARDED_ALLOW_IPS") or "127.0.0.1",
         help="proxies whose X-Forwarded-For/-Proto are trusted ('*' only inside a private network)",
     )
     serve.add_argument("--reload", action="store_true", help="auto-reload on code changes (dev)")
@@ -60,6 +61,8 @@ def main(argv: list[str] | None = None) -> None:
         forwarded_allow_ips=args.forwarded_allow_ips,
         reload=args.reload,
         server_header=False,
+        # open SSE streams would otherwise hold `docker stop` until the kill timeout
+        timeout_graceful_shutdown=5,
         access_log=True,
     )
 

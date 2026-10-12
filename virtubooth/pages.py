@@ -56,7 +56,7 @@ def _file(path: Path) -> FileResponse:
     return FileResponse(path, media_type=media_type or "application/octet-stream")
 
 
-@router.get("/healthz", include_in_schema=False)
+@router.api_route("/healthz", methods=["GET", "HEAD"], include_in_schema=False)
 def healthz() -> dict[str, bool]:
     return {"ok": True}
 
