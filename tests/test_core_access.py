@@ -11,11 +11,17 @@ from .conftest import ORIGIN, PARTY_TOKEN, accept_consent, fp, scan
 
 
 def test_pages_without_token_show_scan_qr(client):
-    for path in ("/", "/x/demo/", "/x/demo/app.js", "/nope"):
+    for path in ("/", "/x/demo/", "/x/demo/app.js", "/nope", "/x/unknown/"):
         r = client.get(path)
         assert r.status_code == 404
-        if path != "/nope":
-            assert "Scan den QR-Code" in r.text, path
+        assert "Scan den QR-Code" in r.text, path
+
+
+def test_unknown_page_with_access_is_plain_not_found(client):
+    scan(client)
+    r = client.get("/nope")
+    assert r.status_code == 404
+    assert "Hier ist nichts" in r.text
 
 
 def test_wrong_token_shows_gate_and_sets_no_cookie(client):

@@ -40,7 +40,8 @@ class Settings:
     uploads_per_ip_per_min: int = 60
     uploads_global_per_min: int = 300
     new_users_per_ip_per_10min: int = 120
-    api_requests_per_ip_per_min: int = 600
+    # generous: a whole party on one WiFi shares a single IP
+    api_requests_per_ip_per_min: int = 1200
     admin_session_hours: int = 12
 
     def __post_init__(self) -> None:

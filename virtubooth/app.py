@@ -21,7 +21,8 @@ from .errors import ApiError
 from .events import EventBus
 from .extension import Extension, discover_extensions, validate_extension
 from .middleware import GuardMiddleware, SecurityHeadersMiddleware
-from .pages import STATIC_DIR, not_found_page
+from .deps import has_access
+from .pages import STATIC_DIR, gate_page, not_found_page
 from .pages import router as pages_router
 from .repo import Repo
 from .security import Signer
@@ -71,7 +72,8 @@ def create_app(settings: Settings, *, extensions: Sequence[Extension] | None = N
                 {"error": f"http_{exc.status_code}", "message": str(exc.detail)},
                 status_code=exc.status_code,
             )
-        return not_found_page()
+        # without a QR scan, every unknown page says "scan the QR code" too
+        return not_found_page() if has_access(request, core) else gate_page()
 
     app.include_router(identity.router)
     app.include_router(admin_auth.router)
