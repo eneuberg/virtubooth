@@ -37,7 +37,7 @@ def main(argv: list[str] | None = None) -> None:
     serve.add_argument(
         "--forwarded-allow-ips",
         default=os.environ.get("VB_FORWARDED_ALLOW_IPS") or "127.0.0.1",
-        help="proxies whose X-Forwarded-For/-Proto are trusted ('*' only inside a private network)",
+        help="proxies whose X-Forwarded-For/-Proto are trusted (exact proxy IPs; never '*')",
     )
     serve.add_argument("--reload", action="store_true", help="auto-reload on code changes (dev)")
     sub.add_parser("gen-env", help="print a fresh .env with random secrets")

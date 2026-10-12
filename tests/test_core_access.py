@@ -90,9 +90,17 @@ def test_consent_requires_accept_true(client):
     assert r.status_code == 422
 
 
+def test_consent_requires_a_fingerprint(client, core):
+    """Leaving the fingerprint out must not skip the fingerprint-ban check."""
+    scan(client)
+    r = client.post("/api/consent", json={"accept": True, "version": "1"}, headers=ORIGIN)
+    assert r.status_code == 422
+    assert core.repo.list_users() == []
+
+
 def test_consent_version_mismatch(client):
     scan(client)
-    r = client.post("/api/consent", json={"accept": True, "version": "0"}, headers=ORIGIN)
+    r = client.post("/api/consent", json={"accept": True, "version": "0", "fp": fp()}, headers=ORIGIN)
     assert r.status_code == 409
     assert r.json()["error"] == "consent_outdated"
 
@@ -166,7 +174,7 @@ def test_new_user_rate_limit(make_client, core):
         accept_consent(c)
     c = make_client()
     scan(c)
-    r = c.post("/api/consent", json={"accept": True, "version": "1"}, headers=ORIGIN)
+    r = c.post("/api/consent", json={"accept": True, "version": "1", "fp": fp()}, headers=ORIGIN)
     assert r.status_code == 429
     assert "retry-after" in r.headers
 
@@ -308,3 +316,54 @@ def test_discover_respects_explicit_order():
     assert [e.id for e in discover_extensions()] == ["beer", "booth"]
     with pytest.raises(ConfigError):
         discover_extensions(["nope"])
+
+
+def test_token_entry_never_redirects_off_site(client):
+    r = client.get(f"http://testserver//evil.example/?t={PARTY_TOKEN}")
+    assert r.status_code == 303
+    assert r.headers["location"] == "/evil.example/"
+
+
+def test_json_bodies_are_capped(client, guest):
+    r = client.post(
+        "/api/admin/login", content=b'{"password": "' + b"x" * 200_000 + b'"}',
+        headers=ORIGIN | {"Content-Type": "application/json"},
+    )
+    assert r.status_code == 413
+    r = client.post(
+        "/api/admin/login", content=(c for c in [b'{"password": "x"}']),
+        headers=ORIGIN | {"Content-Type": "application/json"},
+    )
+    assert r.status_code == 411  # chunked: unknown length
+    g = guest()
+    assert g.patch("/api/me", json={"instagram": "ok"}, headers=ORIGIN).status_code == 200
+
+
+def test_api_budget_is_per_device_for_guests(guest, make_client, core):
+    core.limits.api_guest = type(core.limits.api_guest)(5, 60)
+    noisy, calm = guest(), guest(fp_n=2)
+    codes = [noisy.post("/api/identify", json={}, headers=ORIGIN).status_code for _ in range(8)]
+    assert 429 in codes
+    # same IP (testclient), different device: unaffected
+    assert calm.post("/api/identify", json={}, headers=ORIGIN).status_code == 200
+
+
+def test_https_gets_hsts_and_secure_cookies(app):
+    from fastapi.testclient import TestClient
+
+    with TestClient(app, base_url="https://testserver", follow_redirects=False) as c:
+        r = c.get(f"/?t={PARTY_TOKEN}")
+        assert "Secure" in r.headers["set-cookie"]
+        assert r.headers["strict-transport-security"] == "max-age=31536000"
+    with TestClient(app, base_url="http://testserver", follow_redirects=False) as c:
+        r = c.get(f"/?t={PARTY_TOKEN}")
+        assert "Secure" not in r.headers["set-cookie"]
+        assert "strict-transport-security" not in r.headers
+
+
+def test_https_public_url_makes_auto_cookies_secure(client, core):
+    from dataclasses import replace
+
+    core.settings = replace(core.settings, public_base_url="https://party.example")
+    r = client.get(f"/?t={PARTY_TOKEN}")
+    assert "Secure" in r.headers["set-cookie"]

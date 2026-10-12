@@ -114,6 +114,9 @@ then `/etc/caddy/Caddyfile`:
 
 ```caddyfile
 party.example.com {
+	request_body {
+		max_size 10MB
+	}
 	reverse_proxy 127.0.0.1:8000
 }
 ```
@@ -123,7 +126,8 @@ sudo systemctl reload caddy
 ```
 
 Caddy gets and renews the certificate, keeps the `Host` header, sets
-`X-Forwarded-For`/`-Proto`, streams SSE and has no body size limit. Do not add
+`X-Forwarded-For`/`-Proto` and streams SSE; `request_body` caps uploads at
+10 MB before they reach the app (photos are at most 8 MB). Do not add
 `encode` for this site (compressing the event stream can delay live
 updates; photos are JPEG anyway). In `.env`:
 `VB_PUBLISH_PORT=127.0.0.1:8000` and `VB_FORWARDED_ALLOW_IPS=172.16.0.0/12`
@@ -173,7 +177,9 @@ server {
         proxy_pass http://127.0.0.1:8000;
         proxy_http_version 1.1;
         proxy_set_header Host $host;     # required for the CSRF origin check
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        # $remote_addr, not $proxy_add_x_forwarded_for: the app trusts the
+        # first entry, and a client could otherwise put any IP there
+        proxy_set_header X-Forwarded-For $remote_addr;
         proxy_set_header X-Forwarded-Proto $scheme;
         proxy_set_header Connection "";
         proxy_read_timeout 1h;           # long-lived live streams (SSE)

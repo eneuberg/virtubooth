@@ -59,7 +59,8 @@ function webglTrait() {
 let cached = null;
 
 export function getFingerprint() {
-  if (!cached) cached = compute();
+  // never rejects: consent requires a fingerprint
+  if (!cached) cached = compute().catch(() => sha256Hex(`fallback|${navigator.userAgent}`).then((hash) => ({ hash, components: { ua: navigator.userAgent, fallback: true } })));
   return cached;
 }
 

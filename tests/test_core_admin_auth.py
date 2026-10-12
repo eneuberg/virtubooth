@@ -45,14 +45,16 @@ def test_wrong_password_and_rate_limit(client, core):
 
 def test_global_lockout(make_client, core):
     core.limits.login_failures_global = type(core.limits.login_failures_global)(3, 3600)
-    for i in range(3):
-        c = make_client()
+    codes = []
+    for i in range(4):
         # pretend every attempt comes from a different IP
         core.limits.login_ip.reset()
         core.limits.login_ip_hourly.reset()
-        assert login(c, f"wrong-{i}-password").status_code == 401
-    r = login(make_client())
-    assert r.status_code == 429 and r.json()["error"] == "login_locked"
+        codes.append(login(make_client(), f"wrong-{i}-password").status_code)
+    assert codes == [401, 401, 429, 429]
+    # the lock only ever refuses wrong passwords: nobody can lock the real admin out
+    core.limits.login_ip.reset()
+    assert login(make_client()).status_code == 200
 
 
 def test_password_change_ends_sessions(client, core):

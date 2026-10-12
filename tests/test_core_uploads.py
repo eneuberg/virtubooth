@@ -227,3 +227,13 @@ def test_format_sse():
     assert format_sse({"id": 3, "type": "photo.created", "data": {"a": 1}}) == (
         'id: 3\nevent: photo.created\ndata: {"a": 1}\n\n'
     )
+
+
+def test_junk_uploads_dont_use_up_shared_budgets(guest, core):
+    """One guest sending invalid uploads must not lock out everyone on the WiFi."""
+    core.limits.upload_ip = type(core.limits.upload_ip)(3, 60)
+    core.limits.upload_user = type(core.limits.upload_user)(50, 60)
+    troll, friend = guest(), guest(fp_n=2)
+    for _ in range(20):
+        assert upload(troll, b"").status_code == 400
+    assert upload(friend).status_code == 201

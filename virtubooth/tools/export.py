@@ -106,11 +106,18 @@ def plan_entries(repo: Repo, *, include_hidden: bool) -> list[Entry]:
     return entries
 
 
+def _cell(value: object) -> object:
+    # Excel/LibreOffice run cells starting with = + - @ as formulas
+    if isinstance(value, str) and value[:1] in ("=", "+", "-", "@", "\t", "\r"):
+        return "'" + value
+    return value
+
+
 def _csv(header: list[str], rows: list[list[object]]) -> bytes:
     buf = io.StringIO()
     writer = csv.writer(buf, lineterminator="\r\n")
     writer.writerow(header)
-    writer.writerows(rows)
+    writer.writerows([_cell(v) for v in row] for row in rows)
     # BOM so Excel reads the umlauts in the pseudonyms right
     return buf.getvalue().encode("utf-8-sig")
 
@@ -158,7 +165,8 @@ def taggable(entries: list[Entry]) -> dict[str, tuple[str, list[str]]]:
 def instagram_csv(entries: list[Entry]) -> bytes:
     tags = taggable(entries)
     rows: list[list[object]] = [
-        [f"@{handle}", name, len(paths), "; ".join(paths)]
+        # without "@": spreadsheets read a leading @ as a formula
+        [handle, name, len(paths), "; ".join(paths)]
         for handle, (name, paths) in sorted(tags.items())
     ]
     return _csv(INSTAGRAM_COLUMNS, rows)

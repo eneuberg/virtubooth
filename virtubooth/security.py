@@ -90,7 +90,9 @@ def admin_password_tag(settings: Settings, signer: Signer) -> str:
 
 def cookie_secure(settings: Settings, request: Request) -> bool:
     if settings.cookie_secure == "auto":
-        return request.url.scheme == "https"
+        # an https public URL means guests always come in over TLS, even when the
+        # proxy's X-Forwarded-Proto isn't trusted and the app only sees http
+        return request.url.scheme == "https" or settings.public_base_url.startswith("https://")
     return settings.cookie_secure == "true"
 
 

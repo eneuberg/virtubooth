@@ -37,11 +37,13 @@ class Settings:
 
     max_upload_bytes: int = 8_000_000
     uploads_per_user_per_min: int = 10
-    uploads_per_ip_per_min: int = 60
+    # a whole party on one WiFi shares an IP
+    uploads_per_ip_per_min: int = 180
     uploads_global_per_min: int = 300
     new_users_per_ip_per_10min: int = 120
-    # generous: a whole party on one WiFi shares a single IP
+    # requests from identified guests count per device, the rest per IP
     api_requests_per_ip_per_min: int = 1200
+    api_requests_per_guest_per_min: int = 300
     admin_session_hours: int = 12
 
     def __post_init__(self) -> None:
@@ -101,6 +103,10 @@ class Settings:
             ),
             new_users_per_ip_per_10min=opt_int(
                 "VB_NEW_USERS_PER_IP_PER_10MIN", defaults["new_users_per_ip_per_10min"].default
+            ),
+            api_requests_per_guest_per_min=opt_int(
+                "VB_API_REQUESTS_PER_GUEST_PER_MIN",
+                defaults["api_requests_per_guest_per_min"].default,
             ),
             api_requests_per_ip_per_min=opt_int(
                 "VB_API_REQUESTS_PER_IP_PER_MIN", defaults["api_requests_per_ip_per_min"].default

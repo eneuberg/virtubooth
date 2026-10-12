@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 from collections.abc import AsyncIterator, Sequence
 from contextlib import asynccontextmanager
 
@@ -96,4 +97,9 @@ def create_app(settings: Settings, *, extensions: Sequence[Extension] | None = N
 
 
 def create_app_from_env() -> FastAPI:
-    return create_app(Settings.from_env())
+    settings = Settings.from_env()
+    if settings.cookie_secure == "false" and settings.public_base_url.startswith("https://"):
+        logging.getLogger("virtubooth").warning(
+            "VB_COOKIE_SECURE=false while VB_PUBLIC_BASE_URL is https: cookies may leak over http"
+        )
+    return create_app(settings)

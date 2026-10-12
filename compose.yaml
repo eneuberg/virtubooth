@@ -39,10 +39,10 @@ services:
     # See docs/DEPLOY.md for Caddy and Traefik examples.
 
     ports:
-      # VB_PUBLISH_PORT=127.0.0.1:8000 publishes only on localhost (recommended
-      # when the reverse proxy runs on this host: Docker's published ports
-      # bypass ufw/firewalld). Default: all interfaces, port 8000.
-      - "${VB_PUBLISH_PORT:-8000}:8000"
+      # Default: localhost only, for a reverse proxy on this host (Docker's
+      # published ports bypass ufw/firewalld). VB_PUBLISH_PORT=8000 publishes on
+      # all interfaces.
+      - "${VB_PUBLISH_PORT:-127.0.0.1:8000}:8000"
 
     volumes:
       # Named volume (not a ./data bind mount): Docker creates it owned by the

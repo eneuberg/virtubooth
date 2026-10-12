@@ -415,10 +415,11 @@ def test_fingerprint_ban_catches_new_guest_with_same_fp(admin, guest, make_clien
 
 
 def test_fingerprint_ban_needs_a_fingerprint(admin, make_client, core):
-    c = make_client()
-    scan(c)
-    c.post("/api/consent", json={"accept": True, "version": "1"}, headers=ORIGIN)
-    user = core.repo.list_users()[0]
+    # consent requires a fingerprint now; older rows may still lack one
+    user = core.repo.create_user(
+        consent_version="1", instagram=None, fp_hash=None, fp_components={},
+        ip="1.2.3.4", user_agent="legacy",
+    )
     r = admin.post(f"/api/admin/users/{user.id}/ban", json={"fingerprint": True}, headers=ORIGIN)
     assert r.status_code == 400 and r.json()["error"] == "no_fingerprint"
     assert not core.repo.get_user(user.id).banned  # nothing half-done

@@ -118,27 +118,31 @@ default.
 | `VB_TIMEZONE` | `Europe/Berlin` | Timezone for the timestamps in photo file names. |
 | `VB_CONSENT_VERSION` | `1` | Stored with each consent. Bump it when the consent text changes (devices that already accepted are not asked again). |
 | `VB_EXTENSIONS` | all | Comma-separated extension ids to enable, in order, e.g. `beer,booth`. |
-| `VB_COOKIE_SECURE` | `auto` | `auto` (Secure when the request came in over https), `true`, `false`. Use `true` behind a TLS proxy. |
+| `VB_COOKIE_SECURE` | `auto` | `auto` (Secure when the request came in over https or `VB_PUBLIC_BASE_URL` is https), `true`, `false`. |
 | `VB_ALLOWED_ORIGINS` | empty | Extra origins for the CSRF check, e.g. `https://party.example.com`. Only needed when the proxy rewrites the `Host` header. |
 | `VB_DATA_DIR` | `./data` | SQLite database and photos. Docker pins it to `/data`. |
 | `VB_MAX_UPLOAD_BYTES` | `8000000` | Max size of one upload. |
 | `VB_UPLOADS_PER_USER_PER_MIN` | `10` | Uploads per guest per minute. |
-| `VB_UPLOADS_PER_IP_PER_MIN` | `60` | Uploads per IP per minute. |
+| `VB_UPLOADS_PER_IP_PER_MIN` | `180` | Valid uploads per IP per minute. |
 | `VB_UPLOADS_GLOBAL_PER_MIN` | `300` | Uploads per minute for the whole party. |
 | `VB_NEW_USERS_PER_IP_PER_10MIN` | `120` | New guest identities per IP per 10 minutes. |
-| `VB_API_REQUESTS_PER_IP_PER_MIN` | `1200` | All API requests per IP per minute. |
+| `VB_API_REQUESTS_PER_GUEST_PER_MIN` | `300` | API requests per identified guest device per minute. |
+| `VB_API_REQUESTS_PER_IP_PER_MIN` | `1200` | API requests per IP per minute from devices without an identity yet. |
 | `VB_ADMIN_SESSION_HOURS` | `12` | Admin login lifetime. |
 | `VB_HOST` | `127.0.0.1` | Listen address of `virtubooth serve`. Docker pins `0.0.0.0`. |
 | `VB_PORT` | `8000` | Listen port. Docker pins `8000`. |
 | `VB_FORWARDED_ALLOW_IPS` | `127.0.0.1` | Proxies (IPs or CIDR ranges, comma-separated) whose `X-Forwarded-For`/`-Proto` are trusted. See [HTTPS and reverse proxy](#https-and-reverse-proxy). |
-| `VB_PUBLISH_PORT` | `8000` | Compose only: host port, optionally with an address (`127.0.0.1:8000`). |
+| `VB_PUBLISH_PORT` | `127.0.0.1:8000` | Compose only: host address and port. `8000` alone publishes on all interfaces. |
 | `VB_IMAGE` | `virtubooth:local` | Compose only: image name the build produces and `up` runs. |
 | `VB_CPU_LIMIT` / `VB_MEM_LIMIT` | `1.0` / `1g` | Compose only: container limits. The CPU limit must not exceed the host's CPU count. |
 
-Rate limits count per IP address. Guests on the same venue Wi-Fi (or behind
-carrier NAT) share one IP, so for a big crowd on one network raise
-`VB_UPLOADS_PER_IP_PER_MIN` and `VB_NEW_USERS_PER_IP_PER_10MIN`. The general
-API budget is `VB_API_REQUESTS_PER_IP_PER_MIN` (default 1200).
+Guests on the same venue Wi-Fi (or behind carrier NAT) share one IP. So API
+requests of identified guests count per device
+(`VB_API_REQUESTS_PER_GUEST_PER_MIN`), only first visits count per IP, and
+admin sessions are never throttled. Uploads count per guest first; the
+per-IP and global upload budgets only count valid photos, so one guest
+spamming broken uploads can't block everyone else. For a big crowd on one
+network raise `VB_UPLOADS_PER_IP_PER_MIN` and `VB_NEW_USERS_PER_IP_PER_10MIN`.
 
 ## Running with Docker
 
@@ -272,9 +276,16 @@ area does not need the party token.
     fingerprint, so this can hit innocent guests. Use it for repeat offenders
     who clear their cookies.
 
-Sessions last `VB_ADMIN_SESSION_HOURS` (12 h). Login is rate limited per IP,
-and after 50 wrong passwords within an hour (from anyone) the login locks for
-everyone; restarting the container resets that lock.
+Sessions last `VB_ADMIN_SESSION_HOURS` (12 h); log in before the guests
+arrive. Login is rate limited per IP (5 per minute, 20 per hour). After 50
+wrong passwords within an hour from anywhere, further wrong guesses get "Zu
+viele Fehlversuche"; the correct password always still works, so nobody can
+lock you out by guessing. Keep the password long and random (`gen-env` does).
+
+A fingerprint ban is a speed bump, not a wall: someone who forges their
+fingerprint with developer tools gets a fresh identity. Against the usual
+evasion (private tab, cleared cookies) it works, because the fingerprint
+stays the same.
 
 ## Printing the QR codes
 
@@ -422,7 +433,7 @@ Dockerfile, compose.yaml     container image and deployment
 | Camera does not start on the phone | Not on HTTPS, permission denied, or an in-app browser. Use the HTTPS URL in Safari/Chrome; check the site's camera permission. |
 | `403 bad_origin` on every upload/consent | The proxy rewrites the `Host` header. Pass it through or set `VB_ALLOWED_ORIGINS`. |
 | Lots of `429` during the party | Guests share an IP: set `VB_FORWARDED_ALLOW_IPS` for your proxy, and raise the per-IP limits for venue Wi-Fi. |
-| Cookies lack `Secure` behind HTTPS | Set `VB_COOKIE_SECURE=true` (or trust the proxy via `VB_FORWARDED_ALLOW_IPS`). |
+| Cookies lack `Secure` behind HTTPS | Set `VB_PUBLIC_BASE_URL` to the https URL or `VB_COOKIE_SECURE=true`. |
 | Container exits on start | `docker compose logs app`: a missing or too short `VB_*` secret is reported by name. |
 | `.env` changes have no effect | Use `docker compose up -d`, not `restart`. |
-| Admin login says "Zu viele Fehlversuche" | Global lock after 50 wrong passwords per hour; restart the container to reset. |
+| Admin login says "Zu viele Fehlversuche" | Someone guessed wrong 50+ times this hour. The correct password still works; restarting the container resets the counter. |

@@ -20,6 +20,7 @@ class Limits:
     upload_global: RateLimiter
     new_user_ip: RateLimiter
     api_ip: RateLimiter
+    api_guest: RateLimiter
     login_ip: RateLimiter
     login_ip_hourly: RateLimiter
     login_failures_global: RateLimiter
@@ -32,9 +33,10 @@ class Limits:
             upload_global=RateLimiter(s.uploads_global_per_min, 60),
             new_user_ip=RateLimiter(s.new_users_per_ip_per_10min, 600),
             api_ip=RateLimiter(s.api_requests_per_ip_per_min, 60),
+            api_guest=RateLimiter(s.api_requests_per_guest_per_min, 60),
             login_ip=RateLimiter(5, 60),
             login_ip_hourly=RateLimiter(20, 3600),
-            # more than 50 wrong passwords per hour from anywhere locks the login
+            # after 50 wrong passwords per hour from anywhere, wrong guesses get 429
             login_failures_global=RateLimiter(50, 3600),
         )
 

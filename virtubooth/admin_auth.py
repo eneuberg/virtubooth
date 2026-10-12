@@ -38,17 +38,20 @@ class LoginIn(BaseModel):
 def login(body: LoginIn, request: Request, core: Core = Depends(get_core)) -> JSONResponse:
     ip = client_ip(request)
     limits = core.limits
-    if not limits.login_failures_global.available("global"):
-        raise errors.ApiError(
-            429, "login_locked", "Zu viele Fehlversuche. Login ist kurz gesperrt."
-        )
     for limiter in (limits.login_ip, limits.login_ip_hourly):
         if not limiter.hit(ip):
             raise errors.rate_limited(limiter.retry_after(ip))
 
     if not constant_time_equals(body.password, core.settings.admin_password):
+        # The global budget slows down guessing spread over many IPs. It only
+        # ever refuses wrong passwords: otherwise anyone could lock the real
+        # admin out by failing 50 times. The password itself is long and random.
         limits.login_failures_global.hit("global")
         core.repo.audit("anonymous", "admin.login_failed", f"ip:{ip}")
+        if not limits.login_failures_global.available("global"):
+            raise errors.ApiError(
+                429, "login_locked", "Zu viele Fehlversuche. Login ist kurz gesperrt."
+            )
         raise errors.ApiError(401, "wrong_password", "Falsches Passwort.")
 
     token = secrets.token_urlsafe(32)

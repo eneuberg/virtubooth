@@ -769,11 +769,11 @@ def test_export_users_and_instagram_csv(party, tmp_path):
 
     insta = {r["instagram"]: r for r in read_csv(files["instagram.csv"])}
     # anon has no handle, troll is banned; max's hidden beer photo is not taggable
-    assert sorted(insta) == ["@lisa.party", "@max_m"]
-    max_files = insta["@max_m"]["files"].split("; ")
-    assert insta["@max_m"]["photo_count"] == "2" and len(max_files) == 2
+    assert sorted(insta) == ["lisa.party", "max_m"]
+    max_files = insta["max_m"]["files"].split("; ")
+    assert insta["max_m"]["photo_count"] == "2" and len(max_files) == 2
     assert all(f in files and "/hidden/" not in f for f in max_files)
-    assert insta["@lisa.party"]["user"] == party.users["lisa"].name
+    assert insta["lisa.party"]["user"] == party.users["lisa"].name
 
 
 def test_export_no_hidden(party, tmp_path):
@@ -836,7 +836,7 @@ def test_export_survives_photo_deleted_while_packing(party, tmp_path, monkeypatc
     assert rows[party.photos["b7"].public_id]["file"] == ""
     assert all(r["file"] in files for r in rows.values() if r["file"])
     insta = {r["instagram"]: r for r in read_csv(files["instagram.csv"])}
-    assert insta["@max_m"]["photo_count"] == "1"
+    assert insta["max_m"]["photo_count"] == "1"
 
 
 def test_export_snapshot_while_app_holds_the_db(party, tmp_path):
@@ -844,7 +844,7 @@ def test_export_snapshot_while_app_holds_the_db(party, tmp_path):
     party.user("late", "late.one")
     party.photo("late", "beer", "late", RED)  # committed through the app's connection
     _, files = run_export(party, tmp_path)
-    assert any(r["instagram"] == "@late.one" for r in read_csv(files["instagram.csv"]))
+    assert any(r["instagram"] == "late.one" for r in read_csv(files["instagram.csv"]))
 
 
 def test_export_missing_db(tmp_path, capsys):
@@ -857,3 +857,11 @@ def test_export_archive_root_names():
     assert export.archive_root(Path("a/b/party.tar.gz")) == "party"
     assert export.archive_root(Path("party.tgz")) == "party"
     assert export.archive_root(Path("party.zip")) == "party.zip"
+
+
+def test_csv_cells_never_become_formulas():
+    assert export._cell("=HYPERLINK(1)") == "'=HYPERLINK(1)"
+    assert export._cell("@x") == "'@x"
+    assert export._cell("-1") == "'-1"
+    assert export._cell("Durstige Giraffe #3") == "Durstige Giraffe #3"
+    assert export._cell(5) == 5

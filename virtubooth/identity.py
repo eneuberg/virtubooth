@@ -71,7 +71,8 @@ class ConsentIn(BaseModel):
     accept: Literal[True]
     version: str = Field(max_length=32)
     instagram: str | None = Field(default=None, max_length=100)
-    fp: Fingerprint | None = None
+    # required: leaving it out would skip the fingerprint-ban check
+    fp: Fingerprint
 
 
 class MeUpdate(BaseModel):
@@ -148,15 +149,15 @@ def consent(body: ConsentIn, request: Request, core: Core = Depends(get_core)) -
     if not core.limits.new_user_ip.hit(ip):
         raise errors.rate_limited(core.limits.new_user_ip.retry_after(ip))
 
-    fp_hash = body.fp.hash if body.fp else None
+    fp_hash = body.fp.hash
     banned_reason = None
-    if fp_hash and core.repo.is_fingerprint_banned(fp_hash):
+    if core.repo.is_fingerprint_banned(fp_hash):
         banned_reason = "Gerät gesperrt (Fingerprint)"
     user = core.repo.create_user(
         consent_version=body.version,
         instagram=instagram,
         fp_hash=fp_hash,
-        fp_components=body.fp.components if body.fp else {},
+        fp_components=body.fp.components,
         ip=ip,
         user_agent=request.headers.get("user-agent", "")[:300],
         banned_reason=banned_reason,

@@ -146,12 +146,14 @@ async def upload(
 
     ip = client_ip(request)
     limits = core.limits
-    for limiter, key in (
-        (limits.upload_user, f"user:{user.id}"),
-        (limits.upload_ip, ip),
-        (limits.upload_global, "global"),
-    ):
-        if not limiter.hit(key):
+    # The guest's own budget is charged for every attempt. The budgets shared
+    # with everyone on the venue WiFi (per IP, global) are only checked here and
+    # charged once the photo is valid, so junk uploads can't use them up.
+    user_key = f"user:{user.id}"
+    if not limits.upload_user.hit(user_key):
+        raise errors.rate_limited(limits.upload_user.retry_after(user_key))
+    for limiter, key in ((limits.upload_ip, ip), (limits.upload_global, "global")):
+        if not limiter.available(key):
             raise errors.rate_limited(limiter.retry_after(key))
 
     max_bytes = policy.max_bytes or core.settings.max_upload_bytes
@@ -170,6 +172,9 @@ async def upload(
         thumb_side=policy.thumb_side,
         exact_size=policy.exact_size,
     )
+    for limiter, key in ((limits.upload_ip, ip), (limits.upload_global, "global")):
+        if not limiter.hit(key):
+            raise errors.rate_limited(limiter.retry_after(key))
     photo = await run_in_threadpool(store_photo, core, ext, user, image, meta)
 
     extra: dict[str, Any] = {}
