@@ -296,3 +296,13 @@ def test_access_log_masks_token_and_skips_healthz():
 
 def test_healthz_head(client):
     assert client.head("/healthz").status_code == 200
+
+
+def test_discover_respects_explicit_order():
+    from virtubooth.extension import discover_extensions
+
+    everything = [e.id for e in discover_extensions()]
+    assert discover_extensions(list(reversed(everything))) == list(reversed(discover_extensions()))
+    assert [e.id for e in discover_extensions(["beer", "beer"])] == ["beer"]
+    with pytest.raises(ConfigError):
+        discover_extensions(["nope"])

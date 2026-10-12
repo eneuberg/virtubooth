@@ -225,7 +225,7 @@ def build_parser() -> argparse.ArgumentParser:
         "--extensions",
         metavar="LIST",
         help="comma-separated extension ids (default: $VB_EXTENSIONS, else every "
-        "extension shown on the home page); the sheet follows the extensions' order",
+        "extension shown on the home page), in that order",
     )
     p.add_argument(
         "--party-name",

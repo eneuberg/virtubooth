@@ -123,7 +123,6 @@ def discover_extensions(enabled: Sequence[str] | None = None) -> list[Extension]
         unknown = sorted(set(enabled) - found.keys())
         if unknown:
             raise ConfigError(f"VB_EXTENSIONS names unknown extensions: {unknown}")
-        chosen = [found[i] for i in enabled]
-    else:
-        chosen = list(found.values())
-    return sorted(chosen, key=lambda e: (e.order, e.id))
+        # an explicit list also sets the order
+        return [found[i] for i in dict.fromkeys(enabled)]
+    return sorted(found.values(), key=lambda e: (e.order, e.id))
