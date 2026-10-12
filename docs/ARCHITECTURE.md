@@ -170,6 +170,8 @@ captured output, iOS stops camera streams in background tabs.
 uv sync                      # deps incl. dev
 uv run pytest                # unit/API tests (fast)
 uv run pytest -m e2e         # browser tests: Playwright Chromium + fake camera
+VB_E2E_BROWSER=firefox uv run pytest -m e2e   # the same in Firefox
+tests/e2e/run_webkit.sh      # the same in WebKit (Docker)
 uv run virtubooth gen-env > .env && set -a && . ./.env && set +a && uv run virtubooth serve --reload
 ```
 
@@ -183,7 +185,12 @@ extensions, e.g. `return discover_extensions(["beer"])`.
 E2E (`tests/e2e/conftest.py`): `live` (real server, `.url()`, `.entry()` =
 QR URL, `.core`), `page`, `guest_page` (consent accepted), `admin_page`,
 `accept_consent_in_browser()`; override `e2e_extensions`. `page.js_errors`
-collects console errors. The CSP blocks string `wait_for_function`; use
+collects console errors (`track_errors(page)` for pages you make yourself).
+`new_context(browser)` is a phone with a front and a back camera,
+`new_context(browser, "desktop")` a 1280x800 PC with one 16:9 webcam showing a
+test card (`window.__cameraRequests` lists the constraints asked for). Skip
+markers for test tooling a browser lacks: `chromium_only` (CDP),
+`needs_clipboard`, `firefox_only`. The CSP blocks string `wait_for_function`; use
 `expect(locator)` instead. Chromium's fake camera shows a moving test
 pattern; `VB_FAKE_VIDEO=file.y4m` swaps in your own clip.
 
