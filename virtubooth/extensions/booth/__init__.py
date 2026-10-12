@@ -74,6 +74,7 @@ extension = Extension(
     upload=UploadPolicy(
         max_side=OUTPUT_HEIGHT,
         min_side=480,
+        exact_size=(OUTPUT_WIDTH, OUTPUT_HEIGHT),
         quality=88,
         meta_keys=frozenset({"filter", "facing"}),
         validate_meta=validate_meta,
