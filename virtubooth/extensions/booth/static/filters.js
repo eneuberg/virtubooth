@@ -15,16 +15,19 @@
 //     uniforms: { u_amount: 0.5 },          // optional: number | [2..4] | vec3 array
 //     overlay(ctx, w, h, info) { ... },     // optional: draw frame/stickers once on a
 //                                           // transparent w×h canvas; info = {partyName, title, date}
-//     cpu(ctx, w, h) { ... },               // optional: Canvas2D fallback (no WebGL). Filters
-//                                           // without it are hidden when WebGL is missing.
+//     cpu(ctx, w, h) { ... },               // optional: Canvas2D fallback (no WebGL) working on
+//                                           // the video already drawn into ctx (w×h)
+//     fallback: true,                       // optional: without cpu, still offer the filter in
+//                                           // Canvas2D mode (plain video + overlay). Filters with
+//                                           // neither are hidden when WebGL is missing.
 //   }
 //
 // Keep patterns in output space (uv * OUT), not screen pixels, so the saved
 // 1080×1440 photo looks exactly like the smaller live preview.
 
 import {
-  FONT, HEART, MONO_FONT, confettiPiece, fitFont, germanDate, outlinedText, pixelSprite, pixelText,
-  roundRectPath, seeded, sticker, star, vcrDate,
+  FONT, HEART, MONO_FONT, confettiPiece, fitFont, germanDate, outlinedText, pixelFontText, pixelSprite,
+  pixelText, roundRectPath, seeded, sticker, star, vcrDate,
 } from './overlays.js';
 
 // ------------------------------------------------------- Canvas2D helpers
@@ -108,10 +111,10 @@ function partyFrame(ctx, w, h, info) {
 function emojiProps(ctx, w, h) {
   const rnd = seeded(42);
   // confetti border: dense at the edges, thinning out towards the middle
-  for (let n = 0; n < 520; n++) {
+  for (let n = 0; n < 300; n++) {
     const edge = Math.floor(rnd() * 4);
     const along = rnd();
-    const depth = Math.pow(rnd(), 2.4) * 190;
+    const depth = Math.pow(rnd(), 2.8) * 170;
     const x = edge === 0 ? depth : edge === 1 ? w - depth : along * w;
     const y = edge === 2 ? depth : edge === 3 ? h - depth : along * h;
     ctx.globalAlpha = 0.75 + rnd() * 0.25;
@@ -171,24 +174,23 @@ function vhsOverlay(ctx, w, h, info) {
   ctx.restore();
 }
 
-const RETRO_CELL = 15; // = 1080 / 72, the Retro-Pixel grid
-
 function retroHud(ctx, w, h, info) {
-  const c = RETRO_CELL;
-  const ink = '#fff1e8';
-  const shade = '#1d2b53';
-  const hud = (text, x, y, align) => {
-    pixelText(ctx, text, x + c, y + c, c / 1.5, shade, { align, px: 9 });
-    pixelText(ctx, text, x, y, c / 1.5, ink, { align, px: 9 });
+  const c = 10; // px per font pixel
+  const hud = (text, x, y, align, color = '#fff1e8') => {
+    pixelText(ctx, text, x + c, y + c, c, '#1d2b53', { align }); // drop shadow
+    pixelText(ctx, text, x, y, c, color, { align });
   };
-  hud('1UP', c * 3, c * 2, 'left');
+  hud('1UP', 50, 50, 'left', '#ff004d');
   for (let i = 0; i < 3; i++) {
-    pixelSprite(ctx, HEART, c * 3 + i * c * 8 + c, c * 7 + c, c, shade);
-    pixelSprite(ctx, HEART, c * 3 + i * c * 8, c * 7, c, '#ff004d');
+    pixelSprite(ctx, HEART, 50 + i * 90 + c, 140 + c, c, '#1d2b53');
+    pixelSprite(ctx, HEART, 50 + i * 90, 140, c, '#ff004d');
   }
-  hud(`HI ${String(info.date.getFullYear()).padStart(6, '0')}`, w - c * 3, c * 2, 'right');
-  const name = info.partyName.toUpperCase().slice(0, 18);
-  hud(name, w / 2, h - c * 9, 'center');
+  hud('HI-SCORE', w - 50, 50, 'right', '#ffa300');
+  hud('999999', w - 50, 140, 'right');
+  const name = pixelFontText(info.partyName) || 'PARTY';
+  const cell = Math.max(6, Math.min(14, Math.floor((w - 100) / (name.length * 6))));
+  pixelText(ctx, name, w / 2 + cell, h - 60 - cell * 7 + cell, cell, '#1d2b53', { align: 'center' });
+  pixelText(ctx, name, w / 2, h - 60 - cell * 7, cell, '#ffec27', { align: 'center' });
 }
 
 function comicOverlay(ctx, w) {
@@ -215,7 +217,6 @@ export const FILTERS = [
   {
     id: 'normal',
     glsl: `vec3 effect(vec2 uv) { return video(uv); }`,
-    cpu: null, // nothing to do; still available in the fallback
     fallback: true,
   },
 
@@ -267,8 +268,8 @@ vec3 effect(vec2 uv) {
   float hue = hsv.x * 360.0;
   float dist = min(abs(hue - 8.0), 360.0 - abs(hue - 8.0));    // distance to red
   float keep = (1.0 - smoothstep(22.0, 40.0, dist))
-             * smoothstep(0.38, 0.55, hsv.y)                  // only strong colours (no skin)
-             * smoothstep(0.12, 0.25, hsv.z);
+             * smoothstep(0.45, 0.62, hsv.y)                  // only strong colours (no skin)
+             * smoothstep(0.25, 0.4, hsv.z);                  // no dark browns (hair)
   vec3 grey = vec3(scurve(luma(c), 0.5));
   return mix(grey, saturation(c, 1.35), keep);
 }`,
@@ -288,7 +289,7 @@ vec3 effect(vec2 uv) {
       if (hue < 0) hue += 360;
       const dist = Math.min(Math.abs(hue - 8), 360 - Math.abs(hue - 8));
       const step = (a, z, v) => smooth(Math.min(1, Math.max(0, (v - a) / (z - a))));
-      const keep = (1 - step(22, 40, dist)) * step(0.38, 0.55, s) * step(0.12, 0.25, max);
+      const keep = (1 - step(22, 40, dist)) * step(0.45, 0.62, s) * step(0.25, 0.4, max);
       let l = lum(d, i) / 255;
       l = (l + (smooth(l) - l) * 0.5) * 255;
       d[i] = l + (d[i] - l) * keep;
@@ -376,7 +377,7 @@ vec3 effect(vec2 uv) {
   // 2x2 ordered dithering
   float b = mod(cell.x, 2.0) + mod(cell.y, 2.0) * 2.0;
   float bayer = b < 0.5 ? 0.0 : b < 1.5 ? 0.5 : b < 2.5 ? 0.75 : 0.25;
-  c += (bayer - 0.375) * 0.14;
+  c += (bayer - 0.375) * 0.08;
   vec3 best = u_palette[0];
   float bestD = 100.0;
   for (int i = 0; i < 16; i++) {
@@ -432,14 +433,20 @@ export function buildFilterList(catalogue, mode) {
   return list;
 }
 
-/** Draw a filter's overlay onto a fresh transparent canvas (null if none). */
-export function drawOverlay(filter, width, height, info) {
+/**
+ * Draw a filter's overlay into `canvas` (cleared first) → canvas, or null if
+ * the filter has none. One canvas is reused: iOS Safari caps total canvas memory.
+ */
+export function drawOverlay(filter, canvas, info) {
   if (!filter.overlay) return null;
-  const canvas = document.createElement('canvas');
-  canvas.width = width;
-  canvas.height = height;
   const ctx = canvas.getContext('2d');
-  filter.overlay(ctx, width, height, info);
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  ctx.globalAlpha = 1;
+  ctx.globalCompositeOperation = 'source-over';
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  ctx.save();
+  filter.overlay(ctx, canvas.width, canvas.height, info);
+  ctx.restore();
   return canvas;
 }
 

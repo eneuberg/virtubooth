@@ -12,6 +12,7 @@ const EXT_ID = 'booth';
 const COUNTDOWN_KEY = 'vb_booth_countdown';
 const COUNTDOWN_SECONDS = 3;
 const JPEG_QUALITY = 0.9;
+const RESULT_TITLES = ['Wie schön! 😍', 'Hammer! 🤩', 'Legendär! 🏆', 'Cover-Material! ✨', 'Zum Einrahmen! 🖼️', 'Party-Ikone! 💃'];
 
 const $ = (id) => document.getElementById(id);
 const els = {
@@ -36,6 +37,7 @@ const els = {
   uploadBar: $('upload-bar'),
   retry: $('upload-retry'),
   save: $('save'),
+  saveLabel: $('save-label'),
   again: $('again'),
 };
 
@@ -46,6 +48,7 @@ const state = {
   renderer: null,
   canvas: null,
   overlayInfo: null,
+  overlayCanvas: null,
   running: false,
   rafId: 0,
   ready: false,
@@ -137,10 +140,12 @@ function selectFilter(index, { announce = true } = {}) {
   const i = ((index % n) + n) % n;
   const filter = state.filters[i];
   try {
-    state.renderer.setFilter(filter, drawOverlay(filter, OUTPUT_W, OUTPUT_H, state.overlayInfo));
+    state.renderer.setFilter(filter, drawOverlay(filter, state.overlayCanvas, state.overlayInfo));
   } catch (err) {
     console.error(err);
     toast('Dieser Filter klappt auf deinem Handy leider nicht.', { type: 'error' });
+    const current = state.filters[state.index];
+    if (current !== filter) drawOverlay(current, state.overlayCanvas, state.overlayInfo); // shared canvas
     return;
   }
   state.index = i;
@@ -160,8 +165,10 @@ function showFilterName(filter) {
   els.name.replaceChildren(label); // a fresh node restarts the animation
 }
 
-function bindSwipe() {
+/** Swipe left/right on the preview = next/previous filter; double tap = flip camera. */
+function bindGestures() {
   let start = null;
+  let lastTap = 0;
   els.frame.addEventListener('pointerdown', (e) => {
     if (!e.isPrimary) return;
     start = { x: e.clientX, y: e.clientY, id: e.pointerId };
@@ -173,8 +180,17 @@ function bindSwipe() {
     start = null;
     if (state.busy || state.shot) return;
     if (Math.abs(dx) > 40 && Math.abs(dx) > Math.abs(dy) * 1.3) {
+      lastTap = 0;
       selectFilter(state.index + (dx < 0 ? 1 : -1));
       vibrate(8);
+    } else if (Math.abs(dx) < 12 && Math.abs(dy) < 12) {
+      const now = performance.now();
+      if (now - lastTap < 320) {
+        lastTap = 0;
+        switchCamera();
+      } else {
+        lastTap = now;
+      }
     }
   });
   els.frame.addEventListener('pointercancel', () => { start = null; });
@@ -273,16 +289,21 @@ async function shoot() {
   updateButtons();
   try {
     if (state.countdown) await runCountdown(COUNTDOWN_SECONDS);
+    // freeze the preview: the frame on screen now is the photo, and the JPEG
+    // encoder (an idle task in Chrome) gets the CPU instead of the render loop
+    stopLoop();
     flash();
     vibrate(40);
-    // the frame that is on screen right now, rendered again at 1080×1440
-    const canvas = state.renderer.capture();
+    const t0 = performance.now();
+    const canvas = state.renderer.capture(); // the last frame again, at 1080×1440
     const filter = state.filters[state.index];
     const blob = await canvasToJpeg(canvas, JPEG_QUALITY);
+    debug('capture', `${Math.round(performance.now() - t0)} ms`, `${Math.round(blob.size / 1024)} KB`);
     showResult({ blob, meta: { filter: filter.id, facing: state.cam.facing } });
   } catch (err) {
     console.error(err);
     toast('Das Foto hat nicht geklappt. Nochmal?', { type: 'error' });
+    startLoop();
   } finally {
     state.busy = false;
     updateButtons();
@@ -296,7 +317,9 @@ function showResult({ blob, meta }) {
   const shot = { blob, meta, url: URL.createObjectURL(blob), status: 'idle', progress: 0, seq: null, error: '', attached: true };
   state.shot = shot;
   els.photo.src = shot.url;
-  els.resultTitle.textContent = 'Wie schön! 😍';
+  els.resultTitle.textContent = RESULT_TITLES[Math.floor(Math.random() * RESULT_TITLES.length)];
+  els.save.dataset.saved = '';
+  els.saveLabel.textContent = 'Speichern';
   els.result.classList.remove('vb-hidden');
   els.booth.dataset.screen = 'result';
   upload(shot);
@@ -335,7 +358,6 @@ function renderUpload(shot) {
     els.uploadText.textContent = `Wird hochgeladen … ${Math.round(shot.progress * 100)} %`;
   } else if (shot.status === 'done') {
     els.uploadText.textContent = `Hochgeladen ✓ · Foto #${shot.seq}`;
-    els.resultTitle.textContent = 'Ab auf die Party-Wand! 🎉';
   } else if (shot.status === 'error') {
     els.uploadText.textContent = `Nicht hochgeladen: ${shot.error}`;
   }
@@ -361,8 +383,10 @@ async function savePhoto() {
   const name = `fotobox-${shot.seq ?? stamp}.jpg`;
   try {
     const how = await saveImage(shot.blob, name);
-    if (how === 'downloaded') toast('Gespeichert 💾', { type: 'success' });
-    else if (how === 'shared') toast('Fertig ✨', { type: 'success' });
+    if (how !== 'cancelled' && state.shot === shot) {
+      els.save.dataset.saved = '1';
+      els.saveLabel.textContent = 'Gespeichert ✓';
+    }
   } catch (err) {
     console.warn('save', err);
     toast('Speichern hat nicht geklappt. Halte das Foto gedrückt und sichere es so.', { type: 'error', ms: 5000 });
@@ -401,7 +425,7 @@ function bindControls() {
   els.save.addEventListener('click', savePhoto);
   els.again.addEventListener('click', backToCamera);
   els.outbox.addEventListener('click', retryOutbox);
-  bindSwipe();
+  bindGestures();
   document.addEventListener('keydown', (e) => {
     if (e.target !== document.body || state.shot) return;
     if (e.key === 'ArrowRight') selectFilter(state.index + 1);
@@ -427,6 +451,7 @@ async function main() {
   document.title = `Fotobox · ${partyName}`;
   state.overlayInfo = { partyName, title: `${partyName} 🎉`, date: new Date() };
 
+  state.overlayCanvas = h('canvas', { width: OUTPUT_W, height: OUTPUT_H });
   setupRenderer(new URLSearchParams(location.search).get('renderer'));
   state.filters = buildFilterList(catalogue.filters, state.renderer.mode);
   buildStrip();

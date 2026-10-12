@@ -102,6 +102,18 @@ export function fragmentSource(filter) {
   return `${PRELUDE}\n// ---- filter: ${filter.id}\n${filter.glsl}\n${MAIN}`;
 }
 
+// One reused canvas for captured photos (iOS Safari caps total canvas memory).
+// It is only valid until the next capture.
+let captured = null;
+function captureCanvas() {
+  if (!captured) {
+    captured = document.createElement('canvas');
+    captured.width = OUTPUT_W;
+    captured.height = OUTPUT_H;
+  }
+  return captured;
+}
+
 // ------------------------------------------------------------------ WebGL
 
 function compileShader(gl, type, source, label) {
@@ -298,9 +310,7 @@ class GLRenderer {
       gl.deleteTexture(target);
       gl.viewport(0, 0, this.canvas.width, this.canvas.height);
     }
-    const out = document.createElement('canvas');
-    out.width = W;
-    out.height = H;
+    const out = captureCanvas();
     out.getContext('2d').putImageData(new ImageData(new Uint8ClampedArray(pixels.buffer), W, H), 0, 0);
     return out;
   }
@@ -351,9 +361,7 @@ class CanvasRenderer {
   }
 
   capture() {
-    const out = document.createElement('canvas');
-    out.width = OUTPUT_W;
-    out.height = OUTPUT_H;
+    const out = captureCanvas();
     this.paint(out.getContext('2d', { willReadFrequently: true }), OUTPUT_W, OUTPUT_H);
     return out;
   }

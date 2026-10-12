@@ -116,31 +116,59 @@ export function vcrDate(date) {
   return `${MONTHS[date.getMonth()]}. ${String(date.getDate()).padStart(2, '0')} ${date.getFullYear()}`;
 }
 
-/**
- * Pixel-font text: rendered tiny, thresholded, then scaled up in `cell`-sized
- * blocks so it matches the Retro-Pixel grid. Works for any string.
- */
-export function pixelText(ctx, text, x, y, cell, color, { align = 'left', px = 8 } = {}) {
-  const tmp = document.createElement('canvas');
-  const t = tmp.getContext('2d', { willReadFrequently: true });
-  t.font = `700 ${px}px ${MONO_FONT}`;
-  const w = Math.ceil(t.measureText(text).width) + 2;
-  const h = px + 4;
-  tmp.width = w;
-  tmp.height = h;
-  t.font = `700 ${px}px ${MONO_FONT}`;
-  t.textBaseline = 'top';
-  t.fillStyle = '#000';
-  t.fillText(text, 1, 1);
-  const data = t.getImageData(0, 0, w, h).data;
-  const left = align === 'right' ? x - w * cell : align === 'center' ? x - (w * cell) / 2 : x;
+// 5×7 pixel font (rows concatenated, '#' = pixel) for the Retro-Pixel HUD
+const PIXEL_FONT = {
+  A: '.###.#...##...#######...##...##...#', B: '####.#...##...#####.#...##...#####.',
+  C: '.###.#...##....#....#....#...#.###.', D: '####.#...##...##...##...##...#####.',
+  E: '######....#....####.#....#....#####', F: '######....#....####.#....#....#....',
+  G: '.###.#...##....#.####...##...#.####', H: '#...##...##...#######...##...##...#',
+  I: '.###...#....#....#....#....#...###.', J: '..###...#....#....#....#.#..#..##..',
+  K: '#...##..#.#.#..##...#.#..#..#.#...#', L: '#....#....#....#....#....#....#####',
+  M: '#...###.###.#.##.#.##...##...##...#', N: '#...##...###..##.#.##..###...##...#',
+  O: '.###.#...##...##...##...##...#.###.', P: '####.#...##...#####.#....#....#....',
+  Q: '.###.#...##...##...##.#.##..#..##.#', R: '####.#...##...#####.#.#..#..#.#...#',
+  S: '.#####....#.....###.....#....#####.', T: '#####..#....#....#....#....#....#..',
+  U: '#...##...##...##...##...##...#.###.', V: '#...##...##...##...##...#.#.#...#..',
+  W: '#...##...##...##.#.##.#.##.#.#.#.#.', X: '#...##...#.#.#...#...#.#.#...##...#',
+  Y: '#...##...#.#.#...#....#....#....#..', Z: '#####....#...#...#...#...#....#####',
+  0: '.###.#...##..###.#.###..##...#.###.', 1: '..#...##....#....#....#....#...###.',
+  2: '.###.#...#....#...#...#...#...#####', 3: '#####...#...#.....#.....##...#.###.',
+  4: '...#...##..#.#.#..#.#####...#....#.', 5: '######....####.....#....##...#.###.',
+  6: '..##..#...#....####.#...##...#.###.', 7: '#####....#...#...#...#....#....#...',
+  8: '.###.#...##...#.###.#...##...#.###.', 9: '.###.#...##...#.####....#...#..##..',
+  '!': '..#....#....#....#....#.........#..', '?': '.###.#...#....#...#...#.........#..',
+  '-': '...............#####...............', '.': '..........................##...##..',
+  ':': '......##...##.........##...##......', "'": '..#....#...#.......................',
+  '&': '.##..#..#.#.#...#...#.#.##..#..##.#', '#': '.#.#..#.#.#####.#.#.#####.#.#..#.#.',
+  '+': '.......#....#..#####..#....#.......', ' ': '...................................',
+};
+const TRANSLIT = { Ä: 'AE', Ö: 'OE', Ü: 'UE', ß: 'SS', É: 'E', È: 'E', À: 'A' };
+
+export function pixelFontText(text) {
+  return [...text.toUpperCase()].map((ch) => TRANSLIT[ch] ?? ch).join('')
+    .split('').filter((ch) => PIXEL_FONT[ch]).join('').replace(/\s+/g, ' ').trim();
+}
+
+/** Width in px of pixelText() for `text` at `cell` px per font pixel. */
+export function pixelTextWidth(text, cell) {
+  const n = pixelFontText(text).length;
+  return n ? (n * 6 - 1) * cell : 0;
+}
+
+/** Text in the 5×7 pixel font; `align` is relative to x. Returns the width. */
+export function pixelText(ctx, text, x, y, cell, color, { align = 'left' } = {}) {
+  const chars = pixelFontText(text);
+  const width = pixelTextWidth(chars, cell);
+  let left = align === 'right' ? x - width : align === 'center' ? x - width / 2 : x;
+  left = Math.round(left);
   ctx.fillStyle = color;
-  for (let j = 0; j < h; j++) {
-    for (let i = 0; i < w; i++) {
-      if (data[(j * w + i) * 4 + 3] > 110) ctx.fillRect(left + i * cell, y + j * cell, cell, cell);
+  [...chars].forEach((ch, k) => {
+    const glyph = PIXEL_FONT[ch];
+    for (let i = 0; i < 35; i++) {
+      if (glyph[i] === '#') ctx.fillRect(left + (k * 6 + (i % 5)) * cell, y + Math.floor(i / 5) * cell, cell, cell);
     }
-  }
-  return w * cell;
+  });
+  return width;
 }
 
 /** Draw a bitmap ('#' = pixel) in cell-sized blocks. */
