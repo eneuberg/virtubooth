@@ -1,0 +1,19 @@
+# Allowlist: the image only needs the lockfile, the project metadata and the
+# package. Everything else (.git, .venv, .worktrees, data/, exports, tests/,
+# docs/, .env and other secrets, caches) stays out of the build context.
+*
+!pyproject.toml
+!uv.lock
+!README.md
+!virtubooth/
+
+# never ship caches or local runtime data that ended up inside the package
+**/__pycache__
+**/*.py[cod]
+**/.pytest_cache
+**/.DS_Store
+**/*.db
+**/*.db-wal
+**/*.db-shm
+**/.env
+**/*.env
