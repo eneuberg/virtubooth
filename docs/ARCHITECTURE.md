@@ -14,7 +14,7 @@ virtubooth/
 ├── deps.py           FastAPI dependencies: require_access / require_guest / require_admin
 ├── security.py       cookies, signing, CSRF origin check, security headers
 ├── middleware.py     ?t= token entry, CSRF guard, API rate limit, headers
-├── identity.py       /api/identify, /api/consent, PATCH /api/me
+├── identity.py       /api/identify, /api/join, PATCH /api/me
 ├── admin_auth.py     /api/admin/login|logout|session
 ├── uploads.py        POST /api/x/<ext>/upload (generic pipeline)
 ├── media.py          GET /media/<photo id> (owner or admin only)
@@ -32,7 +32,7 @@ virtubooth/
 
 | Who | How | What |
 |---|---|---|
-| Party guest | scans QR `https://host/<path>?t=<VB_PARTY_TOKEN>` → middleware sets `vb_access` cookie (HMAC of the token, HttpOnly, SameSite=Lax) and 303-redirects to the same URL without `t` | pages, `/api/identify`, `/api/consent` |
+| Party guest | scans QR `https://host/<path>?t=<VB_PARTY_TOKEN>` → middleware sets `vb_access` cookie (HMAC of the token, HttpOnly, SameSite=Lax) and 303-redirects to the same URL without `t` | pages, `/api/identify`, `/api/join` |
 | Identified guest | accepted the consent banner → `vb_uid` cookie (signed random public id) + localStorage copy | uploads, own photos, `PATCH /api/me` |
 | Admin | `POST /api/admin/login` with `VB_ADMIN_PASSWORD` → `vb_admin` cookie (random token, SHA-256 stored in DB, SameSite=Strict, expires, dies on logout or password change) | `/admin/*` pages, `/api/admin/*`, all media |
 
@@ -56,7 +56,7 @@ There is no registration. Every page calls `boot()` from the SDK:
    "needs_consent", consent}`.
 2. Unknown devices see the consent banner (store photos, post on Instagram,
    device recognition; optional Instagram handle). There is no "no" button:
-   declining means not using the site. Accepting → `POST /api/consent` creates
+   declining means not using the site. Accepting → `POST /api/join` creates
    a pseudonymous user (`users` row, name like "Tanzender Waschbär #17").
 3. The browser fingerprint (`device.js`: canvas, WebGL renderer, screen,
    timezone, UA, …) is stored per user, history in `user_fingerprints`.

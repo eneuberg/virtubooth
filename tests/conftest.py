@@ -126,7 +126,7 @@ def scan(client: TestClient, path: str = "/") -> None:
 
 def accept_consent(client: TestClient, *, instagram: str | None = None, fp_n: int = 1) -> dict:
     r = client.post(
-        "/api/consent",
+        "/api/join",
         json={"accept": True, "version": "1", "instagram": instagram, "fp": fp(fp_n)},
         headers=ORIGIN,
     )

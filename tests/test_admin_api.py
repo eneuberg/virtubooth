@@ -27,8 +27,8 @@ ROUTES = [
     ("GET", "/api/admin/users/1", None),
     ("POST", "/api/admin/users/1/ban", {"reason": "x", "fingerprint": True}),
     ("POST", "/api/admin/users/1/unban", None),
-    ("GET", "/api/admin/fingerprint-bans", None),
-    ("DELETE", f"/api/admin/fingerprint-bans/{FP}", None),
+    ("GET", "/api/admin/device-bans", None),
+    ("DELETE", f"/api/admin/device-bans/{FP}", None),
     ("GET", "/api/admin/stats", None),
     ("GET", "/api/admin/instagram", None),
     ("GET", "/api/admin/audit", None),
@@ -110,7 +110,7 @@ def test_invalid_ids_rejected(admin):
     assert admin.get("/api/admin/users/abc").status_code == 422
     assert admin.get("/api/admin/users/0").status_code == 422
     assert admin.get("/api/admin/users/-1").status_code == 422
-    assert admin.delete("/api/admin/fingerprint-bans/NOTHEX", headers=ORIGIN).status_code == 422
+    assert admin.delete("/api/admin/device-bans/NOTHEX", headers=ORIGIN).status_code == 422
     assert admin.get("/api/admin/photos?user_id=abc").status_code == 400
     assert admin.get("/api/admin/photos?extension=../x").status_code == 400
     assert admin.get("/api/admin/photos?hidden=maybe").status_code == 400
@@ -128,7 +128,7 @@ def test_unknown_things_404(admin):
     assert admin.get("/api/admin/users/999").status_code == 404
     assert admin.post("/api/admin/users/999/ban", json={}, headers=ORIGIN).status_code == 404
     assert admin.post("/api/admin/users/999/unban", headers=ORIGIN).status_code == 404
-    assert admin.delete(f"/api/admin/fingerprint-bans/{FP}", headers=ORIGIN).status_code == 404
+    assert admin.delete(f"/api/admin/device-bans/{FP}", headers=ORIGIN).status_code == 404
 
 
 # ------------------------------------------------------------------ photos
@@ -378,7 +378,7 @@ def test_fingerprint_ban_catches_new_guest_with_same_fp(admin, guest, make_clien
         headers=ORIGIN,
     )
     assert r.json()["fingerprint_banned"] is True
-    bans = admin.get("/api/admin/fingerprint-bans").json()["bans"]
+    bans = admin.get("/api/admin/device-bans").json()["bans"]
     assert len(bans) == 1
     assert bans[0]["fp_hash"] == fp(7)["hash"] and bans[0]["reason"] == "Ärger"
     assert bans[0]["source_user_id"] == user.id and bans[0]["source_user_name"] == user.name
@@ -388,7 +388,7 @@ def test_fingerprint_ban_catches_new_guest_with_same_fp(admin, guest, make_clien
     evader = make_client()
     scan(evader)
     r = evader.post(
-        "/api/consent",
+        "/api/join",
         json={"accept": True, "version": "1", "fp": fp(7)},
         headers=ORIGIN,
     )
@@ -401,13 +401,13 @@ def test_fingerprint_ban_catches_new_guest_with_same_fp(admin, guest, make_clien
     assert detail["fingerprints"][0]["banned"] is True
     assert len(detail["fingerprints"][0]["users"]) == 1  # the evader
 
-    r = admin.delete(f"/api/admin/fingerprint-bans/{fp(7)['hash']}", headers=ORIGIN)
+    r = admin.delete(f"/api/admin/device-bans/{fp(7)['hash']}", headers=ORIGIN)
     assert r.status_code == 200
-    assert admin.get("/api/admin/fingerprint-bans").json()["bans"] == []
+    assert admin.get("/api/admin/device-bans").json()["bans"] == []
     newcomer = make_client()
     scan(newcomer)
     r = newcomer.post(
-        "/api/consent", json={"accept": True, "version": "1", "fp": fp(7)}, headers=ORIGIN
+        "/api/join", json={"accept": True, "version": "1", "fp": fp(7)}, headers=ORIGIN
     )
     assert r.json()["state"] == "ok"
     actions = {e["action"] for e in core.repo.list_audit()}
@@ -553,7 +553,7 @@ def test_mutations_publish_events(admin, guest, core):
         admin.post(f"/api/admin/photos/{pid}/unhide", headers=ORIGIN)
         admin.post(f"/api/admin/users/{user.id}/ban", json={"fingerprint": True}, headers=ORIGIN)
         admin.post(f"/api/admin/users/{user.id}/unban", headers=ORIGIN)
-        admin.delete(f"/api/admin/fingerprint-bans/{fp(1)['hash']}", headers=ORIGIN)
+        admin.delete(f"/api/admin/device-bans/{fp(1)['hash']}", headers=ORIGIN)
         admin.delete(f"/api/admin/photos/{pid}", headers=ORIGIN)
 
     events = _collect_events(core, act, 7)

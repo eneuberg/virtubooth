@@ -153,7 +153,7 @@ def test_fingerprint_ban_catches_new_identity(make_client, guest, core):
     c = make_client()
     scan(c)
     r = c.post(
-        "/api/consent",
+        "/api/join",
         json={"accept": True, "version": "1", "fp": {"hash": f"{7:064x}", "components": {}}},
         headers=ORIGIN,
     )

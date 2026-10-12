@@ -68,7 +68,7 @@ def test_identify_consent_flow(client, core):
     assert "@testparty" in " ".join(body["consent"]["paragraphs"])
 
     r = client.post(
-        "/api/consent",
+        "/api/join",
         json={"accept": True, "version": "1", "instagram": "@Party.Animal", "fp": fp()},
         headers=ORIGIN,
     )
@@ -86,21 +86,21 @@ def test_identify_consent_flow(client, core):
 
 def test_consent_requires_accept_true(client):
     scan(client)
-    r = client.post("/api/consent", json={"accept": False, "version": "1"}, headers=ORIGIN)
+    r = client.post("/api/join", json={"accept": False, "version": "1"}, headers=ORIGIN)
     assert r.status_code == 422
 
 
 def test_consent_requires_a_fingerprint(client, core):
     """Leaving the fingerprint out must not skip the fingerprint-ban check."""
     scan(client)
-    r = client.post("/api/consent", json={"accept": True, "version": "1"}, headers=ORIGIN)
+    r = client.post("/api/join", json={"accept": True, "version": "1"}, headers=ORIGIN)
     assert r.status_code == 422
     assert core.repo.list_users() == []
 
 
 def test_consent_version_mismatch(client):
     scan(client)
-    r = client.post("/api/consent", json={"accept": True, "version": "0", "fp": fp()}, headers=ORIGIN)
+    r = client.post("/api/join", json={"accept": True, "version": "0", "fp": fp()}, headers=ORIGIN)
     assert r.status_code == 409
     assert r.json()["error"] == "consent_outdated"
 
@@ -174,7 +174,7 @@ def test_new_user_rate_limit(make_client, core):
         accept_consent(c)
     c = make_client()
     scan(c)
-    r = c.post("/api/consent", json={"accept": True, "version": "1", "fp": fp()}, headers=ORIGIN)
+    r = c.post("/api/join", json={"accept": True, "version": "1", "fp": fp()}, headers=ORIGIN)
     assert r.status_code == 429
     assert "retry-after" in r.headers
 

@@ -2,7 +2,7 @@
 
 There is no registration. A browser that scanned the party QR code calls
 /api/identify on every page load. Unknown devices get the consent text back; once
-the guest accepts it, /api/consent creates a pseudonymous user and pins it to the
+the guest accepts it, /api/join creates a pseudonymous user and pins it to the
 device with a signed cookie (plus a localStorage copy as a fallback). A browser
 fingerprint is recorded as a moderation hint (see repo.users_sharing_fingerprint).
 """
@@ -135,7 +135,7 @@ def identify(body: IdentifyIn, request: Request, core: Core = Depends(get_core))
     return _identified(request, core, user)
 
 
-@router.post("/consent", dependencies=[Depends(require_access)])
+@router.post("/join", dependencies=[Depends(require_access)])
 def consent(body: ConsentIn, request: Request, core: Core = Depends(get_core)) -> JSONResponse:
     existing = guest_from_cookie(request, core)
     if existing is not None:

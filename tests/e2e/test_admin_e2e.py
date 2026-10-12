@@ -54,7 +54,7 @@ class Guest:
         r = self.client.get(live.entry("/"))
         assert r.status_code == 303, r.text
         r = self.client.post(
-            "/api/consent",
+            "/api/join",
             json={"accept": True, "version": "1", "instagram": instagram, "fp": fp(fp_n)},
             headers={"Origin": live.base_url},
         )

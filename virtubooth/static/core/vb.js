@@ -211,7 +211,7 @@ function askConsent(consent, fp) {
       accept.disabled = true;
       errorEl.textContent = '';
       try {
-        const res = await api('/api/consent', {
+        const res = await api('/api/join', {
           method: 'POST',
           json: { accept: true, version: consent.version, instagram: input.value.trim() || null, fp },
         });
