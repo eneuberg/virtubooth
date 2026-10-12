@@ -36,9 +36,14 @@ export function cameraErrorMessage(err) {
     return 'Die Kamera funktioniert nur über eine sichere Verbindung (https).';
   }
   if (name === 'NotAllowedError' || name === 'SecurityError') {
-    return isIOS()
-      ? 'Kamera-Zugriff wurde verweigert. Tippe in der Adressleiste auf „aA“ › Website-Einstellungen › Kamera › Erlauben und lade die Seite neu.'
-      : 'Kamera-Zugriff wurde verweigert. Tippe auf das Schloss in der Adressleiste, erlaube die Kamera und lade die Seite neu.';
+    if (isIOS()) {
+      return 'Kamera-Zugriff wurde verweigert. Tippe in der Adressleiste auf „aA“ › Website-Einstellungen › Kamera › Erlauben und lade die Seite neu.';
+    }
+    // PC (Firefox, Chrome, Edge): a crossed-out camera icon sits in the address bar
+    const touch = navigator.maxTouchPoints > 0 || !!(window.matchMedia && matchMedia('(any-pointer: coarse)').matches);
+    return touch
+      ? 'Kamera-Zugriff wurde verweigert. Tippe auf das Schloss in der Adressleiste, erlaube die Kamera und lade die Seite neu.'
+      : 'Kamera-Zugriff wurde verweigert. Klick in der Adressleiste auf das Kamera-Symbol, erlaube die Kamera und lade die Seite neu.';
   }
   if (name === 'NotFoundError' || name === 'OverconstrainedError') {
     return 'Keine passende Kamera gefunden.';
