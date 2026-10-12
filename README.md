@@ -417,7 +417,7 @@ Full contract, example and SDK reference:
 ```
 virtubooth/
 ├── app.py, config.py, ...   core: settings, access, identity, uploads, media, events
-├── static/core/             frontend SDK (vb.js, camera.js, fingerprint.js, vb.css) + home page
+├── static/core/             frontend SDK (vb.js, camera.js, device.js, loader.js, vb.css) + home page
 ├── admin/                   admin API + admin UI
 ├── extensions/              one package per activity: beer/, booth/, ...
 └── tools/                   CLI tools: timelapse, qr, export

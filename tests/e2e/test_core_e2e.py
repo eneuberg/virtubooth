@@ -92,3 +92,35 @@ def test_edit_instagram_from_chip(guest_page, live):
     guest_page.get_by_role("button", name="Speichern").click()
     expect(guest_page.get_by_test_id("user-chip")).to_contain_text("new.name")
     assert live.core.repo.list_users()[0].instagram == "new.name"
+
+
+def test_blocked_device_module_does_not_break_the_page(page, live):
+    """Content blockers drop URLs that look like tracking. An optional module
+    failing must not stop the page; consent still works with a coarse fallback."""
+    page.route("**/static/core/device.js", lambda route: route.abort("blockedbyclient"))
+    page.goto(live.entry("/"))
+    accept_consent_in_browser(page)
+    page.get_by_test_id("tile-probe").wait_for()
+    user = live.core.repo.list_users()[0]
+    assert user.fp_components.get("fallback") is True and len(user.fp_hash) == 64
+
+
+def test_blocked_sdk_shows_a_hint_instead_of_nothing(page, live):
+    page.route("**/static/core/vb.js", lambda route: route.abort("blockedbyclient"))
+    page.goto(live.entry("/"))
+    expect(page.get_by_test_id("load-failed")).to_be_visible(timeout=10000)
+    expect(page.get_by_test_id("load-failed")).to_contain_text("Blocker")
+
+
+def test_static_file_names_avoid_blocker_keywords():
+    """Filter lists block paths with words like these; keep served files neutral."""
+    import re
+
+    from virtubooth.pages import STATIC_DIR
+
+    bad = re.compile(r"fingerprint|track|analytic|telemetry|beacon|pixel|advert|banner|ads?[-_./]", re.I)
+    roots = [STATIC_DIR, STATIC_DIR.parent / "admin" / "static", STATIC_DIR.parent / "extensions"]
+    served = [f for root in roots for f in root.rglob("*") if f.is_file() and f.suffix in {".js", ".css", ".html", ".json", ".svg"}]
+    assert served
+    offenders = [str(f) for f in served if bad.search(f.name)]
+    assert offenders == []

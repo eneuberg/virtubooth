@@ -5,6 +5,8 @@ via VB_FAKE_VIDEO). Run with `uv run pytest -m e2e`.
 `VB_E2E_BROWSER=webkit` runs the same tests in WebKit (Safari's engine, with
 an iPhone user agent and WebKit's mock camera). WebKit needs system libraries,
 so use tests/e2e/run_webkit.sh, which runs inside the Playwright Docker image.
+`VB_E2E_BROWSER=firefox` runs them in Firefox (fake camera via prefs; Firefox
+has no mobile emulation, so it is a touch-enabled narrow desktop window).
 
     @pytest.mark.e2e
     def test_page(guest_page, live):
@@ -37,6 +39,11 @@ BROWSER_NAME = os.environ.get("VB_E2E_BROWSER", "chromium")
 # for tests that need Chromium-only tooling (CDP, clipboard permissions, mouse wheel)
 chromium_only = pytest.mark.skipif(BROWSER_NAME != "chromium", reason="needs Chromium-only test tooling")
 
+FIREFOX_PREFS = {
+    "media.navigator.streams.fake": True,
+    "media.navigator.permission.disabled": True,
+}
+
 MOBILE = {
     "viewport": {"width": 390, "height": 844},
     "device_scale_factor": 2,
@@ -48,6 +55,11 @@ MOBILE = {
     ),
 }
 
+
+FIREFOX = {
+    "viewport": {"width": 390, "height": 844},
+    "has_touch": True,
+}
 
 IPHONE = {
     "viewport": {"width": 390, "height": 844},
@@ -119,15 +131,24 @@ def browser() -> Iterator[Browser]:
     if fake_video:
         args.append(f"--use-file-for-fake-video-capture={fake_video}")
     with sync_playwright() as p:
-        b = p.webkit.launch() if BROWSER_NAME == "webkit" else p.chromium.launch(args=args)
+        if BROWSER_NAME == "webkit":
+            b = p.webkit.launch()
+        elif BROWSER_NAME == "firefox":
+            b = p.firefox.launch(firefox_user_prefs=FIREFOX_PREFS)
+        else:
+            b = p.chromium.launch(args=args)
         yield b
         b.close()
 
 
 @pytest.fixture
 def context(browser: Browser, live: LiveServer) -> Iterator[BrowserContext]:
-    device = IPHONE if BROWSER_NAME == "webkit" else MOBILE
-    ctx = browser.new_context(**device, permissions=["camera"])
+    if BROWSER_NAME == "firefox":
+        # camera access comes from FIREFOX_PREFS; Firefox has no "camera" permission grant
+        ctx = browser.new_context(**FIREFOX)
+    else:
+        device = IPHONE if BROWSER_NAME == "webkit" else MOBILE
+        ctx = browser.new_context(**device, permissions=["camera"])
     yield ctx
     ctx.close()
 

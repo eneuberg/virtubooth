@@ -6,13 +6,50 @@
 //
 // Rules for pages (CSP): no inline <script>/<style>, no style="" attributes,
 // no on*="" handlers. Build DOM with h() or textContent, never innerHTML with data.
-
-import { getFingerprint } from './fingerprint.js';
+//
+// Keep static imports to what the page can't run without, and keep file names
+// neutral: content blockers drop URLs that look like tracking ("fingerprint",
+// "analytics", ...), and one failed static import stops every module on the page.
 
 export { openCamera, captureFrame, CameraError, cameraErrorMessage, isIOS, isInAppBrowser } from './camera.js';
-export { getFingerprint };
+
+// tells loader.js that the page's modules started
+window.__vbReady = true;
 
 const UID_KEY = 'vb_uid';
+
+/**
+ * Device traits for moderation (see device.js). Loaded on demand so a blocked
+ * or failing optional module can never stop the page; falls back to a coarse
+ * hash of what every browser exposes.
+ */
+export async function getFingerprint() {
+  try {
+    const mod = await import('./device.js');
+    return await mod.getFingerprint();
+  } catch (err) {
+    debug('device traits unavailable', String(err));
+    const s = window.screen || {};
+    const ua = navigator.userAgent;
+    const basic = [ua, navigator.language, `${s.width}x${s.height}@${window.devicePixelRatio || 1}`,
+      Intl.DateTimeFormat().resolvedOptions().timeZone || ''].join('|');
+    return { hash: await sha256Hex(basic), components: { ua, fallback: true } };
+  }
+}
+
+async function sha256Hex(text) {
+  if (window.crypto && crypto.subtle) {
+    const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(text));
+    return [...new Uint8Array(buf)].map((b) => b.toString(16).padStart(2, '0')).join('');
+  }
+  let h1 = 0x811c9dc5, h2 = 0x5bd1e995;
+  for (let i = 0; i < text.length; i++) {
+    const c = text.charCodeAt(i);
+    h1 = Math.imul(h1 ^ c, 0x01000193) >>> 0;
+    h2 = Math.imul(h2 ^ c, 0x5bd1e995) >>> 0;
+  }
+  return (h1.toString(16).padStart(8, '0') + h2.toString(16).padStart(8, '0')).repeat(4);
+}
 
 // ------------------------------------------------------------------ DOM
 
@@ -137,7 +174,7 @@ function setUser(user) {
  * Resolves { user, banned }. A banned device sees a notice; uploads will fail.
  */
 export async function boot({ showBannedNotice = true } = {}) {
-  const fp = await getFingerprint().catch(() => null);
+  const fp = await getFingerprint();
   debug('fp', fp && fp.hash.slice(0, 12));
   let res = await api('/api/identify', { method: 'POST', json: { fp, uid: storageGet(UID_KEY) } });
   if (res.state === 'needs_consent') {

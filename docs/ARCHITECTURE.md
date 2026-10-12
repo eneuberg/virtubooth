@@ -22,7 +22,7 @@ virtubooth/
 ├── events.py         EventBus + sse_response()
 ├── images.py         JPEG validation + re-encode + thumbnail
 ├── names.py          pseudonyms ("Durstige Giraffe #17")
-├── static/core/      frontend SDK: vb.js, camera.js, fingerprint.js, vb.css, home
+├── static/core/      frontend SDK: vb.js, camera.js, device.js, loader.js, vb.css, home
 ├── admin/            admin API (api.py) + admin UI (static/)
 ├── extensions/       one package per activity (beer, booth, …)
 └── tools/            CLI tools: timelapse, qr, export
@@ -58,7 +58,7 @@ There is no registration. Every page calls `boot()` from the SDK:
    device recognition; optional Instagram handle). There is no "no" button:
    declining means not using the site. Accepting → `POST /api/consent` creates
    a pseudonymous user (`users` row, name like "Tanzender Waschbär #17").
-3. The browser fingerprint (`fingerprint.js`: canvas, WebGL renderer, screen,
+3. The browser fingerprint (`device.js`: canvas, WebGL renderer, screen,
    timezone, UA, …) is stored per user, history in `user_fingerprints`.
    **It is a moderation hint, not an identity:** identical phone models often
    share a fingerprint. Admins can ban a user (by device id) and, separately
@@ -126,7 +126,18 @@ Core publishes `photo.created` (`{"photo": photo.admin_view()}`) and
 
 ## Frontend SDK (`/static/core/vb.js`)
 
-Every page links `/static/core/vb.css` and loads its own ES module. Main API:
+Every page links `/static/core/vb.css`, includes
+`<script src="/static/core/loader.js" defer></script>` (shows a hint if the
+page's modules never start) and loads its own ES module.
+
+**Content blockers:** uBlock, AdGuard, Brave and iOS content blockers drop
+URLs that look like tracking. One failed static import stops every module on
+the page, silently. So: neutral file and API path names (no "fingerprint",
+"track", "analytics", "beacon", "pixel", "ads", ...; a test checks the file
+names), and load optional modules with a dynamic `import()` inside
+`try/catch`.
+
+Main API:
 
 | Export | Purpose |
 |---|---|

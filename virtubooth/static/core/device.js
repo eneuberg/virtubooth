@@ -1,4 +1,5 @@
-// Browser fingerprint: a stable-ish hash of device traits.
+// Device traits ("fingerprint"): a stable-ish hash of the device.
+// Loaded via vb.js getFingerprint(); the file name stays neutral on purpose.
 // Used only as a moderation hint (recognise a device that lost its cookie).
 // Identical phone models often share a fingerprint, so it never identifies
 // a person on its own.
