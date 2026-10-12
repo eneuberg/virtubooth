@@ -17,6 +17,7 @@ from virtubooth.extension import Extension, UploadPolicy
 from virtubooth.ratelimit import RateLimiter
 
 from ..conftest import ADMIN_PASSWORD, fp, jpeg
+from .conftest import chromium_only
 
 pytestmark = pytest.mark.e2e
 
@@ -98,7 +99,7 @@ def guests(live):
 def track_errors(page: Page) -> Page:
     errors: list[str] = []
     page.on("pageerror", lambda exc: errors.append(str(exc)))
-    page.on("console", lambda msg: errors.append(msg.text) if msg.type == "error" else None)
+    page.on("console", lambda msg: errors.append(f"{msg.text} @ {msg.location.get('url', '')}") if msg.type == "error" else None)
     page.js_errors = errors  # type: ignore[attr-defined]
     return page
 
@@ -119,7 +120,7 @@ def real_errors(page: Page) -> list[str]:
 
 
 def login_api(page: Page, live) -> None:
-    page.goto(live.url("/healthz"))
+    page.goto(live.url("/admin/login"))
     status = page.evaluate(
         """async (pw) => (await fetch('/api/admin/login', {method: 'POST',
             headers: {'Content-Type': 'application/json'}, body: JSON.stringify({password: pw})})).status""",
@@ -380,6 +381,7 @@ def test_manage_bulk_and_filters(desktop_page, live, guests):
     assert page.js_errors == []
 
 
+@chromium_only
 def test_manage_lightbox_download_and_copy(desktop_page, live, guests):
     page = desktop_page
     page.context.grant_permissions(["clipboard-read", "clipboard-write"])
@@ -403,6 +405,7 @@ def test_manage_lightbox_download_and_copy(desktop_page, live, guests):
     assert page.js_errors == []
 
 
+@chromium_only
 def test_manage_tabs(desktop_page, live, guests):
     page = desktop_page
     page.context.grant_permissions(["clipboard-read", "clipboard-write"])
@@ -586,6 +589,7 @@ def test_back_button_closes_lightbox(admin_page, live, guests):
     assert page.js_errors == []
 
 
+@chromium_only
 def test_infinite_scroll_loads_older_photos(admin_page, desktop_page, live, guests):
     live.core.limits.upload_user = RateLimiter(1000, 60)
     g = guests()

@@ -23,7 +23,7 @@ from virtubooth.extension import discover_extensions
 from virtubooth.extensions.booth import FILTERS
 from virtubooth.repo import PhotoQuery
 
-from .conftest import accept_consent_in_browser
+from .conftest import accept_consent_in_browser, chromium_only
 
 pytestmark = pytest.mark.e2e
 
@@ -148,6 +148,7 @@ def test_every_filter_compiles_and_renders(guest_page, live):
     assert guest_page.js_errors == []
 
 
+@chromium_only
 def test_switch_filters_by_tap_and_swipe(guest_page, live):
     open_booth(guest_page, live)
     booth = guest_page.get_by_test_id("booth")
@@ -245,8 +246,12 @@ def test_party_frame_differs_at_the_border(guest_page, live):
     assert guest_page.js_errors == []
 
 
+@chromium_only
 def test_photo_is_exactly_the_preview(guest_page, live):
-    """The capture re-renders the frame on screen at 1080×1440: same video frame,
+    """WebKit discards a paused WebGL canvas after compositing, so the screenshot
+    side of this comparison only works in Chromium; WebKit runs check the stored photo.
+
+    The capture re-renders the frame on screen at 1080×1440: same video frame,
     same mirroring, same overlay. Compare the frozen preview with the stored photo."""
     open_booth(guest_page, live)
     select(guest_page, "party")
@@ -355,8 +360,11 @@ def test_double_tap_flips_the_camera(guest_page, live):
     assert guest_page.js_errors == []
 
 
-DENY_CAMERA = """navigator.mediaDevices.getUserMedia = () =>
-    Promise.reject(new DOMException('Permission denied', 'NotAllowedError'));"""
+# defined on the prototype: plain assignment doesn't stick in WebKit
+DENY_CAMERA = """Object.defineProperty(MediaDevices.prototype, 'getUserMedia', {
+    configurable: true,
+    value: () => Promise.reject(new DOMException('Permission denied', 'NotAllowedError')),
+});"""
 
 
 def test_camera_denied_shows_a_german_notice(guest_page, live):

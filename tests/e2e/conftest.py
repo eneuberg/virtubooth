@@ -34,6 +34,9 @@ from ..conftest import ADMIN_PASSWORD, PARTY_TOKEN, SECRET_KEY
 
 BROWSER_NAME = os.environ.get("VB_E2E_BROWSER", "chromium")
 
+# for tests that need Chromium-only tooling (CDP, clipboard permissions, mouse wheel)
+chromium_only = pytest.mark.skipif(BROWSER_NAME != "chromium", reason="needs Chromium-only test tooling")
+
 MOBILE = {
     "viewport": {"width": 390, "height": 844},
     "device_scale_factor": 2,
@@ -134,7 +137,7 @@ def page(context: BrowserContext) -> Iterator[Page]:
     p = context.new_page()
     errors: list[str] = []
     p.on("pageerror", lambda exc: errors.append(str(exc)))
-    p.on("console", lambda msg: errors.append(msg.text) if msg.type == "error" else None)
+    p.on("console", lambda msg: errors.append(f"{msg.text} @ {msg.location.get('url', '')}") if msg.type == "error" else None)
     p.js_errors = errors  # type: ignore[attr-defined]
     yield p
 
@@ -161,9 +164,9 @@ def admin_page(context: BrowserContext, live: LiveServer) -> Page:
     p = context.new_page()
     errors: list[str] = []
     p.on("pageerror", lambda exc: errors.append(str(exc)))
-    p.on("console", lambda msg: errors.append(msg.text) if msg.type == "error" else None)
+    p.on("console", lambda msg: errors.append(f"{msg.text} @ {msg.location.get('url', '')}") if msg.type == "error" else None)
     p.js_errors = errors  # type: ignore[attr-defined]
-    p.goto(live.url("/healthz"))
+    p.goto(live.url("/admin/login"))  # a real page: WebKit styles JSON views inline, which the CSP blocks
     status = p.evaluate(
         """async (pw) => (await fetch('/api/admin/login', {method: 'POST',
             headers: {'Content-Type': 'application/json'}, body: JSON.stringify({password: pw})})).status""",

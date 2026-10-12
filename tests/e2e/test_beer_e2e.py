@@ -17,7 +17,7 @@ from playwright.sync_api import Page, expect
 from virtubooth.extension import discover_extensions
 from virtubooth.repo import PhotoQuery
 
-from .conftest import MOBILE, accept_consent_in_browser
+from .conftest import BROWSER_NAME, MOBILE, accept_consent_in_browser
 
 pytestmark = pytest.mark.e2e
 
@@ -189,7 +189,9 @@ def test_upload_error_then_retry_same_blob(guest_page, live):
 
     page.get_by_test_id("retry").click()
     expect_success(page, 1)
-    assert len(sizes) == 2 and sizes[0] == sizes[1] > 10_000  # the very same JPEG again
+    assert len(sizes) == 2
+    if BROWSER_NAME == "chromium":  # WebKit doesn't expose Blob request bodies to routes
+        assert sizes[0] == sizes[1] > 10_000  # the very same JPEG again
     assert len(beer_photos(live)) == 1
     # the 429 shows up as a console error ("Failed to load resource"); nothing else may
     assert [e for e in page.js_errors if "429" not in e] == []
@@ -210,8 +212,10 @@ def test_discard_after_error_returns_to_camera(guest_page, live):
 def test_camera_denied_shows_notice(guest_page, live):
     page = guest_page
     page.add_init_script(
-        """navigator.mediaDevices.getUserMedia = () =>
-             Promise.reject(new DOMException('denied', 'NotAllowedError'));"""
+        """Object.defineProperty(MediaDevices.prototype, 'getUserMedia', {
+             configurable: true,
+             value: () => Promise.reject(new DOMException('denied', 'NotAllowedError')),
+           });"""
     )
     page.goto(live.url("/x/beer/"))
     notice = page.locator(".vb-notice")
