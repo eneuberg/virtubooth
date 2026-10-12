@@ -309,7 +309,7 @@ export function confirmDialog({ title, text, confirm = 'OK', cancel = 'Abbrechen
       class: `vb-btn ${danger ? 'vb-btn--danger' : 'vb-btn--primary'} vb-btn--block`, type: 'button',
       'data-testid': 'confirm-ok', onclick: () => done(true),
     }, confirm);
-    const dialog = h('div', { class: 'vb-modal adm-dialog', role: 'alertdialog', 'aria-modal': 'true', 'aria-labelledby': 'adm-dialog-title' },
+    const dialog = h('div', { class: 'vb-sheet adm-dialog', role: 'alertdialog', 'aria-modal': 'true', 'aria-labelledby': 'adm-dialog-title' },
       h('h2', { id: 'adm-dialog-title' }, title),
       text ? h('p', { class: 'vb-muted' }, text) : null,
       extra,
@@ -318,7 +318,7 @@ export function confirmDialog({ title, text, confirm = 'OK', cancel = 'Abbrechen
         h('button', { class: 'vb-btn vb-btn--ghost vb-btn--block', type: 'button', 'data-testid': 'confirm-cancel', onclick: () => done(false) }, cancel),
       ),
     );
-    const backdrop = h('div', { class: 'vb-modal-backdrop adm-dialog-backdrop', 'data-testid': 'confirm' }, dialog);
+    const backdrop = h('div', { class: 'vb-scrim adm-dialog-scrim', 'data-testid': 'confirm' }, dialog);
     backdrop.addEventListener('click', (event) => { if (event.target === backdrop) done(false); });
     document.addEventListener('keydown', onKey, true);
     document.body.append(backdrop);
@@ -396,7 +396,7 @@ export class Lightbox {
 
   key(event) {
     if (event.target && /^(INPUT|TEXTAREA|SELECT)$/.test(event.target.tagName)) return;
-    if (document.querySelector('.adm-dialog-backdrop')) return;
+    if (document.querySelector('.adm-dialog-scrim')) return;
     if (event.key === 'Escape') this.close();
     else if (event.key === 'ArrowLeft') this.step(-1);
     else if (event.key === 'ArrowRight') this.step(1);

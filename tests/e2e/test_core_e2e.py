@@ -71,7 +71,7 @@ def test_consent_then_home(page, live):
     # second visit: no banner, same user
     page.reload()
     page.get_by_test_id("tile-probe").wait_for()
-    assert page.get_by_test_id("consent").count() == 0
+    assert page.get_by_test_id("join").count() == 0
     assert len(live.core.repo.list_users()) == 1
     assert page.js_errors == []
 

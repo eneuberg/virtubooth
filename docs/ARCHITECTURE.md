@@ -156,7 +156,7 @@ Main API:
 
 CSS: tokens `--vb-*`; components `.vb-btn(--primary|--big|--block|--ghost|--danger|--cool)`,
 `.vb-icon-btn`, `.vb-shutter`, `.vb-card`, `.vb-chip`, `.vb-input`, `.vb-stage`
-(fullscreen camera) with `.vb-topbar`/`.vb-bottombar`, `.vb-modal(-backdrop)`,
+(fullscreen camera) with `.vb-topbar`/`.vb-bottombar`, `.vb-sheet` (dialog) in a `.vb-scrim`,
 `.vb-progress > span`, `.vb-spinner`, `.vb-hidden`.
 
 UI language: German. Mobile-first, big touch targets, party look (dark,

@@ -221,9 +221,9 @@ button.vb-chip { cursor: pointer; font: inherit; font-size: 0.9rem; font-weight:
   background: linear-gradient(transparent, rgba(0, 0, 0, 0.6));
 }
 
-/* ------------------------------------------------------ modal / overlay */
+/* ------------------------------------------- dialog sheet over a scrim */
 
-.vb-modal-backdrop {
+.vb-scrim {
   position: fixed;
   inset: 0;
   z-index: 1000;
@@ -236,8 +236,8 @@ button.vb-chip { cursor: pointer; font: inherit; font-size: 0.9rem; font-weight:
   padding-bottom: calc(16px + var(--vb-safe-bottom));
   animation: vb-fade-in 0.2s ease;
 }
-@media (min-width: 600px) { .vb-modal-backdrop { place-items: center; } }
-.vb-modal {
+@media (min-width: 600px) { .vb-scrim { place-items: center; } }
+.vb-sheet {
   width: 100%;
   max-width: 480px;
   max-height: calc(100dvh - 32px);
@@ -249,8 +249,8 @@ button.vb-chip { cursor: pointer; font: inherit; font-size: 0.9rem; font-weight:
   box-shadow: 0 20px 60px rgba(0, 0, 0, 0.6);
   animation: vb-pop-in 0.28s cubic-bezier(0.2, 1.4, 0.4, 1);
 }
-.vb-modal h2 { font-size: 1.7rem; }
-.vb-modal .vb-actions { display: grid; gap: 10px; margin-top: 18px; }
+.vb-sheet h2 { font-size: 1.7rem; }
+.vb-sheet .vb-actions { display: grid; gap: 10px; margin-top: 18px; }
 
 /* full-screen notice (camera errors, banned, in-app browser) */
 .vb-notice {
