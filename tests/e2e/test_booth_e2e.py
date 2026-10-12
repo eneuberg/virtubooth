@@ -12,6 +12,7 @@ import json
 import os
 import re
 import time
+from dataclasses import replace
 from pathlib import Path
 
 import pytest
@@ -160,6 +161,23 @@ def test_switch_filters_by_tap_and_swipe(guest_page, live):
     assert guest_page.js_errors == []
 
 
+def test_keyboard_on_desktop(guest_page, live):
+    open_booth(guest_page, live)
+    booth = guest_page.get_by_test_id("booth")
+    ids = list(FILTERS)
+    guest_page.keyboard.press("ArrowRight")
+    expect(booth).to_have_attribute("data-filter", ids[1])
+    guest_page.get_by_test_id(f"filter-{ids[1]}").focus()
+    guest_page.keyboard.press("ArrowRight")  # works while a chip has focus
+    expect(booth).to_have_attribute("data-filter", ids[2])
+    guest_page.get_by_test_id(f"filter-{ids[2]}").evaluate("el => el.blur()")
+    guest_page.keyboard.press("Space")
+    expect(guest_page.get_by_test_id("upload-status")).to_have_attribute("data-state", "done", timeout=READY)
+    [(meta, _img)] = stored_images(live)
+    assert meta["filter"] == ids[2]
+    assert guest_page.js_errors == []
+
+
 def chip_offset(page: Page, filter_id: str) -> float:
     """Horizontal distance between the chip's centre and the strip's centre."""
     strip = page.get_by_test_id("filter-strip").bounding_box()
@@ -238,6 +256,24 @@ def test_photo_is_exactly_the_preview(guest_page, live):
     mirrored = diff(preview, photo.transpose(Image.Transpose.FLIP_LEFT_RIGHT))
     assert same < 8, same
     assert mirrored > same * 2, (same, mirrored)
+    assert guest_page.js_errors == []
+
+
+LONG_NAME = "Ömers & Jürgens legendäre Sommer-Gartenparty mit Überraschungsgästen 🎉🪩"
+
+
+def test_long_party_name_in_overlays(guest_page, live):
+    live.core.settings = replace(live.core.settings, party_name=LONG_NAME)
+    open_booth(guest_page, live)
+    assert LONG_NAME in guest_page.title()
+    for fid in ("party", "retro"):
+        select(guest_page, fid)
+        shoot(guest_page)
+        if os.environ.get("VB_BOOTH_SCREENSHOTS"):
+            guest_page.wait_for_timeout(2500)
+            guest_page.screenshot(path=Path(os.environ["VB_BOOTH_SCREENSHOTS"]) / f"long-name-{fid}.png")
+        again(guest_page)
+    assert len(stored_images(live)) == 2
     assert guest_page.js_errors == []
 
 

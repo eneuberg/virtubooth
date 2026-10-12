@@ -29,15 +29,20 @@ export function roundRectPath(ctx, x, y, w, h, r) {
   ctx.closePath();
 }
 
-/** Largest font size ≤ max at which `text` fits into maxWidth. */
+/**
+ * Set the largest font size ≤ max at which `text` fits into maxWidth; below
+ * `min` the text is shortened with "…". Returns the text to draw.
+ */
 export function fitFont(ctx, text, maxWidth, max, min, weight = 900, family = FONT) {
   let size = max;
   for (; size > min; size -= 2) {
     ctx.font = `${weight} ${size}px ${family}`;
-    if (ctx.measureText(text).width <= maxWidth) break;
+    if (ctx.measureText(text).width <= maxWidth) return text;
   }
   ctx.font = `${weight} ${size}px ${family}`;
-  return size;
+  let chars = [...text];
+  while (chars.length > 1 && ctx.measureText(`${chars.join('')}…`).width > maxWidth) chars = chars.slice(0, -1);
+  return ctx.measureText(text).width <= maxWidth ? text : `${chars.join('').trimEnd()}…`;
 }
 
 /** Text with a fat rounded outline (sticker look). */

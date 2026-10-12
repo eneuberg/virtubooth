@@ -101,8 +101,8 @@ function partyFrame(ctx, w, h, info) {
   ctx.textBaseline = 'middle';
   const cx = w / 2;
   const band = h - bottom;
-  fitFont(ctx, info.title, w - side * 2 - 40, 112, 48);
-  outlinedText(ctx, info.title, cx, band + bottom * 0.42, { stroke: '#4a0d6b', width: 16 });
+  const title = fitFont(ctx, info.title, w - side * 2 - 40, 112, 48);
+  outlinedText(ctx, title, cx, band + bottom * 0.42, { stroke: '#4a0d6b', width: 16 });
   ctx.font = `800 40px ${FONT}`;
   ctx.fillStyle = 'rgba(43, 10, 69, 0.85)';
   ctx.fillText(`${germanDate(info.date)}  ·  📸 Fotobox`, cx, band + bottom * 0.8);
@@ -187,7 +187,11 @@ function retroHud(ctx, w, h, info) {
   }
   hud('HI-SCORE', w - 50, 50, 'right', '#ffa300');
   hud('999999', w - 50, 140, 'right');
-  const name = pixelFontText(info.partyName) || 'PARTY';
+  let name = pixelFontText(info.partyName) || 'PARTY';
+  if (name.length > 26) { // 26 characters fit at 6 px per font pixel; cut at a word if possible
+    const space = name.slice(0, 27).lastIndexOf(' ');
+    name = space > 0 ? name.slice(0, space) : name.slice(0, 26);
+  }
   const cell = Math.max(6, Math.min(14, Math.floor((w - 100) / (name.length * 6))));
   pixelText(ctx, name, w / 2 + cell, h - 60 - cell * 7 + cell, cell, '#1d2b53', { align: 'center' });
   pixelText(ctx, name, w / 2, h - 60 - cell * 7, cell, '#ffec27', { align: 'center' });
