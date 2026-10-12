@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="robots" content="noindex, nofollow">
+  <meta name="theme-color" content="#000000">
+  <title>Fotobox</title>
+  <link rel="icon" href="/static/core/icon.svg">
+  <link rel="stylesheet" href="/static/core/vb.css">
+  <link rel="stylesheet" href="./booth.css">
+  <script type="module" src="./booth.js"></script>
+</head>
+<body class="booth-body">
+  <div class="booth" id="booth" data-testid="booth" data-screen="camera">
+    <header class="booth-top">
+      <a class="vb-icon-btn booth-back" href="/" aria-label="Zurück zur Übersicht" data-testid="back">←</a>
+      <div class="booth-title"><span aria-hidden="true">📸</span> Fotobox</div>
+      <div class="booth-top-right">
+        <button class="vb-chip booth-outbox vb-hidden" type="button" id="outbox" data-testid="outbox"></button>
+        <div id="user-chip"></div>
+      </div>
+    </header>
+
+    <main class="booth-viewport" id="viewport">
+      <div class="booth-frame" id="frame" data-testid="preview">
+        <video class="booth-video" id="video" playsinline muted autoplay></video>
+        <div class="booth-canvas-slot" id="canvas-slot"></div>
+        <div class="booth-filter-name" id="filter-name" aria-live="polite" data-testid="filter-name"></div>
+        <div class="booth-countdown" id="countdown" aria-live="assertive" data-testid="countdown"></div>
+        <div class="booth-loading" id="loading">
+          <div class="vb-spinner"></div>
+          <div>Kamera startet …</div>
+        </div>
+      </div>
+    </main>
+
+    <footer class="booth-bottom">
+      <div class="booth-strip" id="strip" role="listbox" aria-label="Filter" data-testid="filter-strip"></div>
+      <div class="booth-controls">
+        <button class="vb-icon-btn booth-ctl" type="button" id="countdown-toggle" aria-pressed="false"
+                aria-label="Countdown 3-2-1" data-testid="countdown-toggle">
+          <span aria-hidden="true">⏱️</span><span class="booth-ctl-label">3s</span>
+        </button>
+        <button class="vb-shutter booth-shutter" type="button" id="shutter" aria-label="Foto machen"
+                data-testid="shutter" disabled></button>
+        <button class="vb-icon-btn booth-ctl" type="button" id="switch-camera" aria-label="Kamera wechseln"
+                data-testid="switch-camera" disabled>
+          <span aria-hidden="true">🔄</span>
+        </button>
+      </div>
+    </footer>
+
+    <section class="booth-result vb-hidden" id="result" data-testid="result" aria-label="Dein Foto">
+      <div class="booth-result-inner">
+        <h2 class="booth-result-title" id="result-title">Wie schön! 😍</h2>
+        <div class="booth-polaroid">
+          <img id="result-photo" alt="Dein Foto" data-testid="result-photo">
+        </div>
+        <div class="booth-upload" id="upload" data-testid="upload-status" data-state="idle">
+          <div class="booth-upload-text" id="upload-text"></div>
+          <div class="vb-progress" id="upload-progress"><span id="upload-bar"></span></div>
+          <button class="vb-btn vb-btn--ghost booth-retry vb-hidden" type="button" id="upload-retry"
+                  data-testid="upload-retry">↻ Nochmal hochladen</button>
+        </div>
+        <div class="booth-result-actions">
+          <button class="vb-btn vb-btn--primary vb-btn--big" type="button" id="save" data-testid="save">
+            <span aria-hidden="true">⬇️</span> <span id="save-label">Speichern</span>
+          </button>
+          <button class="vb-btn vb-btn--block" type="button" id="again" data-testid="again">
+            <span aria-hidden="true">📸</span> Nochmal
+          </button>
+        </div>
+      </div>
+    </section>
+  </div>
+</body>
+</html>
