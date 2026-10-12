@@ -1,0 +1,66 @@
+# virtubooth on Coolify (build pack "Docker Compose").
+#
+# In Coolify: New resource → your repo → Build Pack "Docker Compose" →
+# Docker Compose Location: /docker-compose.coolify.yaml. Then set the domain
+# of service "app" to https://<your-domain>:8000 (":8000" is the container
+# port; guests just open https://<your-domain>). Step by step: docs/DEPLOY.md.
+#
+# Coolify generates the secrets below on the first deploy and shows them under
+# Environment Variables. No ports are published: only Coolify's proxy reaches
+# the app, which is what makes trusting its X-Forwarded-* headers safe.
+
+services:
+  app:
+    build: .
+    init: true
+    restart: unless-stopped
+    environment:
+      # tells Coolify's proxy the app listens on 8000 and generates a domain
+      - SERVICE_URL_APP_8000
+      # public https URL (no port): QR codes and Secure cookies
+      - VB_PUBLIC_BASE_URL=${SERVICE_URL_APP}
+      # generated once by Coolify: 64 / 32 / 64 random letters and digits
+      - VB_PARTY_TOKEN=${SERVICE_PASSWORD_64_PARTYTOKEN}
+      - VB_ADMIN_PASSWORD=${SERVICE_PASSWORD_ADMIN}
+      - VB_SECRET_KEY=${SERVICE_BASE64_64_SECRETKEY}
+      # editable in Coolify's UI
+      - VB_PARTY_NAME=${VB_PARTY_NAME:-Party}
+      - VB_INSTAGRAM_ACCOUNT=${VB_INSTAGRAM_ACCOUNT:-}
+      - VB_EXTENSIONS=${VB_EXTENSIONS:-}
+      - VB_TIMEZONE=${VB_TIMEZONE:-Europe/Berlin}
+      - VB_UPLOADS_PER_IP_PER_MIN=${VB_UPLOADS_PER_IP_PER_MIN:-180}
+      - VB_NEW_USERS_PER_IP_PER_10MIN=${VB_NEW_USERS_PER_IP_PER_10MIN:-120}
+      # Coolify's proxy reaches the app over Docker's private networks, and
+      # nothing else can (no published port). Traefik replaces any
+      # X-Forwarded-For a client sends, so the first entry is the real guest.
+      - VB_FORWARDED_ALLOW_IPS=${VB_FORWARDED_ALLOW_IPS:-10.0.0.0/8,172.16.0.0/12,192.168.0.0/16}
+      # fixed for the container
+      - VB_DATA_DIR=/data
+      - VB_HOST=0.0.0.0
+      - VB_PORT=8000
+    volumes:
+      # SQLite + photos. Keep this volume: deleting it deletes the party.
+      - virtubooth-data:/data
+    read_only: true
+    tmpfs:
+      - /tmp:size=256m,mode=1777
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
+    pids_limit: 512
+    # one process on purpose (in-memory rate limits + live events):
+    # never scale this service to more than one container
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/healthz', timeout=3)"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"
+
+volumes:
+  virtubooth-data:

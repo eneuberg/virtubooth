@@ -101,6 +101,12 @@ Open `http://localhost:8000/?t=<VB_PARTY_TOKEN>`. On the first run Compose
 prints "pull access denied for virtubooth" before it builds the image; that
 is expected. All settings are documented in [.env.example](.env.example).
 
+### Coolify
+
+`docker-compose.coolify.yaml` deploys on Coolify with the "Docker Compose"
+build pack: Coolify generates the secrets and serves the domain; no `.env`
+needed. Steps: [docs/DEPLOY.md → Coolify](docs/DEPLOY.md#54-coolify).
+
 ## Configuration
 
 Settings come from environment variables (in Docker: the `.env` file).

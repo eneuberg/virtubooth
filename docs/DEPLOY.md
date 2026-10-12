@@ -191,14 +191,55 @@ The app's `X-Accel-Buffering: no` header turns off nginx buffering for the
 event streams. nginx's default 1 MB body limit would reject photo uploads
 with `413`, hence `client_max_body_size`.
 
-### 5.4 Coolify and other PaaS
+### 5.4 Coolify
 
-Deploy the repository as a Docker Compose application, set the domain to
-port `8000` of service `app`, and put the variables from `.env` into the
-environment settings. Keep the `data` volume, do not enable replicas or
-horizontal scaling, and set `VB_FORWARDED_ALLOW_IPS` to the subnet of the
-network the platform's proxy shares with the app (`docker network inspect`
-on the server).
+[`docker-compose.coolify.yaml`](../docker-compose.coolify.yaml) is made for
+Coolify's "Docker Compose" build pack: no published port, the domain comes
+from Coolify's proxy, and Coolify generates the secrets. Tested against a
+local copy of the setup Coolify builds (Traefik 3.6 with its gzip middleware):
+the guest flow, the real client IP and the admin live updates all work
+through the proxy. You need no `.env` file and none of sections 2-5.3.
+
+1. **Repository access.** The repo is private. Coolify's "Public GitHub"
+   source cannot read it. Use one of these:
+   - **GitHub App:** Coolify → Sources → `+ Add` → GitHub App, install it on
+     your account and grant it `virtubooth`. It can also redeploy on push.
+   - **Deploy key:** Coolify → Keys & Tokens → create a private key and copy its
+     public key, then `gh repo deploy-key add key.pub -R <owner>/virtubooth -t coolify`
+     (read-only). When creating the resource choose "Private Repository (with
+     Deploy Key)" and the SSH URL `git@github.com:<owner>/virtubooth.git`.
+2. **Create the resource:** Project → `+ New` → the repository, branch `main`,
+   Build Pack **Docker Compose**, Docker Compose Location
+   **`/docker-compose.coolify.yaml`**, then "Load Compose File".
+3. **Domain:** in the service `app`, set Domains to
+   `https://party.example.com:8000`. The `:8000` tells the proxy the container
+   port; guests open `https://party.example.com`. The DNS record must point to
+   the server. Use https: the camera only works over TLS, and the app derives
+   its public URL (QR codes, Secure cookies) from this domain.
+4. **Environment variables:** Coolify fills `VB_PARTY_TOKEN`,
+   `VB_ADMIN_PASSWORD` and `VB_SECRET_KEY` with random values on the first
+   deploy (shown under Environment Variables; the admin password is what
+   you log in with). Set `VB_PARTY_NAME` and `VB_INSTAGRAM_ACCOUNT`.
+   Everything else has a working default. Change the generated token only
+   before printing the QR codes.
+5. **Deploy.** The status turns healthy after about 15 s. Then:
+   - Admin: `https://party.example.com/admin`
+   - QR codes: in Coolify's Terminal for service `app`, run
+     `python -m virtubooth.tools.qr`. It reads the URL and token from the
+     environment and writes to `/data/exports/qr/`. To get the sheet off the
+     server: `docker cp <container>:/data/exports/qr ./qr` on the server.
+   - Timelapse and export: the same way, see the README.
+
+Keep the persistent storage `virtubooth-data` (SQLite and all photos), and
+never scale the service beyond one container. If the admin live screen ever
+lags behind (a proxy buffering the event stream), turn off "Enable Gzip
+Compression" for the resource; the screen also falls back to polling every
+5 s.
+
+**Other PaaS:** deploy `docker-compose.coolify.yaml` or `compose.yaml` the
+same way, route the domain to port 8000 of service `app`, and set the
+`VB_*` secrets yourself (`virtubooth gen-env`). Never scale beyond one
+container.
 
 ### 5.5 Check the setup
 
