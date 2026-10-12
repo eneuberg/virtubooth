@@ -17,6 +17,7 @@ const photosCol = new PhotoCollection(grid, (photo) => photoTile(photo, {
   onOpen: (p) => lightbox.open(p.id),
   onToggle,
   onDelete: (p) => deletePhotos([p]),
+  showUser: false, // it's this guest's page
 }));
 const lightbox = new Lightbox({
   list: () => photosCol.photos,
@@ -171,7 +172,7 @@ function devicePanel(u) {
       ['Grafik', gpu || '–'],
       ['Sprache', c.languages || '–'],
       ['Zeitzone', c.timezone || '–'],
-      ['Leistung', `${c.cores || '?'} Kerne · ${c.memory ? `${c.memory} GB` : '? GB'} RAM`],
+      ['Leistung', [c.cores ? `${c.cores} Kerne` : '', c.memory ? `${c.memory} GB RAM` : ''].filter(Boolean).join(' · ') || '–'],
       ['IP', u.first_ip && u.first_ip !== u.last_ip ? `${u.last_ip} (zuerst ${u.first_ip})` : u.last_ip || '–'],
       ['User-Agent', h('span', { class: 'adm-mono' }, u.user_agent || c.ua || '–')],
     ]),

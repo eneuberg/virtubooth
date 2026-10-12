@@ -162,7 +162,13 @@ def test_login_via_ui(page, live):
 
 @pytest.mark.parametrize(
     "next_url",
-    ["https://evil.example/", "//evil.example/admin/live", "/admin/../x", "/admin/Live", "javascript:alert(1)"],
+    [
+        "https://evil.example/",
+        "//evil.example/admin/live",
+        "/admin/../x",
+        "/admin/Live",
+        "javascript:alert(1)",
+    ],
 )
 def test_login_never_redirects_off_site(page, live, next_url):
     page.goto(live.url("/admin/login?next=") + next_url.replace("&", "%26"))
@@ -212,7 +218,9 @@ def test_live_screen_realtime_and_take_down(admin_page, live, guests):
     c = card(page, second)
     expect(c).to_contain_text("📷 Schnappschuss #2")
     expect(c).to_contain_text("@anna.party")
-    expect(c.get_by_test_id("user-link")).to_have_attribute("href", f"/admin/user?id={anna.user.id}")
+    expect(c.get_by_test_id("user-link")).to_have_attribute(
+        "href", f"/admin/user?id={anna.user.id}"
+    )
     expect(c.get_by_test_id("status")).to_have_text("✓ Sichtbar")
 
     # take it down
@@ -256,7 +264,8 @@ def test_live_screens_stay_in_sync(admin_page, context, live, guests):
     expect(card(second, pid).get_by_test_id("status")).to_have_text("🙈 Versteckt")
     # a deletion in the management screen disappears from the live screen
     r = second.evaluate(
-        """async (id) => (await fetch('/api/admin/photos/' + id, {method: 'DELETE'})).status""", other
+        """async (id) => (await fetch('/api/admin/photos/' + id, {method: 'DELETE'})).status""",
+        other,
     )
     assert r == 200
     expect(card(admin_page, other)).to_have_count(0)
@@ -371,7 +380,9 @@ def test_manage_lightbox_download_and_copy(desktop_page, live, guests):
     card(page, pid).get_by_test_id("thumb").click()
     lightbox = page.get_by_test_id("lightbox")
     expect(lightbox).to_be_visible()
-    expect(lightbox.get_by_test_id("download")).to_have_attribute("href", f"/media/{pid}?download=1")
+    expect(lightbox.get_by_test_id("download")).to_have_attribute(
+        "href", f"/media/{pid}?download=1"
+    )
     lightbox.get_by_test_id("copy-handle").click()
     expect(page.locator(".vb-toast")).to_contain_text("Kopiert: @dj.dennis")
     assert page.evaluate("() => navigator.clipboard.readText()") == "@dj.dennis"
@@ -431,7 +442,9 @@ def test_user_page_ban_and_unban(desktop_page, live, guests):
     expect(page.get_by_test_id("user-status")).to_have_text("✓ Aktiv")
     expect(page.locator("[data-testid=photo-tile]")).to_have_count(2)
     expect(page.get_by_test_id("device")).to_contain_text("iPhone · iOS 18.5 · Safari 18.5")
-    expect(page.get_by_test_id("fp-shared")).to_have_text("1 anderes Gerät teilt diesen Fingerprint:")
+    expect(page.get_by_test_id("fp-shared")).to_have_text(
+        "1 anderes Gerät teilt diesen Fingerprint:"
+    )
     expect(page.get_by_test_id("fingerprints").get_by_role("link")).to_have_attribute(
         "href", f"/admin/user?id={twin.user.id}"
     )
@@ -440,7 +453,9 @@ def test_user_page_ban_and_unban(desktop_page, live, guests):
     page.get_by_test_id("ban-reason").fill("Spam")
     page.get_by_test_id("ban-fp").check()
     page.get_by_test_id("ban").click()
-    expect(page.get_by_test_id("confirm")).to_contain_text("Zusätzlich wird der Fingerprint gesperrt.")
+    expect(page.get_by_test_id("confirm")).to_contain_text(
+        "Zusätzlich wird der Fingerprint gesperrt."
+    )
     page.get_by_test_id("confirm-ok").click()
     expect(page.get_by_test_id("user-status")).to_have_text("🚫 GESPERRT")
     expect(page.get_by_test_id("ban-panel")).to_contain_text("Spam")

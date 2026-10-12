@@ -2,8 +2,8 @@
 // deleting lives in the management screen on purpose.
 
 import {
-  aapi, connectEvents, debounce, h, Lightbox, loadExtensions, mountHeader, PhotoCollection,
-  photoTitle, qs, runToggle, showError, statusBadge, thumbFlag, timeEl, toggleButton, userLink,
+  aapi, connectEvents, h, Lightbox, loadExtensions, mountHeader, PhotoCollection,
+  photoTitle, qs, runToggle, showError, statusBadge, thumbFlag, throttle, timeEl, toggleButton, userLink,
 } from './admin.js';
 
 const PAGE = 30;
@@ -136,14 +136,14 @@ function setStat(id, value) {
   document.getElementById(id).textContent = String(value);
 }
 
-const refreshStats = debounce(async () => {
+const refreshStats = throttle(async () => {
   try {
     const s = await aapi('/api/admin/stats');
     setStat('stat-photos', s.photos);
     setStat('stat-guests', s.guests);
     setStat('stat-hidden', s.hidden);
   } catch (_) { /* next event or poll tries again */ }
-}, 300);
+}, 800);
 
 function onEvent(type, data) {
   if (type === 'photo.created') add(data.photo);

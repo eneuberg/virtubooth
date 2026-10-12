@@ -135,7 +135,13 @@ def instagram_handles(db: Database) -> list[dict[str, Any]]:
     for r in rows:
         entry = handles.setdefault(
             r["instagram"],
-            {"handle": r["instagram"], "users": [], "photos": 0, "visible": 0, "last_upload_at": None},
+            {
+                "handle": r["instagram"],
+                "users": [],
+                "photos": 0,
+                "visible": 0,
+                "last_upload_at": None,
+            },
         )
         entry["users"].append(
             {
@@ -157,7 +163,9 @@ def instagram_handles(db: Database) -> list[dict[str, Any]]:
     return sorted(handles.values(), key=lambda e: (-e["photos"], e["handle"]))
 
 
-def audit_page(db: Database, *, before: int | None = None, limit: int = 100) -> list[dict[str, Any]]:
+def audit_page(
+    db: Database, *, before: int | None = None, limit: int = 100
+) -> list[dict[str, Any]]:
     sql, params = "SELECT * FROM audit_log", []
     if before is not None:
         sql += " WHERE id<?"

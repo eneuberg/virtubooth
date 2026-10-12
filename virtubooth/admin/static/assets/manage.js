@@ -4,7 +4,7 @@
 import {
   aapi, absTime, confirmAndDelete, connectEvents, copyText, debounce, describeUA, field, h,
   instagramUrl, Lightbox, loadExtensions, managementActions, mountHeader, PhotoCollection, photoTile,
-  photoTitle, qs, relTime, runToggle, segmented, showError, toast, userLink, userUrl,
+  photoTitle, qs, relTime, runToggle, segmented, showError, throttle, toast, userLink, userUrl,
 } from './admin.js';
 
 const TABS = ['fotos', 'gaeste', 'instagram', 'sperren', 'protokoll'];
@@ -179,7 +179,7 @@ async function fillUserSelect() {
     showError(err);
   }
 }
-const refreshUserSelect = debounce(fillUserSelect, 1500);
+const refreshUserSelect = throttle(fillUserSelect, 1500);
 
 function filterParams(extra = {}) {
   return {
@@ -724,13 +724,13 @@ function invalidate(tab, ms = 800) {
     panel.dirty = true;
     return;
   }
-  if (!reloadVisible[tab]) reloadVisible[tab] = debounce(() => panel.load(), ms);
+  if (!reloadVisible[tab]) reloadVisible[tab] = throttle(() => panel.load(), ms);
   reloadVisible[tab]();
 }
 
 // ================================================================ stats
 
-const refreshStats = debounce(async () => {
+const refreshStats = throttle(async () => {
   try {
     const s = await aapi('/api/admin/stats');
     document.getElementById('count-fotos').textContent = String(s.photos);

@@ -566,6 +566,21 @@ export function debounce(fn, ms) {
   };
 }
 
+/**
+ * Throttle: run fn once, `ms` after the first call of a burst. Unlike a
+ * debounce it still fires while calls keep coming (busy party = steady events).
+ */
+export function throttle(fn, ms) {
+  let timer = null;
+  return () => {
+    if (timer) return;
+    timer = setTimeout(() => {
+      timer = null;
+      fn();
+    }, ms);
+  };
+}
+
 /** Parse a user agent into "iPhone · iOS 17.4 · Safari 17.4". */
 export function describeUA(ua) {
   if (!ua) return 'unbekannt';
@@ -613,7 +628,7 @@ export function segmented(options, value, onChange, { label = '', testid = null 
 }
 
 /** Grid tile for the management screens (selection optional). */
-export function photoTile(photo, { selected = null, onSelect, onOpen, onToggle, onDelete }) {
+export function photoTile(photo, { selected = null, onSelect, onOpen, onToggle, onDelete, showUser = true }) {
   const selectable = selected !== null;
   let check = null;
   if (selectable) {
@@ -634,7 +649,7 @@ export function photoTile(photo, { selected = null, onSelect, onOpen, onToggle, 
     h('div', { class: 'adm-tile-body' },
       h('span', { class: 'adm-tile-title', title: photoTitle(photo) }, photoTitle(photo)),
       h('div', { class: 'adm-meta' }, timeEl(photo.created_at), statusBadge(photo)),
-      userLink(photo.user),
+      showUser ? userLink(photo.user) : null,
       h('div', { class: 'adm-tile-actions' },
         toggleButton(photo, onToggle),
         h('button', {

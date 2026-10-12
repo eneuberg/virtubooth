@@ -183,7 +183,9 @@ def _set_hidden(core: Core, admin: Admin, photo_id: str, hide: bool) -> tuple[bo
         changed = core.repo.unhide_photo(photo_id, admin.actor)
     photo = core.repo.get_photo(photo_id)
     if changed and photo is not None:
-        core.bus.publish("photo.hidden" if hide else "photo.unhidden", {"photo": photo.admin_view()})
+        core.bus.publish(
+            "photo.hidden" if hide else "photo.unhidden", {"photo": photo.admin_view()}
+        )
     return changed, photo
 
 
@@ -308,9 +310,7 @@ def ban_user(
 ) -> dict[str, Any]:
     user = _user_or_404(core, user_id)
     if body.fingerprint and not user.fp_hash:
-        raise errors.bad_request(
-            "Für diesen Gast ist kein Fingerprint bekannt.", "no_fingerprint"
-        )
+        raise errors.bad_request("Für diesen Gast ist kein Fingerprint bekannt.", "no_fingerprint")
     reason = " ".join(body.reason.split())
     changed = core.repo.ban_user(user_id, reason, admin.actor)
     fp_banned = False

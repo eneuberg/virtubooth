@@ -296,8 +296,12 @@ def test_users_list_search_and_detail(admin, guest, core):
     assert len(body["users"]) == 2 and body["next_offset"] is None
     anna = next(u for u in body["users"] if u["instagram"] == "anna.party")
     assert anna["photo_count"] == 2
-    assert [u["id"] for u in admin.get("/api/admin/users?search=anna").json()["users"]] == [anna["id"]]
-    assert admin.get(f"/api/admin/users?search=%23{anna['id']}").json()["users"][0]["id"] == anna["id"]
+    assert [u["id"] for u in admin.get("/api/admin/users?search=anna").json()["users"]] == [
+        anna["id"]
+    ]
+    assert (
+        admin.get(f"/api/admin/users?search=%23{anna['id']}").json()["users"][0]["id"] == anna["id"]
+    )
     assert admin.get("/api/admin/users?banned=true").json()["users"] == []
     assert len(admin.get("/api/admin/users?banned=false").json()["users"]) == 2
     page = admin.get("/api/admin/users?limit=1").json()
@@ -358,7 +362,9 @@ def test_ban_hides_photos_blocks_uploads_and_unban_restores(admin, guest, core):
     assert core.repo.get_photo(p1).hidden  # the admin hid this one, it stays hidden
     assert not core.repo.get_photo(p2).hidden
     assert g.post("/api/x/demo/upload", content=jpeg(), headers=JPEG).status_code == 201
-    assert admin.post(f"/api/admin/users/{user.id}/unban", headers=ORIGIN).json()["changed"] is False
+    assert (
+        admin.post(f"/api/admin/users/{user.id}/unban", headers=ORIGIN).json()["changed"] is False
+    )
     actions = [e["action"] for e in core.repo.list_audit()]
     assert {"user.ban", "user.unban"} <= set(actions)
 
@@ -413,9 +419,7 @@ def test_fingerprint_ban_needs_a_fingerprint(admin, make_client, core):
     scan(c)
     c.post("/api/consent", json={"accept": True, "version": "1"}, headers=ORIGIN)
     user = core.repo.list_users()[0]
-    r = admin.post(
-        f"/api/admin/users/{user.id}/ban", json={"fingerprint": True}, headers=ORIGIN
-    )
+    r = admin.post(f"/api/admin/users/{user.id}/ban", json={"fingerprint": True}, headers=ORIGIN)
     assert r.status_code == 400 and r.json()["error"] == "no_fingerprint"
     assert not core.repo.get_user(user.id).banned  # nothing half-done
 
@@ -423,9 +427,7 @@ def test_fingerprint_ban_needs_a_fingerprint(admin, make_client, core):
 def test_unban_can_lift_fingerprint_bans_too(admin, guest, core):
     g = guest(fp_n=9)
     user = user_of(core, g)
-    admin.post(
-        f"/api/admin/users/{user.id}/ban", json={"fingerprint": True}, headers=ORIGIN
-    )
+    admin.post(f"/api/admin/users/{user.id}/ban", json={"fingerprint": True}, headers=ORIGIN)
     r = admin.post(f"/api/admin/users/{user.id}/unban", json={"fingerprint": True}, headers=ORIGIN)
     assert r.json()["fingerprints_unbanned"] == [fp(9)["hash"]]
     assert core.repo.list_fingerprint_bans() == []
@@ -449,7 +451,9 @@ def test_stats(admin, guest, core):
     pb = upload(b)
     admin.post(f"/api/admin/photos/{pa}/hide", headers=ORIGIN)
     admin.delete(f"/api/admin/photos/{pb}", headers=ORIGIN)
-    admin.post(f"/api/admin/users/{user_of(core, b).id}/ban", json={"fingerprint": True}, headers=ORIGIN)
+    admin.post(
+        f"/api/admin/users/{user_of(core, b).id}/ban", json={"fingerprint": True}, headers=ORIGIN
+    )
     s = admin.get("/api/admin/stats").json()
     assert s["photos"] == 2 and s["visible"] == 1 and s["hidden"] == 1 and s["deleted"] == 1
     assert s["guests"] == 3 and s["banned"] == 1 and s["instagram"] == 1
