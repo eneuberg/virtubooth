@@ -18,3 +18,6 @@ __pycache__/
 *.mp4
 qr-sheet.*
 export/
+
+# agent worktrees
+.worktrees/
