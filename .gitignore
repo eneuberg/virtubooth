@@ -1,0 +1,20 @@
+# runtime data (photos, db) — never commit
+data/
+*.db
+*.db-wal
+*.db-shm
+
+# secrets
+.env
+*.env
+
+# python
+__pycache__/
+*.pyc
+.venv/
+.pytest_cache/
+
+# outputs
+*.mp4
+qr-sheet.*
+export/
