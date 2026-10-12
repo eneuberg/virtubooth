@@ -217,16 +217,15 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument(
         "--base-url",
         metavar="URL",
-        help="public URL guests open, e.g. https://party.example.com (default: $VB_PUBLIC_BASE_URL)",
+        help="public URL guests open, e.g. https://party.example.com "
+        "(default: $VB_PUBLIC_BASE_URL)",
     )
-    p.add_argument(
-        "--token", help="party token baked into the codes (default: $VB_PARTY_TOKEN)"
-    )
+    p.add_argument("--token", help="party token baked into the codes (default: $VB_PARTY_TOKEN)")
     p.add_argument(
         "--extensions",
         metavar="LIST",
-        help="comma-separated extension ids, in sheet order (default: $VB_EXTENSIONS, "
-        "else every extension shown on the home page)",
+        help="comma-separated extension ids (default: $VB_EXTENSIONS, else every "
+        "extension shown on the home page); the sheet follows the extensions' order",
     )
     p.add_argument(
         "--party-name",

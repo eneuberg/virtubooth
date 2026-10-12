@@ -29,7 +29,7 @@ import tarfile
 import tempfile
 import time
 from collections import defaultdict
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import datetime
 from pathlib import Path
 
@@ -44,6 +44,7 @@ from ._common import (
     iter_photos,
     resolve_data_dir,
     run,
+    scratch_parent,
     timestamp,
 )
 
@@ -117,10 +118,18 @@ def _csv(header: list[str], rows: list[list[object]]) -> bytes:
 def photos_csv(entries: list[Entry]) -> bytes:
     rows: list[list[object]] = [
         [
-            e.photo.public_id, e.photo.extension, e.photo.seq, e.photo.created_at,
-            e.photo.user_name, e.photo.user_instagram or "", int(e.photo.hidden),
-            e.photo.hidden_reason or "", e.photo.width, e.photo.height,
-            json.dumps(e.photo.meta, ensure_ascii=False, sort_keys=True), e.arcname,
+            e.photo.public_id,
+            e.photo.extension,
+            e.photo.seq,
+            e.photo.created_at,
+            e.photo.user_name,
+            e.photo.user_instagram or "",
+            int(e.photo.hidden),
+            e.photo.hidden_reason or "",
+            e.photo.width,
+            e.photo.height,
+            json.dumps(e.photo.meta, ensure_ascii=False, sort_keys=True),
+            e.arcname,
         ]  # fmt: skip
         for e in entries
     ]
@@ -135,18 +144,22 @@ def users_csv(users: list[User]) -> bytes:
     return _csv(USER_COLUMNS, rows)
 
 
-def instagram_csv(entries: list[Entry]) -> bytes:
-    """Visible photos of guests who gave a handle and aren't banned."""
-    files: dict[str, list[str]] = defaultdict(list)
-    names: dict[str, str] = {}
+def taggable(entries: list[Entry]) -> dict[str, tuple[str, list[str]]]:
+    """handle -> (pseudonym, archive paths): visible photos of guests who gave a
+    handle and aren't banned."""
+    tags: dict[str, tuple[str, list[str]]] = {}
     for e in entries:
         p = e.photo
         if p.user_instagram and e.arcname and not p.hidden and not p.user_banned:
-            files[p.user_instagram].append(e.arcname)
-            names[p.user_instagram] = p.user_name
+            tags.setdefault(p.user_instagram, (p.user_name, []))[1].append(e.arcname)
+    return tags
+
+
+def instagram_csv(entries: list[Entry]) -> bytes:
+    tags = taggable(entries)
     rows: list[list[object]] = [
-        [f"@{handle}", names[handle], len(files[handle]), "; ".join(files[handle])]
-        for handle in sorted(files)
+        [f"@{handle}", name, len(paths), "; ".join(paths)]
+        for handle, (name, paths) in sorted(tags.items())
     ]
     return _csv(INSTAGRAM_COLUMNS, rows)
 
@@ -169,8 +182,11 @@ def readme(
         "",
         f"Created {datetime.now():%Y-%m-%d %H:%M} (local time) from {data_dir}",
         f"Photos: {counts or 'none'}. Guests: {len(users)}.",
-        *([f"{missing} photo(s) had no file on disk; their CSV rows have an empty 'file'."]
-          if missing else []),  # fmt: skip
+        *(
+            [f"{missing} photo(s) had no file on disk; their CSV rows have an empty 'file'."]
+            if missing
+            else []
+        ),  # fmt: skip
         "",
         "Contents",
         "--------",
@@ -189,7 +205,7 @@ def readme(
         "photos.csv",
         "    One row per exported photo: id, extension, seq, created_at (UTC),",
         "    user (pseudonym), instagram, hidden (1/0), hidden_reason (admin|ban),",
-        "    width, height, meta (JSON, e.g. {\"vessel\": \"cup\"}),",
+        '    width, height, meta (JSON, e.g. {"vessel": "cup"}),',
         "    file (path inside this folder).",
         "users.csv",
         "    One row per guest: user (pseudonym), instagram, consent_at (UTC),",
@@ -219,6 +235,13 @@ def readme(
         "",
     ]
     return "\n".join(lines).encode("utf-8")
+
+
+def _size(path: Path) -> int:
+    try:
+        return path.stat().st_size
+    except OSError:
+        return 0
 
 
 def _normalize(ti: tarfile.TarInfo) -> tarfile.TarInfo:
@@ -289,14 +312,15 @@ def _main(args: argparse.Namespace) -> int:
     data_dir = resolve_data_dir(args.data_dir)
     db_path = data_dir / DB_NAME
     if not db_path.is_file():
-        raise ToolError(
-            f"no virtubooth database at {db_path} (pass --data-dir or set VB_DATA_DIR)"
-        )
+        raise ToolError(f"no virtubooth database at {db_path} (pass --data-dir or set VB_DATA_DIR)")
     out = output_path(args.out, data_dir)
     root = archive_root(out)
     include_hidden = not args.no_hidden
 
-    with tempfile.TemporaryDirectory(prefix="vb-export-") as tmp:
+    # the snapshot lives on the data volume (or next to the output), never in /tmp
+    with tempfile.TemporaryDirectory(
+        prefix=".vb-export-", dir=scratch_parent(data_dir, out)
+    ) as tmp:
         snap = Path(tmp) / DB_NAME
         print(f"Snapshotting {db_path} ...", flush=True)
         snapshot_db(db_path, snap)
@@ -316,7 +340,7 @@ def _main(args: argparse.Namespace) -> int:
 
         files = [e for e in entries if e.arcname]
         missing = len(entries) - len(files)
-        total = sum(e.source.stat().st_size for e in files)
+        total = sum(_size(e.source) for e in files)
         out.parent.mkdir(parents=True, exist_ok=True)
         free = shutil.disk_usage(out.parent).free
         if free < total * 1.05 + 10_000_000:
@@ -333,8 +357,13 @@ def _main(args: argparse.Namespace) -> int:
             with tarfile.open(part, "w:gz", compresslevel=6, dereference=True) as tar:
                 step = max(100, len(files) // 10)
                 for i, e in enumerate(files, 1):
-                    tar.add(e.source, arcname=f"{root}/{e.arcname}", recursive=False,
-                            filter=_normalize)  # fmt: skip
+                    try:
+                        tar.add(e.source, arcname=f"{root}/{e.arcname}", recursive=False,
+                                filter=_normalize)  # fmt: skip
+                    except FileNotFoundError:
+                        # deleted by the admin while we pack: list it without a file
+                        print(f"  warning: {e.source} vanished during the export")
+                        entries = [replace(x, arcname="") if x is e else x for x in entries]
                     if i % step == 0 or i == len(files):
                         print(f"  {i}/{len(files)} photos", flush=True)
                 _add_bytes(tar, f"{root}/photos.csv", photos_csv(entries))
@@ -346,20 +375,24 @@ def _main(args: argparse.Namespace) -> int:
                     tar,
                     f"{root}/README.txt",
                     readme(
-                        data_dir=data_dir, entries=entries, users=users,
-                        include_hidden=include_hidden, include_db=not args.no_db,
+                        data_dir=data_dir,
+                        entries=entries,
+                        users=users,
+                        include_hidden=include_hidden,
+                        include_db=not args.no_db,
                     ),  # fmt: skip
                 )
             part.replace(out)
         finally:
             part.unlink(missing_ok=True)
 
-    hidden = sum(1 for e in files if e.photo.hidden)
-    tagged = len({e.photo.user_instagram for e in files if e.photo.user_instagram})
+    packed = [e for e in entries if e.arcname]
+    hidden = sum(1 for e in packed if e.photo.hidden)
+    tagged = len(taggable(entries))
     print(f"Done: {out} ({human_size(out.stat().st_size)})")
     print(
-        f"  {len(files)} photos ({hidden} hidden), {len(users)} guests, "
-        f"{tagged} Instagram handles; unpack with: tar xzf {out.name}"
+        f"  {len(packed)} photos ({hidden} hidden), {len(users)} guests, "
+        f"{tagged} Instagram handles to tag; unpack with: tar xzf {out.name}"
     )
     return 0
 

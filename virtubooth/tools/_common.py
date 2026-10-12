@@ -69,6 +69,23 @@ def exports_dir(data_dir: Path) -> Path:
     return data_dir / EXPORTS_DIR
 
 
+def scratch_parent(data_dir: Path, out: Path) -> Path:
+    """Where a tool puts its temporary files: <data-dir>/exports/, else next to the output.
+
+    Never the system temp dir: in the container /tmp is a small noexec tmpfs and
+    the root file system is read-only. Temp dirs start with a dot and are removed
+    when the tool finishes.
+    """
+    for candidate in (exports_dir(data_dir), out.parent):
+        try:
+            candidate.mkdir(parents=True, exist_ok=True)
+        except OSError:
+            continue
+        if os.access(candidate, os.W_OK):
+            return candidate
+    raise ToolError(f"neither {exports_dir(data_dir)} nor {out.parent} is writable")
+
+
 def timestamp() -> str:
     return datetime.now().strftime("%Y%m%d-%H%M%S")
 
@@ -90,9 +107,7 @@ def open_repo(data_dir: Path) -> Iterator[Repo]:
     """
     db_path = data_dir / DB_NAME
     if not db_path.is_file():
-        raise ToolError(
-            f"no virtubooth database at {db_path} (pass --data-dir or set VB_DATA_DIR)"
-        )
+        raise ToolError(f"no virtubooth database at {db_path} (pass --data-dir or set VB_DATA_DIR)")
     db = Database(db_path)
     try:
         yield Repo(db, data_dir)

@@ -7,7 +7,8 @@ Photos are used in upload order; hidden ones only with --include-hidden,
 deleted ones never. Every frame is scaled to --size. Photos with another
 aspect ratio (or an unusual JPEG flavour) are letterboxed with Pillow first,
 so odd uploads can't break the encode. ffmpeg reads numbered symlinks from a
-temp dir, which works for any number of photos.
+temp dir under <data-dir>/exports/ (never /tmp: a small tmpfs in the container),
+which works for any number of photos.
 
 How --crossfade works: each photo is repeated up to --out-fps (default 30) and
 ffmpeg's `tmix` averages the last K frames. A moving average over held photos
@@ -45,6 +46,7 @@ from ._common import (
     photo_counts,
     resolve_data_dir,
     run,
+    scratch_parent,
     timestamp,
 )
 
@@ -449,9 +451,9 @@ def _main(args: argparse.Namespace) -> int:
     )
 
     if args.dry_run:
-        pattern = str(Path(tempfile.gettempdir()) / "vb-timelapse-XXXX" / "%06d.jpg")
+        pattern = str(exports_dir(data_dir) / ".vb-timelapse-XXXX" / "%06d.jpg")
         cmd = build_command(args.ffmpeg, pattern, out, o)
-        print("Dry run, nothing encoded. ffmpeg command (frames = numbered symlinks to the photos):")
+        print("Dry run, nothing encoded. ffmpeg command (input = numbered links to the photos):")
         print("  " + shlex.join(cmd))
         return 0
 
@@ -459,7 +461,10 @@ def _main(args: argparse.Namespace) -> int:
         raise ToolError(f"{args.ffmpeg} not found; install ffmpeg or pass --ffmpeg PATH")
     out.parent.mkdir(parents=True, exist_ok=True)
     part = out.with_name(out.name + ".part")
-    with tempfile.TemporaryDirectory(prefix="vb-timelapse-") as tmp:
+    # frame links (and letterboxed copies) live on the data volume, not in /tmp
+    with tempfile.TemporaryDirectory(
+        prefix=".vb-timelapse-", dir=scratch_parent(data_dir, out)
+    ) as tmp:
         if got.letterboxed:
             print(f"Letterboxing {got.letterboxed} odd-sized photos ...", flush=True)
         pattern = prepare_frames(got.frames, Path(tmp), o.size)
