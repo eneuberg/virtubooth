@@ -31,8 +31,8 @@ router = APIRouter()
 
 
 def total_beers(core: Core) -> int:
-    """Every beer photo that still exists (hidden ones count, deleted ones don't)."""
-    return core.repo.count_photos(EXT_ID)
+    """Beers on the board: photos an admin took down or deleted don't count."""
+    return core.repo.count_photos(EXT_ID, visible_only=True)
 
 
 @router.get("/stats", dependencies=[Depends(require_access)])
@@ -66,6 +66,8 @@ extension = Extension(
     upload=UploadPolicy(
         max_side=max(WIDTH, HEIGHT),
         min_side=480,
+        # every frame of the timelapse has the same shape
+        exact_size=(WIDTH, HEIGHT),
         quality=85,
         meta_keys=frozenset({"vessel", "facing"}),
         validate_meta=validate_meta,

@@ -43,6 +43,8 @@ class UploadPolicy:
     max_bytes: int | None = None
     max_side: int = 2400
     min_side: int = 64
+    # (width, height) every upload must have exactly, e.g. timelapse frames
+    exact_size: tuple[int, int] | None = None
     quality: int = 85
     thumb_side: int = 400
     # keys allowed in the client's X-VB-Meta header; anything else is rejected
@@ -95,6 +97,8 @@ def validate_extension(ext: Extension) -> None:
     if not ext.static_dir.is_dir() or not (ext.static_dir / "index.html").is_file():
         raise ConfigError(f"extension {ext.id!r}: static_dir needs an index.html")
     if ext.upload:
+        if ext.upload.exact_size and max(ext.upload.exact_size) > ext.upload.max_side:
+            raise ConfigError(f"extension {ext.id!r}: exact_size exceeds max_side")
         bad = [k for k in ext.upload.meta_keys if not META_KEY_RE.match(k)]
         if bad:
             raise ConfigError(f"extension {ext.id!r}: invalid meta keys {bad}")

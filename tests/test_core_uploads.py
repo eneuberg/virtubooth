@@ -68,6 +68,17 @@ def test_upload_rejections(guest):
     assert upload(g, ext="nope").status_code == 404
 
 
+def test_exact_size_policy(guest, core, demo_extension):
+    from dataclasses import replace
+
+    policy = replace(demo_extension.upload, exact_size=(1080, 1440))
+    core.extensions["demo"] = replace(demo_extension, upload=policy)
+    g = guest()
+    assert upload(g, jpeg(1080, 1440)).status_code == 201
+    r = upload(g, jpeg(1440, 1080))
+    assert r.status_code == 400 and "1080×1440" in r.json()["message"]
+
+
 def test_upload_too_large(guest, core):
     from dataclasses import replace
 

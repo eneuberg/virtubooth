@@ -168,6 +168,7 @@ async def upload(
         min_side=policy.min_side,
         quality=policy.quality,
         thumb_side=policy.thumb_side,
+        exact_size=policy.exact_size,
     )
     photo = await run_in_threadpool(store_photo, core, ext, user, image, meta)
 

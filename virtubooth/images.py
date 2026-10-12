@@ -36,6 +36,7 @@ def process_jpeg(
     quality: int,
     thumb_side: int,
     min_side: int = 64,
+    exact_size: tuple[int, int] | None = None,
 ) -> ProcessedImage:
     if not raw.startswith(b"\xff\xd8\xff"):
         raise _invalid("Nur JPEG-Bilder sind erlaubt.")
@@ -48,6 +49,8 @@ def process_jpeg(
             raise _invalid(f"Bild ist zu groß (max. {max_side} px pro Seite).")
         if min(w, h) < min_side:
             raise _invalid("Bild ist zu klein.")
+        if exact_size and (w, h) != tuple(exact_size):
+            raise _invalid(f"Bild muss genau {exact_size[0]}×{exact_size[1]} px groß sein.")
         img.load()
         img = ImageOps.exif_transpose(img).convert("RGB")
     except ApiError:

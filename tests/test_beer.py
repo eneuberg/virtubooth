@@ -133,7 +133,7 @@ def test_stats_requires_access(client):
     assert r.json() == {"total": 0, "goal": 1_000_000}
 
 
-def test_stats_counts_non_deleted_beers(guest, core):
+def test_stats_counts_visible_beers(guest, core):
     g = guest()
     numbers = [upload(g, {"vessel": "bottle"}).json()["beer_number"] for _ in range(3)]
     assert numbers == [1, 2, 3]
@@ -141,12 +141,18 @@ def test_stats_counts_non_deleted_beers(guest, core):
 
     first, second, _ = core.repo.list_photos(PhotoQuery(extension="beer", order="asc"))
     core.repo.delete_photo(first.public_id, "admin:test")
-    core.repo.hide_photo(second.public_id, "admin:test")  # hidden still counts
-    assert g.get("/api/x/beer/stats").json()["total"] == 2
+    core.repo.hide_photo(second.public_id, "admin:test")  # taken down: no longer counts
+    assert g.get("/api/x/beer/stats").json()["total"] == 1
 
     body = upload(g, {"vessel": "cup"}).json()
     assert body["beer_number"] == 4  # numbers are never reused
-    assert body["total"] == 3
+    assert body["total"] == 2
+
+
+def test_rejects_wrong_frame_size(guest):
+    g = guest()
+    r = upload(g, {"vessel": "bottle"}, data=jpeg(1440, 1080))
+    assert r.status_code == 400 and r.json()["error"] == "invalid_image"
 
 
 def test_stats_ignores_other_extensions(guest, core):
