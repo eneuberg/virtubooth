@@ -3,8 +3,11 @@
 //   const cam = await openCamera(videoEl, { facing: 'environment' });
 //   cam.facing            -> 'user' | 'environment'
 //   cam.mirrored          -> true for the front camera (mirror the *preview*)
+//   cam.canSwitch         -> false when the device has only one camera (laptop, PC)
 //   await cam.switchFacing();
 //   cam.stop();
+//
+// facingMode is only a wish: a PC with one webcam gets that webcam either way.
 //
 // Errors are CameraError with a German `.message` ready to show.
 
@@ -66,6 +69,17 @@ function waitForVideo(video) {
   });
 }
 
+/** Number of cameras, or null when the browser doesn't say. Ask once a stream runs: labels and
+ * the full list are only exposed after the guest allowed the camera. */
+async function countCameras() {
+  try {
+    const devices = await navigator.mediaDevices.enumerateDevices();
+    return devices.filter((d) => d.kind === 'videoinput').length || null;
+  } catch (_) {
+    return null;
+  }
+}
+
 async function getStream(facing, width, height) {
   if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
     throw new CameraError('unsupported', isInAppBrowser()
@@ -97,7 +111,9 @@ export async function openCamera(video, { facing = 'environment', width = 1920, 
     video,
     stream: null,
     facing,
+    cameras: null, // how many the device has, null = unknown
     get mirrored() { return this.facing === 'user'; },
+    get canSwitch() { return this.cameras !== 1; },
     get width() { return video.videoWidth; },
     get height() { return video.videoHeight; },
 
@@ -109,8 +125,13 @@ export async function openCamera(video, { facing = 'environment', width = 1920, 
       await waitForVideo(video);
       // the browser may not honour facingMode; read back what we got
       const settings = this.stream.getVideoTracks()[0]?.getSettings?.() || {};
+      this.cameras = await countCameras();
       if (settings.facingMode === 'user' || settings.facingMode === 'environment') {
         this.facing = settings.facingMode;
+      } else if (this.cameras === 1) {
+        // the only camera and it doesn't say where it points: a laptop or PC
+        // webcam, which faces the guest (mirror it like every video call does)
+        this.facing = 'user';
       }
       return this;
     },

@@ -144,7 +144,7 @@ Main API:
 | `boot()` | identify device, show consent banner if needed → `{user, banned}`. Call first. |
 | `api(path, {method, json})` | JSON fetch, throws `ApiError` (`.status .code .message`, German message) |
 | `uploadJpeg(extId, blob, {meta, onProgress})` | upload with progress → server JSON |
-| `openCamera(video, {facing})` | camera controller: `.facing .mirrored .switchFacing() .stop() .width .height` |
+| `openCamera(video, {facing})` | camera controller: `.facing .mirrored .canSwitch .switchFacing() .stop() .width .height`. `facing` is a wish: a PC's only webcam is used either way and counts as `'user'` (mirrored); hide the switch button when `!canSwitch` |
 | `captureFrame(video, w, h, {mirror})` | centre-cropped (cover) frame into a canvas |
 | `canvasToJpeg(canvas, q)` | canvas → JPEG Blob |
 | `saveImage(blob, name)` | iOS: share sheet ("Bild sichern"); else download. Call in a tap handler. |

@@ -77,6 +77,7 @@ function setState(name) {
   els.loading.hidden = name !== 'loading';
   els.shutter.disabled = name !== 'camera' || !state.cam;
   els.switchBtn.disabled = name !== 'camera' || !state.cam;
+  els.switchBtn.hidden = !!state.cam && !state.cam.canSwitch; // laptop/PC: one webcam
 }
 
 function setVessel(vessel, { save = true } = {}) {
@@ -152,7 +153,7 @@ async function startCamera() {
 
 async function switchCamera() {
   const cam = state.cam;
-  if (!cam || state.busy) return;
+  if (!cam || state.busy || !cam.canSwitch) return;
   state.busy = true;
   setState('loading');
   try {

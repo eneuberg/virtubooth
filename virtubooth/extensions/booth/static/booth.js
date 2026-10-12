@@ -254,7 +254,7 @@ function showCameraError(err) {
 }
 
 async function switchCamera() {
-  if (!state.cam || state.busy || state.shot) return;
+  if (!state.cam || state.busy || state.shot || !state.cam.canSwitch) return;
   state.busy = true;
   stopLoop();
   state.ready = false;
@@ -283,6 +283,7 @@ function updateButtons() {
   const idle = state.ready && !state.busy;
   els.shutter.disabled = !idle;
   els.switchCam.disabled = !idle;
+  els.switchCam.classList.toggle('vb-hidden', !!state.cam && !state.cam.canSwitch); // laptop/PC: one webcam
   els.countdownToggle.setAttribute('aria-pressed', state.countdown ? 'true' : 'false');
 }
 
