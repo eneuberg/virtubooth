@@ -1,0 +1,96 @@
+# virtubooth on Docker Compose.
+#
+#   cp .env.example .env              # then fill in secrets, or generate them:
+#   docker compose build && docker run --rm virtubooth:local virtubooth gen-env > .env
+#   docker compose up -d --build
+#
+# Deployment guide (reverse proxy, backups, updates): docs/DEPLOY.md
+#
+# ONE container, ONE uvicorn worker, on purpose: rate limits and the live event
+# bus live in process memory. Never add replicas or workers.
+
+name: virtubooth
+
+services:
+  app:
+    build:
+      context: .
+    image: ${VB_IMAGE:-virtubooth:local}
+    restart: unless-stopped
+    # tiny init as PID 1: forwards signals, reaps ffmpeg children of the tools
+    init: true
+
+    # Secrets and settings. Every VB_* variable is documented in .env.example.
+    env_file: .env
+    # Fixed inside the container; these win over anything in .env (a .env made
+    # by `virtubooth gen-env` says VB_DATA_DIR=./data, which would put the data
+    # on the container's read-only filesystem).
+    environment:
+      VB_DATA_DIR: /data
+      VB_HOST: 0.0.0.0
+      VB_PORT: "8000"
+    # Behind a TLS reverse proxy (required for phone cameras) also set in .env:
+    #   VB_COOKIE_SECURE=true
+    #   VB_FORWARDED_ALLOW_IPS=<proxy IP or subnet>, e.g. 172.16.0.0/12 for a
+    #     proxy on this host or in another container (Docker's default bridge
+    #     networks). Without it every guest shares the proxy's IP, so the
+    #     per-IP rate limits hit the whole party at once, and logs show the
+    #     proxy instead of the guest.
+    # See docs/DEPLOY.md for Caddy and Traefik examples.
+
+    ports:
+      # VB_PUBLISH_PORT=127.0.0.1:8000 publishes only on localhost (recommended
+      # when the reverse proxy runs on this host: Docker's published ports
+      # bypass ufw/firewalld). Default: all interfaces, port 8000.
+      - "${VB_PUBLISH_PORT:-8000}:8000"
+
+    volumes:
+      # Named volume (not a ./data bind mount): Docker creates it owned by the
+      # image's /data directory, i.e. uid 10001, so the non-root app can write
+      # without any chown on the host. Its contents outlive `down` and image
+      # rebuilds; only `docker compose down -v` deletes them. To use a bind
+      # mount instead: mkdir data && sudo chown 10001:10001 data, then
+      # replace this line with `- ./data:/data`.
+      - data:/data
+
+    # Hardening: nothing but /data (and a small /tmp) is writable, no Linux
+    # capabilities, no privilege escalation, bounded resources.
+    read_only: true
+    tmpfs:
+      - /tmp:size=256m,mode=1777
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    deploy:
+      resources:
+        limits:
+          # ~50 guests need far less; the headroom is for image re-encoding
+          # bursts and for ffmpeg when the timelapse tool runs in here.
+          # cpus must not exceed the host's CPU count (Docker refuses to start).
+          cpus: "${VB_CPU_LIMIT:-1.0}"
+          memory: ${VB_MEM_LIMIT:-1g}
+          pids: 512
+
+    # Open live streams (SSE) keep uvicorn waiting on shutdown; after this the
+    # container is killed. SQLite (WAL) and the atomic photo writes survive that.
+    stop_grace_period: 15s
+
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - "import urllib.request as u; u.urlopen('http://127.0.0.1:8000/healthz', timeout=4)"
+      interval: 30s
+      timeout: 5s
+      start_period: 20s
+      start_interval: 2s
+      retries: 3
+
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"
+
+volumes:
+  data:
