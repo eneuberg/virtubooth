@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="robots" content="noindex, nofollow">
+  <meta name="theme-color" content="#14021f">
+  <title>Gast · Admin</title>
+  <link rel="icon" href="/static/core/icon.svg">
+  <link rel="stylesheet" href="/static/core/vb.css">
+  <link rel="stylesheet" href="/admin/assets/admin.css">
+  <script type="module" src="/admin/assets/user.js"></script>
+</head>
+<body class="adm adm-userview">
+  <header class="adm-header">
+    <div class="adm-header-row">
+      <a class="adm-back" href="/admin/manage?tab=gaeste" data-testid="back">← Gäste</a>
+      <span id="conn" class="adm-conn" data-testid="conn" data-state="connecting">Verbinde…</span>
+      <nav class="adm-nav" aria-label="Admin">
+        <a class="vb-btn adm-btn-sm" href="/admin/live">📸 Live</a>
+        <a class="vb-btn adm-btn-sm adm-hide-narrow" href="/admin/manage">🛠 Verwaltung</a>
+        <button id="logout" class="vb-icon-btn adm-icon-sm" type="button" title="Abmelden" aria-label="Abmelden">🚪</button>
+      </nav>
+    </div>
+  </header>
+  <main class="adm-main" id="user-root">
+    <div class="adm-loading"><div class="vb-spinner"></div></div>
+  </main>
+</body>
+</html>

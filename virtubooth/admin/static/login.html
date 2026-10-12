@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="robots" content="noindex, nofollow">
+  <meta name="theme-color" content="#14021f">
+  <title>Admin-Login</title>
+  <link rel="icon" href="/static/core/icon.svg">
+  <link rel="stylesheet" href="/static/core/vb.css">
+  <link rel="stylesheet" href="/admin/assets/admin.css">
+  <script type="module" src="/admin/assets/login.js"></script>
+</head>
+<body class="adm">
+  <main class="vb-page adm-login">
+    <div class="vb-card">
+      <h1>🔐 <span class="vb-grad-text">Admin</span></h1>
+      <p class="vb-muted">Moderation für die Party: Fotos runternehmen, Gäste verwalten.</p>
+      <form id="login-form" novalidate>
+        <label class="vb-label" for="password">Passwort</label>
+        <input class="vb-input" id="password" name="password" type="password" autocomplete="current-password"
+               maxlength="256" required autofocus>
+        <div id="login-error" class="vb-field-error" role="alert" data-testid="login-error"></div>
+        <button class="vb-btn vb-btn--primary vb-btn--big" id="login-submit" type="submit">Anmelden</button>
+      </form>
+    </div>
+  </main>
+</body>
+</html>
