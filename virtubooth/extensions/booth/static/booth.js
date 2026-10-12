@@ -399,6 +399,8 @@ function backToCamera() {
   els.result.classList.add('vb-hidden');
   els.photo.removeAttribute('src');
   els.booth.dataset.screen = 'camera';
+  // keyboard: the focused button just disappeared; space/enter go to the shutter now
+  els.shutter.focus({ preventScroll: true });
   startLoop();
 }
 
@@ -452,15 +454,21 @@ function bindControls() {
   els.again.addEventListener('click', backToCamera);
   els.outbox.addEventListener('click', retryOutbox);
   bindGestures();
-  // desktop: arrows switch filters (also while a chip has focus), space/enter shoots
+  // desktop: arrows switch filters (also while a chip or the shutter has focus),
+  // space/enter shoots, escape leaves the result screen
   document.addEventListener('keydown', (e) => {
-    if (state.shot || e.altKey || e.ctrlKey || e.metaKey) return;
+    if (e.altKey || e.ctrlKey || e.metaKey) return;
+    if (state.shot) {
+      if (e.key === 'Escape') backToCamera();
+      return;
+    }
     const onPage = e.target === document.body;
-    if (!onPage && !els.strip.contains(e.target)) return;
+    const inStrip = els.strip.contains(e.target);
+    if (!onPage && !inStrip && e.target !== els.shutter) return;
     if (e.key === 'ArrowRight' || e.key === 'ArrowLeft') {
       e.preventDefault();
       selectFilter(state.index + (e.key === 'ArrowRight' ? 1 : -1));
-      if (!onPage) els.strip.querySelector('[aria-selected="true"]').focus({ preventScroll: true });
+      if (inStrip) els.strip.querySelector('[aria-selected="true"]').focus({ preventScroll: true });
     } else if (onPage && (e.key === ' ' || e.key === 'Enter')) {
       e.preventDefault();
       shoot();

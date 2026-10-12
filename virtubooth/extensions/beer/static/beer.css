@@ -282,6 +282,9 @@ body.beer { overflow: hidden; }
 
 .beer-bottom {
   flex: none;
+  align-self: center;
+  width: 100%;
+  max-width: 560px; /* PC/tablet: the controls stay under the box, not in far corners */
   display: grid;
   grid-template-columns: 1fr auto 1fr;
   align-items: center;

@@ -307,6 +307,8 @@ async function again() {
     }
   }
   setState(state.cam ? 'camera' : 'off');
+  // keyboard: the focused "Noch eins!" button is gone; space/enter go to the shutter now
+  if (!els.shutter.disabled) els.shutter.focus({ preventScroll: true });
   refreshStats();
 }
 
@@ -342,6 +344,8 @@ function wireUi() {
         && document.activeElement === document.body) {
       e.preventDefault();
       shoot();
+    } else if (e.key === 'Escape' && els.app.dataset.state === 'success') {
+      again();
     }
   });
   setInterval(() => {
