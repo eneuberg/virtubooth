@@ -131,11 +131,18 @@ Every page links `/static/core/vb.css`, includes
 page's modules never start) and loads its own ES module.
 
 **Content blockers:** uBlock, AdGuard, Brave and iOS content blockers drop
-URLs that look like tracking. One failed static import stops every module on
-the page, silently. So: neutral file and API path names (no "fingerprint",
-"track", "analytics", "beacon", "pixel", "ads", ...; a test checks the file
-names), and load optional modules with a dynamic `import()` inside
-`try/catch`.
+URLs that look like tracking, and their cookie-notice lists (on by default in
+Brave) hide elements that look like consent banners. One failed static import
+stops every module on the page, silently; a hidden join dialog leaves a page
+that never starts. So: neutral file and API path names (no "fingerprint",
+"track", "analytics", "beacon", "pixel", "ads", "consent", "cookie", "gdpr",
+...), neutral class/id/test-id names on UI a guest must use (the join dialog is
+a `.vb-sheet` in a `.vb-scrim`, `data-testid="join"`, posting to `/api/join`),
+and load optional modules with a dynamic `import()` inside `try/catch`.
+`tests/test_core_blockers.py` matches every URL the app serves or requests and
+every element its pages build against real filter rules: a vendored subset
+(`tests/fixtures/blocker_rules.txt`) always, the full lists with
+`VB_BLOCKLISTS=<dir>`.
 
 Main API:
 
@@ -170,6 +177,7 @@ captured output, iOS stops camera streams in background tabs.
 uv sync                      # deps incl. dev
 uv run pytest                # unit/API tests (fast)
 uv run pytest -m e2e         # browser tests: Playwright Chromium + fake camera
+VB_BLOCKLISTS=.blocklists uv run pytest tests/test_core_blockers.py  # + full filter lists (~60 MB, downloaded once)
 uv run virtubooth gen-env > .env && set -a && . ./.env && set +a && uv run virtubooth serve --reload
 ```
 

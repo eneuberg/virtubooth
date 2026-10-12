@@ -113,12 +113,14 @@ def test_blocked_sdk_shows_a_hint_instead_of_nothing(page, live):
 
 
 def test_static_file_names_avoid_blocker_keywords():
-    """Filter lists block paths with words like these; keep served files neutral."""
+    """Filter lists block paths with words like these (cookie-notice lists: consent,
+    cookie, gdpr); keep served files neutral. tests/test_core_blockers.py matches
+    every URL and the UI against the real lists."""
     import re
 
     from virtubooth.pages import STATIC_DIR
 
-    bad = re.compile(r"fingerprint|track|analytic|telemetry|beacon|pixel|advert|banner|ads?[-_./]", re.I)
+    bad = re.compile(r"fingerprint|track|analytic|telemetry|beacon|pixel|advert|banner|consent|cookie|gdpr|ads?[-_./]", re.I)
     roots = [STATIC_DIR, STATIC_DIR.parent / "admin" / "static", STATIC_DIR.parent / "extensions"]
     served = [f for root in roots for f in root.rglob("*") if f.is_file() and f.suffix in {".js", ".css", ".html", ".json", ".svg"}]
     assert served
