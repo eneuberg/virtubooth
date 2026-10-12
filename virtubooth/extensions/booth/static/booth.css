@@ -358,3 +358,23 @@
 @media (min-width: 700px) {
   .booth-viewport { padding: 8px 24px; }
 }
+
+/* phone held sideways: preview on the left, controls on the right */
+@media (orientation: landscape) and (max-height: 600px) {
+  .booth {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    grid-template-rows: auto minmax(0, 1fr);
+  }
+  .booth-viewport {
+    grid-column: 1;
+    grid-row: 1 / 3;
+    width: calc((100vh - 16px) * 0.75 + 20px);
+    width: calc((100dvh - 16px) * 0.75 + 20px);
+    padding: 8px 10px;
+    padding-left: max(10px, env(safe-area-inset-left));
+  }
+  .booth-top { grid-column: 2; grid-row: 1; padding-top: calc(8px + var(--vb-safe-top)); }
+  .booth-bottom { grid-column: 2; grid-row: 2; align-self: center; min-width: 0; }
+  .booth-controls { padding-top: 10px; }
+}

@@ -78,8 +78,13 @@ function setupRenderer(prefer) {
   els.booth.dataset.renderer = state.renderer.mode;
   debug('renderer', state.renderer.mode);
   sizeCanvas();
-  if (window.ResizeObserver) new ResizeObserver(sizeCanvas).observe(els.frame);
-  else window.addEventListener('resize', sizeCanvas);
+  const onResize = () => {
+    sizeCanvas();
+    const chip = els.strip.querySelector('[aria-selected="true"]');
+    if (chip) centerChip(chip, 'auto');
+  };
+  if (window.ResizeObserver) new ResizeObserver(onResize).observe(els.frame);
+  else window.addEventListener('resize', onResize);
 }
 
 /** Backing store = on-screen size (DPR ≤ 2), never more than the photo. */
@@ -152,12 +157,16 @@ function selectFilter(index, { announce = true } = {}) {
   els.booth.dataset.filter = filter.id;
   els.strip.querySelectorAll('.booth-chip').forEach((chip, k) => {
     chip.setAttribute('aria-selected', k === i ? 'true' : 'false');
-    if (k === i) {
-      const left = chip.offsetLeft - (els.strip.clientWidth - chip.offsetWidth) / 2;
-      els.strip.scrollTo({ left, behavior: announce ? 'smooth' : 'auto' });
-    }
+    if (k === i) centerChip(chip, announce ? 'smooth' : 'auto');
   });
   if (announce) showFilterName(filter);
+}
+
+function centerChip(chip, behavior) {
+  const strip = els.strip.getBoundingClientRect();
+  const box = chip.getBoundingClientRect();
+  const left = els.strip.scrollLeft + (box.left - strip.left) - (strip.width - box.width) / 2;
+  els.strip.scrollTo({ left, behavior });
 }
 
 function showFilterName(filter) {

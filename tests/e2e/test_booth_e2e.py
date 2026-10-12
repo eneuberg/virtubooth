@@ -160,6 +160,29 @@ def test_switch_filters_by_tap_and_swipe(guest_page, live):
     assert guest_page.js_errors == []
 
 
+def chip_offset(page: Page, filter_id: str) -> float:
+    """Horizontal distance between the chip's centre and the strip's centre."""
+    strip = page.get_by_test_id("filter-strip").bounding_box()
+    chip = page.get_by_test_id(f"filter-{filter_id}").bounding_box()
+    assert strip and chip
+    return abs((chip["x"] + chip["width"] / 2) - (strip["x"] + strip["width"] / 2))
+
+
+@pytest.mark.parametrize("viewport", [(390, 844), (844, 390)], ids=["portrait", "landscape"])
+def test_strip_centres_the_selected_filter(guest_page, live, viewport):
+    guest_page.set_viewport_size({"width": viewport[0], "height": viewport[1]})
+    open_booth(guest_page, live)
+    for fid in ("vhs", "colorpop"):
+        select(guest_page, fid)
+        guest_page.wait_for_timeout(700)  # smooth scrolling
+        assert chip_offset(guest_page, fid) < 4, fid
+    # the preview keeps its 3:4 shape and uses the space
+    box = guest_page.get_by_test_id("preview").bounding_box()
+    assert box and abs(box["width"] / box["height"] - 0.75) < 0.01
+    assert box["width"] > min(viewport) * 0.7, box
+    assert guest_page.js_errors == []
+
+
 def test_capture_bw_is_grayscale_and_uploaded(guest_page, live):
     open_booth(guest_page, live)
     select(guest_page, "bw")
@@ -188,6 +211,33 @@ def test_party_frame_differs_at_the_border(guest_page, live):
     # the bottom band is the pink→orange→yellow frame: warm and bright
     r, g, b = ImageStat.Stat(party.crop((0, 1420, 1080, 1440))).mean
     assert r > 200 and r > b + 60, (r, g, b)
+    assert guest_page.js_errors == []
+
+
+def test_photo_is_exactly_the_preview(guest_page, live):
+    """The capture re-renders the frame on screen at 1080×1440: same video frame,
+    same mirroring, same overlay. Compare the frozen preview with the stored photo."""
+    open_booth(guest_page, live)
+    select(guest_page, "party")
+    guest_page.wait_for_timeout(1700)  # filter name label faded out
+    shoot(guest_page)
+    guest_page.evaluate("""() => {
+        document.querySelector('[data-testid=result]').classList.add('vb-hidden');
+        document.querySelectorAll('.vb-confetti, .vb-flash, .vb-toast-host').forEach((el) => el.remove());
+    }""")
+    preview = Image.open(io.BytesIO(guest_page.get_by_test_id("preview-canvas").screenshot())).convert("RGB")
+    [(_meta, photo)] = stored_images(live)
+    photo = photo.resize(preview.size, Image.Resampling.LANCZOS)
+    w, h = preview.size
+    inner = (int(w * 0.06), int(h * 0.06), int(w * 0.94), int(h * 0.94))  # skip the rounded corners
+
+    def diff(a: Image.Image, b: Image.Image) -> float:
+        return sum(ImageStat.Stat(ImageChops.difference(a.crop(inner), b.crop(inner))).mean) / 3
+
+    same = diff(preview, photo)
+    mirrored = diff(preview, photo.transpose(Image.Transpose.FLIP_LEFT_RIGHT))
+    assert same < 8, same
+    assert mirrored > same * 2, (same, mirrored)
     assert guest_page.js_errors == []
 
 
@@ -405,6 +455,15 @@ def test_screenshots(guest_page, live):
     page.wait_for_timeout(350)
     page.screenshot(path=out / "countdown.png")
     expect(page.get_by_test_id("result")).to_be_visible(timeout=READY)
+
+    # other phone sizes
+    for name, size in (("small", (375, 667)), ("landscape", (844, 390)), ("tablet", (820, 1180))):
+        page.set_viewport_size({"width": size[0], "height": size[1]})
+        open_booth(page, live)
+        select(page, "party")
+        page.wait_for_timeout(1700)
+        page.screenshot(path=out / f"layout-{name}.png")
+    page.set_viewport_size({"width": 390, "height": 844})
 
     # Canvas2D fallback
     open_booth(page, live, "?renderer=canvas2d")
