@@ -118,7 +118,8 @@ def admin_asset(rel: str) -> Response:
 @router.get("/admin/{page}", include_in_schema=False)
 def admin_page(page: str, request: Request, core: Core = Depends(get_core)) -> Response:
     if admin_from_cookie(request, core) is None:
-        return RedirectResponse(f"/admin/login?next=/admin/{quote(page)}", status_code=303)
+        target = f"/admin/{page}" + (f"?{request.url.query}" if request.url.query else "")
+        return RedirectResponse(f"/admin/login?next={quote(target, safe='/')}", status_code=303)
     if not page.replace("-", "").isalnum():
         return not_found_page()
     path = safe_file(ADMIN_STATIC, f"{page}.html")

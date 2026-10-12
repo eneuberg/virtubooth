@@ -1,7 +1,7 @@
 import { api } from '/static/core/vb.js';
 
 // only same-site admin pages, never an open redirect
-const NEXT_RE = /^\/admin\/[a-z0-9-]*$/;
+const NEXT_RE = /^\/admin\/[a-z0-9-]*(\?id=\d{1,9})?$/;
 
 export function safeNext(raw) {
   if (!raw || !NEXT_RE.test(raw) || raw === '/admin/' || raw === '/admin/login') return '/admin/live';

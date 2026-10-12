@@ -159,6 +159,10 @@ def guest_page(page: Page, live: LiveServer) -> Page:
 def admin_page(context: BrowserContext, live: LiveServer) -> Page:
     """A page with an admin session (logged in via the API, not the UI)."""
     p = context.new_page()
+    errors: list[str] = []
+    p.on("pageerror", lambda exc: errors.append(str(exc)))
+    p.on("console", lambda msg: errors.append(msg.text) if msg.type == "error" else None)
+    p.js_errors = errors  # type: ignore[attr-defined]
     p.goto(live.url("/healthz"))
     status = p.evaluate(
         """async (pw) => (await fetch('/api/admin/login', {method: 'POST',

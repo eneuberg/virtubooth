@@ -178,6 +178,14 @@ def test_login_never_redirects_off_site(page, live, next_url):
     page.wait_for_url(live.url("/admin/live"))
 
 
+def test_login_returns_to_user_page_with_id(page, live):
+    page.goto(live.url("/admin/user?id=1"))
+    assert page.url == live.url("/admin/login?next=/admin/user%3Fid%3D1")
+    page.fill("#password", ADMIN_PASSWORD)
+    page.get_by_role("button", name="Anmelden").click()
+    page.wait_for_url(live.url("/admin/user?id=1"))
+
+
 def test_login_rate_limit_message(page, live):
     page.goto(live.url("/admin/login"))
     for _ in range(5):

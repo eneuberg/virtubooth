@@ -99,3 +99,17 @@ def test_limits_reset():
     assert not limits.login_ip.hit("ip")
     limits.reset()
     assert limits.login_ip.hit("ip")
+
+
+def test_login_redirect_keeps_simple_query(client):
+    r = client.get("/admin/user?id=5")
+    assert r.headers["location"] == "/admin/login?next=/admin/user%3Fid%3D5"
+
+
+def test_admin_is_exempt_from_the_shared_ip_budget(admin, client, core):
+    core.limits.api_ip = type(core.limits.api_ip)(3, 60)
+    for _ in range(10):
+        assert admin.get("/api/admin/session").status_code == 200
+    # an anonymous caller on the same IP is throttled
+    codes = [client.get("/api/admin/session").status_code for _ in range(5)]
+    assert 429 in codes

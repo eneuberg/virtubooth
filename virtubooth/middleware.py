@@ -20,6 +20,7 @@ from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
 from . import errors
 from .context import Core
+from .deps import admin_from_cookie
 from .pages import gate_page
 from .security import (
     ACCESS_COOKIE,
@@ -63,7 +64,10 @@ class GuardMiddleware:
             await JSONResponse(err.body(), status_code=403)(scope, receive, send)
             return
 
-        if path.startswith("/api/"):
+        # the admin shares the venue WiFi IP with every guest; never throttle moderation
+        if path.startswith("/api/") and not (
+            path.startswith("/api/admin/") and admin_from_cookie(request, core) is not None
+        ):
             ip = client_ip(request)
             if not core.limits.api_ip.hit(ip):
                 err = errors.rate_limited(core.limits.api_ip.retry_after(ip))
