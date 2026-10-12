@@ -347,11 +347,12 @@ body.adm-noscroll { overflow: hidden; }
   cursor: pointer;
 }
 .adm-tile-check input { width: 26px; height: 26px; margin: 0; accent-color: var(--vb-cyan); cursor: pointer; }
-.adm-tile-body { display: grid; grid-template-columns: minmax(0, 1fr); gap: 2px; padding: 8px 10px 10px; font-size: 0.92rem; }
+.adm-tile-body { display: flex; flex: 1; flex-direction: column; gap: 2px; min-width: 0; padding: 8px 10px 10px; font-size: 0.92rem; }
+.adm-tile-body > * { min-width: 0; }
 .adm-tile-title { font-weight: 900; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .adm-tile .adm-time { font-size: 0.85rem; }
 .adm-tile .adm-user { min-height: 40px; }
-.adm-tile-actions { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 6px; margin-top: 6px; }
+.adm-tile-actions { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 6px; margin-top: auto; padding-top: 6px; }
 .adm-tile-actions .vb-btn { min-height: 44px; padding: 0 10px; font-size: 0.88rem; border-width: 1px; }
 .adm-tile-actions .adm-toggle { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .adm-del { min-width: 46px; }
