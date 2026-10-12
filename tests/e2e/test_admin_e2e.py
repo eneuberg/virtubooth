@@ -14,6 +14,7 @@ from playwright.sync_api import Page, expect
 
 from virtubooth.admin import api as admin_api
 from virtubooth.extension import Extension, UploadPolicy
+from virtubooth.ratelimit import RateLimiter
 
 from ..conftest import ADMIN_PASSWORD, fp, jpeg
 
@@ -562,3 +563,38 @@ def test_event_stream(live, guests, monkeypatch):
                 other.post(f"/api/admin/photos/{pid}/unhide", headers=origin)
                 assert _wait_for(out, lambda line: False) is None
             t.join(5)
+
+
+def test_back_button_closes_lightbox(admin_page, live, guests):
+    page = admin_page
+    pid = guests().upload()
+    page.goto(live.url("/admin/live"))
+    card(page, pid).get_by_test_id("thumb").click()
+    expect(page.get_by_test_id("lightbox")).to_be_visible()
+    page.go_back()
+    expect(page.get_by_test_id("lightbox")).to_have_count(0)
+    assert page.url == live.url("/admin/live")
+    expect(card(page, pid)).to_be_visible()
+    assert page.js_errors == []
+
+
+def test_infinite_scroll_loads_older_photos(admin_page, desktop_page, live, guests):
+    live.core.limits.upload_user = RateLimiter(1000, 60)
+    g = guests()
+    ids = [g.upload() for _ in range(55)]
+    page = admin_page
+    page.goto(live.url("/admin/live"))
+    cards = page.locator("[data-testid=photo-card]")
+    expect(cards).to_have_count(30)  # first page
+    cards.last.scroll_into_view_if_needed()
+    page.mouse.wheel(0, 20000)
+    expect(cards).to_have_count(55)
+    assert cards.last.get_attribute("data-photo-id") == ids[0]  # oldest at the bottom
+
+    desktop_page.goto(live.url("/admin/manage"))
+    tiles = desktop_page.locator("[data-testid=photo-tile]")
+    expect(tiles).to_have_count(48)
+    desktop_page.mouse.wheel(0, 50000)
+    expect(tiles).to_have_count(55)
+    expect(desktop_page.get_by_test_id("photo-total")).to_have_text("55 Fotos")
+    assert page.js_errors == [] and desktop_page.js_errors == []
