@@ -23,6 +23,8 @@ from virtubooth.extension import discover_extensions
 from virtubooth.extensions.booth import FILTERS
 from virtubooth.repo import PhotoQuery
 
+from .conftest import accept_consent_in_browser
+
 pytestmark = pytest.mark.e2e
 
 READY = 15000
@@ -125,6 +127,17 @@ def test_preview_runs_on_webgl(guest_page, live):
     assert guest_page.get_by_test_id("user-chip").is_visible()
     assert guest_page.get_by_test_id("back").get_attribute("href") == "/"
     assert guest_page.js_errors == []
+
+
+def test_new_guest_sees_consent_before_the_camera(page, live):
+    page.goto(live.entry("/x/booth/"))  # straight from the QR code
+    page.get_by_test_id("consent").wait_for()
+    assert page.get_by_test_id("booth").get_attribute("data-ready") is None
+    assert page.locator("#video").evaluate("v => v.srcObject") is None  # camera not opened yet
+    accept_consent_in_browser(page)
+    expect(page.get_by_test_id("booth")).to_have_attribute("data-ready", "1", timeout=READY)
+    assert len(live.core.repo.list_users()) == 1
+    assert page.js_errors == []
 
 
 def test_every_filter_compiles_and_renders(guest_page, live):

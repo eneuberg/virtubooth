@@ -57,6 +57,8 @@ const state = {
   shot: null, // the photo on the result screen
   outbox: [], // photos whose upload failed after the guest moved on
   t0: performance.now(),
+  playTried: 0,
+  wakeLock: null,
 };
 
 function storageGet(key) {
@@ -104,6 +106,11 @@ function sizeCanvas() {
 function frame(now) {
   state.rafId = 0;
   if (!state.running) return;
+  // iOS can leave the camera video paused (power saving, after a call): nudge it
+  if (els.video.paused && state.cam.live && now - state.playTried > 1000) {
+    state.playTried = now;
+    els.video.play().catch(() => {});
+  }
   const drawn = state.renderer.render(els.video, {
     mirror: state.cam.mirrored,
     time: ((now - state.t0) / 1000) % 1000,
@@ -121,6 +128,15 @@ function startLoop() {
   if (state.running || !state.cam || document.hidden || state.shot) return;
   state.running = true;
   state.rafId = requestAnimationFrame(frame);
+  keepScreenOn();
+}
+
+/** A phone on a stand should not go dark mid-party (Android Chrome, iOS 16.4+). */
+async function keepScreenOn() {
+  if (!navigator.wakeLock || (state.wakeLock && !state.wakeLock.released)) return;
+  try {
+    state.wakeLock = await navigator.wakeLock.request('screen');
+  } catch (_) { /* not allowed (battery saver, iframe): fine */ }
 }
 
 function stopLoop() {
