@@ -205,6 +205,7 @@ def test_countdown_delays_the_capture(guest_page, live):
     start = time.monotonic()
     guest_page.get_by_test_id("shutter").click()
     expect(guest_page.get_by_test_id("countdown")).to_have_text("3")
+    assert guest_page.get_by_test_id("result").is_hidden()
     expect(guest_page.get_by_test_id("countdown")).to_have_text("1", timeout=4000)
     expect(guest_page.get_by_test_id("result")).to_be_visible(timeout=8000)
     elapsed = time.monotonic() - start
@@ -222,6 +223,10 @@ def test_save_downloads_the_photo(guest_page, live):
     assert download.suggested_filename == "fotobox-1.jpg"
     data = Path(download.path()).read_bytes()
     assert Image.open(io.BytesIO(data)).size == (1080, 1440)
+    expect(guest_page.get_by_test_id("save")).to_contain_text("Gespeichert ✓")
+    again(guest_page)
+    guest_page.get_by_test_id("shutter").click()
+    expect(guest_page.get_by_test_id("save")).to_contain_text("Speichern")
     assert guest_page.js_errors == []
 
 
@@ -239,6 +244,30 @@ def test_switch_camera_and_back_to_camera(guest_page, live):
     [(meta, _img)] = stored_images(live)
     assert meta == {"filter": "sepia", "facing": "environment"}
     assert guest_page.js_errors == []
+
+
+def test_double_tap_flips_the_camera(guest_page, live):
+    open_booth(guest_page, live)
+    booth = guest_page.get_by_test_id("booth")
+    guest_page.get_by_test_id("preview").dblclick()
+    expect(booth).to_have_attribute("data-facing", "environment")
+    expect(booth).to_have_attribute("data-ready", "1", timeout=READY)
+    expect(booth).to_have_attribute("data-filter", "normal")  # taps never change the filter
+    assert guest_page.js_errors == []
+
+
+DENY_CAMERA = """navigator.mediaDevices.getUserMedia = () =>
+    Promise.reject(new DOMException('Permission denied', 'NotAllowedError'));"""
+
+
+def test_camera_denied_shows_a_german_notice(guest_page, live):
+    guest_page.add_init_script(DENY_CAMERA)
+    guest_page.goto(live.url("/x/booth/"))
+    notice = guest_page.get_by_role("alert")
+    expect(notice).to_contain_text("Die Kamera geht nicht")
+    expect(notice).to_contain_text("Kamera-Zugriff wurde verweigert")
+    expect(notice.get_by_role("button", name="Nochmal versuchen")).to_be_visible()
+    expect(guest_page.get_by_test_id("shutter")).to_be_disabled()
 
 
 def test_upload_error_can_be_retried(guest_page, live):
@@ -265,6 +294,54 @@ def test_upload_error_can_be_retried(guest_page, live):
     assert all("429" in e for e in guest_page.js_errors), guest_page.js_errors
 
 
+def test_failed_upload_left_behind_goes_to_the_outbox(guest_page, live):
+    open_booth(guest_page, live)
+    offline = {"on": True}
+
+    def maybe_fail(route):
+        if offline["on"]:
+            route.abort("internetdisconnected")
+        else:
+            route.continue_()
+
+    guest_page.route("**/api/x/booth/upload", maybe_fail)
+    guest_page.get_by_test_id("shutter").click()
+    expect(guest_page.get_by_test_id("upload-status")).to_have_attribute("data-state", "error", timeout=READY)
+    expect(guest_page.get_by_test_id("upload-status")).to_contain_text("Keine Verbindung")
+    again(guest_page)  # move on without retrying
+    outbox = guest_page.get_by_test_id("outbox")
+    expect(outbox).to_be_visible()
+    expect(outbox).to_contain_text("1 nicht hochgeladen")
+    offline["on"] = False
+    outbox.click()
+    expect(outbox).to_be_hidden()
+    expect(guest_page.get_by_text("Foto #1 ist hochgeladen ✓")).to_be_visible(timeout=READY)
+    assert len(stored_images(live)) == 1
+    assert all("ERR_INTERNET_DISCONNECTED" in e for e in guest_page.js_errors), guest_page.js_errors
+
+
+def test_survives_webgl_context_loss(guest_page, live):
+    open_booth(guest_page, live)
+    select(guest_page, "party")
+    was_lost = guest_page.get_by_test_id("preview-canvas").evaluate("""async (canvas) => {
+        const gl = canvas.getContext('webgl');
+        const ext = gl.getExtension('WEBGL_lose_context');
+        ext.loseContext();
+        await new Promise((resolve) => setTimeout(resolve, 250));
+        const lost = gl.isContextLost();
+        ext.restoreContext();
+        return lost;
+    }""")
+    assert was_lost
+    guest_page.wait_for_timeout(300)
+    shoot(guest_page)
+    [(meta, img)] = stored_images(live)
+    assert meta["filter"] == "party"
+    r, g, b = ImageStat.Stat(img.crop((0, 1420, 1080, 1440))).mean
+    assert r > 200 and r > b + 60, (r, g, b)  # the frame overlay came back too
+    assert guest_page.js_errors == []
+
+
 def test_canvas2d_fallback(guest_page, live):
     open_booth(guest_page, live, "?renderer=canvas2d")
     booth = guest_page.get_by_test_id("booth")
@@ -289,32 +366,54 @@ def test_canvas2d_fallback(guest_page, live):
 def test_screenshots(guest_page, live):
     out = Path(os.environ["VB_BOOTH_SCREENSHOTS"])
     out.mkdir(parents=True, exist_ok=True)
-    open_booth(guest_page, live)
-    guest_page.wait_for_timeout(400)
-    guest_page.screenshot(path=out / "camera-normal.png")
+    page = guest_page
+    open_booth(page, live)
+    page.wait_for_timeout(400)
+    page.screenshot(path=out / "camera-normal.png")
     for fid in FILTERS:
         if fid == "normal":
             continue
-        select(guest_page, fid)
-        guest_page.wait_for_timeout(1700)  # let the name label fade
-        guest_page.screenshot(path=out / f"camera-{fid}.png")
-    select(guest_page, "party")
-    guest_page.wait_for_timeout(300)
-    guest_page.screenshot(path=out / "camera-name-label.png")
-    shoot(guest_page)
-    guest_page.wait_for_timeout(2600)  # confetti gone
-    guest_page.screenshot(path=out / "result.png")
-    for meta, img in stored_images(live):
-        img.save(out / f"photo-{meta['filter']}.jpg")
-    again(guest_page)
+        select(page, fid)
+        page.wait_for_timeout(1700)  # let the name label fade
+        page.screenshot(path=out / f"camera-{fid}.png")
+    select(page, "party")
+    page.wait_for_timeout(300)
+    page.screenshot(path=out / "camera-name-label.png")
+    shoot(page)
+    page.wait_for_timeout(2600)  # confetti gone
+    page.screenshot(path=out / "result.png")
+    again(page)
     for fid in FILTERS:
-        if fid in ("party",):
+        if fid == "party":
             continue
-        select(guest_page, fid)
-        guest_page.wait_for_timeout(300)
-        guest_page.get_by_test_id("shutter").click()
-        expect(guest_page.get_by_test_id("result")).to_be_visible(timeout=READY)
-        again(guest_page)
-    guest_page.wait_for_timeout(1500)
+        select(page, fid)
+        page.wait_for_timeout(300)
+        page.get_by_test_id("shutter").click()
+        expect(page.get_by_test_id("result")).to_be_visible(timeout=READY)
+        again(page)
+    page.wait_for_timeout(1500)
     for meta, img in stored_images(live):
         img.save(out / f"photo-{meta['filter']}.jpg")
+
+    # countdown in progress
+    page.reload()
+    expect(page.get_by_test_id("booth")).to_have_attribute("data-ready", "1", timeout=READY)
+    select(page, "neon")
+    page.get_by_test_id("countdown-toggle").click()
+    page.wait_for_timeout(1500)
+    page.get_by_test_id("shutter").click()
+    page.wait_for_timeout(350)
+    page.screenshot(path=out / "countdown.png")
+    expect(page.get_by_test_id("result")).to_be_visible(timeout=READY)
+
+    # Canvas2D fallback
+    open_booth(page, live, "?renderer=canvas2d")
+    select(page, "sepia")
+    page.wait_for_timeout(1700)
+    page.screenshot(path=out / "fallback-sepia.png")
+
+    # camera error
+    page.add_init_script(DENY_CAMERA)
+    page.goto(live.url("/x/booth/"))
+    expect(page.get_by_role("alert")).to_contain_text("Die Kamera geht nicht")
+    page.screenshot(path=out / "camera-denied.png")
