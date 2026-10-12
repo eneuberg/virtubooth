@@ -280,12 +280,13 @@ everyone; restarting the container resets that lock.
 
 ```bash
 docker compose exec app python -m virtubooth.tools.qr --base-url https://party.example.com
-docker compose cp app:/data/exports ./exports      # then open exports/qr-sheet.html and print
+docker compose cp app:/data/exports/qr ./qr        # then open qr/qr-sheet.html and print
 ```
 
-The tool writes a printable `qr-sheet.html` plus SVG/PNG files of the codes
-to `/data/exports/` (`--out DIR` to change), with the party token baked into
-every URL. `--extensions beer,booth` picks the activities, `--base-url`
+The tool writes a printable `qr-sheet.html` (one A4 page per code: the home
+page plus each activity) and SVG/PNG files of the codes to `/data/exports/qr/`
+(`--out DIR` to change), with the party token baked into every URL but never
+printed as text. `--extensions beer,booth` picks the activities, `--base-url`
 overrides `VB_PUBLIC_BASE_URL`, and `--token` prints codes for a token you
 have not deployed yet. Locally (with the `.env` loaded): `uv run python -m
 virtubooth.tools.qr --out ./exports`.
@@ -306,9 +307,12 @@ docker compose exec app python -m virtubooth.tools.timelapse --extension beer --
 docker compose exec app python -m virtubooth.tools.timelapse --dry-run   # show what it would do
 ```
 
-Options: `--fps 12`, `--crossfade`, `--size 1080x1440`, `--hold-last 2`
-(seconds on the last frame), `--crf 20` (quality, lower is better),
-`--include-hidden`, `--out FILE`, `--data-dir DIR`.
+Options: `--fps 12`, `--crossfade` (with `--fade 0.5`: share of each photo's
+time spent blending into the next, matters at low fps), `--size 1080x1440`,
+`--hold-last 2` (seconds on the last frame), `--crf 20` (quality, lower is
+better), `--preset medium`, `--include-hidden`, `--limit N` (quick preview
+with the first N photos), `--out FILE`, `--data-dir DIR`. Hidden and deleted
+photos are left out by default.
 
 **Export** the photos and their metadata as one `.tar.gz`:
 
@@ -317,7 +321,12 @@ docker compose exec app python -m virtubooth.tools.export                 # all 
 docker compose exec app python -m virtubooth.tools.export --no-hidden     # skip hidden ones
 ```
 
-Options: `--out FILE.tar.gz`, `--data-dir DIR`.
+Options: `--out FILE.tar.gz`, `--data-dir DIR`, `--no-db`. The archive holds
+one folder `virtubooth-export-<timestamp>/` with `photos/<extension>/`
+(hidden ones in `photos/<extension>/hidden/`), `photos.csv`, `users.csv`,
+`instagram.csv` (handle → photos to tag them on), a consistent copy of
+`virtubooth.db` (contains IPs and fingerprints; leave it out with `--no-db`)
+and a `README.txt`.
 
 **Copy results off the server:**
 
