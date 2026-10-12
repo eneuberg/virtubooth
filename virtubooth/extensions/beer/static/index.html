@@ -1,0 +1,96 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="robots" content="noindex, nofollow">
+  <meta name="theme-color" content="#14021f">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <title>Beer Cam 🍺</title>
+  <link rel="icon" href="/static/core/icon.svg">
+  <link rel="stylesheet" href="/static/core/vb.css">
+  <link rel="stylesheet" href="./beer.css">
+  <script type="module" src="./beer.js"></script>
+</head>
+<body class="beer">
+  <main class="beer-app" id="app" data-state="loading" data-testid="beer-app">
+    <header class="beer-top">
+      <a class="vb-icon-btn beer-back" href="/" aria-label="Zurück zur Startseite" data-testid="back">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 5 8 12l7 7"/></svg>
+      </a>
+      <div class="beer-user" id="user-chip"></div>
+      <div class="beer-counter" data-testid="counter" aria-label="Biere bisher">
+        <span aria-hidden="true">🍺</span>
+        <b id="count">…</b>
+        <span class="beer-goal" id="goal">/ 1.000.000</span>
+      </div>
+    </header>
+
+    <p class="beer-inapp" id="inapp" data-testid="inapp-hint" hidden>
+      <span>Kamera geht nicht? Öffne den Link in Safari oder Chrome (⋯ › „Im Browser öffnen“).</span>
+      <button class="beer-inapp-close" id="inapp-close" type="button" aria-label="Hinweis schließen">✕</button>
+    </p>
+
+    <section class="beer-viewport">
+      <div class="beer-frame" id="frame" data-testid="frame">
+        <video id="video" playsinline muted autoplay></video>
+        <div class="beer-loading" id="loading">
+          <div class="vb-spinner"></div>
+          <p>Kamera startet…</p>
+        </div>
+        <div class="beer-upload" id="upload" data-testid="upload" hidden>
+          <p class="beer-upload-text" id="upload-text" aria-live="polite">Wird geloggt…</p>
+          <div class="vb-progress" data-testid="upload-progress"><span id="upload-bar"></span></div>
+          <div class="beer-upload-actions" id="upload-actions" hidden>
+            <button class="vb-btn vb-btn--primary" id="retry" type="button" data-testid="retry">Nochmal</button>
+            <button class="vb-btn vb-btn--ghost" id="discard" type="button" data-testid="discard">Verwerfen</button>
+          </div>
+        </div>
+      </div>
+      <p class="beer-hint" id="hint" data-testid="hint">Halte deine Flasche genau in den Umriss</p>
+    </section>
+
+
+    <footer class="beer-bottom">
+      <div class="beer-vessels" role="radiogroup" aria-label="Gefäß">
+        <button class="beer-vessel" type="button" role="radio" aria-checked="true" data-vessel="bottle" data-testid="vessel-bottle">
+          <span class="beer-vessel-label">Flasche</span>
+        </button>
+        <button class="beer-vessel" type="button" role="radio" aria-checked="false" data-vessel="cup" data-testid="vessel-cup">
+          <span class="beer-vessel-label">Becher</span>
+        </button>
+      </div>
+      <button class="vb-shutter beer-shutter" id="shutter" type="button" aria-label="Foto aufnehmen" data-testid="shutter" disabled></button>
+      <button class="vb-icon-btn beer-switch" id="switch" type="button" aria-label="Kamera wechseln" data-testid="switch-camera" disabled>
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M4 8.5h2.6l1.6-2.2h7.6l1.6 2.2H20a1 1 0 0 1 1 1V18a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9.5a1 1 0 0 1 1-1Z"/>
+          <path d="M9.2 12.2a3.2 3.2 0 0 1 5.6-.9M14.8 15.8a3.2 3.2 0 0 1-5.6.9"/>
+          <path d="M15.2 9.8v1.8h-1.8M8.8 18.2v-1.8h1.8"/>
+        </svg>
+      </button>
+    </footer>
+  </main>
+
+  <section class="beer-success" id="success" data-testid="success" aria-live="assertive" hidden>
+    <div class="beer-success-inner">
+      <figure class="beer-polaroid">
+        <img id="success-img" alt="Dein Bier-Foto" width="1080" height="1440">
+        <figcaption id="success-caption">Bier</figcaption>
+      </figure>
+      <h1 class="beer-success-title" data-testid="success-title">
+        <span class="beer-success-num">Bier <span class="vb-grad-text" id="success-num">#…</span></span>
+        <span class="beer-success-logged">geloggt <span aria-hidden="true">🍺</span></span>
+      </h1>
+      <p class="beer-success-cheer" id="success-cheer">Prost!</p>
+      <div class="beer-success-count" data-testid="success-count">
+        <span aria-hidden="true">🍺</span> <b id="success-total">…</b> <span class="beer-goal" id="success-goal">/ 1.000.000</span>
+      </div>
+      <p class="beer-success-togo vb-muted" id="success-togo"></p>
+      <div class="beer-success-actions">
+        <button class="vb-btn vb-btn--primary vb-btn--big" id="again" type="button" data-testid="again">Noch eins! 🍺</button>
+        <a class="vb-btn vb-btn--ghost vb-btn--block" href="/" data-testid="home">Zur Startseite</a>
+      </div>
+    </div>
+  </section>
+</body>
+</html>
