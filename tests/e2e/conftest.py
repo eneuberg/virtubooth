@@ -292,11 +292,11 @@ def page(context: BrowserContext) -> Iterator[Page]:
 
 
 def accept_consent_in_browser(page: Page, instagram: str = "") -> None:
-    page.get_by_test_id("consent").wait_for()
+    page.get_by_test_id("join").wait_for()
     if instagram:
-        page.fill("#vb-consent-insta", instagram)
+        page.fill("#vb-join-insta", instagram)
     page.get_by_role("button", name="Alles klar").click()
-    page.get_by_test_id("consent").wait_for(state="detached")
+    page.get_by_test_id("join").wait_for(state="detached")
 
 
 @pytest.fixture

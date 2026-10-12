@@ -14,7 +14,7 @@ virtubooth/
 ├── deps.py           FastAPI dependencies: require_access / require_guest / require_admin
 ├── security.py       cookies, signing, CSRF origin check, security headers
 ├── middleware.py     ?t= token entry, CSRF guard, API rate limit, headers
-├── identity.py       /api/identify, /api/consent, PATCH /api/me
+├── identity.py       /api/identify, /api/join, PATCH /api/me
 ├── admin_auth.py     /api/admin/login|logout|session
 ├── uploads.py        POST /api/x/<ext>/upload (generic pipeline)
 ├── media.py          GET /media/<photo id> (owner or admin only)
@@ -32,7 +32,7 @@ virtubooth/
 
 | Who | How | What |
 |---|---|---|
-| Party guest | scans QR `https://host/<path>?t=<VB_PARTY_TOKEN>` → middleware sets `vb_access` cookie (HMAC of the token, HttpOnly, SameSite=Lax) and 303-redirects to the same URL without `t` | pages, `/api/identify`, `/api/consent` |
+| Party guest | scans QR `https://host/<path>?t=<VB_PARTY_TOKEN>` → middleware sets `vb_access` cookie (HMAC of the token, HttpOnly, SameSite=Lax) and 303-redirects to the same URL without `t` | pages, `/api/identify`, `/api/join` |
 | Identified guest | accepted the consent banner → `vb_uid` cookie (signed random public id) + localStorage copy | uploads, own photos, `PATCH /api/me` |
 | Admin | `POST /api/admin/login` with `VB_ADMIN_PASSWORD` → `vb_admin` cookie (random token, SHA-256 stored in DB, SameSite=Strict, expires, dies on logout or password change) | `/admin/*` pages, `/api/admin/*`, all media |
 
@@ -56,7 +56,7 @@ There is no registration. Every page calls `boot()` from the SDK:
    "needs_consent", consent}`.
 2. Unknown devices see the consent banner (store photos, post on Instagram,
    device recognition; optional Instagram handle). There is no "no" button:
-   declining means not using the site. Accepting → `POST /api/consent` creates
+   declining means not using the site. Accepting → `POST /api/join` creates
    a pseudonymous user (`users` row, name like "Tanzender Waschbär #17").
 3. The browser fingerprint (`device.js`: canvas, WebGL renderer, screen,
    timezone, UA, …) is stored per user, history in `user_fingerprints`.
@@ -131,11 +131,18 @@ Every page links `/static/core/vb.css`, includes
 page's modules never start) and loads its own ES module.
 
 **Content blockers:** uBlock, AdGuard, Brave and iOS content blockers drop
-URLs that look like tracking. One failed static import stops every module on
-the page, silently. So: neutral file and API path names (no "fingerprint",
-"track", "analytics", "beacon", "pixel", "ads", ...; a test checks the file
-names), and load optional modules with a dynamic `import()` inside
-`try/catch`.
+URLs that look like tracking, and their cookie-notice lists (on by default in
+Brave) hide elements that look like consent banners. One failed static import
+stops every module on the page, silently; a hidden join dialog leaves a page
+that never starts. So: neutral file and API path names (no "fingerprint",
+"track", "analytics", "beacon", "pixel", "ads", "consent", "cookie", "gdpr",
+...), neutral class/id/test-id names on UI a guest must use (the join dialog is
+a `.vb-sheet` in a `.vb-scrim`, `data-testid="join"`, posting to `/api/join`),
+and load optional modules with a dynamic `import()` inside `try/catch`.
+`tests/test_core_blockers.py` matches every URL the app serves or requests and
+every element its pages build against real filter rules: a vendored subset
+(`tests/fixtures/blocker_rules.txt`) always, the full lists with
+`VB_BLOCKLISTS=<dir>`.
 
 Main API:
 
@@ -156,7 +163,7 @@ Main API:
 
 CSS: tokens `--vb-*`; components `.vb-btn(--primary|--big|--block|--ghost|--danger|--cool)`,
 `.vb-icon-btn`, `.vb-shutter`, `.vb-card`, `.vb-chip`, `.vb-input`, `.vb-stage`
-(fullscreen camera) with `.vb-topbar`/`.vb-bottombar`, `.vb-modal(-backdrop)`,
+(fullscreen camera) with `.vb-topbar`/`.vb-bottombar`, `.vb-sheet` (dialog) in a `.vb-scrim`,
 `.vb-progress > span`, `.vb-spinner`, `.vb-hidden`.
 
 UI language: German. Mobile-first, big touch targets, party look (dark,
@@ -172,6 +179,7 @@ uv run pytest                # unit/API tests (fast)
 uv run pytest -m e2e         # browser tests: Playwright Chromium + fake camera
 VB_E2E_BROWSER=firefox uv run pytest -m e2e   # the same in Firefox
 tests/e2e/run_webkit.sh      # the same in WebKit (Docker)
+VB_BLOCKLISTS=.blocklists uv run pytest tests/test_core_blockers.py  # + full filter lists (~60 MB, downloaded once)
 uv run virtubooth gen-env > .env && set -a && . ./.env && set +a && uv run virtubooth serve --reload
 ```
 

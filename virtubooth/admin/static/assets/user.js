@@ -192,7 +192,7 @@ function fingerprintPanel() {
         unban.addEventListener('click', async () => {
           unban.disabled = true;
           try {
-            await aapi(`/api/admin/fingerprint-bans/${encodeURIComponent(f.fp_hash)}`, { method: 'DELETE' });
+            await aapi(`/api/admin/device-bans/${encodeURIComponent(f.fp_hash)}`, { method: 'DELETE' });
             toast('Fingerprint entsperrt', { type: 'success' });
             await load();
           } catch (err) {

@@ -546,7 +546,7 @@ async function loadSperren() {
   try {
     const [users, fps] = await Promise.all([
       aapi(`/api/admin/users${qs({ banned: 'true', limit: 500 })}`),
-      aapi('/api/admin/fingerprint-bans'),
+      aapi('/api/admin/device-bans'),
     ]);
     bannedUsersCount.textContent = `(${users.users.length})`;
     fpBansCount.textContent = `(${fps.bans.length})`;
@@ -585,7 +585,7 @@ function fpBanRow(b) {
   btn.addEventListener('click', async () => {
     btn.disabled = true;
     try {
-      await aapi(`/api/admin/fingerprint-bans/${encodeURIComponent(b.fp_hash)}`, { method: 'DELETE' });
+      await aapi(`/api/admin/device-bans/${encodeURIComponent(b.fp_hash)}`, { method: 'DELETE' });
       toast('Fingerprint entsperrt', { type: 'success' });
       loadSperren();
       refreshStats();

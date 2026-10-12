@@ -62,7 +62,7 @@ def guest(browser: Browser, live, path: str, device: dict = DESKTOP) -> Page:
     page = track_errors(browser.new_context(**device).new_page())
     page.add_init_script(SPY)
     page.goto(live.entry(path))
-    page.get_by_test_id("consent").wait_for()
+    page.get_by_test_id("join").wait_for()
     # the camera (and with it Firefox's prompt) only comes after the banner
     assert page.evaluate("() => window.__cameraRequests.length") == 0
     accept_consent_in_browser(page)

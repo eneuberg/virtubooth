@@ -307,7 +307,7 @@ def test_screenshots(browser, live, device):
             page.screenshot(path=out / f"{device}-{name}.png")
 
         page.goto(live.entry("/"))
-        page.get_by_test_id("consent").wait_for()
+        page.get_by_test_id("join").wait_for()
         snap("consent")
         accept_consent_in_browser(page)
         page.get_by_test_id("tile-beer").wait_for()

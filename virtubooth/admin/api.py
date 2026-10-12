@@ -362,12 +362,12 @@ def unban_user(
 # --------------------------------------------------------- fingerprint bans
 
 
-@router.get("/fingerprint-bans")
+@router.get("/device-bans")
 def fingerprint_bans(core: Core = Depends(get_core)) -> dict[str, Any]:
     return {"bans": queries.fingerprint_bans(core.db)}
 
 
-@router.delete("/fingerprint-bans/{fp_hash}")
+@router.delete("/device-bans/{fp_hash}")
 def unban_fingerprint(
     fp_hash: FpHash, core: Core = Depends(get_core), admin: Admin = Depends(require_admin)
 ) -> dict[str, Any]:

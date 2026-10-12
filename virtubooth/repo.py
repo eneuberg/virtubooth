@@ -23,7 +23,10 @@ def now_iso() -> str:
 
 
 def new_public_id() -> str:
-    return secrets.token_urlsafe(12)
+    # never a leading "-": spreadsheets read "-abc" as a formula, and some CLIs as a flag
+    while (public_id := secrets.token_urlsafe(12)).startswith("-"):
+        pass
+    return public_id
 
 
 @dataclass(frozen=True)

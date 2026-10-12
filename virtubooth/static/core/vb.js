@@ -192,26 +192,26 @@ export async function boot({ showBannedNotice = true } = {}) {
 function askConsent(consent, fp) {
   return new Promise((resolve) => {
     const input = h('input', {
-      class: 'vb-input', id: 'vb-consent-insta', type: 'text', inputmode: 'text',
+      class: 'vb-input', id: 'vb-join-insta', type: 'text', inputmode: 'text',
       autocomplete: 'off', autocapitalize: 'none', spellcheck: 'false', placeholder: '@deinname', maxlength: '60',
     });
     const errorEl = h('div', { class: 'vb-field-error', role: 'alert' });
     const accept = h('button', { class: 'vb-btn vb-btn--primary vb-btn--big', type: 'submit' }, consent.accept_label);
-    const form = h('form', { class: 'vb-modal', role: 'dialog', 'aria-modal': 'true', 'aria-labelledby': 'vb-consent-title' },
-      h('h2', { id: 'vb-consent-title' }, consent.title),
+    const form = h('form', { class: 'vb-sheet', role: 'dialog', 'aria-modal': 'true', 'aria-labelledby': 'vb-join-title' },
+      h('h2', { id: 'vb-join-title' }, consent.title),
       ...consent.paragraphs.map((p) => h('p', { class: 'vb-muted' }, p)),
-      h('label', { class: 'vb-label', for: 'vb-consent-insta' }, consent.instagram_prompt),
+      h('label', { class: 'vb-label', for: 'vb-join-insta' }, consent.instagram_prompt),
       input,
       errorEl,
       h('div', { class: 'vb-actions' }, accept),
     );
-    const backdrop = h('div', { class: 'vb-modal-backdrop', 'data-testid': 'consent' }, form);
+    const backdrop = h('div', { class: 'vb-scrim', 'data-testid': 'join' }, form);
     form.addEventListener('submit', async (event) => {
       event.preventDefault();
       accept.disabled = true;
       errorEl.textContent = '';
       try {
-        const res = await api('/api/consent', {
+        const res = await api('/api/join', {
           method: 'POST',
           json: { accept: true, version: consent.version, instagram: input.value.trim() || null, fp },
         });
@@ -260,7 +260,7 @@ export function editInstagram() {
   });
   const errorEl = h('div', { class: 'vb-field-error', role: 'alert' });
   const close = () => backdrop.remove();
-  const form = h('form', { class: 'vb-modal', role: 'dialog', 'aria-modal': 'true' },
+  const form = h('form', { class: 'vb-sheet', role: 'dialog', 'aria-modal': 'true' },
     h('h2', {}, 'Dein Instagram'),
     h('p', { class: 'vb-muted' }, `Du bist hier „${user.name}“. Wenn du magst, markieren wir dich auf Instagram.`),
     h('label', { class: 'vb-label', for: 'vb-insta-edit' }, 'Instagram-Name (freiwillig)'),
@@ -271,7 +271,7 @@ export function editInstagram() {
       h('button', { class: 'vb-btn vb-btn--ghost vb-btn--block', type: 'button', onclick: close }, 'Abbrechen'),
     ),
   );
-  const backdrop = h('div', { class: 'vb-modal-backdrop' }, form);
+  const backdrop = h('div', { class: 'vb-scrim' }, form);
   form.addEventListener('submit', async (event) => {
     event.preventDefault();
     try {

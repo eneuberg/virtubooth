@@ -1,0 +1,455 @@
+! Content-blocker rules that matter to virtubooth, vendored for tests/test_core_blockers.py
+! (the full lists are checked when VB_BLOCKLISTS points to a directory, see that test).
+!
+! Selected from the lists downloaded on 2026-10-12/13 (EasyList, EasyPrivacy, uBlock filters +
+! privacy/badware/unbreak/quick fixes/annoyances/cookies/URL tracking, AdGuard Base/Tracking/
+! Mobile/URL Tracking/Cookie Notices/Annoyances/German, Fanboy Annoyance/Social/Cookiemonster,
+! EasyList Germany, Peter Lowe, Brave first-party/cookie lists):
+!   [A] rules that blocked the app before: /static/core/fingerprint.js
+!   [B] network rules whose key literal occurs in one of the app's URLs (near misses)
+!   [C] generic rules that rewrite requests or responses ($removeparam, $permissions, $csp, ...)
+!   [D] generic element-hiding rules that name our classes/ids/test ids, or hide
+!       consent/cookie/notice/modal-like elements by attribute (plus a sample of the rest)
+! Each block starts with "! list: <title>"; the rules are copied verbatim.
+
+! list: AdGuard Base
+/W*ity0*00Er00*/index.$document
+##.grid > .container > #aside-promotion
+##.video.ad-w
+##a[href^="https://click.hoolig.app/"]
+##[data-testid="adBanner-wrapper"]
+##.ads_banner:not([style^="width: 32px"], [style^="width: 33px"], [style*="left: -43px"], [style*="-3"][style*="important"][style*="display: block;"], [style*="position: fixed"][style*="-188"], [style*="!important;"][style*="width:"][style*="height:"][style*="position"][style*="left:"][style*="top:"][style*="display"]):not(:empty)
+##[class^="tile-picker__CitrusBannerContainer-sc-"]
+##[id^="section-ad-banner"]
+##a[href^="https://banners.livepartners.com/"]
+##a[href^="https://lnkxt.bannerator.com/"]
+##a[href^="https://mediaserver.entainpartners.com/renderBanner.do?"]
+##a[href^="https://static.fleshlight.com/images/banners/"]
+##iframe[scrolling="no"][sandbox*="allow-popups allow-modals"][style^="width: 100%; height: 100%; border: none;"]
+###AdPopUp
+###ad_banner_bot
+###article_banner_ad
+###banneradvertise
+###popupAd
+##.ad-banner-5
+##.adOverlay
+##.adsBannerLink
+##.banner-300-250
+##.bannerAd
+##.box-bannerads-leaderboard-fallback
+##.mpu-top-left-banner
+
+! list: AdGuard Cookie Notices
+##.siteCookies[data-testid="cookiesPopup"]
+##div[data-testid="cookiePopup"]
+##div[data-testid="cookies-dialog"]
+##div[class*="cookiesAnnounce-"]
+##div[class^="app_gdpr"]
+##div[data-storage-item^="t886cookiename_"]
+###AvisoCookieslaw
+###bw_cookiechoice
+###cookie-warn
+###cookie_box
+###cookies-warning-box
+###euCookie
+###optanon-popup-bg
+##.CookieBanner:not(body):not(html)
+##.cookie-consent-banner-opt-out
+##.cookieWarning
+##.dismissable-cookie-policy
+##.message-demande-cookies
+
+! list: AdGuard German
+###ad-bereich1-superbanner
+###oms_gpt_superbanner
+###werbung-banner
+###werbungSuperbanner
+##.babbelMultilangAdBannerHorizontal
+##.banner-werbung-top
+##.bannergroup_werbung
+##.banneritemwerbung_head_2
+##.banneritemwerbung_head_4
+##.popup_werbung_oben_tom
+##.werbebanner
+##.werbeboxBanner
+
+! list: AdGuard Mobile Ads
+
+! list: AdGuard Mobile App Banners
+##div[class^="smartbanner"][class*="-android"]
+###app-follow-banner
+###smartbanner.ios
+###smartbanner.windows
+##.appBanner:not(body)
+##.smartbanner--ios
+##amp-app-banner
+~oddschecker.com,~turkiye.gov.tr,~trtworld.com,~m.thehipstore.co.uk,~teb.com.tr##body #smartbanner.android
+
+! list: AdGuard Other Annoyances
+##.canvas__header > .banner[data-google-analytics-payload]
+
+! list: AdGuard Popups
+###delulu-overlay
+###po-overlay-banner-bottom-fullwidth
+###smart_push_smio_overlay
+###wbounce-modal
+##.ays-fpl-modal
+##.fix_swell_banner
+##.js-push-notifications-modal-dialog
+##.mailpoet_form_popup_overlay
+##.seva-overlay
+##.sqs-popup-overlay
+##.verbum-simple-subscribe-modal
+##body #notificationPopup
+
+! list: AdGuard Social Media
+##a[href^="https://bsky.app/intent/compose?text="]
+##a[href^="https://www.facebook.com/v2.8/dialog/share?"]
+~facebook.com##a[href^="http://www.facebook.com/dialog/feed?"]
+~facebook.com##a[href^="https://www.facebook.com/dialog/send"]
+~facebook.com##a[href^="https://www.facebook.com/dialog/share?"]
+~minutouno.com,~facebook.com##a[href^="https://www.facebook.com/dialog/feed?"]
+###cm-social-overlay
+###social-popup
+##.FBpopupDiv
+##.ays-fpl-modal
+##.popup-social
+##.serp-adv__banner
+##.share-pictures-overlay
+##.sharing-popup-social
+
+! list: AdGuard Tracking Protection
+/fingerprint.js^
+
+! list: AdGuard URL Tracking
+$removeparam=/^__s=[A-Za-z0-9]{6\,}/,domain=~univis.uni-erlangen.de|~univis.uni-bamberg.de|~univis.uni-luebeck.de|~univis.uni-kiel.de|~univis.th-koeln.de
+$removeparam=/^at_custom/
+$removeparam=/^cm_mmc/
+$removeparam=/referrer=appmetrica_tracking_id/
+$removeparam=_gl
+$removeparam=awc
+$removeparam=gci
+$removeparam=maf
+
+! list: Brave First Party Adblock Filters
+##[class^="tile-picker__CitrusBannerContainer-sc-"]
+###ad-overlay
+###banner_pos1_ddb_0
+###dsk-banner-ad-a
+##.RC-AD-TOP-BANNER
+##.ad-banner-container
+##.ad-no-notice
+##.ad-top-banner
+##.banner-ad-wrap
+##.boxOverContent__banner
+##.header-and-footer--banner-ad
+##.js_modal_exit_intent
+##.taboola-banner
+
+! list: Brave First Party (regional)
+###wad_banner
+##.vodl-ad__bigsizebanner
+##.wplite-banner-ads
+
+! list: Brave Unbreak
+###kanews-modal-adblock
+
+! list: EasyList
+##.grid > .container > #aside-promotion
+##a[href^="https://click.hoolig.app/"]
+##[data-testid="adBanner-wrapper"]
+##[class^="tile-picker__CitrusBannerContainer-sc-"]
+##[id^="section-ad-banner"]
+##a[href^="https://banners.livepartners.com/"]
+##a[href^="https://lnkxt.bannerator.com/"]
+##a[href^="https://mediaserver.entainpartners.com/renderBanner.do?"]
+##a[href^="https://static.fleshlight.com/images/banners/"]
+##iframe[scrolling="no"][sandbox*="allow-popups allow-modals"][style^="width: 100%; height: 100%; border: none;"]
+###AdPopUp
+###ad_banner_728x90
+###advertising-banner
+###bannerad-top
+###pageBannerAd
+##.ad-banner-300x250
+##.adHeaderAdbanner
+##.ads-banner-spacing
+##.anzeige_banner
+##.banner336
+##.bannermpu
+##.mid-article-banner-ad
+
+! list: EasyList - Other Annoyances
+##a[href="#Back to the top of page"]
+###amp-smart-banner-download
+###consumer-app > .modals-wrap > .pm-follow-v2
+###nca-behavioural-banner-wrapper
+###ppsPopupBgOverlay
+##.android-smart-banner
+##.bp-banner
+##.close-wrap > .close-overlay
+##.featured-post-banner__newsletter-signup
+##.gt-popup
+##.jnews_popup_post_container
+##.klarna-banner
+##.nca-block-promo-banner
+
+! list: EasyList Germany
+###ad-bereich1-superbanner
+###oms_gpt_superbanner
+###werbung-banner
+###werbungSuperbanner
+##.babbelMultilangAdBannerHorizontal
+##.banner-werbung-top
+##.bannergroup_werbung
+##.banneritemwerbung_head_2
+##.banneritemwerbung_head_4
+##.popup_werbung_oben_tom
+##.werbebanner
+##.werbeboxBanner
+
+! list: EasyList - Notifications
+##[class^="adjust-smart-banner"]
+##div[class^="container_NotificationsBanner_"]
+###SmarterBannerContainer
+###custom_smartbanner
+###mn-app-banner
+###push-overlay
+###smartbanner-desktop
+##.PushNotification-popover-dialog
+##.branch-banner
+##.grv-dialog-host
+##.modal-push
+##.ntfc_popup
+##.rdmapps-push-dialog
+##.smartbanner--ios
+
+! list: EasyPrivacy
+/fingerprint.js^$domain=~github.com
+
+! list: Fanboy's Annoyance List
+###app > #cookies
+###app > .cookie
+###app > .cookies
+###confirm.jqmConfirm
+##a[href="#Back to the top of page"]
+##.cookies-allowed[role="dialog"]
+##[data-testid="accept-cookies-banner"]
+##[data-testid="consent-banner"]
+##[data-testid="cookie-banner-app-standalone"]
+##[data-testid="cookie-bar"]
+##[data-testid="cookie-popover"]
+##[data-testid="cookieConsentBanner"]
+##[data-testid="cookie_banner_v2_container"]
+##[data-testid="cookienotice-container"]
+##[data-testid="cookies-module"]
+##[data-testid="cookies_footer"]
+##article.newsletter-post div[role="dialog"][aria-label="Subscribe modal"]
+###cookie-law-info-bar[style*="border-box; display:"]
+###cookie-law-info-bar[style*="border-box; padding:"]
+###cookie-law-info-bar[style*="bottom:"]
+###cookie-law-info-bar[style*="top: 0px"]
+###cookie-law-info-bar[style*="top:0px"]
+##.q-notification[class*="gdpr"]
+##.react-reveal[class*="cookie-banner"]
+##.reveal-modal[id*="cookie"]
+##.row[data-test-selector*="cookie-banner"]
+##.s--message[class*="cookie-notice"]
+##[class^="adjust-smart-banner"]
+##[class^="cookieBox-"]
+##a[href^="http://www.facebook.com/dialog/feed?"]
+##a[href^="https://facebook.com/dialog/share?"]
+##a[href^="https://www.facebook.com/dialog/feed?"]
+##a[href^="https://www.facebook.com/dialog/send?"]
+##a[href^="https://www.facebook.com/dialog/share?"]
+##app-banner[arialabel*="Cookies"]
+##article.newsletter-post div[role="dialog"][aria-label="Subscribe modal"] + div[class^="background-"]
+##div[class^="container_NotificationsBanner_"]
+###-CookieConsentContainer
+###cdweb-cookie-law-info
+###cookiePopupBar
+###cookies_inc
+###iCookieWarning
+###privacy-consent-banner
+##.GDPR-cookies
+##.consent-cookies-dialog
+##.cookie_info_box1
+##.euCookiePolicy
+##.lupcom_cookie_switch
+##.section__cookie-toggle
+
+! list: EasyList Cookie List (Fanboy's Cookiemonster)
+###app > #cookies
+###app > .cookie
+###app > .cookies
+###confirm.jqmConfirm
+##.cookies-allowed[role="dialog"]
+##[data-testid="accept-cookies-banner"]
+##[data-testid="consent-banner"]
+##[data-testid="cookie-banner-app-standalone"]
+##[data-testid="cookie-bar"]
+##[data-testid="cookie-popover"]
+##[data-testid="cookieConsentBanner"]
+##[data-testid="cookie_banner_v2_container"]
+##[data-testid="cookienotice-container"]
+##[data-testid="cookies-module"]
+##[data-testid="cookies_footer"]
+###cookie-law-info-bar[style*="border-box; display:"]
+###cookie-law-info-bar[style*="border-box; padding:"]
+###cookie-law-info-bar[style*="bottom:"]
+###cookie-law-info-bar[style*="top: 0px"]
+###cookie-law-info-bar[style*="top:0px"]
+##.q-notification[class*="gdpr"]
+##.react-reveal[class*="cookie-banner"]
+##.reveal-modal[id*="cookie"]
+##.row[data-test-selector*="cookie-banner"]
+##.s--message[class*="cookie-notice"]
+##[class^="cookieBox-"]
+##app-banner[arialabel*="Cookies"]
+###-CookieConsentContainer
+###ccpa-notification-banner
+###cookiePolicyBar
+###cookies_agreement
+###headerCookie
+###popupCNIL-container
+##.CookiesUsage
+##.component-cookies-msg
+##.cookie_banner_background
+##.eone--cookie-banner
+##.lb-cookie-banner-wrapper
+##.script_cookie_banner
+
+! list: Fanboy's Mobile Notifications
+##[class^="adjust-smart-banner"]
+###SmarterBannerContainer
+###branch-banner-iframe
+###download_app_banner_btn
+###mn-app-banner
+###smartbanner.ios
+##.app-banner-header
+##.appdown_popup
+##.c-app-banner-header-wrap
+##.gh-app-banner
+##.installAppPopup-top
+##.native-app-banner
+##.rsttop-webtoapp-banner-overlay
+
+! list: Fanboy's Newsletter
+##article.newsletter-post div[role="dialog"][aria-label="Subscribe modal"]
+##article.newsletter-post div[role="dialog"][aria-label="Subscribe modal"] + div[class^="background-"]
+###FlyoutSignupModalWrapper
+###email-popup-back
+###modale_inscription_newsletter
+###newsletterOverlay
+###popupNewsletter
+###uglipop_overlay
+##.banner_newsletter
+##.gdm-newsletter-banner__container
+##.modal-suggest-newsletter
+##.newsletter-modal__background
+##.newsletter-sign-up-popup-mask
+##.newspack-newsletter-prompt-overlay
+
+! list: Fanboy's Social Blocking List
+##a[href^="http://www.facebook.com/dialog/feed?"]
+##a[href^="https://facebook.com/dialog/share?"]
+##a[href^="https://www.facebook.com/dialog/feed?"]
+##a[href^="https://www.facebook.com/dialog/send?"]
+##a[href^="https://www.facebook.com/dialog/share?"]
+###VKPopupWrapper
+###facebookpopup-fan-exit
+###js-dialog-social-overlay
+###social-overlay-wrap
+###social_popup
+##.b-overlay-soc.b-overlay-soc_act
+##.et_social_popup
+##.fbpopup
+##.js-sharing-popup-linkedin
+##.share-float-overlay
+##.sharing-popup
+##.socialBanner
+
+! list: uBlock filters - Annoyances
+##[class~="mailpoet_form_popup_overlay"]
+###kanews-modal-adblock
+##.inset-x-0[x-data="adblockBanner()"]
+##body div#notificationPopup.notificationPopupBlock
+
+! list: uBlock filters - Cookie Notices
+*###catapult-cookie-bar
+*###cookie-disclaimer
+*###cookie-msg
+*###cookieBox
+*###cookie_notice
+*###cookies-message
+*###gdpr-cookie-message
+*###moove_gdpr_cookie_info_bar
+*##.cookie_content
+*##.sqs-cookie-banner-v2
+~fok.nl,*###cookieInfo
+~shimadzu.de,*###cookie_policy
+
+! list: uBlock filters - Other annoyances
+##[class~="mailpoet_form_popup_overlay"]
+###kanews-modal-adblock
+##.inset-x-0[x-data="adblockBanner()"]
+##body div#notificationPopup.notificationPopupBlock
+
+! list: uBlock filters - Badware risks
+/W*ity0*00Er00*/index.$doc
+###download a[download="Unicore.zip"]
+###hero + div.marquee-wrap + section#games + section#features + #download
+##body.wp-singular > div[id$="-overlay"] > div[id$="-container"] > div[class*="-container"] > div[id$="-checkbox-window"]
+###uc-cf-overlay
+##.cta-button[onclick="openUpdateModal()"]
+
+! list: uBlock filters
+##.home a[href^="https://s.zline0.com/"]
+###ads-banner:not([style^="position: absolute; left: -5000px"])
+###banner468:not([style^="position: absolute; left: -5000px"])
+###banner728x90:not([style^="position: absolute; left: -5000px"])
+###modern-player-root ~ div[id^="custom-invisible-overlay-"][class^="custom-popup-overlay-"]
+##html[lang][style^="--main-bg-color"] > body:not([class]):not([id]) > div#container[style="visibility: visible;"] > div#banner[style="opacity:0"] ~ main:not([class]):not([id]) > div#message
+###playerOverlay[style="position:absolute; z-index:3"]
+###sidearm-adblock-modal
+###topBannerAd:not(:empty)
+###topbannerad:not(:empty)
+###vidcloud-player > #overlay-container
+###vstr ~ #overlay
+###zdn-adblock-overlay
+##.ad-banner-slot
+##.adde_modal-overlay
+##.adde_modal_detector
+##.blocker-notice
+##.blocker-overlay
+
+! list: uBlock filters - general
+###vidcloud-player > #overlay-container
+###vstr ~ #overlay
+##.hor_banner
+
+! list: uBlock filters - Link shorteners
+
+! list: uBlock filters - Privacy
+*$permissions=attribution-reporting=(),from=~localhost|~127.0.0.1|~[::1]|~0.0.0.0|~[::]|~local
+*$permissions=browsing-topics=(),from=~localhost|~127.0.0.1|~[::1]|~0.0.0.0|~[::]|~local
+*$permissions=compute-pressure=(),from=~localhost|~127.0.0.1|~[::1]|~0.0.0.0|~[::]|~local
+*$permissions=idle-detection=(),from=~localhost|~127.0.0.1|~[::1]|~0.0.0.0|~[::]|~local
+*$permissions=join-ad-interest-group=(),from=~localhost|~127.0.0.1|~[::1]|~0.0.0.0|~[::]|~local
+*$permissions=keyboard-map=(),from=~localhost|~127.0.0.1|~[::1]|~0.0.0.0|~[::]|~local
+*$permissions=private-aggregation=(),from=~localhost|~127.0.0.1|~[::1]|~0.0.0.0|~[::]|~local
+*$permissions=private-state-token-issuance=(),from=~localhost|~127.0.0.1|~[::1]|~0.0.0.0|~[::]|~local
+*$permissions=private-state-token-redemption=(),from=~localhost|~127.0.0.1|~[::1]|~0.0.0.0|~[::]|~local
+*$permissions=run-ad-auction=(),from=~localhost|~127.0.0.1|~[::1]|~0.0.0.0|~[::]|~local
+/^https:\/\/link\.theverge\.com\/click\/[0-9]+\.[0-9]+\/aHR0c/$doc,urlskip=/(aHR0c[a-zA-Z0-9%_-]+)/ -safebase64
+
+! list: uBlock filters - Quick fixes
+
+! list: uBlock filters - Resource abuse
+
+! list: uBlock filters - Unbreak
+
+! list: AdGuard/uBO - URL Tracking Protection
+$removeparam=/^__s=[A-Za-z0-9]{6\,}/,to=~univis.uni-erlangen.de|~univis.uni-bamberg.de|~univis.uni-luebeck.de|~univis.uni-kiel.de|~univis.th-koeln.de
+$removeparam=elq,to=~app.econnect.utexas.edu|~clk.texaslonghorns.com
+$to=~a8cv.amiami.jp,removeparam=a8
+$to=~login.aliexpress.com|~login.aliexpress.us,removeparam=_ga

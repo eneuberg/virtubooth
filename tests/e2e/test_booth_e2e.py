@@ -131,7 +131,7 @@ def test_preview_runs_on_webgl(guest_page, live):
 
 def test_new_guest_sees_consent_before_the_camera(page, live):
     page.goto(live.entry("/x/booth/"))  # straight from the QR code
-    page.get_by_test_id("consent").wait_for()
+    page.get_by_test_id("join").wait_for()
     assert page.get_by_test_id("booth").get_attribute("data-ready") is None
     assert page.locator("#video").evaluate("v => v.srcObject") is None  # camera not opened yet
     accept_consent_in_browser(page)
