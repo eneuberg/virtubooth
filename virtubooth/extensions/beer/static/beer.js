@@ -77,6 +77,7 @@ function setState(name) {
   els.loading.hidden = name !== 'loading';
   els.shutter.disabled = name !== 'camera' || !state.cam;
   els.switchBtn.disabled = name !== 'camera' || !state.cam;
+  els.switchBtn.hidden = !!state.cam && !state.cam.canSwitch; // laptop/PC: one webcam
 }
 
 function setVessel(vessel, { save = true } = {}) {
@@ -152,7 +153,7 @@ async function startCamera() {
 
 async function switchCamera() {
   const cam = state.cam;
-  if (!cam || state.busy) return;
+  if (!cam || state.busy || !cam.canSwitch) return;
   state.busy = true;
   setState('loading');
   try {
@@ -306,6 +307,8 @@ async function again() {
     }
   }
   setState(state.cam ? 'camera' : 'off');
+  // keyboard: the focused "Noch eins!" button is gone; space/enter go to the shutter now
+  if (!els.shutter.disabled) els.shutter.focus({ preventScroll: true });
   refreshStats();
 }
 
@@ -341,6 +344,8 @@ function wireUi() {
         && document.activeElement === document.body) {
       e.preventDefault();
       shoot();
+    } else if (e.key === 'Escape' && els.app.dataset.state === 'success') {
+      again();
     }
   });
   setInterval(() => {

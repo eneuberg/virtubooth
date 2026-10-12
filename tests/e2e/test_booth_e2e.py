@@ -23,7 +23,7 @@ from virtubooth.extension import discover_extensions
 from virtubooth.extensions.booth import FILTERS
 from virtubooth.repo import PhotoQuery
 
-from .conftest import accept_consent_in_browser, chromium_only
+from .conftest import BROWSER_NAME, accept_consent_in_browser
 
 pytestmark = pytest.mark.e2e
 
@@ -148,7 +148,6 @@ def test_every_filter_compiles_and_renders(guest_page, live):
     assert guest_page.js_errors == []
 
 
-@chromium_only
 def test_switch_filters_by_tap_and_swipe(guest_page, live):
     open_booth(guest_page, live)
     booth = guest_page.get_by_test_id("booth")
@@ -163,7 +162,10 @@ def test_switch_filters_by_tap_and_swipe(guest_page, live):
     expect(guest_page.get_by_test_id("filter-name")).to_contain_text(FILTERS[nxt])
     swipe(guest_page, 160)
     expect(booth).to_have_attribute("data-filter", "bw")
-    touch_swipe(guest_page, -160)
+    if BROWSER_NAME == "chromium":  # real touch events need the DevTools protocol
+        touch_swipe(guest_page, -160)
+    else:
+        swipe(guest_page, -160)
     expect(booth).to_have_attribute("data-filter", nxt)
     swipe(guest_page, 20)  # too short: no change
     guest_page.wait_for_timeout(100)
@@ -246,7 +248,7 @@ def test_party_frame_differs_at_the_border(guest_page, live):
     assert guest_page.js_errors == []
 
 
-@chromium_only
+@pytest.mark.skipif(BROWSER_NAME == "webkit", reason="WebKit discards a paused WebGL canvas")
 def test_photo_is_exactly_the_preview(guest_page, live):
     """WebKit discards a paused WebGL canvas after compositing, so the screenshot
     side of this comparison only works in Chromium; WebKit runs check the stored photo.

@@ -17,7 +17,7 @@ from virtubooth.extension import Extension, UploadPolicy
 from virtubooth.ratelimit import RateLimiter
 
 from ..conftest import ADMIN_PASSWORD, fp, jpeg
-from .conftest import chromium_only
+from .conftest import allow_clipboard, needs_clipboard
 
 pytestmark = pytest.mark.e2e
 
@@ -381,10 +381,10 @@ def test_manage_bulk_and_filters(desktop_page, live, guests):
     assert page.js_errors == []
 
 
-@chromium_only
+@needs_clipboard
 def test_manage_lightbox_download_and_copy(desktop_page, live, guests):
     page = desktop_page
-    page.context.grant_permissions(["clipboard-read", "clipboard-write"])
+    allow_clipboard(page.context)
     g = guests(instagram="dj.dennis")
     pid = g.upload()
     page.goto(live.url("/admin/manage"))
@@ -405,10 +405,10 @@ def test_manage_lightbox_download_and_copy(desktop_page, live, guests):
     assert page.js_errors == []
 
 
-@chromium_only
+@needs_clipboard
 def test_manage_tabs(desktop_page, live, guests):
     page = desktop_page
-    page.context.grant_permissions(["clipboard-read", "clipboard-write"])
+    allow_clipboard(page.context)
     anna = guests(instagram="anna")
     guests(instagram="ben", fp_n=2).upload()
     anna.upload()
@@ -589,7 +589,11 @@ def test_back_button_closes_lightbox(admin_page, live, guests):
     assert page.js_errors == []
 
 
-@chromium_only
+def scroll_to_bottom(page: Page) -> None:
+    # not mouse.wheel(): Firefox scrolls a capped amount per event, mobile WebKit has no wheel
+    page.evaluate("() => window.scrollTo(0, document.documentElement.scrollHeight)")
+
+
 def test_infinite_scroll_loads_older_photos(admin_page, desktop_page, live, guests):
     live.core.limits.upload_user = RateLimiter(1000, 60)
     g = guests()
@@ -598,15 +602,14 @@ def test_infinite_scroll_loads_older_photos(admin_page, desktop_page, live, gues
     page.goto(live.url("/admin/live"))
     cards = page.locator("[data-testid=photo-card]")
     expect(cards).to_have_count(30)  # first page
-    cards.last.scroll_into_view_if_needed()
-    page.mouse.wheel(0, 20000)
+    scroll_to_bottom(page)
     expect(cards).to_have_count(55)
     assert cards.last.get_attribute("data-photo-id") == ids[0]  # oldest at the bottom
 
     desktop_page.goto(live.url("/admin/manage"))
     tiles = desktop_page.locator("[data-testid=photo-tile]")
     expect(tiles).to_have_count(48)
-    desktop_page.mouse.wheel(0, 50000)
+    scroll_to_bottom(desktop_page)
     expect(tiles).to_have_count(55)
     expect(desktop_page.get_by_test_id("photo-total")).to_have_text("55 Fotos")
     assert page.js_errors == [] and desktop_page.js_errors == []

@@ -86,6 +86,30 @@ def test_camera_capture_upload(guest_page, live):
     assert guest_page.js_errors == []
 
 
+def test_camera_retries_without_resolution_hints(guest_page, live):
+    """Some cameras reject the resolution hints (OverconstrainedError): retry
+    with just the facing mode instead of giving up."""
+    guest_page.add_init_script("""(() => {
+      const gum = MediaDevices.prototype.getUserMedia;
+      window.__cameraRequests = [];
+      Object.defineProperty(MediaDevices.prototype, 'getUserMedia', {
+        configurable: true,
+        value: function (c) {
+          window.__cameraRequests.push(JSON.parse(JSON.stringify(c)));
+          if (c.video.width) return Promise.reject(new DOMException('no such mode', 'OverconstrainedError'));
+          return gum.call(this, c);
+        },
+      });
+    })();""")
+    guest_page.goto(live.url("/x/probe/"))
+    expect(guest_page.locator("#out")).to_have_text("done", timeout=15000)
+    first, retry = guest_page.evaluate("() => window.__cameraRequests")
+    assert first["video"]["width"] == {"ideal": 1920}
+    assert retry == {"audio": False, "video": {"facingMode": "environment"}}
+    assert len(live.core.repo.list_photos(PhotoQuery(extension="probe"))) == 1
+    assert guest_page.js_errors == []
+
+
 def test_edit_instagram_from_chip(guest_page, live):
     guest_page.get_by_test_id("user-chip").click()
     guest_page.fill("#vb-insta-edit", "@new.name")

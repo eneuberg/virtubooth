@@ -17,7 +17,7 @@ from playwright.sync_api import Page, expect
 from virtubooth.extension import discover_extensions
 from virtubooth.repo import PhotoQuery
 
-from .conftest import BROWSER_NAME, MOBILE, accept_consent_in_browser
+from .conftest import BROWSER_NAME, MOBILE, accept_consent_in_browser, new_context
 
 pytestmark = pytest.mark.e2e
 
@@ -238,10 +238,7 @@ def test_banned_guest_sees_notice_and_no_camera(guest_page, live):
 
 
 def test_in_app_browser_hint(browser, live):
-    ctx = browser.new_context(
-        **(MOBILE | {"user_agent": MOBILE["user_agent"] + " Instagram 300.0.0.0"}),
-        permissions=["camera"],
-    )
+    ctx = new_context(browser, user_agent=MOBILE["user_agent"] + " Instagram 300.0.0.0")
     try:
         page = ctx.new_page()
         page.goto(live.entry("/x/beer/"))
