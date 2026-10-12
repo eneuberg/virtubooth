@@ -72,12 +72,14 @@ export function guideOverlay() {
   for (const [vessel, shape] of Object.entries(SHAPES)) {
     const g = svgEl('g', { class: `beer-guide beer-guide--${vessel}`, 'data-testid': `overlay-${vessel}` });
     // even-odd: the frame rectangle minus the silhouette = everything around the drink
+    // strokes keep their on-screen width whatever the box size
+    const stroke = (cls, d) => svgEl('path', { class: cls, d, 'vector-effect': 'non-scaling-stroke' });
     g.append(
       svgEl('path', { class: 'beer-guide-shade', 'fill-rule': 'evenodd', d: `M0 0 H${VIEW_W} V${VIEW_H} H0 Z ${shape.outline}` }),
-      svgEl('path', { class: 'beer-guide-halo', d: shape.outline }),
-      svgEl('path', { class: 'beer-guide-detail', d: shape.details.join(' ') }),
-      svgEl('path', { class: 'beer-guide-shine', d: shape.shine.join(' ') }),
-      svgEl('path', { class: 'beer-guide-line', d: shape.outline }),
+      stroke('beer-guide-halo', shape.outline),
+      stroke('beer-guide-detail', shape.details.join(' ')),
+      stroke('beer-guide-shine', shape.shine.join(' ')),
+      stroke('beer-guide-line', shape.outline),
     );
     svg.append(g);
   }

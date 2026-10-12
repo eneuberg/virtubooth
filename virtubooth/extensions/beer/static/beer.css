@@ -8,7 +8,12 @@ body.beer { overflow: hidden; }
 
 .beer-app {
   position: fixed;
-  inset: 0;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 100vh;
+  height: 100dvh; /* the visible area, also with Safari's toolbars */
+  touch-action: manipulation;
   display: flex;
   flex-direction: column;
   padding-left: env(safe-area-inset-left, 0px);
@@ -466,4 +471,5 @@ body.beer { overflow: hidden; }
 @media (max-width: 350px) {
   .beer-goal { display: none; }
   .beer-vessel { width: 46px; }
+  .beer-hint { font-size: 0.82rem; }
 }
