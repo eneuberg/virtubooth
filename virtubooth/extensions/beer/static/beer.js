@@ -54,6 +54,7 @@ const state = {
   total: null,
   goal: 1000000,
   busy: false,
+  uploads: 0, // finished uploads, so stale stats polls can be ignored
   pending: null, // { blob, meta, canvas } of the shot being uploaded
   successUrl: null,
 };
@@ -73,6 +74,7 @@ function storageSet(key, value) {
 
 function setState(name) {
   els.app.dataset.state = name;
+  els.loading.hidden = name !== 'loading';
   els.shutter.disabled = name !== 'camera' || !state.cam;
   els.switchBtn.disabled = name !== 'camera' || !state.cam;
 }
@@ -103,10 +105,12 @@ function renderTotal() {
 }
 
 async function refreshStats() {
+  const epoch = state.uploads;
   try {
     const stats = await api(`/api/x/${EXT}/stats`);
-    // never let a slow poll roll the counter back below a number we already showed
-    state.total = Math.max(stats.total, state.total || 0);
+    // a poll that started before our last upload finished may be stale: skip it
+    if (epoch !== state.uploads) return;
+    state.total = stats.total;
     state.goal = stats.goal || state.goal;
     renderTotal();
   } catch (err) {
@@ -136,13 +140,11 @@ async function startCamera() {
     state.cam = await openCamera(els.video, { facing: 'environment', width: 1920, height: 1440 });
   } catch (err) {
     debug('camera failed', err.name, err.code, err.message);
-    els.loading.hidden = true;
     setState('off');
     showNotice('📷', 'Kamera geht nicht', err.message || 'Die Kamera konnte nicht gestartet werden.',
       reloadButton(), homeLink());
     return;
   }
-  els.loading.hidden = true;
   setMirrored();
   setState('camera');
   debug('camera', state.cam.facing, `${state.cam.width}x${state.cam.height}`);
@@ -257,7 +259,8 @@ function discardShot() {
 
 function showSuccess(res, shot) {
   const number = res.beer_number ?? (res.photo && res.photo.seq);
-  state.total = Math.max(res.total ?? number ?? 0, state.total || 0);
+  state.uploads += 1;
+  state.total = res.total ?? Math.max(number, state.total || 0);
   renderTotal();
 
   if (state.successUrl) URL.revokeObjectURL(state.successUrl);
@@ -353,7 +356,6 @@ async function main() {
   refreshStats();
   if (banned) {
     // boot() already shows the "Gesperrt" notice
-    els.loading.hidden = true;
     setState('off');
     return;
   }

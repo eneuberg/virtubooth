@@ -254,18 +254,30 @@ def test_in_app_browser_hint(browser, live):
         ctx.close()
 
 
-def test_counter_shows_existing_total(guest_page, live):
+def add_beers(live, n: int) -> None:
+    """Beers from other guests, straight into the DB."""
     user = live.core.repo.list_users()[0]
-    for i in range(3):
+    for _ in range(n):
+        name = os.urandom(4).hex()
         live.core.repo.insert_photo(
-            extension="beer", user_id=user.id, filename=f"{i}.jpg", thumb_filename=f"thumbs/{i}.jpg",
+            extension="beer", user_id=user.id, filename=f"{name}.jpg", thumb_filename=f"thumbs/{name}.jpg",
             width=1080, height=1440, size=1, meta={"vessel": "bottle"},
         )
+
+
+def test_counter_shows_running_total(guest_page, live):
+    add_beers(live, 3)
     page = guest_page
     open_beer(page, live)
-    expect(page.get_by_test_id("counter")).to_contain_text("3")
+    counter = page.locator("#count")
+    expect(counter).to_have_text("3")
     page.get_by_test_id("shutter").click()
     expect_success(page, 4)
     expect(page.get_by_test_id("success-count")).to_contain_text("4")
-    expect(page.get_by_test_id("counter")).to_contain_text("4")
+    expect(page.get_by_test_id("success-togo")).to_have_text("Noch 999.996 bis zur Million – weiter so!")
+    expect(counter).to_have_text("4")
+    # meanwhile others keep drinking; "Noch eins!" fetches the fresh total
+    add_beers(live, 1000)
+    page.get_by_test_id("again").click()
+    expect(counter).to_have_text("1.004")
     assert page.js_errors == []
