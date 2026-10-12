@@ -2,6 +2,10 @@
 with a fake camera (Chromium's built-in test pattern, or a custom .y4m/.mjpeg
 via VB_FAKE_VIDEO). Run with `uv run pytest -m e2e`.
 
+`VB_E2E_BROWSER=webkit` runs the same tests in WebKit (Safari's engine, with
+an iPhone user agent and WebKit's mock camera). WebKit needs system libraries,
+so use tests/e2e/run_webkit.sh, which runs inside the Playwright Docker image.
+
     @pytest.mark.e2e
     def test_page(guest_page, live):
         guest_page.goto(live.url("/x/beer/"))
@@ -28,6 +32,8 @@ from virtubooth.extension import Extension
 
 from ..conftest import ADMIN_PASSWORD, PARTY_TOKEN, SECRET_KEY
 
+BROWSER_NAME = os.environ.get("VB_E2E_BROWSER", "chromium")
+
 MOBILE = {
     "viewport": {"width": 390, "height": 844},
     "device_scale_factor": 2,
@@ -36,6 +42,18 @@ MOBILE = {
     "user_agent": (
         "Mozilla/5.0 (Linux; Android 14; Pixel 7) AppleWebKit/537.36 "
         "(KHTML, like Gecko) Chrome/140.0.0.0 Mobile Safari/537.36"
+    ),
+}
+
+
+IPHONE = {
+    "viewport": {"width": 390, "height": 844},
+    "device_scale_factor": 3,
+    "is_mobile": True,
+    "has_touch": True,
+    "user_agent": (
+        "Mozilla/5.0 (iPhone; CPU iPhone OS 18_5 like Mac OS X) AppleWebKit/605.1.15 "
+        "(KHTML, like Gecko) Version/18.5 Mobile/15E148 Safari/604.1"
     ),
 }
 
@@ -98,14 +116,15 @@ def browser() -> Iterator[Browser]:
     if fake_video:
         args.append(f"--use-file-for-fake-video-capture={fake_video}")
     with sync_playwright() as p:
-        b = p.chromium.launch(args=args)
+        b = p.webkit.launch() if BROWSER_NAME == "webkit" else p.chromium.launch(args=args)
         yield b
         b.close()
 
 
 @pytest.fixture
 def context(browser: Browser, live: LiveServer) -> Iterator[BrowserContext]:
-    ctx = browser.new_context(**MOBILE, permissions=["camera"])
+    device = IPHONE if BROWSER_NAME == "webkit" else MOBILE
+    ctx = browser.new_context(**device, permissions=["camera"])
     yield ctx
     ctx.close()
 
