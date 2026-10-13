@@ -200,6 +200,89 @@ sequenceDiagram
   visible again. `applyEvent.ts` patches exact changes into the React Query
   cache and throttles refetches for everything else.
 
+## QR codes and party access
+
+A party has several QR codes, each with its own token (Admin → QR-Codes).
+Code: `domain/codes.py` (rules), `repositories/codes.py`,
+`services/codes.py` (`CodesService`), `api/routers/admin/codes.py`.
+
+**Tables** (migration 5):
+
+| Table | Holds |
+|---|---|
+| `party_codes` | one row per code: `id` (its number, `AUTOINCREMENT`, never reused), `animal` (the name is `"<animal> <id>"`, frozen), the current `token`, `token_gen` (+1 on every token change), `target` (`""` = Start, else an activity id), `note`, created/updated, `revoked_at`/`revoked_by` |
+| `party_code_tokens` | every token a code ever had, as SHA-256 (the primary key): the current one has `retired_at` NULL. No token is ever handed out twice |
+| `code_visitors` | `(code_id, visitor_id)`: which browser (`vb_vid`) opened which code, first/last time, how many scans |
+| `users.code_id` | the code a guest joined through; set once at join, never changed |
+
+Rows are never deleted: „Löschen“ revokes a code (`revoked_at`), its token
+stops working, the row stays with its statistics. Names come from 100
+animals that leave out the guest pseudonyms' animals (and every word
+containing one); a new code gets a random animal among the least used ones.
+
+**Seeding.** Migrations are SQL only, so `create_app()` calls
+`CodesService.ensure_seeded()` right after `exports.recover()`: if
+`party_codes` is empty, one transaction creates code 1 with
+`VB_PARTY_TOKEN` (or a generated token), adopts everything from before
+(`users.code_id = 1`, every `visitors` row into `code_visitors`), stores the
+settings key `codes.seed` = `{token_sha256, at, source: "env"|"generated"}`
+and audits `code.create` by `system`. A database whose codes are all revoked
+is never seeded again. From then on the database is the only source of
+tokens: when `VB_PARTY_TOKEN` is set and differs from the seeded one, the
+startup log warns once that it no longer controls access.
+
+**Scan** (`GuardMiddleware._token_entry`, any page `GET` with `?t=`): the
+token is hashed and looked up among the current tokens of active codes
+(hash-then-lookup: timing tells nothing about stored tokens). A hit sets
+`vb_access`, counts the scan (`PresenceService.enter(code_id=…)` →
+`code_visitors`) and redirects without `t`; a miss shows the gate. Wrong
+tokens are limited per IP (`limits.token_fail_ip`, 60 per minute, IPv6 per
+/64; valid scans are free): while an address' budget is empty, every token
+gets the gate without being checked, so guessing gets no answer. The
+trade-off: a guest who keeps guessing on the venue Wi-Fi blocks first scans
+from that IP for as long as they keep it up.
+
+**Access cookie.** `vb_access` = `signer.sign("access", "<code id>.<token_gen>")`.
+`api/deps.py` `has_access()` (pages, `require_access`, media) asks
+`CodesService.access_state()`:
+
+| Cookie | Access |
+|---|---|
+| signed, its code active and still at that `token_gen` | yes |
+| signed, its code revoked since or given a new token | only for a joined guest (`vb_uid` finds a user): joined guests keep their session, browsers that never joined must scan a valid code again |
+| from before the codes (no `.`: `signer.mac("access", token)`, compared in constant time) | counts as code 1, generation 1: yes while code 1 is active and unchanged, else only for joined guests. Once code 1 has a new token, the old MAC is checked against `VB_PARTY_TOKEN` while that is still the seeded token |
+| anything else | no (the gate, 404 `scan_qr` on the API) |
+
+So revoking or re-tokening a code stops new scans and joins through it at
+once; guests who joined stay until banned. There is no "lock everyone out"
+switch any more: use bans, „Anmeldung stoppen“, revoking codes, and after the
+party the volume wipe.
+
+**Tokens.** Generated: `secrets.token_urlsafe(18)` (24 characters).
+Custom: 16–128 of `[A-Za-z0-9_-]` (every token this app ever printed fits)
+with at least 6 distinct characters; the limiter caps online guessing of
+weaker hand-made ones. The audit log never holds a token, only `token_end`
+(the last 4 characters).
+
+**Attribution and statistics.** `POST /api/join` stores the code of the
+request's access cookie (new or old format) on a new guest; re-joins and
+later scans of other codes leave it alone. Per code (`CodeStats`, one query
+for all codes): `scans` (sum of `code_visitors.scans`), `people`
+(`code_visitors` rows), `guests` (`users.code_id`), `not_joined` (its
+visitors without a user), `photos` (its guests' non-deleted photos),
+`active_now` (its guests not banned and seen within 5 minutes),
+`first_scan_at`/`last_scan_at`. Archives scrub `code_visitors` like
+`visitors`; `party_codes` (with the tokens) stays in database copies.
+
+**Admin API** (`/api/admin/codes`): list (with `base_url`), create, get,
+`PATCH` (target, note), `POST …/token` (null = generate), `DELETE` (revoke;
+`changed: false` when revoked already). Errors: `invalid_token`,
+`token_taken` (409), `code_revoked` (409), `invalid_target`, `invalid_note`.
+Every change is audited (`code.create`, `code.edit`, `code.token`,
+`code.revoke`, target `code:<id>`) and sent as `code.changed`. The QR-Bogen
+export job and `python -m virtubooth.tools.qr` use the active code with the
+lowest number (the CLI also takes `--code N` or `--token`).
+
 ## Web serving
 
 The backend serves the built frontend from `VB_WEB_DIR`: `/app/web` in the

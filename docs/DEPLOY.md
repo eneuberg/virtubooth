@@ -467,19 +467,29 @@ push).
 
 ## Rotating secrets
 
-Rotate the party token when a QR code leaked, or after the party to close the
-booth:
+QR tokens live in the database. When a QR code leaked, change its token in
+Admin → QR-Codes („Token ändern…“) or delete it („Löschen…“): it stops
+working at once, no restart. Browsers that scanned it but never joined must
+scan a valid code; guests who already joined through it stay (ban them one by
+one if needed, or stop new joins with „Anmeldung stoppen“). Print the new
+code afterwards: `docker compose exec app python -m virtubooth.tools.qr --code <Nr.>`
+(the export „QR-Bogen“ prints the active code with the lowest number).
 
-```bash
-docker compose run --rm -T app python -c "import secrets; print(secrets.token_urlsafe(18))"
-$EDITOR .env                              # VB_PARTY_TOKEN=<new value>
-docker compose up -d                      # recreates the container with the new env
+`VB_PARTY_TOKEN` is only read on the first start with QR codes (a new
+database, or the first start after the update that brought them): it becomes
+QR code 1's token. Changing it later changes nothing; the startup log then
+says so:
+
+```text
+VB_PARTY_TOKEN changed after QR code 1 was created from it; it no longer controls access. Manage QR codes in Admin → QR-Codes.
 ```
 
-`docker compose restart` does **not** re-read `.env`; `up -d` does. Every
-guest has to scan a new QR code. Their pseudonym and photos stay theirs,
-because that cookie is signed with `VB_SECRET_KEY`, not the token. Print new
-codes afterwards. In Coolify, edit the variable and redeploy.
+To close the booth after the party: delete every QR code in the admin, then
+wipe the volume (see [Teardown](#teardown)).
+
+The other secrets are environment variables: edit `.env` and run
+`docker compose up -d` (`docker compose restart` does **not** re-read `.env`;
+in Coolify, edit the variable and redeploy).
 
 - `VB_ADMIN_PASSWORD`: ends all admin sessions.
 - `VB_SECRET_KEY`: forgets every guest device and access cookie (everyone

@@ -31,19 +31,24 @@ Installation.
 
 ### Zugang
 
-- **QR-Code scannen.** Jeder Code enthält das geheime Party-Token (`?t=`). Es gibt
-  einen Code für Start und einen pro Aktivität (`/x/beer/`, `/x/booth/`).
+- **QR-Code scannen.** Es gibt mehrere QR-Codes (Admin → QR-Codes), jeder mit eigenem
+  geheimen Token (`?t=`). Ein Code führt zu Start oder direkt zu einer Aktivität
+  (`/x/beer/`, `/x/booth/`).
 - Der Server prüft das Token, setzt ein Zugangs-Cookie (30 Tage) und leitet auf
   dieselbe Adresse ohne Token um. Danach steht das Token nicht mehr in der
-  Adresszeile.
+  Adresszeile. Der Scan zählt für diesen Code.
+- **Löscht der Host einen Code oder ändert sein Token,** funktioniert der alte Code
+  sofort nicht mehr: Neue Scans und Browser, die damit gescannt, aber noch nicht
+  beigetreten sind, sehen das Gate und brauchen einen gültigen Code. Wer schon
+  beigetreten ist, bleibt dabei.
 - **Ohne gültigen Zugang** zeigt jede Seite „Scan den QR-Code“ (HTTP 404). Jede
   API-Anfrage antwortet ebenfalls 404.
   - In den Browsern von Instagram, Facebook, WhatsApp, Snapchat und TikTok steht dort
     zusätzlich: den Code lieber mit der Kamera-App scannen.
 - **Mit Zugang, aber falscher Adresse:** „Hier ist nichts.“ mit „Zum Start“.
 - Beide Seiten sind statisch und funktionieren ohne JavaScript.
-- Ändert der Host `VB_PARTY_TOKEN`, kommt niemand mehr hinein, bis er einen neuen
-  Code scannt.
+- Wer zu oft ein falsches Token probiert (60 pro Minute und IP), sieht für diese
+  Adresse eine Weile nur noch das Gate, auch mit einem richtigen Code.
 
 ### Beitreten
 
@@ -468,6 +473,41 @@ Handy-Leiste. Drei Hebel, unabhängig voneinander und von Sperren:
   Neustart erhalten und steht im Protokoll („Anmeldung gestoppt“, „Anmeldung wieder
   offen“).
 
+### QR-Codes
+
+- **Tab „QR-Codes“:** alle Codes mit „Nr.“, „Name“, „Ziel“, „Notiz“, „Gescannt“,
+  „Personen“, „Beigetreten“, „Fotos“, „Zuletzt gescannt“ und „Status“. Oben die Zahl,
+  z. B. „3 aktiv · 1 gelöscht“. Die Zahlen laufen alle 15 s und bei jeder Änderung mit.
+- **Nummer und Name:** Jeder Code hat eine feste Nummer und einen Tiernamen, z. B.
+  „Gorilla 2“. Nummern werden nie neu vergeben, Namen ändern sich nie. Die Tiere
+  kommen aus einer Liste von 100, ohne die Tiere der Gast-Pseudonyme.
+- **Code 1** entsteht beim ersten Start aus `VB_PARTY_TOKEN` (ohne die Variable mit
+  einem neuen Token). Alle Gäste und Scans von vorher zählen für ihn.
+- **„Neuer QR-Code“:** „Ziel“ (Start oder eine Aktivität), „Notiz (freiwillig)“, bis 60
+  Zeichen, z. B. „Eingang“, und das Token: „Neu erzeugen“ oder „Eigenes“.
+- **Token ändern:** „Token ändern…“ im Code. Der bisherige Code (gedruckt oder
+  geteilt) funktioniert danach nicht mehr; wer darüber beigetreten ist, bleibt dabei.
+- **Gedruckten Code übernehmen:** Bei „Eigenes“ den gedruckten Code mit dem Handy
+  scannen und den Link einfügen. Das Token kommt aus dem Link, ein Ziel wie
+  `/x/booth/` auch. Zeigt der Link auf eine andere Adresse als die Party, warnt das
+  Sheet. Ein eigenes Token braucht 16 bis 128 Zeichen aus A–Z, a–z, 0–9, `_` und `-`,
+  mindestens 6 verschiedene. Kein Token wird je zweimal vergeben, auch keins, das ein
+  Code früher hatte.
+- **„Bearbeiten…“:** Ziel und Notiz. Sie ändern nur den Link, den Exporte drucken, und
+  die Tabelle. Ist eine Aktivität nicht mehr geladen, steht „Ziel nicht verfügbar“ da
+  und der Link führt zu Start.
+- **„Löschen…“** fragt nach. Der Code bleibt grau in der Liste, mit Nummer, Name und
+  Zahlen, sein Token funktioniert nicht mehr. „Gelöschte zeigen“ blendet gelöschte
+  Codes ein. Auch den letzten aktiven Code kann man löschen, das Sheet warnt dann:
+  Danach kommt niemand Neues mehr auf die Party.
+- **Code-Sheet:** Klick auf eine Zeile oder `?tab=qr&code=<Nr.>` öffnet den Code mit
+  Link („Link kopieren“), Token, Ziel, Notiz, „Angelegt“ und den Zahlen: „Gescannt“
+  (z. B. „12-mal von 9 Personen“), „Beigetreten“, „Noch nicht beigetreten“, „Fotos“
+  (ihrer Gäste), „Aktiv jetzt“, „Zuerst gescannt“, „Zuletzt gescannt“.
+- Jeder Gast gehört zu dem Code, über den er beigetreten ist, und bleibt dabei.
+- Anlegen, Bearbeiten, Token ändern und Löschen stehen im Protokoll, nie mit dem
+  ganzen Token (nur „Token endet auf“).
+
 ### Sperren und Gerätemerkmale
 
 - **Gast sperren:** „Sperren…“ auf der Gästeseite öffnet ein Sheet mit dem Namen und
@@ -636,7 +676,7 @@ nennt die Variable. Die Limits stehen unter [Limits](#limits).
 | `virtubooth serve` | der Server (Standard). `--host`, `--port`, `--forwarded-allow-ips`, `--reload` |
 | `virtubooth gen-env` | gibt eine `.env` mit neuen Geheimnissen aus |
 | `virtubooth export-openapi -o <Datei>` | schreibt das OpenAPI-Schema (für den typisierten Frontend-Client) |
-| `python -m virtubooth.tools.qr` | QR-Codes und Druckbogen. `--base-url`, `--token` (für ein noch nicht gesetztes Token), `--extensions`, `--party-name`, `--no-home`, `--out` |
+| `python -m virtubooth.tools.qr` | QR-Codes und Druckbogen. `--base-url`, `--code <Nr.>` (Token dieses QR-Codes), `--token` (ein bestimmtes Token), `--extensions`, `--party-name`, `--no-home`, `--out`. Ohne beides: der aktive QR-Code mit der kleinsten Nummer aus der Datenbank von `--data-dir`, ohne Datenbank `VB_PARTY_TOKEN` |
 | `python -m virtubooth.tools.timelapse` | Zeitraffer. `--extension`, `--fps`, `--crossfade`, `--fade`, `--out-fps`, `--size`, `--hold-last`, `--crf`, `--preset`, `--include-hidden`, `--limit` (Vorschau), `--dry-run`, `--out` |
 | `python -m virtubooth.tools.export` | alles als `.tar.gz`, auch im laufenden Betrieb. `--no-hidden`, `--no-db`, `--out` |
 
@@ -697,7 +737,7 @@ Jede Schicht im Detail: [ARCHITECTURE.md → Security model](ARCHITECTURE.md#sec
 
 | Cookie | Inhalt | Dauer | Eigenschaften |
 |---|---|---|---|
-| `vb_access` | HMAC des Party-Tokens | 30 Tage | HttpOnly, SameSite=Lax |
+| `vb_access` | signierte Code-Nummer mit der Token-Generation des gescannten QR-Codes | 30 Tage | HttpOnly, SameSite=Lax |
 | `vb_uid` | signierte Gast-ID | 30 Tage | HttpOnly, SameSite=Lax |
 | `vb_vid` | zufällige Besucher-ID, signiert | 30 Tage | HttpOnly, SameSite=Lax |
 | `vb_admin` | zufälliges Sitzungstoken, in der DB nur als SHA-256 | `VB_ADMIN_SESSION_HOURS` (12 h) | HttpOnly, SameSite=Strict |
@@ -744,6 +784,7 @@ IPv6-Adressen pro /64 zusammen.
 | Instagram-Name | höchstens 30 Zeichen aus a–z, 0–9, Punkt, Unterstrich | fest |
 | Sammelaktion im Kontaktbogen | höchstens 200 Fotos | fest |
 | Live-Verbindungen pro Login | 4 | fest |
+| Falsche QR-Tokens pro IP | 60 pro Minute, danach antwortet jede Adresse mit dem Gate | fest |
 
 ### Uploads und Metadaten
 
@@ -782,6 +823,7 @@ Cookie-Hinweis aussieht. virtubooth vermeidet das:
 | Sperre mit Grund, Pause mit Quelle | Moderation |
 | Fotos mit Vorschaubild, Aktivität, Nummer, Zeit, Gefäß bzw. Filter und Kamera | die Party |
 | Anonyme Besucher-ID mit erstem und letztem Mal gesehen und dem Gast, zu dem sie wurde. Keine IP, kein User-Agent | „Gescannt“ in der Übersicht |
+| QR-Code des Beitritts; welche Besucher-ID welchen Code wie oft geöffnet hat (erstes und letztes Mal). Keine IP | Zahlen pro QR-Code |
 
 - Admin-Aktionen und Login-Versuche (mit IP) stehen im Protokoll. Admin-Sitzungen
   speichern Token-Hash, IP und User-Agent.
