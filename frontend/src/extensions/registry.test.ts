@@ -15,4 +15,13 @@ describe('extension registry', () => {
   it('uses ids the backend accepts', () => {
     for (const ext of listExtensions()) expect(ext.id).toMatch(/^[a-z][a-z0-9-]{1,30}$/);
   });
+
+  it('beer and booth bring their own live line for Start (the lazy card slot)', async () => {
+    for (const id of ['beer', 'booth']) {
+      const card = getExtension(id)?.card;
+      expect(card, id).toBeTypeOf('function');
+      const mod = await card?.();
+      expect(mod?.default, id).toBeTypeOf('function');
+    }
+  });
 });

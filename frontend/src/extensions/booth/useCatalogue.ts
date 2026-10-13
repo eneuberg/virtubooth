@@ -14,7 +14,7 @@ export type CatalogueState =
   | { status: 'ready'; filters: BoothFilter[]; partyName: string }
   | { status: 'error'; error: Error };
 
-/** Shared with Start's Fotobox card (src/guest/ActivityCards.tsx): same key, same data (the whole answer). */
+/** Shared with Start's Fotobox card (BoothCard.tsx): same key, same data (the whole answer). */
 const FILTERS_KEY = ['booth', 'filters'] as const;
 
 export function useCatalogue(): CatalogueState {
