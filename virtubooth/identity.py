@@ -133,6 +133,7 @@ def _identified(
         {
             "state": "banned" if user.banned else "ok",
             "user": user.guest_view(),
+            "uploads_stopped": core.repo.uploads_stopped(),
             "uid_token": token,
             **(extra or {}),
         },
@@ -188,7 +189,15 @@ def consent(body: ConsentIn, request: Request, core: Core = Depends(get_core)) -
         user_agent=request.headers.get("user-agent", "")[:300],
         banned_reason=banned_reason,
     )
-    core.bus.publish("user.created", {"id": user.id, "name": user.name, "banned": user.banned})
+    core.bus.publish(
+        "user.created",
+        {
+            "id": user.id,
+            "name": user.name,
+            "banned": user.banned,
+            "uploads_paused": user.uploads_paused,
+        },
+    )
     return _identified(request, core, user, status=201, extra={"already_joined": False})
 
 

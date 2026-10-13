@@ -1,4 +1,4 @@
-"""Data access for users, photos, bans, admin sessions and the audit log.
+"""Data access for users, photos, bans, upload pauses, admin sessions and the audit log.
 
 Everything that touches the database or the photo files goes through here, so
 extensions and the admin API never write SQL themselves.
@@ -16,6 +16,15 @@ from typing import Any
 
 from .db import Database
 from .names import pseudonym
+
+
+# why a guest's uploads are paused (users.uploads_paused_source)
+PAUSE_ADMIN = "admin"  # an admin paused this guest
+PAUSE_NEW_GUEST_LOCK = "new_guest_lock"  # joined while new guests were paused
+
+# settings keys (JSON values)
+UPLOAD_LOCK_KEY = "upload_pause"  # new guests start with uploads paused
+UPLOAD_STOP_KEY = "upload_stop"  # nobody can upload
 
 
 def now_iso() -> str:
@@ -47,14 +56,27 @@ class User:
     banned_at: str | None
     ban_reason: str | None
     photo_count: int = 0
+    # uploads paused (not a ban: photos stay visible, the guest can browse)
+    uploads_paused_at: str | None = None
+    uploads_paused_source: str | None = None  # PAUSE_ADMIN | PAUSE_NEW_GUEST_LOCK
+    uploads_lock_period: int | None = None  # the new-guest lock period that paused them
 
     @property
     def banned(self) -> bool:
         return self.banned_at is not None
 
+    @property
+    def uploads_paused(self) -> bool:
+        return self.uploads_paused_at is not None
+
     def guest_view(self) -> dict[str, Any]:
         """What the guest's own browser may see about itself."""
-        return {"name": self.name, "instagram": self.instagram, "banned": self.banned}
+        return {
+            "name": self.name,
+            "instagram": self.instagram,
+            "banned": self.banned,
+            "uploads_paused": self.uploads_paused,
+        }
 
     def admin_view(self) -> dict[str, Any]:
         return {
@@ -74,6 +96,10 @@ class User:
             "banned_at": self.banned_at,
             "ban_reason": self.ban_reason,
             "photo_count": self.photo_count,
+            "uploads_paused": self.uploads_paused,
+            "uploads_paused_at": self.uploads_paused_at,
+            "uploads_paused_source": self.uploads_paused_source,
+            "uploads_lock_period": self.uploads_lock_period,
         }
 
 
@@ -97,6 +123,7 @@ class Photo:
     user_name: str = ""
     user_instagram: str | None = None
     user_banned: bool = False
+    user_uploads_paused: bool = False
 
     @property
     def hidden(self) -> bool:
@@ -130,6 +157,7 @@ class Photo:
                 "name": self.user_name,
                 "instagram": self.user_instagram,
                 "banned": self.user_banned,
+                "uploads_paused": self.user_uploads_paused,
             },
         }
 
@@ -152,13 +180,15 @@ class PhotoQuery:
 _USER_COLS = (
     "u.id, u.public_id, u.name, u.created_at, u.last_seen_at, u.consent_at, "
     "u.consent_version, u.instagram, u.fp_hash, u.fp_components, u.first_ip, "
-    "u.last_ip, u.user_agent, u.banned_at, u.ban_reason"
+    "u.last_ip, u.user_agent, u.banned_at, u.ban_reason, u.uploads_paused_at, "
+    "u.uploads_paused_source, u.uploads_lock_period"
 )
 _PHOTO_COLS = (
     "p.id, p.public_id, p.extension, p.user_id, p.seq, p.filename, p.thumb_filename, "
     "p.created_at, p.width, p.height, p.bytes, p.meta, p.hidden_at, p.hidden_reason, "
     "p.deleted_at, u.name AS user_name, u.instagram AS user_instagram, "
-    "u.banned_at IS NOT NULL AS user_banned"
+    "u.banned_at IS NOT NULL AS user_banned, "
+    "u.uploads_paused_at IS NOT NULL AS user_uploads_paused"
 )
 
 
@@ -173,7 +203,18 @@ def _photo(row: sqlite3.Row) -> Photo:
     d = dict(row)
     d["meta"] = json.loads(d["meta"] or "{}")
     d["user_banned"] = bool(d["user_banned"])
+    d["user_uploads_paused"] = bool(d["user_uploads_paused"])
     return Photo(**d)
+
+
+def _lock_view(raw: dict[str, Any]) -> dict[str, Any]:
+    enabled = bool(raw.get("enabled"))
+    return {
+        "enabled": enabled,
+        "since": raw.get("since") if enabled else None,
+        "period": raw.get("period") if enabled else None,
+        "by": raw.get("by"),
+    }
 
 
 class Repo:
@@ -197,14 +238,20 @@ class Repo:
         ts = now_iso()
         public_id = new_public_id()
         with self.db.tx() as c:
+            # read in the same transaction: a guest joining while the lock is
+            # lifted is either restored with the others or not paused at all
+            lock = _lock_view(self._setting(UPLOAD_LOCK_KEY, c))
+            period = lock["period"] if lock["enabled"] else None
             cur = c.execute(
                 "INSERT INTO users (public_id, created_at, last_seen_at, consent_at, "
                 "consent_version, instagram, fp_hash, fp_components, first_ip, last_ip, "
-                "user_agent, banned_at, ban_reason) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                "user_agent, banned_at, ban_reason, uploads_paused_at, uploads_paused_source, "
+                "uploads_lock_period) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
                 (
                     public_id, ts, ts, ts, consent_version, instagram, fp_hash,
                     json.dumps(fp_components), ip, ip, user_agent,
                     ts if banned_reason else None, banned_reason,
+                    ts if period else None, PAUSE_NEW_GUEST_LOCK if period else None, period,
                 ),
             )  # fmt: skip
             uid = cur.lastrowid
@@ -268,10 +315,13 @@ class Repo:
         search: str | None = None,
         limit: int = 100,
         offset: int = 0,
+        paused: bool | None = None,
     ) -> list[User]:
         where, params = [], []
         if banned is not None:
             where.append("u.banned_at IS NOT NULL" if banned else "u.banned_at IS NULL")
+        if paused is not None:
+            where.append("u.uploads_paused_at IS NOT NULL" if paused else "u.uploads_paused_at IS NULL")
         if search:
             where.append("(u.name LIKE ? OR u.instagram LIKE ? OR CAST(u.id AS TEXT) = ?)")
             like = f"%{search}%"
@@ -371,6 +421,145 @@ class Repo:
 
     def list_fingerprint_bans(self) -> list[dict[str, Any]]:
         return [dict(r) for r in self.db.all("SELECT * FROM fingerprint_bans ORDER BY created_at")]
+
+    # -------------------------------------------------------- upload pauses
+
+    def set_uploads_paused(self, user_id: int, paused: bool, actor: str) -> bool:
+        """Pause (source 'admin') or allow one guest's uploads. Not a ban: their
+        photos stay visible. False if nothing changed (already in that state)."""
+        with self.db.tx() as c:
+            row = c.execute(
+                "SELECT uploads_paused_source FROM users WHERE id=? AND "
+                f"uploads_paused_at IS {'NULL' if paused else 'NOT NULL'}",
+                (user_id,),
+            ).fetchone()
+            if row is None:
+                return False
+            if paused:
+                c.execute(
+                    "UPDATE users SET uploads_paused_at=?, uploads_paused_source=?, "
+                    "uploads_lock_period=NULL WHERE id=?",
+                    (now_iso(), PAUSE_ADMIN, user_id),
+                )
+            else:
+                c.execute(
+                    "UPDATE users SET uploads_paused_at=NULL, uploads_paused_source=NULL, "
+                    "uploads_lock_period=NULL WHERE id=?",
+                    (user_id,),
+                )
+        if paused:
+            self.audit(actor, "user.uploads_pause", f"user:{user_id}")
+        else:
+            self.audit(actor, "user.uploads_unpause", f"user:{user_id}",
+                       {"source": row["uploads_paused_source"]})  # fmt: skip
+        return True
+
+    def count_paused_users(self, *, lock_period: int | None = None) -> int:
+        """Guests with paused uploads; with lock_period: only those that lock
+        period paused (and nobody changed since)."""
+        sql, params = "SELECT COUNT(*) FROM users WHERE uploads_paused_at IS NOT NULL", []
+        if lock_period is not None:
+            sql += " AND uploads_paused_source=? AND uploads_lock_period=?"
+            params += [PAUSE_NEW_GUEST_LOCK, lock_period]
+        row = self.db.one(sql, params)
+        return int(row[0]) if row else 0
+
+    def upload_lock(self) -> dict[str, Any]:
+        """The new-guest lock: {"enabled", "since", "period", "by"}. Every guest
+        who joins while it is on starts with uploads paused, tagged `period`."""
+        return _lock_view(self._setting(UPLOAD_LOCK_KEY))
+
+    def start_upload_lock(self, actor: str) -> bool:
+        with self.db.tx() as c:
+            raw = self._setting(UPLOAD_LOCK_KEY, c)
+            if raw.get("enabled"):
+                return False
+            period = int(raw.get("period") or 0) + 1
+            self._put_setting(
+                c, UPLOAD_LOCK_KEY,
+                {"enabled": True, "since": now_iso(), "period": period, "by": actor},
+            )  # fmt: skip
+        self.audit(actor, "uploads.lock_on", "", {"period": period})
+        return True
+
+    def end_upload_lock(self, actor: str, *, restore: bool) -> dict[str, Any] | None:
+        """Lift the new-guest lock. restore=True unpauses exactly the guests this
+        lock period paused that are still paused by it; guests an admin paused
+        stay paused. restore=False keeps them all paused. None if it was off;
+        else {"period", "restored": [user ids], "kept": [user ids]}."""
+        with self.db.tx() as c:
+            raw = self._setting(UPLOAD_LOCK_KEY, c)
+            if not raw.get("enabled"):
+                return None
+            period = int(raw["period"])
+            ids = [
+                r[0]
+                for r in c.execute(
+                    "SELECT id FROM users WHERE uploads_paused_at IS NOT NULL "
+                    "AND uploads_paused_source=? AND uploads_lock_period=? ORDER BY id",
+                    (PAUSE_NEW_GUEST_LOCK, period),
+                )
+            ]
+            if restore and ids:
+                c.execute(
+                    "UPDATE users SET uploads_paused_at=NULL, uploads_paused_source=NULL, "
+                    "uploads_lock_period=NULL WHERE uploads_paused_at IS NOT NULL "
+                    "AND uploads_paused_source=? AND uploads_lock_period=?",
+                    (PAUSE_NEW_GUEST_LOCK, period),
+                )
+            self._put_setting(
+                c, UPLOAD_LOCK_KEY,
+                {"enabled": False, "since": None, "period": period, "by": actor},
+            )  # fmt: skip
+        restored, kept = (ids, []) if restore else ([], ids)
+        self.audit(
+            actor, "uploads.lock_off", "",
+            {"period": period, "restore": restore, "restored": len(restored), "kept": len(kept)},
+        )  # fmt: skip
+        return {"period": period, "restored": restored, "kept": kept}
+
+    def upload_stop(self) -> dict[str, Any]:
+        """Stop all uploads: {"enabled", "since", "by"}. Per-guest pauses and the
+        new-guest lock are separate and stay as they are."""
+        raw = self._setting(UPLOAD_STOP_KEY)
+        enabled = bool(raw.get("enabled"))
+        return {
+            "enabled": enabled,
+            "since": raw.get("since") if enabled else None,
+            "by": raw.get("by"),
+        }
+
+    def uploads_stopped(self) -> bool:
+        return self.upload_stop()["enabled"]
+
+    def set_upload_stop(self, enabled: bool, actor: str) -> bool:
+        with self.db.tx() as c:
+            if bool(self._setting(UPLOAD_STOP_KEY, c).get("enabled")) == enabled:
+                return False
+            self._put_setting(
+                c, UPLOAD_STOP_KEY,
+                {"enabled": enabled, "since": now_iso() if enabled else None, "by": actor},
+            )  # fmt: skip
+        self.audit(actor, "uploads.stop" if enabled else "uploads.resume")
+        return True
+
+    # ------------------------------------------------------------- settings
+
+    def _setting(self, key: str, c: sqlite3.Connection | None = None) -> dict[str, Any]:
+        sql = "SELECT value FROM settings WHERE key=?"
+        row = c.execute(sql, (key,)).fetchone() if c is not None else self.db.one(sql, (key,))
+        if row is None:
+            return {}
+        value = json.loads(row["value"])
+        return value if isinstance(value, dict) else {}
+
+    @staticmethod
+    def _put_setting(c: sqlite3.Connection, key: str, value: dict[str, Any]) -> None:
+        c.execute(
+            "INSERT INTO settings (key, value, updated_at) VALUES (?,?,?) ON CONFLICT(key) "
+            "DO UPDATE SET value=excluded.value, updated_at=excluded.updated_at",
+            (key, json.dumps(value), now_iso()),
+        )
 
     # --------------------------------------------------------------- photos
 

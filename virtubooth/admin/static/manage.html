@@ -9,6 +9,7 @@
   <link rel="icon" href="/static/core/icon.svg">
   <link rel="stylesheet" href="/static/core/vb.css">
   <link rel="stylesheet" href="/admin/assets/admin.css">
+  <link rel="stylesheet" href="/admin/assets/uploadcontrols.css">
   <script src="/static/core/loader.js" defer></script>
   <script type="module" src="/admin/assets/manage.js"></script>
 </head>
@@ -29,6 +30,7 @@
       <button class="adm-tab" role="tab" type="button" data-tab="sperren" id="tab-sperren" aria-controls="panel-sperren" aria-selected="false">🚫 Sperren<span class="adm-count" id="count-sperren"></span></button>
       <button class="adm-tab" role="tab" type="button" data-tab="protokoll" id="tab-protokoll" aria-controls="panel-protokoll" aria-selected="false">📜 Protokoll</button>
     </div>
+    <div id="upload-controls" class="adm-uploads-slot"></div>
     <button id="new-pill" class="adm-new-pill vb-hidden" type="button" data-testid="new-pill"></button>
   </header>
   <main class="adm-main">

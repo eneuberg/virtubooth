@@ -1,6 +1,6 @@
 """The generic upload pipeline every extension with an UploadPolicy gets.
 
-POST /api/x/<id>/upload
+POST /api/x/<id>/upload   (403 uploads_paused / uploads_stopped while uploads are paused)
   body:     the JPEG bytes (Content-Type: image/jpeg)
   X-VB-Meta (optional): encodeURIComponent(JSON.stringify({...})), keys from
             UploadPolicy.meta_keys
@@ -139,6 +139,11 @@ async def upload(
     if ext is None or ext.upload is None:
         raise errors.not_found()
     policy = ext.upload
+    # a paused guest hears about their own pause first: it outlasts a stop
+    if user.uploads_paused:
+        raise errors.uploads_paused()
+    if core.repo.uploads_stopped():
+        raise errors.uploads_stopped()
 
     content_type = request.headers.get("content-type", "").split(";")[0].strip().lower()
     if content_type != "image/jpeg":

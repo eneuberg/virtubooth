@@ -12,6 +12,7 @@ publishes an event so every open admin screen stays in sync:
   fingerprint.banned / .unbanned  {"fp_hash": ...}
 
 Core itself publishes photo.created ({"photo": admin_view}) and user.created.
+Upload pauses and the stop switch live in upload_controls.py (mounted below).
 """
 
 from __future__ import annotations
@@ -33,6 +34,7 @@ from ..deps import Admin, admin_from_cookie, get_core, require_admin
 from ..events import sse_stream
 from ..repo import Photo, PhotoQuery, User
 from . import queries
+from .upload_controls import router as upload_controls_router
 
 PHOTO_ID_PATTERN = r"^[A-Za-z0-9_-]{8,32}$"
 FP_HASH_PATTERN = r"^[0-9a-f]{16,64}$"
@@ -264,10 +266,12 @@ def list_users(
     banned: Annotated[str | None, Query(max_length=10)] = None,
     limit: Annotated[int, Query(ge=1, le=500)] = 100,
     offset: Annotated[int, Query(ge=0, le=1_000_000)] = 0,
+    paused: Annotated[str | None, Query(max_length=10)] = None,
 ) -> dict[str, Any]:
     users = core.repo.list_users(
-        banned=_parse_bool_filter(banned), search=_blank(search), limit=limit, offset=offset
-    )
+        banned=_parse_bool_filter(banned), search=_blank(search), limit=limit, offset=offset,
+        paused=_parse_bool_filter(paused),
+    )  # fmt: skip
     return {
         "users": [u.admin_view() for u in users],
         "next_offset": offset + len(users) if len(users) == limit else None,
@@ -461,3 +465,8 @@ async def events(request: Request, core: Core = Depends(get_core)) -> StreamingR
         media_type="text/event-stream",
         headers={"Cache-Control": "no-store", "X-Accel-Buffering": "no"},
     )
+
+
+# ------------------------------------------------------- upload controls
+
+router.include_router(upload_controls_router)
