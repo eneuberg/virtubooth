@@ -67,7 +67,7 @@ also the `ErrorBody.error` enum in the schema):
 | `invalid_meta`, `empty_upload`, `invalid_image` | 400 | upload |
 | `admin_required` | 401 | admin routes |
 | `wrong_password` | 401 | login |
-| `login_locked` | 429 + `Retry-After` | login |
+| `login_locked` | 429 + `Retry-After` | login: 5 per minute / 20 per hour per IP (IPv6 per /64); after 20 failures in 15 min from anywhere, every login (the right password too) for 5 min. Direct loopback is exempt (wave 4, SEC-01) |
 | `invalid_filter`, `invalid_cursor` | 400 | admin lists |
 | `no_fingerprint` | 400 | ban with `fingerprint: true` |
 | `restore_required` | 400 | `POST /api/admin/upload-pause {enabled: false}` |
@@ -104,9 +104,11 @@ statuses in the schema (router-level `responses=`), all with `ErrorBody`.
   the page's first admin fetch as `?since=<id>`: nothing that happened between
   that fetch and the stream is lost (this fixes the old gap).
 - The stream ends (and EventSource reconnects by itself) when the session is
-  gone (checked at most every 30 s; the reconnect then gets 401) or when the
-  client falls 256 events behind (the reconnect replays them). An ended stream
-  is normal: reconnect, don't show an error.
+  gone (logout closes that session's streams at once; expiry is checked at
+  most every 30 s; the reconnect then gets 401), when the client falls 256
+  events behind (the reconnect replays them), or when the session opens a
+  fifth stream (at most 4 per session; the oldest closes; wave 4, SEC-06). An
+  ended stream is normal: reconnect, don't show an error.
 
 Suggested client (`useAdminEvents`): fetch → read `X-VB-Event-Id` → open
 `EventSource('/api/admin/events?since=' + id)` → on `stream.resync` invalidate
@@ -161,7 +163,7 @@ Options (all optional; unknown keys are 422):
 
 | kind | options (default) | output |
 |---|---|---|
-| `archive` | `include_hidden` (false), `include_db` (false) | `archiv-<YYYYMMDD-HHMM>-<id8>.zip`, one top folder named like the file: `photos/<activity>/<seq>_<file>.jpg` (hidden ones under `photos/<activity>/hidden/`), `photos.csv`, `users.csv`, `instagram.csv` (as the CLI export), `manifest.json` (`format: "virtubooth-archive/1"`, party name, options, counts, one entry per photo with its `file`), `README.txt`, and with `include_db` `virtubooth.db`: a consistent copy made with SQLite's backup API (never the live file). |
+| `archive` | `include_hidden` (false), `include_db` (false) | `archiv-<YYYYMMDD-HHMM>-<id8>.zip`, one top folder named like the file: `photos/<activity>/<seq>_<file>.jpg` (hidden ones under `photos/<activity>/hidden/`), `photos.csv`, `users.csv`, `instagram.csv` (as the CLI export), `manifest.json` (`format: "virtubooth-archive/1"`, party name, options, counts, one entry per photo with its `file`), `README.txt`, and with `include_db` `virtubooth.db`: a consistent copy made with SQLite's backup API (never the live file), with `admin_sessions` and `export_jobs` emptied and vacuumed (wave 4, SEC-03). |
 | `timelapse` | `extension` ("beer", an activity id), `fps` (12, photos per second, 1–30), `crossfade` (false), `include_hidden` (false) | `zeitraffer-<extension>-<YYYYMMDD-HHMM>-<id8>.mp4`: H.264, 1080×1440, the last photo held 2 s, as `python -m virtubooth.tools.timelapse` makes it. With `crossfade` the video runs at 30 fps (60 when `fps` is 30). |
 | `qr` | `base_url` (`VB_PUBLIC_BASE_URL`; neither → 400 `base_url_required`, malformed → 400 `invalid_base_url`) | `qr-codes-<YYYYMMDD-HHMM>-<id8>.zip`, one top folder: `qr-sheet.html` (self-contained: inline CSS and SVG, no scripts, no external files; party name on it; one A4 page per code) plus `qr-home.svg/.png` and `qr-<activity>.svg/.png` for every activity on the home page. The codes carry the party token. |
 
