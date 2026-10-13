@@ -191,7 +191,7 @@ function ManageShell() {
         <header className="sticky top-0 z-(--z-sticky) bg-surface pt-[env(safe-area-inset-top)] landscape-phone:static">
           <div className="flex items-center gap-2 py-2 pr-2 pl-4">
             <div className="grid min-w-0">
-              <span className="text-lg font-bold">Verwaltung</span>
+              <span className="truncate text-lg font-bold">Verwaltung</span>
               <ConnectionBadge />
             </div>
             <UploadStatusPill className="ml-auto" />
