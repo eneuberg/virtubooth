@@ -179,7 +179,12 @@ def needs_letterbox(path: Path, size: Size) -> bool | None:
 
 
 def collect(
-    repos: Repositories, extension: str, *, include_hidden: bool, size: Size, limit: int | None = None
+    repos: Repositories,
+    extension: str,
+    *,
+    include_hidden: bool,
+    size: Size,
+    limit: int | None = None,
 ) -> Collected:
     result = Collected()
     for photo in iter_photos(repos, extension=extension, hidden=None if include_hidden else False):

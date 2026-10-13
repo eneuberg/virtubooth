@@ -39,7 +39,11 @@ def test_token_sets_cookie_and_strips_itself(client):
     assert r.status_code == 303
     assert r.headers["location"] == "/x/demo/?debug=1"
     set_cookie = r.headers["set-cookie"]
-    assert "vb_access=" in set_cookie and "HttpOnly" in set_cookie and "samesite=lax" in set_cookie.lower()
+    assert (
+        "vb_access=" in set_cookie
+        and "HttpOnly" in set_cookie
+        and "samesite=lax" in set_cookie.lower()
+    )
     assert client.get("/x/demo/").status_code == 200
     # the pages' code is served from /assets/ (public, built by the frontend)
     assert client.get(f"/assets/{STUB_JS}").headers["content-type"].startswith("text/javascript")
@@ -257,7 +261,9 @@ def test_csrf_origin_check(guest):
     r = g.patch("/api/me", json={"instagram": "x"}, headers={"Origin": "https://evil.example"})
     assert r.status_code == 403
     assert r.json()["error"] == "bad_origin"
-    r = g.patch("/api/me", json={"instagram": "x"}, headers={"Referer": "http://testserver/x/demo/"})
+    r = g.patch(
+        "/api/me", json={"instagram": "x"}, headers={"Referer": "http://testserver/x/demo/"}
+    )
     assert r.status_code == 200
 
 
@@ -299,7 +305,9 @@ def test_security_headers(client):
     assert r.headers["x-content-type-options"] == "nosniff"
     assert r.headers["referrer-policy"] == "no-referrer"
     assert "camera=(self)" in r.headers["permissions-policy"]
-    assert client.post("/api/identify", json={}, headers=ORIGIN).headers["cache-control"] == "no-store"
+    assert (
+        client.post("/api/identify", json={}, headers=ORIGIN).headers["cache-control"] == "no-store"
+    )
 
 
 @pytest.mark.parametrize(
@@ -333,10 +341,17 @@ def test_extensions_listing(client):
 
 
 def test_settings_validation(tmp_path):
-    base = dict(party_token=PARTY_TOKEN, admin_password="x" * 12, secret_key="y" * 32, data_dir=tmp_path)
+    base = dict(
+        party_token=PARTY_TOKEN, admin_password="x" * 12, secret_key="y" * 32, data_dir=tmp_path
+    )
     Settings(**base)
-    for key, bad in (("party_token", "short"), ("party_token", "has spaces in it!!!"),
-                     ("admin_password", "short"), ("secret_key", "short"), ("cookie_secure", "maybe")):
+    for key, bad in (
+        ("party_token", "short"),
+        ("party_token", "has spaces in it!!!"),
+        ("admin_password", "short"),
+        ("secret_key", "short"),
+        ("cookie_secure", "maybe"),
+    ):
         with pytest.raises(ConfigError):
             Settings(**(base | {key: bad}))
 
@@ -375,8 +390,13 @@ def test_access_log_masks_token_and_skips_healthz():
 
     def record(path: str) -> logging.LogRecord:
         return logging.LogRecord(
-            "uvicorn.access", logging.INFO, "", 0, '%s - "%s %s HTTP/%s" %d',
-            ("1.2.3.4:5", "GET", path, "1.1", 303), None,
+            "uvicorn.access",
+            logging.INFO,
+            "",
+            0,
+            '%s - "%s %s HTTP/%s" %d',
+            ("1.2.3.4:5", "GET", path, "1.1", 303),
+            None,
         )
 
     r = record(f"/x/beer/?debug=1&t={PARTY_TOKEN}")
@@ -409,12 +429,14 @@ def test_token_entry_never_redirects_off_site(client):
 
 def test_json_bodies_are_capped(client, guest):
     r = client.post(
-        "/api/admin/login", content=b'{"password": "' + b"x" * 200_000 + b'"}',
+        "/api/admin/login",
+        content=b'{"password": "' + b"x" * 200_000 + b'"}',
         headers=ORIGIN | {"Content-Type": "application/json"},
     )
     assert r.status_code == 413
     r = client.post(
-        "/api/admin/login", content=(c for c in [b'{"password": "x"}']),
+        "/api/admin/login",
+        content=(c for c in [b'{"password": "x"}']),
         headers=ORIGIN | {"Content-Type": "application/json"},
     )
     assert r.status_code == 411  # chunked: unknown length

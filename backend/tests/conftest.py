@@ -42,7 +42,9 @@ STUB_JS = "a-3f9c2b71.js"
 STUB_CSS = "a-7c41e0f2.css"
 
 
-def jpeg(width: int = 1080, height: int = 1440, color: tuple[int, int, int] = (200, 120, 40)) -> bytes:
+def jpeg(
+    width: int = 1080, height: int = 1440, color: tuple[int, int, int] = (200, 120, 40)
+) -> bytes:
     buf = io.BytesIO()
     Image.new("RGB", (width, height), color).save(buf, "JPEG", quality=85)
     return buf.getvalue()

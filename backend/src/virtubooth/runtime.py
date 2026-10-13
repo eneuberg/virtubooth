@@ -36,9 +36,7 @@ class Core:
         self.services = Services.create(self)
 
     @classmethod
-    def create(
-        cls, settings: Settings, extensions: list[Extension], web: WebFrontend
-    ) -> Core:
+    def create(cls, settings: Settings, extensions: list[Extension], web: WebFrontend) -> Core:
         settings.data_dir.mkdir(parents=True, exist_ok=True)
         db = Database(settings.data_dir / "virtubooth.db")
         return cls(

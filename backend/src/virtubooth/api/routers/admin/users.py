@@ -28,9 +28,7 @@ router = APIRouter()
 @router.get("/users")
 def list_users(
     core: CoreDep,
-    search: Annotated[
-        str | None, Query(max_length=100, description="name, handle, or #id")
-    ] = None,
+    search: Annotated[str | None, Query(max_length=100, description="name, handle, or #id")] = None,
     banned: Annotated[str | None, Query(max_length=10, description="all | true | false")] = None,
     limit: Annotated[int, Query(ge=1, le=500)] = 100,
     offset: Annotated[int, Query(ge=0, le=1_000_000)] = 0,

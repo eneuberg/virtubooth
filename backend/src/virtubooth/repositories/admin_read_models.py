@@ -34,7 +34,9 @@ class AdminReadModels:
             "SUM(instagram IS NOT NULL) AS instagram, "
             "COUNT(DISTINCT instagram) AS instagram_handles FROM users"
         )
-        uploaders = self.db.one("SELECT COUNT(DISTINCT user_id) FROM photos WHERE deleted_at IS NULL")
+        uploaders = self.db.one(
+            "SELECT COUNT(DISTINCT user_id) FROM photos WHERE deleted_at IS NULL"
+        )
         fp_bans = self.db.one("SELECT COUNT(*) FROM fingerprint_bans")
         per_ext = self.db.all(
             "SELECT extension, COUNT(*) AS total, SUM(hidden_at IS NOT NULL) AS hidden "
@@ -55,13 +57,17 @@ class AdminReadModels:
             uploaders=as_int(uploaders[0]) if uploaders else 0,
             fingerprint_bans=as_int(fp_bans[0]) if fp_bans else 0,
             extensions={
-                r["extension"]: ExtensionCount(photos=as_int(r["total"]), hidden=as_int(r["hidden"]))
+                r["extension"]: ExtensionCount(
+                    photos=as_int(r["total"]), hidden=as_int(r["hidden"])
+                )
                 for r in per_ext
             },
         )
 
     def extensions_with_photos(self) -> list[str]:
-        return [r[0] for r in self.db.all("SELECT DISTINCT extension FROM photos ORDER BY extension")]
+        return [
+            r[0] for r in self.db.all("SELECT DISTINCT extension FROM photos ORDER BY extension")
+        ]
 
     def fingerprint_peers(self, user_id: int) -> dict[str, list[UserRef]]:
         """For each fingerprint `user_id` showed: the other users that showed it too."""

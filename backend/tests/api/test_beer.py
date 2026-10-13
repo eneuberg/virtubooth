@@ -28,7 +28,9 @@ def meta_header(meta: dict) -> dict[str, str]:
 
 def upload(client, meta=None, data=None):
     headers = JPEG | (meta_header(meta) if meta is not None else {})
-    return client.post("/api/x/beer/upload", content=jpeg() if data is None else data, headers=headers)
+    return client.post(
+        "/api/x/beer/upload", content=jpeg() if data is None else data, headers=headers
+    )
 
 
 def test_extension_definition():
@@ -58,7 +60,10 @@ def test_upload_returns_beer_number_and_total(guest, core, settings):
     assert (r.json()["beer_number"], r.json()["total"]) == (2, 2)
 
     photos = core.repos.photos.list(PhotoQuery(extension="beer", order="asc"))
-    assert [p.meta for p in photos] == [{"vessel": "bottle", "facing": "environment"}, {"vessel": "cup"}]
+    assert [p.meta for p in photos] == [
+        {"vessel": "bottle", "facing": "environment"},
+        {"vessel": "cup"},
+    ]
     assert len(list((settings.data_dir / "beer").glob("*.jpg"))) == 2
 
 
@@ -139,7 +144,9 @@ def test_stats_counts_visible_beers(guest, core):
 
     first, second, _ = core.repos.photos.list(PhotoQuery(extension="beer", order="asc"))
     core.services.moderation.delete_photo(first.public_id, actor="admin:test")
-    core.services.moderation.hide_photo(second.public_id, actor="admin:test")  # taken down: no longer counts
+    core.services.moderation.hide_photo(
+        second.public_id, actor="admin:test"
+    )  # taken down: no longer counts
     assert g.get("/api/x/beer/stats").json()["total"] == 1
 
     body = upload(g, {"vessel": "cup"}).json()
@@ -158,8 +165,16 @@ def test_stats_ignores_other_extensions(guest, core):
     upload(g, {"vessel": "bottle"})
     user = core.repos.users.list()[0]
     core.repos.photos.insert(
-        public_id=new_public_id(), extension="booth", user_id=user.id, filename="x.jpg",
-        thumb_filename="thumbs/x.jpg", width=10, height=10, size=1, meta={}, created_at=now_iso(),
+        public_id=new_public_id(),
+        extension="booth",
+        user_id=user.id,
+        filename="x.jpg",
+        thumb_filename="thumbs/x.jpg",
+        width=10,
+        height=10,
+        size=1,
+        meta={},
+        created_at=now_iso(),
     )
     assert g.get("/api/x/beer/stats").json()["total"] == 1
 

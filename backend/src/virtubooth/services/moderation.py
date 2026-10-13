@@ -67,7 +67,9 @@ class ModerationService:
 
     # ------------------------------------------------------------- photos
 
-    def hide_photo(self, public_id: str, *, actor: str, reason: str = HIDDEN_BY_ADMIN) -> PhotoChange:
+    def hide_photo(
+        self, public_id: str, *, actor: str, reason: str = HIDDEN_BY_ADMIN
+    ) -> PhotoChange:
         with self.db.tx():
             changed = self.repos.photos.hide(public_id, at=now_iso(), reason=reason)
             photo = self.repos.photos.get(public_id)
@@ -144,7 +146,9 @@ class ModerationService:
             changed = self.repos.users.ban(user_id, at=at, reason=reason)
             if changed:
                 self.repos.photos.hide_for_ban(user_id, at=at)
-                self.repos.audit.log(actor, "user.ban", f"user:{user_id}", {"reason": reason}, at=at)
+                self.repos.audit.log(
+                    actor, "user.ban", f"user:{user_id}", {"reason": reason}, at=at
+                )
             fp_banned = False
             if fingerprint and user.fp_hash:
                 fp_banned = self._ban_fingerprint(user.fp_hash, reason, actor, user_id)
@@ -210,7 +214,9 @@ class ModerationService:
         at = now_iso()
         if not self.repos.bans.add(fp_hash, at=at, reason=reason, source_user_id=source_user_id):
             return False
-        self.repos.audit.log(actor, "fingerprint.ban", f"fp:{fp_hash[:16]}", {"reason": reason}, at=at)
+        self.repos.audit.log(
+            actor, "fingerprint.ban", f"fp:{fp_hash[:16]}", {"reason": reason}, at=at
+        )
         return True
 
     def _unban_fingerprint(self, fp_hash: str, actor: str) -> bool:

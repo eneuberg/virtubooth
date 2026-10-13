@@ -48,9 +48,7 @@ def normalize_instagram(raw: str | None) -> str | None:
 
 def _instagram_problem(handle: str) -> str:
     if len(handle) > INSTAGRAM_MAX:
-        return (
-            f"Instagram-Namen haben höchstens {INSTAGRAM_MAX} Zeichen, deiner hat {len(handle)}."
-        )
+        return f"Instagram-Namen haben höchstens {INSTAGRAM_MAX} Zeichen, deiner hat {len(handle)}."
     if any(c in "äöüß" for c in handle):
         return (
             "Instagram-Namen haben keine Umlaute und kein ß. "
@@ -244,4 +242,6 @@ class IdentityService:
 
     def my_photos(self, user: User) -> list[Photo]:
         """The guest's own photos that are still up, newest first."""
-        return self.repos.photos.list(PhotoQuery(user_id=user.id, hidden=False, limit=MY_PHOTOS_MAX))
+        return self.repos.photos.list(
+            PhotoQuery(user_id=user.id, hidden=False, limit=MY_PHOTOS_MAX)
+        )

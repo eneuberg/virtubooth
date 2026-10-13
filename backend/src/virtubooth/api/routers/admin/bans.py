@@ -13,9 +13,7 @@ router = APIRouter()
 
 @router.get("/device-bans")
 def device_bans(core: CoreDep) -> DeviceBansOut:
-    return DeviceBansOut(
-        bans=[DeviceBanOut.of(b) for b in core.repos.read_models.device_bans()]
-    )
+    return DeviceBansOut(bans=[DeviceBanOut.of(b) for b in core.repos.read_models.device_bans()])
 
 
 @router.delete("/device-bans/{fp_hash}")

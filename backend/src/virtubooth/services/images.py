@@ -41,7 +41,7 @@ def process_jpeg(
     if not raw.startswith(b"\xff\xd8\xff"):
         raise _invalid("Nur JPEG-Bilder sind erlaubt.")
     try:
-        img = Image.open(io.BytesIO(raw))
+        img: Image.Image = Image.open(io.BytesIO(raw))
         if img.format != "JPEG":
             raise _invalid("Nur JPEG-Bilder sind erlaubt.")
         w, h = img.size

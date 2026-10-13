@@ -35,8 +35,12 @@ def test_extension_is_listed(guest):
     data = g.get("/api/extensions").json()
     [ext] = data["extensions"]
     assert ext == {
-        "id": "booth", "title": "Fotobox", "emoji": "📸", "tagline": booth.extension.tagline,
-        "url": "/x/booth/", "uploads": True,
+        "id": "booth",
+        "title": "Fotobox",
+        "emoji": "📸",
+        "tagline": booth.extension.tagline,
+        "url": "/x/booth/",
+        "uploads": True,
     }
     assert booth.extension.order == 20
     assert dict(booth.extension.meta_labels) == {"filter": "Filter", "facing": "Kamera"}

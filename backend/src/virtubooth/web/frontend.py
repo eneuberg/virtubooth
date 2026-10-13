@@ -184,7 +184,9 @@ class WebFrontend:
             if GATE_PLACEHOLDER in text:
                 text = text.replace(GATE_PLACEHOLDER, NOT_FOUND_MARK, 1)
             else:
-                log.warning("gate.html has no %s: the 404 page shows the gate text", GATE_PLACEHOLDER)
+                log.warning(
+                    "gate.html has no %s: the 404 page shows the gate text", GATE_PLACEHOLDER
+                )
         return self._html_response(text, _etag(text), 404, mode)
 
     def gate(self) -> HTMLResponse:

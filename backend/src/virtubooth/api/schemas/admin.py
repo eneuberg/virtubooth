@@ -7,7 +7,7 @@ phone model).
 
 from __future__ import annotations
 
-from typing import Annotated, Any, Literal
+from typing import Annotated, Any, Literal, cast
 
 from pydantic import BaseModel, ConfigDict, Field, StringConstraints
 
@@ -80,7 +80,7 @@ class AdminPhoto(BaseModel):
             meta=p.meta,
             hidden=p.hidden,
             hidden_at=p.hidden_at,
-            hidden_reason=p.hidden_reason,  # type: ignore[arg-type]
+            hidden_reason=cast(HiddenReason | None, p.hidden_reason),
             deleted=p.deleted,
             url=p.url,
             thumb_url=p.thumb_url,
@@ -210,7 +210,7 @@ class AdminUser(BaseModel):
             photo_count=u.photo_count,
             uploads_paused=u.uploads_paused,
             uploads_paused_at=u.uploads_paused_at,
-            uploads_paused_source=u.uploads_paused_source,  # type: ignore[arg-type]
+            uploads_paused_source=cast(PauseSource | None, u.uploads_paused_source),
             uploads_lock_period=u.uploads_lock_period,
             auto_banned=u.auto_banned,
             auto_ban=AutoBan.model_validate(auto_ban) if auto_ban and u.auto_banned else None,

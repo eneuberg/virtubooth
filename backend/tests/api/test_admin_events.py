@@ -60,7 +60,9 @@ def live(app: FastAPI) -> Iterator[Live]:
 
 def admin_client(live: Live) -> httpx.Client:
     c = httpx.Client(base_url=live.base_url, timeout=10)
-    r = c.post("/api/admin/login", json={"password": ADMIN_PASSWORD}, headers={"Origin": live.base_url})
+    r = c.post(
+        "/api/admin/login", json={"password": ADMIN_PASSWORD}, headers={"Origin": live.base_url}
+    )
     assert r.status_code == 200
     return c
 
@@ -68,10 +70,15 @@ def admin_client(live: Live) -> httpx.Client:
 def guest_photo(live: Live) -> str:
     with httpx.Client(base_url=live.base_url, timeout=10) as g:
         g.get(f"/?t={PARTY_TOKEN}")
-        r = g.post("/api/join", json={"accept": True, "version": "1", "fp": fp(5)},
-                   headers={"Origin": live.base_url})
+        r = g.post(
+            "/api/join",
+            json={"accept": True, "version": "1", "fp": fp(5)},
+            headers={"Origin": live.base_url},
+        )
         assert r.status_code == 201, r.text
-        r = g.post("/api/x/demo/upload", content=jpeg(400, 300), headers=JPEG | {"Origin": live.base_url})
+        r = g.post(
+            "/api/x/demo/upload", content=jpeg(400, 300), headers=JPEG | {"Origin": live.base_url}
+        )
         assert r.status_code == 201, r.text
         photo_id: str = r.json()["photo"]["id"]
         return photo_id
@@ -223,8 +230,14 @@ def test_overflow_ends_the_stream_and_a_reconnect_catches_up(core):
     """Bug: an overflowed subscriber kept a live-looking stream that never
     delivered again. Now the stream ends; the reconnect replays the backlog."""
     token = core.services.admin_auth.login(ADMIN_PASSWORD, ip="10.0.0.1", user_agent="pytest")
-    request = Request({"type": "http", "method": "GET", "path": "/api/admin/events",
-                       "headers": [(b"cookie", f"vb_admin={token}".encode())]})
+    request = Request(
+        {
+            "type": "http",
+            "method": "GET",
+            "path": "/api/admin/events",
+            "headers": [(b"cookie", f"vb_admin={token}".encode())],
+        }
+    )
 
     async def scenario():
         core.bus = EventBus(queue_size=3)

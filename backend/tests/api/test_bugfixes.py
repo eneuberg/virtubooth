@@ -108,7 +108,9 @@ def test_failed_delete_keeps_the_files(guest, core, monkeypatch):
     g = guest()
     pid = upload(g)
     photo = core.repos.photos.get(pid)
-    files = [core.repos.photos.path(photo.extension, n) for n in (photo.filename, photo.thumb_filename)]
+    files = [
+        core.repos.photos.path(photo.extension, n) for n in (photo.filename, photo.thumb_filename)
+    ]
 
     def broken(self, *args, **kwargs):
         raise RuntimeError("disk full")
@@ -148,10 +150,16 @@ def test_files_go_after_the_outer_transaction_commits(guest, core):
 def test_user_refs_say_auto_banned_everywhere(admin, guest, make_client, core):
     troll = guest(fp_n=7, instagram="troll")
     upload(troll)
-    admin.post(f"/api/admin/users/{user_id(core, troll)}/ban", json={"fingerprint": True}, headers=ORIGIN)
+    admin.post(
+        f"/api/admin/users/{user_id(core, troll)}/ban", json={"fingerprint": True}, headers=ORIGIN
+    )
     twin = make_client()
     scan(twin)
-    r = twin.post("/api/join", json={"accept": True, "version": "1", "instagram": "twin", "fp": fp(7)}, headers=ORIGIN)
+    r = twin.post(
+        "/api/join",
+        json={"accept": True, "version": "1", "instagram": "twin", "fp": fp(7)},
+        headers=ORIGIN,
+    )
     assert r.json()["state"] == "banned"
     twin_id = user_id(core, twin)
     assert core.repos.users.get(twin_id).ban_reason == AUTO_BAN_REASON
@@ -190,11 +198,22 @@ def test_user_created_event_carries_a_user_ref(make_client, core):
     scan(c)
 
     def act():
-        c.post("/api/join", json={"accept": True, "version": "1", "instagram": "neu", "fp": fp(3)}, headers=ORIGIN)
+        c.post(
+            "/api/join",
+            json={"accept": True, "version": "1", "instagram": "neu", "fp": fp(3)},
+            headers=ORIGIN,
+        )
 
     (event,) = collect_events(core, act, 1)
     assert event["type"] == "user.created"
-    assert set(event["data"]) == {"id", "name", "instagram", "banned", "auto_banned", "uploads_paused"}
+    assert set(event["data"]) == {
+        "id",
+        "name",
+        "instagram",
+        "banned",
+        "auto_banned",
+        "uploads_paused",
+    }
     assert event["data"]["instagram"] == "neu" and event["data"]["auto_banned"] is False
 
 
@@ -247,7 +266,9 @@ def test_login_locked_says_when_to_retry(make_client, core):
     codes = []
     for i in range(3):
         core.limits.login_ip.reset()
-        r = make_client().post("/api/admin/login", json={"password": f"wrong-{i}-pw"}, headers=ORIGIN)
+        r = make_client().post(
+            "/api/admin/login", json={"password": f"wrong-{i}-pw"}, headers=ORIGIN
+        )
         codes.append(r.status_code)
     assert codes == [401, 429, 429]
     assert r.json()["error"] == "login_locked"

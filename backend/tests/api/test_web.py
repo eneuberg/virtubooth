@@ -108,8 +108,13 @@ def test_assets_are_immutable_and_public(client):
 
 @pytest.mark.parametrize(
     ("accept", "encoding"),
-    [("br, gzip", "br"), ("gzip, deflate", "gzip"), ("gzip;q=0, br", "br"), ("identity", None),
-     ("br;q=0, gzip;q=0", None)],
+    [
+        ("br, gzip", "br"),
+        ("gzip, deflate", "gzip"),
+        ("gzip;q=0, br", "br"),
+        ("identity", None),
+        ("br;q=0, gzip;q=0", None),
+    ],
 )
 def test_assets_are_served_precompressed(client, accept, encoding):
     raw = (STUB_WEB / "assets" / STUB_JS).read_bytes()
@@ -175,7 +180,7 @@ def test_missing_web_dir_fails_at_startup(tmp_path):
     incomplete = tmp_path / "dist"
     incomplete.mkdir()
     (incomplete / "index.html").write_text("<!doctype html>")
-    with pytest.raises(ConfigError, match="admin.html, gate.html"):
+    with pytest.raises(ConfigError, match=r"admin\.html, gate\.html"):
         create_app(make_settings(tmp_path / "data", incomplete))
 
 

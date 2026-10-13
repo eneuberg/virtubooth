@@ -51,9 +51,13 @@ BROWSER_NAME = os.environ.get("VB_E2E_BROWSER", "chromium")
 WEB_DIR = Path(os.environ.get("VB_E2E_WEB_DIR") or DEFAULT_WEB_DIR).resolve()
 
 # for tests that need Chromium-only test tooling (CDP sessions)
-chromium_only = pytest.mark.skipif(BROWSER_NAME != "chromium", reason="needs Chromium-only test tooling")
+chromium_only = pytest.mark.skipif(
+    BROWSER_NAME != "chromium", reason="needs Chromium-only test tooling"
+)
 # reading the clipboard back: Chromium via a permission, Firefox via a testing pref, WebKit can't
-needs_clipboard = pytest.mark.skipif(BROWSER_NAME == "webkit", reason="WebKit can't read the clipboard in tests")
+needs_clipboard = pytest.mark.skipif(
+    BROWSER_NAME == "webkit", reason="WebKit can't read the clipboard in tests"
+)
 # Firefox's own camera permission prefs
 firefox_only = pytest.mark.skipif(BROWSER_NAME != "firefox", reason="Firefox-only check")
 
@@ -316,9 +320,11 @@ def track_errors(page: Page) -> Page:
     page.on("pageerror", lambda exc: errors.append(str(exc)))
     page.on(
         "console",
-        lambda msg: errors.append(f"{msg.text} @ {msg.location.get('url', '')}")
-        if msg.type == "error"
-        else None,
+        lambda msg: (
+            errors.append(f"{msg.text} @ {msg.location.get('url', '')}")
+            if msg.type == "error"
+            else None
+        ),
     )
     page.js_errors = errors  # type: ignore[attr-defined]
     return page
@@ -358,14 +364,18 @@ def shot(page: Page, name: str, settle_ms: int = 300) -> None:
     # WebKit's screenshot injects a <style>, which our CSP refuses: not the page's fault
     errors = getattr(page, "js_errors", None)
     if errors is not None:
-        errors[seen:] = [e for e in errors[seen:] if not e.startswith("Refused to apply a stylesheet")]
+        errors[seen:] = [
+            e for e in errors[seen:] if not e.startswith("Refused to apply a stylesheet")
+        ]
 
 
 @pytest.fixture
 def admin_page(context: BrowserContext, live: LiveServer) -> Page:
     """A page with an admin session (logged in via the API, not the UI)."""
     p = track_errors(context.new_page())
-    p.goto(live.url("/admin/login"))  # a real page: WebKit styles JSON views inline, which the CSP blocks
+    p.goto(
+        live.url("/admin/login")
+    )  # a real page: WebKit styles JSON views inline, which the CSP blocks
     status = p.evaluate(
         """async (pw) => (await fetch('/api/admin/login', {method: 'POST',
             headers: {'Content-Type': 'application/json'}, body: JSON.stringify({password: pw})})).status""",

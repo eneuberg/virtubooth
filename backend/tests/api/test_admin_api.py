@@ -7,8 +7,8 @@ import threading
 
 import pytest
 
-from virtubooth.domain.constants import AUTO_BAN_REASON
 from virtubooth.api.routers.admin import router as admin_router
+from virtubooth.domain.constants import AUTO_BAN_REASON
 from virtubooth.domain.models import PhotoQuery
 
 from ..conftest import JPEG, ORIGIN, fp, jpeg, scan
@@ -432,8 +432,12 @@ def test_fingerprint_ban_catches_new_guest_with_same_fp(admin, guest, make_clien
 def test_fingerprint_ban_needs_a_fingerprint(admin, make_client, core):
     # consent requires a fingerprint now; older rows may still lack one
     user = core.services.identity.create_user(
-        consent_version="1", instagram=None, fp_hash=None, fp_components={},
-        ip="1.2.3.4", user_agent="legacy",
+        consent_version="1",
+        instagram=None,
+        fp_hash=None,
+        fp_components={},
+        ip="1.2.3.4",
+        user_agent="legacy",
     )
     r = admin.post(f"/api/admin/users/{user.id}/ban", json={"fingerprint": True}, headers=ORIGIN)
     assert r.status_code == 400 and r.json()["error"] == "no_fingerprint"
@@ -540,7 +544,9 @@ def test_unban_without_fingerprint_keeps_auto_bans(admin, guest, make_client, co
     troll = user_of(core, guest(fp_n=7))
     admin.post(f"/api/admin/users/{troll.id}/ban", json={"fingerprint": True}, headers=ORIGIN)
     twin = user_of(core, join_on(make_client, 7))
-    r = admin.post(f"/api/admin/users/{troll.id}/unban", json={"fingerprint": False}, headers=ORIGIN)
+    r = admin.post(
+        f"/api/admin/users/{troll.id}/unban", json={"fingerprint": False}, headers=ORIGIN
+    )
     assert r.json()["users_unbanned"] == [] and r.json()["fingerprints_unbanned"] == []
     assert core.repos.users.get(twin.id).banned  # the fingerprint is still banned
     # one tap on the auto-banned identity itself

@@ -6,6 +6,7 @@ transaction that makes several writes one change belong to the services.
 
 from __future__ import annotations
 
+import builtins
 import json
 from typing import Any
 
@@ -67,7 +68,9 @@ class UsersRepo:
         return uid
 
     def get(self, user_id: int) -> User | None:
-        row = self.db.one(f"SELECT {USER_COLS}, {_PHOTO_COUNT} FROM users u WHERE u.id=?", (user_id,))
+        row = self.db.one(
+            f"SELECT {USER_COLS}, {_PHOTO_COUNT} FROM users u WHERE u.id=?", (user_id,)
+        )
         return user_from_row(row, row["photo_count"]) if row else None
 
     def get_by_public_id(self, public_id: str) -> User | None:
@@ -112,7 +115,7 @@ class UsersRepo:
         limit: int = 100,
         offset: int = 0,
         paused: bool | None = None,
-    ) -> list[User]:
+    ) -> builtins.list[User]:
         where: list[str] = []
         params: list[Any] = []
         if banned is not None:
@@ -133,7 +136,7 @@ class UsersRepo:
         rows = self.db.all(sql, [*params, min(limit, MAX_PAGE + 1), offset])
         return [user_from_row(r, r["photo_count"]) for r in rows]
 
-    def fingerprints(self, user_id: int) -> list[UserFingerprint]:
+    def fingerprints(self, user_id: int) -> builtins.list[UserFingerprint]:
         rows = self.db.all(
             "SELECT f.fp_hash, f.first_seen, f.last_seen, "
             "(SELECT COUNT(DISTINCT o.user_id) FROM user_fingerprints o "
@@ -153,7 +156,7 @@ class UsersRepo:
             for r in rows
         ]
 
-    def sharing_fingerprint(self, user_id: int) -> list[User]:
+    def sharing_fingerprint(self, user_id: int) -> builtins.list[User]:
         """Other users that showed any fingerprint this user showed.
 
         A shared fingerprint is a hint, not proof: identical phone models with
@@ -226,7 +229,7 @@ class UsersRepo:
         row = self.db.one(sql, params)
         return as_int(row[0]) if row else 0
 
-    def paused_by_lock(self, period: int) -> list[int]:
+    def paused_by_lock(self, period: int) -> builtins.list[int]:
         rows = self.db.all(
             "SELECT id FROM users WHERE uploads_paused_at IS NOT NULL "
             "AND uploads_paused_source=? AND uploads_lock_period=? ORDER BY id",

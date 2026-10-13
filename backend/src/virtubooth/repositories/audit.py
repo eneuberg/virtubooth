@@ -7,6 +7,7 @@ target `user:<id>`, `photo:<public id>`, `fp:<first 16 hex>`, `ip:<ip>` or "".
 
 from __future__ import annotations
 
+import builtins
 import json
 import sqlite3
 from typing import Any
@@ -51,7 +52,7 @@ class AuditRepo:
         rows = self.db.all("SELECT * FROM audit_log ORDER BY id DESC LIMIT ?", (min(limit, 1000),))
         return [_entry(r) for r in rows]
 
-    def page(self, *, before: int | None = None, limit: int = 100) -> list[AuditEntry]:
+    def page(self, *, before: int | None = None, limit: int = 100) -> builtins.list[AuditEntry]:
         """Newest first; `before` is the id of the last entry already shown."""
         sql = "SELECT * FROM audit_log"
         params: list[Any] = []

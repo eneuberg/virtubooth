@@ -104,7 +104,9 @@ class UploadControlsService:
                     if restore and ids:
                         self.repos.users.unpause_lock_period(period)
                     restored, kept = (ids, []) if restore else ([], ids)
-                    settings.put_upload_lock(enabled=False, since=None, period=period, by=actor, at=at)
+                    settings.put_upload_lock(
+                        enabled=False, since=None, period=period, by=actor, at=at
+                    )
                     self.repos.audit.log(
                         actor, "uploads.lock_off", "",
                         {"period": period, "restore": restore, "restored": len(restored),

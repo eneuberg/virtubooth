@@ -10,9 +10,7 @@ class FingerprintBansRepo:
     def __init__(self, db: Database) -> None:
         self.db = db
 
-    def add(
-        self, fp_hash: str, *, at: str, reason: str, source_user_id: int | None = None
-    ) -> bool:
+    def add(self, fp_hash: str, *, at: str, reason: str, source_user_id: int | None = None) -> bool:
         with self.db.tx() as c:
             cur = c.execute(
                 "INSERT OR IGNORE INTO fingerprint_bans VALUES (?,?,?,?)",

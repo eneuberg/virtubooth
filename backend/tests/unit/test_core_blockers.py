@@ -78,9 +78,30 @@ FULL_LISTS = {
     "peter-lowe": "https://pgl.yoyo.org/adservers/serverlist.php?hostformat=hosts&showintro=1&mimetype=plaintext",
     "hagezi-pro": "https://raw.githubusercontent.com/hagezi/dns-blocklists/main/adblock/pro.txt",
 }
-TRACKING_WORDS = ("fingerprint", "track", "analytic", "telemetry", "beacon", "pixel", "advert", "/ads", "/ad/", "collect")
+TRACKING_WORDS = (
+    "fingerprint",
+    "track",
+    "analytic",
+    "telemetry",
+    "beacon",
+    "pixel",
+    "advert",
+    "/ads",
+    "/ad/",
+    "collect",
+)
 # what the join dialog every new guest must accept may not be called
-COOKIE_NOTICE_WORDS = ("consent", "cookie", "gdpr", "banner", "notice", "modal", "backdrop", "privacy", "popup")
+COOKIE_NOTICE_WORDS = (
+    "consent",
+    "cookie",
+    "gdpr",
+    "banner",
+    "notice",
+    "modal",
+    "backdrop",
+    "privacy",
+    "popup",
+)
 
 
 @pytest.fixture
@@ -115,8 +136,11 @@ def network_hits(reqs: list[bl.Request], lists: list[tuple[str, str]]) -> list[s
     rules = bl.NetworkRules(r.url for r in reqs)
     for name, text in lists:
         rules.add_list(text, name)
-    return [f"{r.method} {r.url} ({r.type}) <- {rule.source}: {rule.text}"
-            for r in reqs for rule in rules.check(r)]
+    return [
+        f"{r.method} {r.url} ({r.type}) <- {rule.source}: {rule.text}"
+        for r in reqs
+        for rule in rules.check(r)
+    ]
 
 
 def cosmetic_hits(elements: list[bl.El], lists: list[tuple[str, str]]) -> list[str]:

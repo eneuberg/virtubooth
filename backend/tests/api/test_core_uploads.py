@@ -6,9 +6,8 @@ import asyncio
 import io
 import threading
 
-from PIL import Image
-
 from fastapi.sse import format_sse_event
+from PIL import Image
 
 from virtubooth.api.routers.admin.events import sse_message
 from virtubooth.core.events import EventBus
@@ -56,7 +55,10 @@ def test_upload_reencodes_and_strips_exif(guest, settings):
 
 def test_upload_rejections(guest):
     g = guest()
-    assert upload(g, headers={"Content-Type": "image/png", "Origin": "http://testserver"}).status_code == 415
+    assert (
+        upload(g, headers={"Content-Type": "image/png", "Origin": "http://testserver"}).status_code
+        == 415
+    )
     r = upload(g, png())
     assert r.status_code == 400 and r.json()["error"] == "invalid_image"
     assert upload(g, b"\xff\xd8\xff" + b"garbage" * 100).json()["error"] == "invalid_image"
@@ -139,7 +141,9 @@ def test_ban_hides_photos_and_unban_restores_only_those(guest, core):
     core.services.moderation.hide_photo(a, actor="pytest")  # hidden by admin before the ban
     user = core.repos.users.list()[0]
     assert core.services.moderation.ban_user(user.id, reason="spam", actor="pytest").changed
-    assert not core.services.moderation.ban_user(user.id, reason="spam", actor="pytest").changed  # already banned
+    assert not core.services.moderation.ban_user(
+        user.id, reason="spam", actor="pytest"
+    ).changed  # already banned
     assert all(p.hidden for p in core.repos.photos.list(PhotoQuery(user_id=user.id)))
     core.services.moderation.unban_user(user.id, actor="pytest")
     assert core.repos.photos.get(a).hidden

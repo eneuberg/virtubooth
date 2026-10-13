@@ -81,7 +81,9 @@ class GuardMiddleware:
                 await _error(err, scope, receive, send)
                 return
             if int(declared) > MAX_JSON_BODY:
-                await _error(errors.ApiError(413, "too_large", "Anfrage zu groß."), scope, receive, send)
+                await _error(
+                    errors.ApiError(413, "too_large", "Anfrage zu groß."), scope, receive, send
+                )
                 return
 
         if path.startswith("/api/"):

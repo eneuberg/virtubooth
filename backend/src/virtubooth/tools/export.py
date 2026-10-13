@@ -138,7 +138,7 @@ def photos_csv(entries: list[Entry]) -> bytes:
             e.photo.height,
             json.dumps(e.photo.meta, ensure_ascii=False, sort_keys=True),
             e.arcname,
-        ]  # fmt: skip
+        ]
         for e in entries
     ]
     return _csv(PHOTO_COLUMNS, rows)
@@ -195,7 +195,7 @@ def readme(
             [f"{missing} photo(s) had no file on disk; their CSV rows have an empty 'file'."]
             if missing
             else []
-        ),  # fmt: skip
+        ),
         "",
         "Contents",
         "--------",
@@ -389,7 +389,7 @@ def _main(args: argparse.Namespace) -> int:
                         users=users,
                         include_hidden=include_hidden,
                         include_db=not args.no_db,
-                    ),  # fmt: skip
+                    ),
                 )
             part.replace(out)
         finally:

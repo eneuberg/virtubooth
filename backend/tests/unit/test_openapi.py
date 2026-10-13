@@ -66,7 +66,11 @@ def test_every_route_has_a_response_schema(exported):
                     assert ref == "#/components/schemas/AdminEvent"
                     continue
                 body = content["application/json"]["schema"]
-                assert body.get("$ref") or body.get("oneOf") or body.get("anyOf"), (method, path, code)
+                assert body.get("$ref") or body.get("oneOf") or body.get("anyOf"), (
+                    method,
+                    path,
+                    code,
+                )
 
 
 def test_errors_use_error_body(exported):

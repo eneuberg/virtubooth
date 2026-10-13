@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from typing import Any
+
 from fastapi import APIRouter, Request, Response
 
 from ...core.errors import error_responses
@@ -65,13 +67,13 @@ def identify(
     return _identified(request, response, core, user)
 
 
-@router.post(
-    "/join",
-    dependencies=[AccessDep],
-    status_code=201,
-    responses={200: {"model": JoinOut, "description": "The device had joined already"}}
-    | error_responses(400, 409),
-)
+_JOIN_RESPONSES: dict[int | str, dict[str, Any]] = {
+    200: {"model": JoinOut, "description": "The device had joined already"},
+    **error_responses(400, 409),
+}
+
+
+@router.post("/join", dependencies=[AccessDep], status_code=201, responses=_JOIN_RESPONSES)
 def join(body: JoinIn, request: Request, response: Response, core: CoreDep) -> JoinOut:
     """Accept the join dialog: a new pseudonymous guest (201). A device that
     joined already keeps its identity (200, `already_joined`)."""

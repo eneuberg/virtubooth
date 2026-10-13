@@ -92,7 +92,12 @@ def test_limits_reset():
     from virtubooth.settings import Settings
 
     limits = Limits.from_settings(
-        Settings(party_token="p" * 16, admin_password="a" * 12, secret_key="s" * 32, data_dir=__import__("pathlib").Path("/tmp"))
+        Settings(
+            party_token="p" * 16,
+            admin_password="a" * 12,
+            secret_key="s" * 32,
+            data_dir=__import__("pathlib").Path("/tmp"),
+        )
     )
     for _ in range(5):
         limits.login_ip.hit("ip")

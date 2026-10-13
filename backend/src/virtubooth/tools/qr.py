@@ -103,9 +103,9 @@ def write_codes(cards: Sequence[Card], out_dir: Path) -> list[Path]:
     for card in cards:
         qr = make_qr(card.url)
         svg, png = out_dir / f"qr-{card.key}.svg", out_dir / f"qr-{card.key}.png"
-        qr.save(svg, kind="svg", scale=10, border=4, dark="#000", light="#fff")
+        qr.save(str(svg), kind="svg", scale=10, border=4, dark="#000", light="#fff")
         modules = qr.symbol_size(scale=1, border=4)[0]
-        qr.save(png, kind="png", scale=-(-PNG_MIN_PX // modules), border=4)
+        qr.save(str(png), kind="png", scale=-(-PNG_MIN_PX // modules), border=4)
         written += [svg, png]
     return written
 

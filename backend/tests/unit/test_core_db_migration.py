@@ -21,6 +21,7 @@ from virtubooth.services.identity import create_user
 from virtubooth.services.upload_controls import UploadControlsService
 from virtubooth.services.views import AdminViews
 
+
 def open_services(db: Database, data_dir: Path) -> tuple[Repositories, UploadControlsService]:
     repos = Repositories.create(db, data_dir)
     controls = UploadControlsService(db, repos, AdminEvents(db, EventBus()), AdminViews(repos))
@@ -73,7 +74,9 @@ def dump(path: Path) -> dict[str, list[tuple]]:
         for table in TABLES:
             cols = [r[1] for r in conn.execute(f"PRAGMA table_info({table})")]
             v1_cols = [c for c in cols if not c.startswith("uploads_")]
-            out[table] = conn.execute(f"SELECT {', '.join(v1_cols)} FROM {table} ORDER BY rowid").fetchall()
+            out[table] = conn.execute(
+                f"SELECT {', '.join(v1_cols)} FROM {table} ORDER BY rowid"
+            ).fetchall()
         return out
     finally:
         conn.close()

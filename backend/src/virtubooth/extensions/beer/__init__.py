@@ -12,7 +12,7 @@ GET  /api/x/beer/stats    → {"total": n, "goal": 1000000}
 
 from __future__ import annotations
 
-from typing import Any, Literal
+from typing import Any, Final, Literal
 
 from fastapi import APIRouter, Depends
 from pydantic import BaseModel, Field
@@ -23,7 +23,7 @@ from virtubooth.extensions.sdk import Extension, UploadContext, UploadPolicy
 from virtubooth.runtime import Core
 
 EXT_ID = "beer"
-GOAL = 1_000_000
+GOAL: Final = 1_000_000
 # the browser captures exactly this
 WIDTH, HEIGHT = PHOTO_WIDTH, PHOTO_HEIGHT
 VESSELS = frozenset({"bottle", "cup"})

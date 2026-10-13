@@ -3,6 +3,8 @@ fetch it. Photos are looked up by their random public id, never by path."""
 
 from __future__ import annotations
 
+from typing import Any
+
 from fastapi import APIRouter, Request
 from fastapi.responses import FileResponse
 
@@ -15,7 +17,7 @@ from ..deps import CoreDep, admin_from_cookie, guest_from_cookie, has_access
 
 router = APIRouter(tags=["media"], responses=error_responses(404, 422))
 
-JPEG_RESPONSE = {
+JPEG_RESPONSE: dict[int | str, dict[str, Any]] = {
     200: {
         "description": "The JPEG (`thumb`: 400 px). Cache-Control: private, max-age=86400.",
         "content": {"image/jpeg": {"schema": {"type": "string", "format": "binary"}}},

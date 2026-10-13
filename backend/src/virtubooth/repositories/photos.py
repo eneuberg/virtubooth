@@ -3,6 +3,7 @@ photo stays as a tombstone (`deleted_at`) so sequence numbers are never reused."
 
 from __future__ import annotations
 
+import builtins
 import json
 from pathlib import Path
 from typing import Any
@@ -52,7 +53,9 @@ class PhotosRepo:
             )  # fmt: skip
 
     def get(self, public_id: str, *, include_deleted: bool = False) -> Photo | None:
-        sql = f"SELECT {PHOTO_COLS} FROM photos p JOIN users u ON u.id=p.user_id WHERE p.public_id=?"
+        sql = (
+            f"SELECT {PHOTO_COLS} FROM photos p JOIN users u ON u.id=p.user_id WHERE p.public_id=?"
+        )
         if not include_deleted:
             sql += " AND p.deleted_at IS NULL"
         row = self.db.one(sql, (public_id,))
@@ -144,7 +147,7 @@ class PhotosRepo:
             )
         return cur.rowcount > 0
 
-    def mark_deleted(self, public_id: str, *, at: str) -> list[Path] | None:
+    def mark_deleted(self, public_id: str, *, at: str) -> builtins.list[Path] | None:
         """Tombstone the row; returns the files to remove (None: nothing to delete).
         The caller removes them once the transaction committed."""
         with self.db.tx() as c:

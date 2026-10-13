@@ -81,5 +81,6 @@ class AdminEvents:
 
     def upload_pause(self, state: PauseState, restored: list[int], kept: list[int]) -> None:
         self._emit(
-            "settings.upload_pause", UploadPauseData(upload_pause=state, restored=restored, kept=kept)
+            "settings.upload_pause",
+            UploadPauseData(upload_pause=state, restored=restored, kept=kept),
         )

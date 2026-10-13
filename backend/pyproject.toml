@@ -68,7 +68,10 @@ ignore = [
 ]
 
 [tool.ruff.lint.per-file-ignores]
-"tests/**" = ["B011", "SIM117", "RUF012", "B018"]
+# tests: chained comparisons (`a == 1 == b`) and dict(**kw) are on purpose
+"tests/**" = ["B011", "SIM117", "SIM300", "RUF012", "B018", "C408"]
+# a hand-written CSS selector matcher: one branch per selector kind reads best
+"tests/unit/blockerlists.py" = ["SIM114"]
 
 [tool.ruff.lint.isort]
 known-first-party = ["virtubooth"]

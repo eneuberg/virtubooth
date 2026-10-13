@@ -130,7 +130,9 @@ def test_paused_guest_cannot_upload_but_keeps_everything_else(admin, guest, core
 
 def test_set_user_uploads_validation(admin):
     def status(user_id, body):
-        return admin.post(f"/api/admin/users/{user_id}/uploads", json=body, headers=ORIGIN).status_code
+        return admin.post(
+            f"/api/admin/users/{user_id}/uploads", json=body, headers=ORIGIN
+        ).status_code
 
     assert status(999, {"paused": True}) == 404
     assert status(0, {"paused": True}) == 422
@@ -266,7 +268,11 @@ def test_rejoining_device_keeps_its_identity(admin, guest, core):
     """The lock applies when a user is created, not when a known device comes back."""
     g = guest()
     lock_on(admin)
-    r = g.post("/api/join", json={"accept": True, "version": "1", "fp": {"hash": "ab" * 16}}, headers=ORIGIN)
+    r = g.post(
+        "/api/join",
+        json={"accept": True, "version": "1", "fp": {"hash": "ab" * 16}},
+        headers=ORIGIN,
+    )
     assert r.status_code == 200 and r.json()["user"]["uploads_paused"] is False
     assert can_upload(g)
 
@@ -279,7 +285,11 @@ def test_stop_all_blocks_everyone_and_restores_exactly(admin, guest, core):
     set_paused(admin, uid(core, paused), True)
     lock_on(admin)
     locked = guest(fp_n=3)
-    assert admin.get("/api/admin/upload-stop").json() == {"enabled": False, "since": None, "by": None}
+    assert admin.get("/api/admin/upload-stop").json() == {
+        "enabled": False,
+        "since": None,
+        "by": None,
+    }
     assert identify(free)["uploads_stopped"] is False
 
     res = post(admin, "/api/admin/upload-stop", {"enabled": True})
@@ -400,7 +410,11 @@ def test_keep_paused_publishes_no_user_change(admin, make_client, core):
         lock_off(admin, restore=False)
 
     events = _collect_events(core, act, 3)
-    assert [e["type"] for e in events] == ["settings.upload_pause", "user.created", "settings.upload_pause"]
+    assert [e["type"] for e in events] == [
+        "settings.upload_pause",
+        "user.created",
+        "settings.upload_pause",
+    ]
     assert len(events[2]["data"]["kept"]) == 1 and events[2]["data"]["restored"] == []
 
 

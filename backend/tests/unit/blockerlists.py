@@ -38,10 +38,21 @@ class Request:
     source: str = BASE + "/"
 
 
-ASSET_TYPES = {".js": "script", ".mjs": "script", ".css": "stylesheet", ".html": "document",
-               ".json": "xmlhttprequest", ".svg": "image", ".png": "image", ".jpg": "image",
-               ".webmanifest": "other", ".woff2": "font"}
-JS_URL = re.compile(r"""['"`](/(?:api|media|admin|assets|x)/[^'"`\s]*|\./[\w.-]+\.(?:js|json|css))['"`]""")
+ASSET_TYPES = {
+    ".js": "script",
+    ".mjs": "script",
+    ".css": "stylesheet",
+    ".html": "document",
+    ".json": "xmlhttprequest",
+    ".svg": "image",
+    ".png": "image",
+    ".jpg": "image",
+    ".webmanifest": "other",
+    ".woff2": "font",
+}
+JS_URL = re.compile(
+    r"""['"`](/(?:api|media|admin|assets|x)/[^'"`\s]*|\./[\w.-]+\.(?:js|json|css))['"`]"""
+)
 
 
 def _routes(routes: Iterable, prefix: str = "") -> Iterator[tuple[str, set[str]]]:
@@ -95,16 +106,32 @@ def app_requests(app, token: str, web_dirs: Sequence[Path] = ()) -> list[Request
     # pages and the QR codes' entry URLs
     admin_pages = ["/admin/live", "/admin/manage", "/admin/user"]
     tabs = ("fotos", "gaeste", "instagram", "sperren", "protokoll", "export")
-    for path in ["/", "/healthz", "/admin", "/admin/login", "/admin/login?next=%2Fadmin%2Flive",
-                 *admin_pages, "/admin/user?id=17", *(f"/admin/manage?tab={t}" for t in tabs)]:
+    for path in [
+        "/",
+        "/healthz",
+        "/admin",
+        "/admin/login",
+        "/admin/login?next=%2Fadmin%2Flive",
+        *admin_pages,
+        "/admin/user?id=17",
+        *(f"/admin/manage?tab={t}" for t in tabs),
+    ]:
         add(path, "document")
     add(f"/?t={token}", "document")
     # deep links to a photo (PLAN §1: `?photo=` on the admin screens)
-    for path in (f"/admin/live?photo={photo}", f"/admin/manage?tab=fotos&photo={photo}",
-                 f"/admin/user?id=17&photo={photo}"):
+    for path in (
+        f"/admin/live?photo={photo}",
+        f"/admin/manage?tab=fotos&photo={photo}",
+        f"/admin/user?id=17&photo={photo}",
+    ):
         add(path, "document")
     for ext in exts:
-        for path in (f"/x/{ext.id}", f"/x/{ext.id}/", f"/x/{ext.id}/?t={token}", f"/x/{ext.id}/?debug=1"):
+        for path in (
+            f"/x/{ext.id}",
+            f"/x/{ext.id}/",
+            f"/x/{ext.id}/?t={token}",
+            f"/x/{ext.id}/?debug=1",
+        ):
             add(path, "document")
 
     # photos: <img> on the result/admin screens, ?download=1 links
@@ -119,14 +146,21 @@ def app_requests(app, token: str, web_dirs: Sequence[Path] = ()) -> list[Request
             continue
         paths = [path.replace("{ext_id}", e.id) for e in exts] if "{ext_id}" in path else [path]
         for p in paths:
-            p = (p.replace("{public_id}", photo).replace("{photo_id}", photo)
-                 .replace("{user_id}", "17").replace("{fp_hash}", fp_hash))
+            p = (
+                p.replace("{public_id}", photo)
+                .replace("{photo_id}", photo)
+                .replace("{user_id}", "17")
+                .replace("{fp_hash}", fp_hash)
+            )
             for method in sorted(methods - {"HEAD"}):
                 add(p, "xmlhttprequest", method)
     add("/api/admin/events", "other", source="/admin/live")  # EventSource
     add(f"/api/admin/events?since={cursor}", "other", source="/admin/live")
-    for query in ("limit=60", f"limit=60&before={photo}",
-                  f"limit=200&after={photo}&extension=beer&hidden=all&user_id=17"):
+    for query in (
+        "limit=60",
+        f"limit=60&before={photo}",
+        f"limit=200&after={photo}&extension=beer&hidden=all&user_id=17",
+    ):
         add(f"/api/admin/photos?{query}", "xmlhttprequest", source="/admin/manage")
     add("/api/admin/users?search=giraffe&banned=true&limit=100&offset=0", "xmlhttprequest")
     add("/api/admin/users?paused=true&limit=100&offset=100", "xmlhttprequest")
@@ -148,18 +182,70 @@ def app_requests(app, token: str, web_dirs: Sequence[Path] = ()) -> list[Request
 
 # ---------------------------------------------------------- network rules
 
-TYPE_ALIASES = {"xhr": "xmlhttprequest", "css": "stylesheet", "doc": "document", "frame": "subdocument",
-                "beacon": "ping", "object-subrequest": "object", "1p": "first-party", "3p": "third-party"}
-TYPES = {"script", "image", "stylesheet", "xmlhttprequest", "subdocument", "document", "media", "font",
-         "object", "ping", "websocket", "other", "webrtc", "popup", "popunder", "webtransport"}
+TYPE_ALIASES = {
+    "xhr": "xmlhttprequest",
+    "css": "stylesheet",
+    "doc": "document",
+    "frame": "subdocument",
+    "beacon": "ping",
+    "object-subrequest": "object",
+    "1p": "first-party",
+    "3p": "third-party",
+}
+TYPES = {
+    "script",
+    "image",
+    "stylesheet",
+    "xmlhttprequest",
+    "subdocument",
+    "document",
+    "media",
+    "font",
+    "object",
+    "ping",
+    "websocket",
+    "other",
+    "webrtc",
+    "popup",
+    "popunder",
+    "webtransport",
+}
 DEFAULT_TYPES = TYPES - {"document", "popup", "popunder"}
 # options that rewrite a request or response instead of blocking it: fail when they apply
-MODIFIERS = {"csp", "permissions", "replace", "urltransform", "uritransform", "urlskip", "removeheader",
-             "responseheader", "jsonprune", "xmlprune", "hls"}
+MODIFIERS = {
+    "csp",
+    "permissions",
+    "replace",
+    "urltransform",
+    "uritransform",
+    "urlskip",
+    "removeheader",
+    "responseheader",
+    "jsonprune",
+    "xmlprune",
+    "hls",
+}
 # rules with these never block or rewrite one of our requests by themselves
-NON_BLOCKING = {"cookie", "stealth", "elemhide", "ehide", "generichide", "ghide", "specifichide", "shide",
-                "genericblock", "redirect-rule", "content", "jsinject", "urlblock", "extension", "network",
-                "inline-script", "inline-font", "referrerpolicy"}
+NON_BLOCKING = {
+    "cookie",
+    "stealth",
+    "elemhide",
+    "ehide",
+    "generichide",
+    "ghide",
+    "specifichide",
+    "shide",
+    "genericblock",
+    "redirect-rule",
+    "content",
+    "jsinject",
+    "urlblock",
+    "extension",
+    "network",
+    "inline-script",
+    "inline-font",
+    "referrerpolicy",
+}
 # options that don't change whether a blocking rule applies (redirect= still blocks our file)
 IGNORED = {"_", "reason", "empty", "mp4", "rewrite", "redirect", "noop"}
 SEPARATOR = r"(?:[^\w.%-]|$)"
@@ -206,7 +292,7 @@ class NetworkRule:
             hit = True
         elif len(v) > 2 and v.startswith("/") and v.rstrip("i").endswith("/"):
             try:
-                rx = re.compile(v[1:v.rstrip("i").rindex("/")], re.I if v.endswith("i") else 0)
+                rx = re.compile(v[1 : v.rstrip("i").rindex("/")], re.I if v.endswith("i") else 0)
             except re.error:
                 return False
             hit = bool(rx.search(name) or rx.search(f"{name}="))
@@ -243,7 +329,7 @@ def _split_options(line: str) -> tuple[str, str]:
     i = line.rfind("$")
     if i <= 0 and not line.startswith("$"):
         return line, ""
-    pattern, opts = line[:i], line[i + 1:]
+    pattern, opts = line[:i], line[i + 1 :]
     if pattern.startswith("/") and not pattern.endswith("/") and "/" in opts:
         return line, ""  # the $ belongs to a regex
     if not re.match(r"^~?[\w-]+(=|,|$)", opts):
@@ -423,7 +509,11 @@ class NetworkRules:
         out = []
         params = [k for k, _ in parse_qsl(urlsplit(req.url).query, keep_blank_values=True)]
         for r in hits:
-            same = [e for e in excs if e.action == r.action and (r.action != "removeparam" or e.value in ("", r.value))]
+            same = [
+                e
+                for e in excs
+                if e.action == r.action and (r.action != "removeparam" or e.value in ("", r.value))
+            ]
             if same and not r.important:
                 continue
             if r.action == "removeparam" and not any(r.removes(p) for p in params):
@@ -466,7 +556,7 @@ class CosmeticRules:
                 domains = line[:i]
                 if any(d not in ("", "*") and not d.startswith("~") for d in domains.split(",")):
                     break  # site-specific
-                sel = line[i + len(sep):]
+                sel = line[i + len(sep) :]
                 if sel.startswith(("+js(", "^")):
                     break  # scriptlets (checked elsewhere), HTML filters
                 if sep.endswith("$#"):
@@ -522,7 +612,11 @@ class El:
     def describe(self) -> str:
         s = self.tag + (f"#{self.attrs['id']}" if self.attrs.get("id") else "")
         s += "".join(f".{c}" for c in self.classes)
-        s += "".join(f'[{k}="{v}"]' for k, v in self.attrs.items() if k.startswith(("data-", "role", "aria-")))
+        s += "".join(
+            f'[{k}="{v}"]'
+            for k, v in self.attrs.items()
+            if k.startswith(("data-", "role", "aria-"))
+        )
         return f"{s} ({self.origin})"
 
     def walk(self) -> Iterator[El]:
@@ -540,7 +634,21 @@ def new_document(origin: str) -> tuple[El, El]:
 
 
 class _TreeBuilder(HTMLParser):
-    VOID = {"area", "base", "br", "col", "embed", "hr", "img", "input", "link", "meta", "source", "track", "wbr"}
+    VOID = {
+        "area",
+        "base",
+        "br",
+        "col",
+        "embed",
+        "hr",
+        "img",
+        "input",
+        "link",
+        "meta",
+        "source",
+        "track",
+        "wbr",
+    }
 
     def __init__(self, origin: str) -> None:
         super().__init__()
@@ -656,7 +764,9 @@ def _js_literal(src: str, hole: str = "x") -> str | None:
     while i < len(body):
         if body.startswith("${", i):
             j = _match_close(body, i + 1)
-            out += hole + " ".join(m.group(1) for m in re.finditer(r"""['"]([\w -]*)['"]""", body[i + 2:j]))
+            out += hole + " ".join(
+                m.group(1) for m in re.finditer(r"""['"]([\w -]*)['"]""", body[i + 2 : j])
+            )
             i = j + 1
         else:
             out += body[i]
@@ -696,7 +806,7 @@ class _JsTrees:
         src = self.src
         close = _match_close(src, paren)
         spans = _arg_spans(src, paren + 1, close)
-        tag = _js_literal(src[spans[0][0]:spans[0][1]]) if spans else None
+        tag = _js_literal(src[spans[0][0] : spans[0][1]]) if spans else None
         if not tag or not re.fullmatch(r"[a-zA-Z][\w-]*", tag):
             return None, close
         el = El(tag.lower(), origin=self.origin)
@@ -706,8 +816,10 @@ class _JsTrees:
                 if key == "class":
                     lit = _js_literal(value, hole=" ")
                     if lit is None:  # e.g. `a ${b}`.trim(), cond ? 'x' : 'y'
-                        lit = " ".join(_js_literal(m.group(0), hole=" ") or "" for m in
-                                       re.finditer(r"""'[^']*'|"[^"]*"|`[^`]*`""", value))
+                        lit = " ".join(
+                            _js_literal(m.group(0), hole=" ") or ""
+                            for m in re.finditer(r"""'[^']*'|"[^"]*"|`[^`]*`""", value)
+                        )
                     el.attrs["class"] = " ".join(lit.split())
                 elif key == "dataset" or key.startswith("on"):
                     continue
@@ -766,7 +878,9 @@ def loader_tree(src: str, origin: str) -> list[El]:
         if m.group(1) in els:
             els[m.group(1)].text = m.group(2)
     for m in re.finditer(r"(\w+)\.appendChild\((\w+)\)", src):
-        parent = body if m.group(1) == "body" or m.group(1) == "document.body" else els.get(m.group(1))
+        parent = (
+            body if m.group(1) == "body" or m.group(1) == "document.body" else els.get(m.group(1))
+        )
         child = els.get(m.group(2))
         if parent is not None and child is not None and child.parent is None:
             parent.append(child)
@@ -777,7 +891,9 @@ def loader_tree(src: str, origin: str) -> list[El]:
 
 
 CSS_NAME = re.compile(r"(?<![\w-])([.#])(-?[A-Za-z_][\w-]*)")
-JS_CLASS = re.compile(r"""classList\.(?:add|toggle|remove|contains)\(\s*['"`]([\w -]+)['"`]|className\s*=\s*['"`]([\w -]+)['"`]""")
+JS_CLASS = re.compile(
+    r"""classList\.(?:add|toggle|remove|contains)\(\s*['"`]([\w -]+)['"`]|className\s*=\s*['"`]([\w -]+)['"`]"""
+)
 
 
 def loose_names(css: str, js: str, origin: str) -> list[El]:
@@ -827,10 +943,33 @@ class SelectorError(ValueError):
     pass
 
 
-PSEUDO_ARG = {"not", "is", "matches", "where", "has", "-abp-has", "has-text", "contains", "-abp-contains",
-              "nth-child", "nth-last-child", "nth-of-type", "nth-last-of-type"}
-PSEUDO_SIMPLE = {"first-child", "last-child", "only-child", "empty", "root", "first-of-type",
-                 "last-of-type", "only-of-type", "link", "any-link"}
+PSEUDO_ARG = {
+    "not",
+    "is",
+    "matches",
+    "where",
+    "has",
+    "-abp-has",
+    "has-text",
+    "contains",
+    "-abp-contains",
+    "nth-child",
+    "nth-last-child",
+    "nth-of-type",
+    "nth-last-of-type",
+}
+PSEUDO_SIMPLE = {
+    "first-child",
+    "last-child",
+    "only-child",
+    "empty",
+    "root",
+    "first-of-type",
+    "last-of-type",
+    "only-of-type",
+    "link",
+    "any-link",
+}
 IDENT = r"-?(?:[A-Za-z_]|\\.|[^\x00-\x7f])(?:[\w-]|\\.|[^\x00-\x7f])*"
 
 
@@ -909,7 +1048,7 @@ def _parse_compound(s: str, i: int) -> tuple[list, int]:
             i = m.end()
         elif ch == "[":
             end = _match_close(s, i)
-            parts.append(("attr", _parse_attr(s[i + 1:end])))
+            parts.append(("attr", _parse_attr(s[i + 1 : end])))
             i = end + 1
         elif ch == ":":
             if s.startswith("::", i):
@@ -921,7 +1060,7 @@ def _parse_compound(s: str, i: int) -> tuple[list, int]:
             arg = None
             if i < len(s) and s[i] == "(":
                 end = _match_close(s, i)
-                arg, i = s[i + 1:end], end + 1
+                arg, i = s[i + 1 : end], end + 1
             if name in PSEUDO_ARG and arg is not None:
                 parts.append(("pseudo", (name, arg)))
             elif name in PSEUDO_SIMPLE and arg is None:
@@ -936,7 +1075,10 @@ def _parse_compound(s: str, i: int) -> tuple[list, int]:
 
 
 def _parse_attr(body: str) -> tuple[str, str, str, bool]:
-    m = re.match(r"""^\s*([\w:-]+)\s*(?:([~|^$*]?=)\s*("(?:[^"\\]|\\.)*"|'(?:[^'\\]|\\.)*'|[^\s\]]+)\s*([iIsS])?)?\s*$""", body)
+    m = re.match(
+        r"""^\s*([\w:-]+)\s*(?:([~|^$*]?=)\s*("(?:[^"\\]|\\.)*"|'(?:[^'\\]|\\.)*'|[^\s\]]+)\s*([iIsS])?)?\s*$""",
+        body,
+    )
     if not m:
         raise SelectorError(body)
     value = m.group(3) or ""
@@ -992,7 +1134,14 @@ def _text_ok(el: El, arg: str) -> bool:
     text = el.all_text()
     if len(arg) > 2 and arg.startswith("/") and arg.rstrip("imsu").endswith("/"):
         try:
-            return re.search(arg[1:arg.rstrip("imsu").rindex("/")], text, re.I if "i" in arg[arg.rindex("/"):] else 0) is not None
+            return (
+                re.search(
+                    arg[1 : arg.rstrip("imsu").rindex("/")],
+                    text,
+                    re.I if "i" in arg[arg.rindex("/") :] else 0,
+                )
+                is not None
+            )
         except re.error:
             return False
     return arg.strip("\"'") in text
@@ -1059,12 +1208,14 @@ def match_compound(parts: list, el: El) -> bool:
 def _has(el: El, rel: list[tuple[str, list]]) -> bool:
     first_comb = rel[0][0] or " "
     if first_comb in (" ", ">"):
-        pool = [d for c in el.children for d in c.walk()] if first_comb == " " else list(el.children)
+        pool = (
+            [d for c in el.children for d in c.walk()] if first_comb == " " else list(el.children)
+        )
     else:
         sibs = _siblings(el)
-        after = sibs[sibs.index(el) + 1:]
+        after = sibs[sibs.index(el) + 1 :]
         pool = after[:1] if first_comb == "+" else after
-    rest = [("", rel[0][1])] + rel[1:]
+    rest = [("", rel[0][1]), *rel[1:]]
     for cand in pool:
         if not match_compound(rest[0][1], cand):
             continue
@@ -1072,13 +1223,16 @@ def _has(el: El, rel: list[tuple[str, list]]) -> bool:
             return True
         # remaining parts relative to cand: check descendants of cand
         tail = rest[1:]
-        if any(match_complex([("", tail[-1][1])], d) and match_complex(rest, d) for d in cand.walk()):
+        if any(
+            match_complex([("", tail[-1][1])], d) and match_complex(rest, d) for d in cand.walk()
+        ):
             return True
     return False
 
 
 def match_complex(sel: list[tuple[str, list]], el: El) -> bool:
     """Right-to-left match of a complex selector with backtracking."""
+
     def rec(idx: int, node: El) -> bool:
         if not match_compound(sel[idx][1], node):
             return False

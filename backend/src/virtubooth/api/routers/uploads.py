@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Sequence
-from typing import Any
+from typing import Any, cast
 
 from fastapi import APIRouter, Request
 from pydantic import create_model
@@ -27,7 +27,7 @@ def upload_model(extensions: Sequence[Extension]) -> type[UploadOutBase]:
             if name in fields or name == "photo":
                 fields[name] = (Any, None)  # declared differently by two extensions
             else:
-                fields[name] = (info.annotation | None, None)
+                fields[name] = (cast(Any, info.annotation) | None, None)
     return create_model("UploadOut", __base__=UploadOutBase, **fields)
 
 
