@@ -42,22 +42,24 @@ class UsersRepo:
         user_agent: str,
         banned_reason: str | None = None,
         lock_period: int | None = None,
+        code_id: int | None = None,
     ) -> int:
         """Insert a guest (named by its id) and its first fingerprint. A
-        `lock_period` starts it with uploads paused by that new-guest lock."""
+        `lock_period` starts it with uploads paused by that new-guest lock;
+        `code_id` is the QR code it joined through."""
         with self.db.tx() as c:
             cur = c.execute(
                 "INSERT INTO users (public_id, created_at, last_seen_at, consent_at, "
                 "consent_version, instagram, fp_hash, fp_components, first_ip, last_ip, "
                 "user_agent, banned_at, ban_reason, uploads_paused_at, uploads_paused_source, "
-                "uploads_lock_period) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                "uploads_lock_period, code_id) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
                 (
                     public_id, at, at, at, consent_version, instagram, fp_hash,
                     json.dumps(fp_components), ip, ip, user_agent,
                     at if banned_reason else None, banned_reason,
                     at if lock_period else None,
                     PAUSE_NEW_GUEST_LOCK if lock_period else None,
-                    lock_period,
+                    lock_period, code_id,
                 ),
             )  # fmt: skip
             uid = cur.lastrowid

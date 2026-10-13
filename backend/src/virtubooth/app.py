@@ -37,6 +37,8 @@ def create_app(settings: Settings, *, extensions: Sequence[Extension] | None = N
     core = Core.create(settings, exts, web)
     # export jobs a stopped server left queued or running have failed
     core.services.exports.recover()
+    # QR code 1 from VB_PARTY_TOKEN on the first start with QR codes (idempotent)
+    core.services.codes.ensure_seeded()
 
     @asynccontextmanager
     async def lifespan(_app: FastAPI) -> AsyncIterator[None]:

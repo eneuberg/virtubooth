@@ -21,6 +21,81 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/admin/codes": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Codes
+         * @description Every code by number, revoked ones included, with their statistics.
+         */
+        get: operations["list_codes_api_admin_codes_get"];
+        put?: never;
+        /**
+         * Create Code
+         * @description A new code with the next number and a random animal. `token` null =
+         *     generate one; a custom token must never have been used by any code (409
+         *     `token_taken`).
+         */
+        post: operations["create_code_api_admin_codes_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/codes/{code_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Code */
+        get: operations["get_code_api_admin_codes__code_id__get"];
+        put?: never;
+        post?: never;
+        /**
+         * Revoke Code
+         * @description „Löschen“: the token stops working, the code stays as a tombstone with
+         *     its number, name and statistics (`changed` false when it was revoked
+         *     already).
+         */
+        delete: operations["revoke_code_api_admin_codes__code_id__delete"];
+        options?: never;
+        head?: never;
+        /**
+         * Edit Code
+         * @description Change the target and/or the note (null = unchanged). 409
+         *     `code_revoked` for a revoked code.
+         */
+        patch: operations["edit_code_api_admin_codes__code_id__patch"];
+        trace?: never;
+    };
+    "/api/admin/codes/{code_id}/token": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Set Code Token
+         * @description A new token (null = generate one). The old one stops working at once;
+         *     guests who joined through it stay. 409 `code_revoked`, `token_taken`.
+         */
+        post: operations["set_code_token_api_admin_codes__code_id__token_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/admin/device-bans": {
         parameters: {
             query?: never;
@@ -816,10 +891,60 @@ export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
         /**
+         * AdminCode
+         * @description One QR code, also when revoked („gelöscht“: `active` false).
+         */
+        AdminCode: {
+            /** Active */
+            active: boolean;
+            /** Animal */
+            animal: string;
+            /** Created At */
+            created_at: string;
+            /** Created By */
+            created_by: string;
+            /**
+             * Entry Path
+             * @description What the code opens: `/?t=<token>` or `/x/<target>/?t=<token>` (`/` when the target is no longer loaded). The full URL is `(base_url ?? origin) + entry_path`.
+             */
+            entry_path: string;
+            /**
+             * Id
+             * @description The code's number; never reused.
+             */
+            id: number;
+            /**
+             * Name
+             * @description „<animal> <id>“, e.g. „Gorilla 2“; never changes.
+             */
+            name: string;
+            /** Note */
+            note: string;
+            /** Revoked At */
+            revoked_at: string | null;
+            /** Revoked By */
+            revoked_by: string | null;
+            stats: components["schemas"]["CodeStats"];
+            /**
+             * Target
+             * @description "" = Start, else an activity id.
+             */
+            target: string;
+            /** Token */
+            token: string;
+            /**
+             * Token Gen
+             * @description Counts the token changes (1 = the first token).
+             */
+            token_gen: number;
+            /** Updated At */
+            updated_at: string;
+        };
+        /**
          * AdminEvent
          * @description One message of the admin event stream, discriminated by `type`.
          */
-        AdminEvent: components["schemas"]["PhotoCreatedEvent"] | components["schemas"]["PhotoHiddenEvent"] | components["schemas"]["PhotoUnhiddenEvent"] | components["schemas"]["PhotoDeletedEvent"] | components["schemas"]["UserCreatedEvent"] | components["schemas"]["UserBannedEvent"] | components["schemas"]["UserUnbannedEvent"] | components["schemas"]["FingerprintBannedEvent"] | components["schemas"]["FingerprintUnbannedEvent"] | components["schemas"]["UploadsChangedEvent"] | components["schemas"]["UploadStopEvent"] | components["schemas"]["UploadPauseEvent"] | components["schemas"]["JoinStopEvent"] | components["schemas"]["ExportUpdatedEvent"] | components["schemas"]["ExportDeletedEvent"] | components["schemas"]["InstagramDoneEvent"] | components["schemas"]["StreamResyncEvent"];
+        AdminEvent: components["schemas"]["PhotoCreatedEvent"] | components["schemas"]["PhotoHiddenEvent"] | components["schemas"]["PhotoUnhiddenEvent"] | components["schemas"]["PhotoDeletedEvent"] | components["schemas"]["UserCreatedEvent"] | components["schemas"]["UserBannedEvent"] | components["schemas"]["UserUnbannedEvent"] | components["schemas"]["FingerprintBannedEvent"] | components["schemas"]["FingerprintUnbannedEvent"] | components["schemas"]["UploadsChangedEvent"] | components["schemas"]["UploadStopEvent"] | components["schemas"]["UploadPauseEvent"] | components["schemas"]["JoinStopEvent"] | components["schemas"]["ExportUpdatedEvent"] | components["schemas"]["ExportDeletedEvent"] | components["schemas"]["InstagramDoneEvent"] | components["schemas"]["CodeChangedEvent"] | components["schemas"]["StreamResyncEvent"];
         /** AdminExtension */
         AdminExtension: {
             /** Emoji */
@@ -1099,6 +1224,137 @@ export interface components {
             /** Unchanged */
             unchanged: string[];
         };
+        /** CodeChangedData */
+        CodeChangedData: {
+            /**
+             * Change
+             * @enum {string}
+             */
+            change: "created" | "edited" | "token" | "revoked";
+            code: components["schemas"]["AdminCode"];
+        };
+        /**
+         * CodeChangedEvent
+         * @description A QR code was created, edited, got a new token or was revoked (not
+         *     sent for scans: the statistics come with `GET /api/admin/codes`).
+         */
+        CodeChangedEvent: {
+            data: components["schemas"]["CodeChangedData"];
+            /**
+             * Id
+             * @description `<epoch>-<n>`: the SSE `id:` line.
+             */
+            id: string;
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            type: "code.changed";
+        };
+        /** CodeCreateIn */
+        CodeCreateIn: {
+            /**
+             * Note
+             * @description At most 60 characters.
+             * @default
+             */
+            note: string;
+            /**
+             * Target
+             * @description "" = Start, or an activity id.
+             * @default
+             */
+            target: string;
+            /**
+             * Token
+             * @description null = generate one; else 16-128 of A-Z a-z 0-9 _ - with at least 6 different characters, never used by any code before.
+             */
+            token?: string | null;
+        };
+        /** CodeEditIn */
+        CodeEditIn: {
+            /**
+             * Note
+             * @description null = unchanged.
+             */
+            note?: string | null;
+            /**
+             * Target
+             * @description null = unchanged.
+             */
+            target?: string | null;
+        };
+        /** CodeOut */
+        CodeOut: {
+            /** Changed */
+            changed: boolean;
+            code: components["schemas"]["AdminCode"];
+        };
+        /**
+         * CodeStats
+         * @description What happened through one code. Party scale, counted live.
+         */
+        CodeStats: {
+            /**
+             * Active Now
+             * @description Its guests not banned and seen in the last 5 minutes.
+             */
+            active_now: number;
+            /** First Scan At */
+            first_scan_at: string | null;
+            /**
+             * Guests
+             * @description Guests who joined through it.
+             */
+            guests: number;
+            /** Last Scan At */
+            last_scan_at: string | null;
+            /**
+             * Not Joined
+             * @description Its browsers that never joined.
+             */
+            not_joined: number;
+            /**
+             * People
+             * @description Browsers that opened it.
+             */
+            people: number;
+            /**
+             * Photos
+             * @description Its guests' photos that aren't deleted.
+             */
+            photos: number;
+            /**
+             * Scans
+             * @description Valid scans (every opening of its link).
+             */
+            scans: number;
+        };
+        /** CodeTokenIn */
+        CodeTokenIn: {
+            /**
+             * Token
+             * @description null = generate one; else the same rules as when creating a code.
+             */
+            token: string | null;
+        };
+        /** CodesOut */
+        CodesOut: {
+            /** Active */
+            active: number;
+            /**
+             * Base Url
+             * @description VB_PUBLIC_BASE_URL, or null.
+             */
+            base_url: string | null;
+            /**
+             * Codes
+             * @description Every code by number, revoked ones included.
+             */
+            codes: components["schemas"]["AdminCode"][];
+            /** Revoked */
+            revoked: number;
+        };
         /** ConsentInfo */
         ConsentInfo: {
             /** Accept Label */
@@ -1171,7 +1427,7 @@ export interface components {
              * @description Machine-readable error code.
              * @enum {string}
              */
-            error: "scan_qr" | "needs_consent" | "banned" | "consent_outdated" | "invalid_instagram" | "join_closed" | "uploads_paused" | "uploads_stopped" | "unsupported_type" | "too_large" | "invalid_meta" | "empty_upload" | "invalid_image" | "admin_required" | "wrong_password" | "login_locked" | "invalid_filter" | "invalid_cursor" | "no_fingerprint" | "restore_required" | "export_not_ready" | "export_running" | "base_url_required" | "invalid_base_url" | "bad_origin" | "length_required" | "rate_limited" | "invalid_request" | "not_found" | "http_404" | "http_405";
+            error: "scan_qr" | "needs_consent" | "banned" | "consent_outdated" | "invalid_instagram" | "join_closed" | "uploads_paused" | "uploads_stopped" | "unsupported_type" | "too_large" | "invalid_meta" | "empty_upload" | "invalid_image" | "admin_required" | "wrong_password" | "login_locked" | "invalid_filter" | "invalid_cursor" | "no_fingerprint" | "restore_required" | "export_not_ready" | "export_running" | "base_url_required" | "invalid_base_url" | "invalid_token" | "token_taken" | "code_revoked" | "invalid_target" | "invalid_note" | "bad_origin" | "length_required" | "rate_limited" | "invalid_request" | "not_found" | "http_404" | "http_405";
             /**
              * Message
              * @description German text for the guest or admin, shown as-is.
@@ -2377,6 +2633,632 @@ export interface operations {
             };
             /** @description Not found, or no party access (`scan_qr`) */
             404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Content-Length required */
+            411: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Request too large */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Request validation failed (`invalid_request`) */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Rate limited (`Retry-After` header) */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    list_codes_api_admin_codes_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CodesOut"];
+                };
+            };
+            /** @description Invalid input (see `error`) */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Needs consent or an admin session */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Forbidden: banned, paused, stopped, joining closed or a foreign Origin (CSRF) */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Not found, or no party access (`scan_qr`) */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Content-Length required */
+            411: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Request too large */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Request validation failed (`invalid_request`) */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Rate limited (`Retry-After` header) */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    create_code_api_admin_codes_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CodeCreateIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CodeOut"];
+                };
+            };
+            /** @description Invalid input (see `error`) */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Needs consent or an admin session */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Forbidden: banned, paused, stopped, joining closed or a foreign Origin (CSRF) */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Not found, or no party access (`scan_qr`) */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Content-Length required */
+            411: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Request too large */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Request validation failed (`invalid_request`) */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Rate limited (`Retry-After` header) */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    get_code_api_admin_codes__code_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                code_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CodeOut"];
+                };
+            };
+            /** @description Invalid input (see `error`) */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Needs consent or an admin session */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Forbidden: banned, paused, stopped, joining closed or a foreign Origin (CSRF) */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Not found, or no party access (`scan_qr`) */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Content-Length required */
+            411: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Request too large */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Request validation failed (`invalid_request`) */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Rate limited (`Retry-After` header) */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    revoke_code_api_admin_codes__code_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                code_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CodeOut"];
+                };
+            };
+            /** @description Invalid input (see `error`) */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Needs consent or an admin session */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Forbidden: banned, paused, stopped, joining closed or a foreign Origin (CSRF) */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Not found, or no party access (`scan_qr`) */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Content-Length required */
+            411: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Request too large */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Request validation failed (`invalid_request`) */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Rate limited (`Retry-After` header) */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    edit_code_api_admin_codes__code_id__patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                code_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CodeEditIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CodeOut"];
+                };
+            };
+            /** @description Invalid input (see `error`) */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Needs consent or an admin session */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Forbidden: banned, paused, stopped, joining closed or a foreign Origin (CSRF) */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Not found, or no party access (`scan_qr`) */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Content-Length required */
+            411: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Request too large */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Request validation failed (`invalid_request`) */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Rate limited (`Retry-After` header) */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    set_code_token_api_admin_codes__code_id__token_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                code_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CodeTokenIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CodeOut"];
+                };
+            };
+            /** @description Invalid input (see `error`) */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Needs consent or an admin session */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Forbidden: banned, paused, stopped, joining closed or a foreign Origin (CSRF) */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Not found, or no party access (`scan_qr`) */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Conflict */
+            409: {
                 headers: {
                     [name: string]: unknown;
                 };

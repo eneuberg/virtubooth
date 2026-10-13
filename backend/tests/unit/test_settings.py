@@ -80,7 +80,31 @@ def test_bad_values_name_the_variable(tmp_path, name, value, says):
 def test_missing_secrets_say_how_to_get_them():
     with pytest.raises(ConfigError) as exc:
         Settings.from_env({})
-    assert "VB_PARTY_TOKEN is not set" in str(exc.value) and "gen-env" in str(exc.value)
+    assert "VB_ADMIN_PASSWORD is not set" in str(exc.value) and "gen-env" in str(exc.value)
+    # the party token is optional: only read while the database has no QR code
+    assert "VB_PARTY_TOKEN" not in str(exc.value)
+
+
+@pytest.mark.parametrize("value", [None, "", "   "])
+def test_party_token_is_optional(tmp_path, value):
+    env = {k: v for k, v in BASE.items() if k != "VB_PARTY_TOKEN"} | {"VB_DATA_DIR": str(tmp_path)}
+    if value is not None:
+        env["VB_PARTY_TOKEN"] = value
+    assert Settings.from_env(env).party_token is None
+    assert (
+        Settings(admin_password="x" * 12, secret_key="y" * 32, party_token=value).party_token
+        is None
+    )
+    s = Settings.from_env(BASE | {"VB_DATA_DIR": str(tmp_path)})
+    assert s.replace(party_token=None).party_token is None
+
+
+def test_party_token_is_still_validated_when_set(tmp_path):
+    for bad in ("short", "has spaces in it!!!", "ü" * 20):
+        with pytest.raises(ConfigError, match="VB_PARTY_TOKEN must be 16-128"):
+            Settings.from_env(BASE | {"VB_DATA_DIR": str(tmp_path), "VB_PARTY_TOKEN": bad})
+    s = Settings.from_env(BASE | {"VB_PARTY_TOKEN": " " + "t" * 16 + " "})
+    assert s.party_token is not None and s.party_token.get_secret_value() == "t" * 16
 
 
 def test_web_dir_and_dev(tmp_path, monkeypatch):

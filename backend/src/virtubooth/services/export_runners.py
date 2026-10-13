@@ -237,7 +237,7 @@ def run_qr(ctx: JobContext) -> None:
     party_name = settings.party_name
     cards = qr_tool.build_cards(
         opts.base_url,
-        settings.party_token.get_secret_value(),
+        _qr_token(ctx),
         [e for e in ctx.extensions if e.show_on_home],
         party_name=party_name,
     )
@@ -248,6 +248,14 @@ def run_qr(ctx: JobContext) -> None:
             for name, data in qr_tool.render_codes(card):
                 zf.writestr(f"{root}/{name}", data)
             ctx.progress(i / len(cards))
+
+
+def _qr_token(ctx: JobContext) -> str:
+    """The token of the active QR code with the lowest number."""
+    code = ctx.repos.codes.lowest_active()
+    if code is None:
+        raise JobFailed("Kein aktiver QR-Code. Leg im Tab „QR-Codes“ einen an.")
+    return code.token
 
 
 RUNNERS: dict[ExportKind, Runner] = {

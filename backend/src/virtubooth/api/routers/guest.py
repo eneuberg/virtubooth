@@ -92,6 +92,7 @@ def join(body: JoinIn, request: Request, response: Response, core: CoreDep) -> J
         fp=body.fp,
         ip=client_ip(request),
         user_agent=_user_agent(request),
+        code_id=core.services.codes.code_of_request(request),
     )
     if not result.created:
         response.status_code = 200

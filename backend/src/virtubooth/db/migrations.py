@@ -149,12 +149,52 @@ CREATE INDEX users_last_seen ON users(last_seen_at);
 CREATE INDEX photos_created ON photos(created_at);
 """
 
+# v5: QR codes. A code's number is its id (never reused: AUTOINCREMENT, rows are
+# never deleted; "Löschen" sets revoked_at). Its name is "<animal> <id>". Every token
+# a code ever had stays in party_code_tokens, so no token is ever handed out twice.
+# users.code_id: the code a guest joined through. code_visitors: which browser
+# (vb_vid) opened which code, how often.
+SCHEMA_V5 = """
+CREATE TABLE party_codes (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    animal      TEXT    NOT NULL,
+    token       TEXT    NOT NULL,
+    token_gen   INTEGER NOT NULL DEFAULT 1,
+    target      TEXT    NOT NULL DEFAULT '',
+    note        TEXT    NOT NULL DEFAULT '',
+    created_at  TEXT    NOT NULL,
+    created_by  TEXT    NOT NULL,
+    updated_at  TEXT    NOT NULL,
+    revoked_at  TEXT,
+    revoked_by  TEXT
+);
+CREATE TABLE party_code_tokens (
+    token_hash  TEXT    PRIMARY KEY,
+    code_id     INTEGER NOT NULL REFERENCES party_codes(id),
+    set_at      TEXT    NOT NULL,
+    retired_at  TEXT
+);
+CREATE INDEX party_code_tokens_code ON party_code_tokens(code_id);
+CREATE TABLE code_visitors (
+    code_id        INTEGER NOT NULL REFERENCES party_codes(id),
+    visitor_id     TEXT    NOT NULL,
+    first_seen_at  TEXT    NOT NULL,
+    last_seen_at   TEXT    NOT NULL,
+    scans          INTEGER NOT NULL DEFAULT 1,
+    PRIMARY KEY (code_id, visitor_id)
+);
+CREATE INDEX code_visitors_visitor ON code_visitors(visitor_id);
+ALTER TABLE users ADD COLUMN code_id INTEGER REFERENCES party_codes(id);
+CREATE INDEX users_code ON users(code_id);
+"""
+
 # (version, script): each step upgrades the database from the version before.
 MIGRATIONS: tuple[tuple[int, str], ...] = (
     (1, SCHEMA),
     (2, SCHEMA_V2),
     (3, SCHEMA_V3),
     (4, SCHEMA_V4),
+    (5, SCHEMA_V5),
 )
 SCHEMA_VERSION = MIGRATIONS[-1][0]
 

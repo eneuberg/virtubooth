@@ -50,11 +50,23 @@ def test_token_sets_cookie_and_strips_itself(client):
     assert client.get("/").status_code == 200
 
 
-def test_rotating_party_token_invalidates_access(client, app, settings):
+def test_party_token_only_seeds_qr_code_1(client, guest, app, settings, make_client):
+    """VB_PARTY_TOKEN became QR code 1 on the first start; changing it later
+    changes nothing. Access ends by changing the code's token in the admin
+    (or revoking the code): new scans and not-yet-joined browsers get the
+    gate, joined guests keep their session."""
+    core = app.state.core
+    joined = guest()
     scan(client)
     assert client.get("/").status_code == 200
-    app.state.core.settings = settings.replace(party_token="a-completely-new-token-xyz")
-    assert client.get("/").status_code == 404
+    core.settings = settings.replace(party_token="a-completely-new-token-xyz")
+    assert client.get("/").status_code == 200
+    assert make_client().get("/?t=a-completely-new-token-xyz").status_code == 404
+    core.services.codes.set_token(1, None, actor="pytest")
+    assert client.get("/").status_code == 404  # scanned, never joined: scan again
+    assert joined.get("/").status_code == 200
+    assert joined.post("/api/identify", json={}, headers=ORIGIN).json()["state"] == "ok"
+    assert make_client().get(f"/?t={PARTY_TOKEN}").status_code == 404
 
 
 def test_api_without_access(client):

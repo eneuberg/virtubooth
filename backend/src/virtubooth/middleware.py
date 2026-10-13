@@ -1,9 +1,11 @@
 """Pure ASGI middlewares (no BaseHTTPMiddleware: keeps SSE streaming intact).
 
 GuardMiddleware, in order:
-1. `?t=<party token>` on a page URL: valid → set the access cookie (and a
-   visitor id, if the browser has none) and redirect to the same URL without
-   the token; invalid → the "scan the QR code" page.
+1. `?t=<token of a QR code>` on a page URL: valid → set the access cookie
+   (and a visitor id, if the browser has none), count the scan for that code
+   and redirect to the same URL without the token; invalid → the "scan the
+   QR code" page. Wrong tokens are rate limited per IP; over the limit every
+   token gets that page without being checked.
 2. state-changing requests must carry a same-origin Origin/Referer (CSRF).
 3. request bodies: uploads stream through (they enforce their own cap), every
    other body must declare a Content-Length of at most MAX_JSON_BODY.
@@ -34,10 +36,8 @@ from .core.security import (
     GUEST_COOKIE_MAX_AGE,
     SECURITY_HEADERS,
     UID_COOKIE,
-    access_cookie_value,
     client_ip,
     origin_allowed,
-    party_token_matches,
     set_cookie,
 )
 from .runtime import Core
@@ -112,8 +112,14 @@ class GuardMiddleware:
 
     def _token_entry(self, request: Request) -> Response:
         core = self.core
-        token = request.query_params.get("t", "")
-        if not party_token_matches(core.settings, token):
+        codes = core.services.codes
+        failures, ip = core.limits.token_fail_ip, client_ip(request)
+        # guessing: over the limit nothing is checked, so the answer says nothing
+        if not failures.available(ip):
+            return core.web.gate()
+        code = codes.entry(request.query_params.get("t", ""))
+        if code is None:
+            failures.hit(ip)
             return core.web.gate()
         rest = [(k, v) for k, v in request.query_params.multi_items() if k != "t"]
         # "//evil.example/" would be a protocol-relative URL: always one leading slash
@@ -125,11 +131,12 @@ class GuardMiddleware:
             request,
             core.settings,
             ACCESS_COOKIE,
-            access_cookie_value(core.settings, core.signer),
+            codes.access_cookie(code),
             max_age=GUEST_COOKIE_MAX_AGE,
         )
-        # the dashboard's "Gescannt": a random visitor id, kept when it has one
-        core.services.presence.enter(request, response)
+        # the dashboard's "Gescannt" and the code's statistics: a random
+        # visitor id, kept when it has one
+        core.services.presence.enter(request, response, code_id=code.id)
         return response
 
 

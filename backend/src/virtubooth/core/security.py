@@ -82,15 +82,6 @@ class Signer:
         return value if hmac.compare_digest(mac, self.mac(purpose, value)) else None
 
 
-def party_token_matches(settings: Settings, token: str) -> bool:
-    return constant_time_equals(token, settings.party_token.get_secret_value())
-
-
-def access_cookie_value(settings: Settings, signer: Signer) -> str:
-    # derived from the party token itself: rotating the token logs everyone out
-    return signer.mac("access", settings.party_token.get_secret_value())
-
-
 def admin_password_tag(settings: Settings, signer: Signer) -> str:
     # stored with each admin session: changing the password ends all sessions
     return signer.mac("admin-pw", settings.admin_password.get_secret_value())[:22]

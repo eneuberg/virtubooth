@@ -1,10 +1,113 @@
 {
   "components": {
     "schemas": {
+      "AdminCode": {
+        "description": "One QR code, also when revoked („gelöscht“: `active` false).",
+        "properties": {
+          "active": {
+            "title": "Active",
+            "type": "boolean"
+          },
+          "animal": {
+            "title": "Animal",
+            "type": "string"
+          },
+          "created_at": {
+            "title": "Created At",
+            "type": "string"
+          },
+          "created_by": {
+            "title": "Created By",
+            "type": "string"
+          },
+          "entry_path": {
+            "description": "What the code opens: `/?t=<token>` or `/x/<target>/?t=<token>` (`/` when the target is no longer loaded). The full URL is `(base_url ?? origin) + entry_path`.",
+            "title": "Entry Path",
+            "type": "string"
+          },
+          "id": {
+            "description": "The code's number; never reused.",
+            "title": "Id",
+            "type": "integer"
+          },
+          "name": {
+            "description": "„<animal> <id>“, e.g. „Gorilla 2“; never changes.",
+            "title": "Name",
+            "type": "string"
+          },
+          "note": {
+            "title": "Note",
+            "type": "string"
+          },
+          "revoked_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Revoked At"
+          },
+          "revoked_by": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Revoked By"
+          },
+          "stats": {
+            "$ref": "#/components/schemas/CodeStats"
+          },
+          "target": {
+            "description": "\"\" = Start, else an activity id.",
+            "title": "Target",
+            "type": "string"
+          },
+          "token": {
+            "title": "Token",
+            "type": "string"
+          },
+          "token_gen": {
+            "description": "Counts the token changes (1 = the first token).",
+            "title": "Token Gen",
+            "type": "integer"
+          },
+          "updated_at": {
+            "title": "Updated At",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "animal",
+          "token",
+          "token_gen",
+          "target",
+          "note",
+          "entry_path",
+          "active",
+          "created_at",
+          "created_by",
+          "updated_at",
+          "revoked_at",
+          "revoked_by",
+          "stats"
+        ],
+        "title": "AdminCode",
+        "type": "object"
+      },
       "AdminEvent": {
         "description": "One message of the admin event stream, discriminated by `type`.",
         "discriminator": {
           "mapping": {
+            "code.changed": "#/components/schemas/CodeChangedEvent",
             "export.deleted": "#/components/schemas/ExportDeletedEvent",
             "export.updated": "#/components/schemas/ExportUpdatedEvent",
             "fingerprint.banned": "#/components/schemas/FingerprintBannedEvent",
@@ -73,6 +176,9 @@
           },
           {
             "$ref": "#/components/schemas/InstagramDoneEvent"
+          },
+          {
+            "$ref": "#/components/schemas/CodeChangedEvent"
           },
           {
             "$ref": "#/components/schemas/StreamResyncEvent"
@@ -798,6 +904,267 @@
         "title": "BulkOut",
         "type": "object"
       },
+      "CodeChangedData": {
+        "properties": {
+          "change": {
+            "enum": [
+              "created",
+              "edited",
+              "token",
+              "revoked"
+            ],
+            "title": "Change",
+            "type": "string"
+          },
+          "code": {
+            "$ref": "#/components/schemas/AdminCode"
+          }
+        },
+        "required": [
+          "code",
+          "change"
+        ],
+        "title": "CodeChangedData",
+        "type": "object"
+      },
+      "CodeChangedEvent": {
+        "description": "A QR code was created, edited, got a new token or was revoked (not\nsent for scans: the statistics come with `GET /api/admin/codes`).",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/CodeChangedData"
+          },
+          "id": {
+            "description": "`<epoch>-<n>`: the SSE `id:` line.",
+            "title": "Id",
+            "type": "string"
+          },
+          "type": {
+            "const": "code.changed",
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "type",
+          "id",
+          "data"
+        ],
+        "title": "CodeChangedEvent",
+        "type": "object"
+      },
+      "CodeCreateIn": {
+        "properties": {
+          "note": {
+            "default": "",
+            "description": "At most 60 characters.",
+            "maxLength": 1000,
+            "title": "Note",
+            "type": "string"
+          },
+          "target": {
+            "default": "",
+            "description": "\"\" = Start, or an activity id.",
+            "maxLength": 1000,
+            "title": "Target",
+            "type": "string"
+          },
+          "token": {
+            "anyOf": [
+              {
+                "maxLength": 1000,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "null = generate one; else 16-128 of A-Z a-z 0-9 _ - with at least 6 different characters, never used by any code before.",
+            "title": "Token"
+          }
+        },
+        "title": "CodeCreateIn",
+        "type": "object"
+      },
+      "CodeEditIn": {
+        "properties": {
+          "note": {
+            "anyOf": [
+              {
+                "maxLength": 1000,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "null = unchanged.",
+            "title": "Note"
+          },
+          "target": {
+            "anyOf": [
+              {
+                "maxLength": 1000,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "null = unchanged.",
+            "title": "Target"
+          }
+        },
+        "title": "CodeEditIn",
+        "type": "object"
+      },
+      "CodeOut": {
+        "properties": {
+          "changed": {
+            "title": "Changed",
+            "type": "boolean"
+          },
+          "code": {
+            "$ref": "#/components/schemas/AdminCode"
+          }
+        },
+        "required": [
+          "code",
+          "changed"
+        ],
+        "title": "CodeOut",
+        "type": "object"
+      },
+      "CodeStats": {
+        "description": "What happened through one code. Party scale, counted live.",
+        "properties": {
+          "active_now": {
+            "description": "Its guests not banned and seen in the last 5 minutes.",
+            "title": "Active Now",
+            "type": "integer"
+          },
+          "first_scan_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "First Scan At"
+          },
+          "guests": {
+            "description": "Guests who joined through it.",
+            "title": "Guests",
+            "type": "integer"
+          },
+          "last_scan_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Scan At"
+          },
+          "not_joined": {
+            "description": "Its browsers that never joined.",
+            "title": "Not Joined",
+            "type": "integer"
+          },
+          "people": {
+            "description": "Browsers that opened it.",
+            "title": "People",
+            "type": "integer"
+          },
+          "photos": {
+            "description": "Its guests' photos that aren't deleted.",
+            "title": "Photos",
+            "type": "integer"
+          },
+          "scans": {
+            "description": "Valid scans (every opening of its link).",
+            "title": "Scans",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "scans",
+          "people",
+          "guests",
+          "not_joined",
+          "photos",
+          "active_now",
+          "first_scan_at",
+          "last_scan_at"
+        ],
+        "title": "CodeStats",
+        "type": "object"
+      },
+      "CodeTokenIn": {
+        "properties": {
+          "token": {
+            "anyOf": [
+              {
+                "maxLength": 1000,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "null = generate one; else the same rules as when creating a code.",
+            "title": "Token"
+          }
+        },
+        "required": [
+          "token"
+        ],
+        "title": "CodeTokenIn",
+        "type": "object"
+      },
+      "CodesOut": {
+        "properties": {
+          "active": {
+            "title": "Active",
+            "type": "integer"
+          },
+          "base_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "VB_PUBLIC_BASE_URL, or null.",
+            "title": "Base Url"
+          },
+          "codes": {
+            "description": "Every code by number, revoked ones included.",
+            "items": {
+              "$ref": "#/components/schemas/AdminCode"
+            },
+            "title": "Codes",
+            "type": "array"
+          },
+          "revoked": {
+            "title": "Revoked",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "codes",
+          "base_url",
+          "active",
+          "revoked"
+        ],
+        "title": "CodesOut",
+        "type": "object"
+      },
       "ConsentInfo": {
         "properties": {
           "accept_label": {
@@ -992,6 +1359,11 @@
               "export_running",
               "base_url_required",
               "invalid_base_url",
+              "invalid_token",
+              "token_taken",
+              "code_revoked",
+              "invalid_target",
+              "invalid_note",
               "bad_origin",
               "length_required",
               "rate_limited",
@@ -3709,6 +4081,753 @@
           }
         },
         "summary": "Audit",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/api/admin/codes": {
+      "get": {
+        "description": "Every code by number, revoked ones included, with their statistics.",
+        "operationId": "list_codes_api_admin_codes_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CodesOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Invalid input (see `error`)"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Needs consent or an admin session"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Forbidden: banned, paused, stopped, joining closed or a foreign Origin (CSRF)"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Not found, or no party access (`scan_qr`)"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "411": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Content-Length required"
+          },
+          "413": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Request too large"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Request validation failed (`invalid_request`)"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Rate limited (`Retry-After` header)"
+          }
+        },
+        "summary": "List Codes",
+        "tags": [
+          "admin"
+        ]
+      },
+      "post": {
+        "description": "A new code with the next number and a random animal. `token` null =\ngenerate one; a custom token must never have been used by any code (409\n`token_taken`).",
+        "operationId": "create_code_api_admin_codes_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CodeCreateIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CodeOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Invalid input (see `error`)"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Needs consent or an admin session"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Forbidden: banned, paused, stopped, joining closed or a foreign Origin (CSRF)"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Not found, or no party access (`scan_qr`)"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "411": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Content-Length required"
+          },
+          "413": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Request too large"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Request validation failed (`invalid_request`)"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Rate limited (`Retry-After` header)"
+          }
+        },
+        "summary": "Create Code",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/api/admin/codes/{code_id}": {
+      "delete": {
+        "description": "„Löschen“: the token stops working, the code stays as a tombstone with\nits number, name and statistics (`changed` false when it was revoked\nalready).",
+        "operationId": "revoke_code_api_admin_codes__code_id__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "code_id",
+            "required": true,
+            "schema": {
+              "exclusiveMaximum": 4611686018427387904,
+              "minimum": 1,
+              "title": "Code Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CodeOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Invalid input (see `error`)"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Needs consent or an admin session"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Forbidden: banned, paused, stopped, joining closed or a foreign Origin (CSRF)"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Not found, or no party access (`scan_qr`)"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "411": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Content-Length required"
+          },
+          "413": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Request too large"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Request validation failed (`invalid_request`)"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Rate limited (`Retry-After` header)"
+          }
+        },
+        "summary": "Revoke Code",
+        "tags": [
+          "admin"
+        ]
+      },
+      "get": {
+        "operationId": "get_code_api_admin_codes__code_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "code_id",
+            "required": true,
+            "schema": {
+              "exclusiveMaximum": 4611686018427387904,
+              "minimum": 1,
+              "title": "Code Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CodeOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Invalid input (see `error`)"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Needs consent or an admin session"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Forbidden: banned, paused, stopped, joining closed or a foreign Origin (CSRF)"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Not found, or no party access (`scan_qr`)"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "411": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Content-Length required"
+          },
+          "413": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Request too large"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Request validation failed (`invalid_request`)"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Rate limited (`Retry-After` header)"
+          }
+        },
+        "summary": "Get Code",
+        "tags": [
+          "admin"
+        ]
+      },
+      "patch": {
+        "description": "Change the target and/or the note (null = unchanged). 409\n`code_revoked` for a revoked code.",
+        "operationId": "edit_code_api_admin_codes__code_id__patch",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "code_id",
+            "required": true,
+            "schema": {
+              "exclusiveMaximum": 4611686018427387904,
+              "minimum": 1,
+              "title": "Code Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CodeEditIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CodeOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Invalid input (see `error`)"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Needs consent or an admin session"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Forbidden: banned, paused, stopped, joining closed or a foreign Origin (CSRF)"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Not found, or no party access (`scan_qr`)"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "411": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Content-Length required"
+          },
+          "413": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Request too large"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Request validation failed (`invalid_request`)"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Rate limited (`Retry-After` header)"
+          }
+        },
+        "summary": "Edit Code",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/api/admin/codes/{code_id}/token": {
+      "post": {
+        "description": "A new token (null = generate one). The old one stops working at once;\nguests who joined through it stay. 409 `code_revoked`, `token_taken`.",
+        "operationId": "set_code_token_api_admin_codes__code_id__token_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "code_id",
+            "required": true,
+            "schema": {
+              "exclusiveMaximum": 4611686018427387904,
+              "minimum": 1,
+              "title": "Code Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CodeTokenIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CodeOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Invalid input (see `error`)"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Needs consent or an admin session"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Forbidden: banned, paused, stopped, joining closed or a foreign Origin (CSRF)"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Not found, or no party access (`scan_qr`)"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "411": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Content-Length required"
+          },
+          "413": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Request too large"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Request validation failed (`invalid_request`)"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Rate limited (`Retry-After` header)"
+          }
+        },
+        "summary": "Set Code Token",
         "tags": [
           "admin"
         ]

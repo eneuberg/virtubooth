@@ -1,4 +1,4 @@
-"""Printable QR codes with the party token baked into the URLs.
+"""Printable QR codes with a QR code's token baked into the URLs.
 
     python -m virtubooth.tools.qr --base-url https://party.example.com
 
@@ -8,6 +8,10 @@ A4 page per code with emoji, title, tagline, the big code and a short
 instruction, ready to print. Error correction level H (30 %), so a beer stain
 or a crease doesn't kill a code. The token is only inside the codes, never
 printed as text.
+
+The token: `--token`, else the QR code `--code N` of the database, else the
+active QR code with the lowest number, else (a database without QR codes yet,
+or none at all) VB_PARTY_TOKEN, which the server turns into QR code 1.
 """
 
 from __future__ import annotations
@@ -23,13 +27,16 @@ from urllib.parse import quote, urlencode, urlsplit
 
 import segno
 
+from ..domain.codes import TOKEN_RE
 from ..extensions.sdk import Extension, discover_extensions
-from ..settings import TOKEN_RE, ConfigError
+from ..settings import ConfigError
 from ._common import (
+    DB_NAME,
     ToolError,
     add_data_dir_arg,
     env_list,
     exports_dir,
+    open_repos,
     resolve_data_dir,
     run,
     split_list,
@@ -219,7 +226,8 @@ def build_parser() -> argparse.ArgumentParser:
         epilog="example:\n"
         f"  {PROG} --base-url https://party.example.com --extensions beer,booth\n\n"
         "Codes: <base>/?t=<token> (home page) and <base>/x/<extension>/?t=<token>.\n"
-        "Rotating VB_PARTY_TOKEN invalidates printed codes: print them after the final token.",
+        "The token is a QR code's (Admin → QR-Codes). Changing a code's token in\n"
+        "Admin → QR-Codes invalidates its printed codes: print them after the final token.",
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     p.add_argument(
@@ -228,7 +236,17 @@ def build_parser() -> argparse.ArgumentParser:
         help="public URL guests open, e.g. https://party.example.com "
         "(default: $VB_PUBLIC_BASE_URL)",
     )
-    p.add_argument("--token", help="party token baked into the codes (default: $VB_PARTY_TOKEN)")
+    p.add_argument(
+        "--token",
+        help="token baked into the codes (default: the QR code --code N, else the active "
+        "QR code with the lowest number in the database of --data-dir, else $VB_PARTY_TOKEN)",
+    )
+    p.add_argument(
+        "--code",
+        metavar="N",
+        type=int,
+        help="use the token of QR code number N (Admin → QR-Codes) from the database",
+    )
     p.add_argument(
         "--extensions",
         metavar="LIST",
@@ -248,16 +266,48 @@ def build_parser() -> argparse.ArgumentParser:
     return p
 
 
+def resolve_token(args: argparse.Namespace) -> str:
+    """--token, else --code N, else the lowest active QR code, else $VB_PARTY_TOKEN."""
+    if args.token:
+        return str(args.token).strip()
+    data_dir = resolve_data_dir(args.data_dir)
+    has_db = (data_dir / DB_NAME).is_file()
+    if args.code is not None:
+        if not has_db:
+            raise ToolError(f"--code needs the database: no {data_dir / DB_NAME} (pass --data-dir)")
+        with open_repos(data_dir) as repos:
+            code = repos.codes.get(args.code)
+        if code is None:
+            raise ToolError(f"there is no QR code {args.code}")
+        if not code.active:
+            raise ToolError(
+                f"QR code {args.code} ({code.name}) is deleted: its token no longer works"
+            )
+        return code.token
+    if has_db:
+        with open_repos(data_dir) as repos:
+            any_code, code = repos.codes.any(), repos.codes.lowest_active()
+        if code is not None:
+            return code.token
+        if any_code:
+            raise ToolError(
+                "every QR code in the database is deleted: create one in Admin → QR-Codes "
+                "or pass --token"
+            )
+    token = os.environ.get("VB_PARTY_TOKEN", "").strip()
+    if not token:
+        raise ToolError("no party token: pass --token or --code, or set VB_PARTY_TOKEN")
+    return token
+
+
 def _main(args: argparse.Namespace) -> int:
     base_raw = args.base_url or os.environ.get("VB_PUBLIC_BASE_URL", "").strip()
     if not base_raw:
         raise ToolError("no base URL: pass --base-url or set VB_PUBLIC_BASE_URL")
     base_url = normalize_base_url(base_raw)
-    token = (args.token or os.environ.get("VB_PARTY_TOKEN", "")).strip()
-    if not token:
-        raise ToolError("no party token: pass --token or set VB_PARTY_TOKEN")
+    token = resolve_token(args)
     if not TOKEN_RE.match(token):
-        raise ToolError("the party token must be 16-128 chars of A-Z a-z 0-9 _ -")
+        raise ToolError("the token must be 16-128 chars of A-Z a-z 0-9 _ -")
     names = split_list(args.extensions) if args.extensions else env_list("VB_EXTENSIONS")
     extensions = load_extensions(names)
     party_name = (args.party_name or os.environ.get("VB_PARTY_NAME", "")).strip() or "Party"

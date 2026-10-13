@@ -74,8 +74,10 @@ def create_user(
     ip: str,
     user_agent: str,
     banned_reason: str | None = None,
+    code_id: int | None = None,
 ) -> User:
-    """A new identity. While the new-guest lock is on it starts paused."""
+    """A new identity. While the new-guest lock is on it starts paused.
+    `code_id`: the QR code it joined through."""
     with db.tx():
         # read in the same transaction: a guest joining while the lock is
         # lifted is either restored with the others or not paused at all
@@ -91,6 +93,7 @@ def create_user(
             user_agent=user_agent,
             banned_reason=banned_reason,
             lock_period=lock.period if lock.enabled else None,
+            code_id=code_id,
         )
         user = repos.users.get(uid)
     assert user is not None
@@ -170,7 +173,10 @@ class IdentityService:
         fp: Fingerprint,
         ip: str,
         user_agent: str,
+        code_id: int | None = None,
     ) -> JoinResult:
+        """`code_id`: the QR code the browser scanned; stored on a new guest
+        only (a device that joined already keeps its first code)."""
         if existing is not None:
             return self._rejoin(existing, instagram)
         if self.repos.app_settings.join_stop().enabled:
@@ -193,6 +199,7 @@ class IdentityService:
                 ip=ip,
                 user_agent=user_agent,
                 banned_reason=banned_reason,
+                code_id=code_id,
             )
             self.events.user_created(user)
         return JoinResult(user, created=True, instagram_kept=False)
@@ -223,6 +230,7 @@ class IdentityService:
         ip: str,
         user_agent: str,
         banned_reason: str | None = None,
+        code_id: int | None = None,
     ) -> User:
         return create_user(
             self.db,
@@ -234,6 +242,7 @@ class IdentityService:
             ip=ip,
             user_agent=user_agent,
             banned_reason=banned_reason,
+            code_id=code_id,
         )
 
     def set_instagram(self, user: User, raw: str | None) -> User:
