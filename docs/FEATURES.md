@@ -4,10 +4,7 @@ Was man mit virtubooth machen kann, nach Rolle und Bereich. Für Gastgeber und f
 Entwickler. Jede Zeile ist gegen den Code geprüft. Wörter in „…“ stehen genau so in
 der App.
 
-**Stand:** 13.10.2026, `main` plus Branch `fin/dashboard`. Aus `fin/dashboard`
-kommen: die Schnellschalter „Hochladen stoppen“ und „Anmeldung stoppen“ mit
-Statusleiste, das Stoppen der Anmeldung für Gäste, die Live-Zahlen auf Live und der
-Tab „Übersicht“ sowie der anonyme Besucherzähler.
+**Stand:** 13.10.2026, Branch `main`.
 
 **Inhalt:**
 [1. Kurzüberblick](#1-kurzüberblick) ·

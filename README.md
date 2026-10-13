@@ -100,8 +100,9 @@ preview showed. The result comes as a print with "Speichern" and
   online, tab visible again, every 30 s, on the next visit. When uploads are
   paused or stopped, the shutter is locked and says why before anyone shoots.
 - **Robust.** A boot check explains content blockers that break the page,
-  in-app browsers (Instagram, WhatsApp) get a hint to open Safari or Chrome,
-  and `?debug=1` shows an on-screen log on any page.
+  in-app browsers (Instagram, WhatsApp) get a hint to scan the QR code with
+  the phone's camera app instead, and `?debug=1` shows an on-screen log on any
+  guest page.
 
 ## The admin panel
 
@@ -115,8 +116,8 @@ phone. The admin needs no party token. Every open admin page updates live
 
 **Live** (`/admin/live`) is for the party itself: a dense grid of the photos
 as they arrive, with the connection state ("verbunden"). A 44 px toggle per
-photo hides it ("Ausblenden", with "Rückgängig" in a toast). Here you can
-**only hide**, so an accidental tap never deletes anything.
+photo hides or unhides it ("Ausblenden", with "Rückgängig" in a toast). There
+is **no delete** here, so an accidental tap never deletes anything.
 
 **One-tap stops.** The Live header and the Verwaltung header (the sidebar on
 a laptop) have "Hochladen stoppen" (nobody can upload) and "Anmeldung
@@ -149,9 +150,9 @@ Also in the admin:
   ("Gerätemerkmal auch sperren"). Technical details are collapsed.
 - **Upload controls**: the status pill opens the "Hochladen" sheet.
   "Hochladen für alle stoppen" is a short emergency stop. "Neue Gäste
-  pausieren" holds back whoever joins from now on; ending that pause asks
-  whether to free exactly those guests or keep them paused. The list of
-  paused guests has "Hochladen für … erlauben".
+  pausieren" holds back whoever joins from now on; ending that pause asks, if
+  anyone joined during it, whether to free exactly those guests or keep them
+  paused. The list of paused guests has "Freigeben" for each.
 - **Login and sessions**: the login is rate limited and says so in words
   ("Zu viele Fehlversuche"). Logging out ends the live screens of that login
   at once. One browser keeps at most 4 live tabs; a fifth reconnects the
