@@ -11,7 +11,7 @@ work together, and the root `Makefile` wraps the commands below
 ```sh
 uv sync                                   # Python 3.14 venv in backend/.venv (dev tools included)
 uv run pytest -q                          # unit + API tests (e2e are deselected)
-uv run pytest -n auto -q                  # the same, in parallel (pytest-xdist)
+uv run pytest -n 4 -q                     # the same, in parallel (pytest-xdist; -n auto = one per core)
 uv run ruff check . && uv run ruff format --check .
 uv run mypy src                           # strict, with the pydantic plugin
 uv run virtubooth export-openapi -o ../frontend/openapi.json   # then `pnpm gen:api` in frontend/
