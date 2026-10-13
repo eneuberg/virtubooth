@@ -724,6 +724,12 @@ const panels = {
 
 const tabButtons = [...document.querySelectorAll('.adm-tab')];
 
+/** phones: the tab row scrolls sideways; keep the selected tab in view */
+function scrollToSelectedTab() {
+  const btn = tabButtons.find((b) => b.dataset.tab === state.tab);
+  if (btn) btn.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+}
+
 function showTab(tab) {
   state.tab = tab;
   for (const btn of tabButtons) {
@@ -731,8 +737,8 @@ function showTab(tab) {
     btn.setAttribute('aria-selected', String(selected));
     // roving tabindex: Tab reaches the selected tab only, arrows move between them
     btn.tabIndex = selected ? 0 : -1;
-    if (selected) btn.scrollIntoView({ block: 'nearest', inline: 'nearest' });
   }
+  scrollToSelectedTab();
   for (const [name, panel] of Object.entries(panels)) panel.el.hidden = name !== tab;
   syncUrl();
   syncPill();
@@ -879,7 +885,9 @@ async function main() {
   fillExtSelect(extensions);
   await fillUserSelect();
   showTab(state.tab);
-  loadStats(); // right away: the throttled refresh leaves the tab counts empty for a moment
+  // right away: the throttled refresh leaves the tab counts empty for a moment;
+  // the counts widen the tabs, so bring the selected one into view again
+  loadStats().then(scrollToSelectedTab);
   connectEvents({ onEvent, onResync });
 }
 
