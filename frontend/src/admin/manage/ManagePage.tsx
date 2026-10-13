@@ -155,7 +155,7 @@ function ManageShell() {
           }
           footer={
             <>
-              <QuickControls className="mb-1 grid-cols-1" />
+              <QuickControls className="mb-1 grid-flow-row" />
               <UploadStatusPill long className="mb-2 w-full" />
               <LinkButton href="/live" variant="quiet" size="xs" icon={Radio} className="justify-start">
                 Live öffnen

@@ -1,5 +1,5 @@
 import { QueryClientProvider, type QueryKey } from '@tanstack/react-query';
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { StopState } from '@/api/types';
 import { UiProvider } from '@/ui/UiProvider';
@@ -49,22 +49,28 @@ afterEach(() => {
 });
 
 describe('QuickControls and StatusStrip', () => {
-  it('stops all uploads in one tap, no confirmation, and resumes from the strip', async () => {
+  it('stops all uploads in one tap, no confirmation; then only the strip can resume', async () => {
     const { requests } = renderDashboard();
-    const toggle = screen.getByTestId('quick-upload-stop');
-    expect(toggle.getAttribute('aria-pressed')).toBe('false');
+    const stop = screen.getByTestId('quick-upload-stop');
+    expect(stop.textContent).toBe('Hochladen stoppen');
+    expect(stop.hasAttribute('aria-pressed')).toBe(false);
     expect(screen.queryByTestId('status-strip-uploads')).toBeNull();
 
-    fireEvent.click(toggle);
-    await waitFor(() => expect(toggle.getAttribute('aria-pressed')).toBe('true'));
-    expect(screen.queryByRole('dialog')).toBeNull();
+    fireEvent.click(stop);
     const strip = await screen.findByTestId('status-strip-uploads');
+    expect(screen.queryByRole('dialog')).toBeNull();
     expect(strip.textContent).toContain('Hochladen gestoppt');
     expect(strip.textContent).toMatch(/Für alle, seit \d\d:\d\d\./);
+    // the stop button is gone while it is on: "stoppen" can never mean "resume"
+    expect(screen.queryByTestId('quick-upload-stop')).toBeNull();
+    // the other one is left and spans the row
+    const controls = screen.getByTestId('quick-controls');
+    expect(controls.children).toHaveLength(1);
+    expect(within(controls).getByTestId('quick-join-stop')).toBeTruthy();
 
     fireEvent.click(screen.getByRole('button', { name: 'Hochladen fortsetzen' }));
     await waitFor(() => expect(screen.queryByTestId('status-strip-uploads')).toBeNull());
-    expect(toggle.getAttribute('aria-pressed')).toBe('false');
+    expect(screen.getByTestId('quick-upload-stop')).toBeTruthy();
     expect(await posted(requests, '/api/admin/upload-stop')).toEqual([true, false]);
   });
 
@@ -73,17 +79,18 @@ describe('QuickControls and StatusStrip', () => {
     fireEvent.click(screen.getByTestId('quick-join-stop'));
     const strip = await screen.findByTestId('status-strip-join');
     expect(strip.textContent).toContain('Anmeldung gestoppt');
+    expect(screen.queryByTestId('quick-join-stop')).toBeNull();
     expect(screen.queryByTestId('status-strip-uploads')).toBeNull();
-    expect(screen.getByTestId('quick-upload-stop').getAttribute('aria-pressed')).toBe('false');
+    expect(screen.getByTestId('quick-upload-stop')).toBeTruthy();
 
-    // one tap switches it off again, on the toggle itself
-    fireEvent.click(screen.getByTestId('quick-join-stop'));
+    fireEvent.click(screen.getByRole('button', { name: 'Anmeldung wieder öffnen' }));
     await waitFor(() => expect(screen.queryByTestId('status-strip-join')).toBeNull());
+    expect(screen.getByTestId('quick-join-stop')).toBeTruthy();
     expect(await posted(requests, '/api/admin/join-stop')).toEqual([true, false]);
     expect(await posted(requests, '/api/admin/upload-stop')).toEqual([]);
   });
 
-  it('follows the event stream: another admin switched both on', async () => {
+  it('follows the event stream: another admin switched both on, so the row goes away', async () => {
     const { qc } = renderDashboard();
     const on: StopState = { enabled: true, since: SINCE, by: 'admin:2' };
     const ctx = { qc, invalidate: () => {} };
@@ -94,7 +101,7 @@ describe('QuickControls and StatusStrip', () => {
     await screen.findByTestId('status-strip-join');
     expect(screen.getByTestId('status-strip').getAttribute('data-state')).toBe('on');
     expect(screen.getByTestId('status-strip-uploads')).toBeTruthy();
-    expect(screen.getByTestId('quick-join-stop').getAttribute('aria-pressed')).toBe('true');
+    expect(screen.queryByTestId('quick-controls')).toBeNull();
   });
 
   it('keeps the state when the server refuses', async () => {
@@ -118,10 +125,9 @@ describe('QuickControls and StatusStrip', () => {
         </UiProvider>
       </QueryClientProvider>,
     );
-    const toggle = screen.getByTestId('quick-join-stop');
-    fireEvent.click(toggle);
+    fireEvent.click(screen.getByTestId('quick-join-stop'));
     await waitFor(() => expect(useSwitchBusy.getState().busy).toBeNull());
-    expect(toggle.getAttribute('aria-pressed')).toBe('false');
+    expect(screen.getByTestId('quick-join-stop').getAttribute('data-state')).toBe('off');
     expect(qc.getQueryData<StopState>(qk.joinStop)?.enabled).toBe(false);
   });
 

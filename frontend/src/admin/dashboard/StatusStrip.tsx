@@ -5,7 +5,7 @@ import type { StopState } from '@/api/types';
 import { cx, tv } from '@/ui/cx';
 import { Spinner } from '@/ui/Spinner';
 import { useUploadStop } from '../store/hooks';
-import { flipSwitch, useJoinStop, useSwitchBusy, type QuickSwitch } from './data';
+import { flipSwitch, handFocus, QUICK_TEST_ID, useJoinStop, useSwitchBusy, type QuickSwitch } from './data';
 import { switchCopy } from './text';
 
 const row = tv({
@@ -50,6 +50,9 @@ function StripRow({
   const busy = useSwitchBusy((s) => s.busy);
   const copy = switchCopy(which, state);
   const s = row({ tone });
+  const resume = async () => {
+    if (await flipSwitch(qc, which, false)) handFocus(QUICK_TEST_ID[which]);
+  };
   return (
     <div className={s.root()} data-testid={`status-strip-${which}`}>
       <Icon aria-hidden="true" className={s.icon()} strokeWidth={2} />
@@ -63,7 +66,7 @@ function StripRow({
         className={s.action()}
         aria-label={copy.resumeLabel}
         isDisabled={busy !== null}
-        onPress={() => void flipSwitch(qc, which, false)}
+        onPress={() => void resume()}
         data-testid={`status-strip-${which}-resume`}
       >
         {busy === which ? <Spinner label="Wird umgeschaltet…" /> : copy.resume}
@@ -74,7 +77,8 @@ function StripRow({
 
 /**
  * The unmistakable state of the two stops: a full-width strip in the header, one row
- * per stop that is on, each with its resume button. Nothing while both are off. The
+ * per stop that is on, each with its resume button: while a stop is on, this is its
+ * only control (QuickControls hides its stop button). Nothing while both are off. The
  * wrapper is a polite live region, so switching (here, in another tab or on another
  * device, through the event stream) is announced.
  */

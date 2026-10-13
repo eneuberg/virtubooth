@@ -56,15 +56,34 @@ export const useSwitchBusy = create<{ busy: QuickSwitch | null }>(() => ({ busy:
  * Flip one switch, no confirmation (it must be instant at a party). The answer goes
  * into the cache at once; a failure shows a toast and leaves the state as it was.
  */
-export async function flipSwitch(qc: QueryClient, which: QuickSwitch, enabled: boolean): Promise<void> {
-  if (useSwitchBusy.getState().busy !== null) return;
+export async function flipSwitch(qc: QueryClient, which: QuickSwitch, enabled: boolean): Promise<boolean> {
+  if (useSwitchBusy.getState().busy !== null) return false;
   useSwitchBusy.setState({ busy: which });
   try {
     if (which === 'uploads') await setUploadStop(qc, enabled);
     else await setJoinStop(qc, enabled);
+    return true;
   } catch (err) {
     showToast({ tone: 'error', message: isApiError(err) ? err.message : msg.generic });
+    return false;
   } finally {
     useSwitchBusy.setState({ busy: null });
   }
 }
+
+/**
+ * The control that was pressed goes away (a stop button once it is on, a strip row once
+ * it is off): hand the focus to its counterpart, unless the focus already went elsewhere.
+ */
+export function handFocus(testId: string): void {
+  window.setTimeout(() => {
+    const active = document.activeElement;
+    if (active && active !== document.body && active.isConnected) return;
+    document.querySelector<HTMLElement>(`[data-testid="${testId}"]`)?.focus();
+  }, 60);
+}
+
+export const QUICK_TEST_ID: Record<QuickSwitch, string> = {
+  uploads: 'quick-upload-stop',
+  join: 'quick-join-stop',
+};

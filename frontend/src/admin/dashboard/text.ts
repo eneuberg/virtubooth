@@ -8,7 +8,7 @@ import { clock } from '../lib/labels';
 import type { QuickSwitch } from './data';
 
 export interface SwitchCopy {
-  /** the toggle's label (constant; the pressed state says whether it is on) */
+  /** the stop button's label (shown only while the stop is off) */
   toggle: string;
   /** the status strip while it is on: title, since when, and (wider screens) the effect */
   title: string;

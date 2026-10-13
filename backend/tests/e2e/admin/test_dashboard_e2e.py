@@ -43,9 +43,10 @@ def test_one_tap_stops_on_every_screen(
 
     # the phone: one tap stops every upload, no question asked
     stop = admin_page.get_by_test_id("quick-upload-stop")
-    expect(stop).to_have_attribute("aria-pressed", "false")
+    expect(stop).to_have_text("Hochladen stoppen")
     stop.click()
-    expect(stop).to_have_attribute("aria-pressed", "true")
+    # its button is gone while it is on: the strip's resume is the one control (and has the focus)
+    expect(admin_page.get_by_role("button", name="Hochladen fortsetzen")).to_be_focused()
     expect(admin_page.get_by_role("dialog")).to_have_count(0)
     expect(admin_page.get_by_role("alertdialog")).to_have_count(0)
     for p in screens:
@@ -54,13 +55,16 @@ def test_one_tap_stops_on_every_screen(
         expect(strip).to_contain_text("Hochladen gestoppt")
         expect(strip).to_contain_text(re.compile(r"Für alle, seit \d\d:\d\d"))
         expect(p.get_by_test_id("uploads-chip")).to_have_attribute("data-state", "stopped")
+        expect(p.get_by_test_id("quick-upload-stop")).to_have_count(0)
+        expect(p.get_by_test_id("quick-join-stop")).to_be_visible()
     assert known.upload_response().json()["error"] == "uploads_stopped"
 
     # the laptop: joining stops right next to it
     desktop_page.get_by_test_id("quick-join-stop").click()
     for p in screens:
         expect(p.get_by_test_id("status-strip-join")).to_contain_text("Anmeldung gestoppt")
-        expect(p.get_by_test_id("quick-join-stop")).to_have_attribute("aria-pressed", "true")
+        # both on: no stop buttons at all, only the two strip rows
+        expect(p.get_by_test_id("quick-controls")).to_have_count(0)
     client, answer = newcomer(live)
     assert answer["state"] == "needs_consent" and answer["join_closed"] is True
     refused = join(client, answer["consent"]["version"])
@@ -70,14 +74,16 @@ def test_one_tap_stops_on_every_screen(
     admin_page.get_by_role("button", name="Hochladen fortsetzen").click()
     for p in screens:
         expect(p.get_by_test_id("status-strip-uploads")).to_have_count(0)
-        expect(p.get_by_test_id("quick-upload-stop")).to_have_attribute("aria-pressed", "false")
+        expect(p.get_by_test_id("quick-upload-stop")).to_be_visible()
+        expect(p.get_by_test_id("quick-join-stop")).to_have_count(0)
         expect(p.get_by_test_id("status-strip-join")).to_be_visible()
     assert known.upload_response().status_code == 201
 
-    # and the join stop off on the laptop's toggle
-    desktop_page.get_by_test_id("quick-join-stop").click()
+    # and joining opens again from the laptop's strip
+    desktop_page.get_by_role("button", name="Anmeldung wieder öffnen").click()
     for p in screens:
         expect(p.get_by_test_id("status-strip")).to_have_attribute("data-state", "off")
+        expect(p.get_by_test_id("quick-join-stop")).to_be_visible()
     assert join(client, answer["consent"]["version"]).status_code == 201
     client.close()
 

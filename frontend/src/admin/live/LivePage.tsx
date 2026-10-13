@@ -59,7 +59,7 @@ function LiveHeader({ desktop }: { desktop: boolean }) {
   const { data: stats } = useStats();
   return (
     <header className="flex items-center gap-3 border-b border-line bg-surface py-2 pt-[max(0.5rem,env(safe-area-inset-top))] pr-3 pl-4">
-      <div className="grid min-w-0">
+      <div className="mr-auto grid min-w-0">
         <div className="flex items-baseline gap-2.5">
           <h1 className="text-lg font-bold">Live</h1>
           <ConnectionBadge />
@@ -78,8 +78,8 @@ function LiveHeader({ desktop }: { desktop: boolean }) {
           )}
         </p>
       </div>
-      {desktop ? <QuickControls className="ml-auto w-md" /> : null}
-      <UploadStatusPill className={desktop ? undefined : 'ml-auto'} />
+      {desktop ? <QuickControls /> : null}
+      <UploadStatusPill />
       {desktop ? (
         <LinkButton href="/manage" variant="secondary" size="sm" icon={LayoutGrid}>
           Verwaltung
