@@ -345,7 +345,8 @@ Firefox geprüft und ist im Testlauf unten enthalten.
     „Uploads stoppen“. Änderbar in einer Zeile in `frontend/src/admin/dashboard/text.ts`.
     Gäste sehen beim Stopp „Hochladen ist kurz angehalten“ statt „temporär deaktiviert“.
 16. **Kleinigkeiten aus der QA, nicht behoben:**
-    - Am Handy verdeckt der Toast 5–7 s lang den „Ausblenden“-Knopf im Foto-Viewer.
+    - ~~Am Handy verdeckt der Toast 5–7 s lang den „Ausblenden“-Knopf im Foto-Viewer.~~
+      Behoben, siehe Punkt 17.
     - Bei Mehrfachauswahl zeigt der Inspektor in „Fotos“ weiter das zuletzt geöffnete Foto.
     - Der Viewer-Dialog heißt für Screenreader „Foto Foto 0008“.
     - Von einer einzelnen Adresse zeigt der Login den allgemeinen Rate-Limit-Text
@@ -354,15 +355,18 @@ Firefox geprüft und ist im Testlauf unten enthalten.
       Vorschaubilder fertig sind (kurz, auf schwachen Geräten länger).
     - Blendet der Admin ein Foto aus, das ein Gast gerade im Viewer ansieht, springt der
       Viewer zum nächsten Foto, statt sich zu schließen.
-17. **Gefunden beim Beschleunigen der Tests (App-Code nicht geändert):**
-    - Firefox/Safari: Startet eine echte Seitennavigation (Adresszeile, externer Link,
-      Zurück zu einer anderen Seite), während noch ein Seitenmodul lädt, bricht der
-      Browser das Laden ab. Die Deploy-Wiederherstellung in `frontend/src/lib/boot.ts`
-      hält das für einen veralteten Build und lädt die aktuelle Seite neu, die
-      Navigation geht verloren. Links innerhalb der App sind nicht betroffen (Client-
-      Routing). Möglicher Fix: Ladefehler ignorieren, sobald die Seite verlassen wird.
-    - Am Handy verdeckt der Rückgängig-Toast in der Verwaltung etwa 7 s lang den Knopf
-      „Endgültig löschen“ und die Viewer-Knöpfe (wie bei Punkt 16).
+17. **Gefunden beim Beschleunigen der Tests, danach behoben:**
+    - **Firefox/Safari, behoben (`fin/preload-nav`):** Eine echte Seitennavigation
+      (Adresszeile, externer Link), die startete, während noch ein Seitenmodul lud,
+      wurde durch ein Neuladen der alten Seite abgebrochen. Jetzt lädt
+      `frontend/src/lib/boot.ts` nur noch neu, wenn der Server wirklich einen neuen Build
+      ausliefert (das HTML nennt ein anderes Einstiegsskript). Getestet in allen drei
+      Browsern (ohne Fix 5/5 rot, mit Fix je 10/10 grün).
+    - **Toast am Handy, behoben (`fin/phone-toast`):** Der Toast rutscht jetzt über
+      markierte Aktionsflächen (Viewer-Leiste, Bestätigungsdialog, Auswahlleiste,
+      Kamera-Auslöser, Filterleiste), statt sie zu verdecken; „Rückgängig“ bleibt
+      erreichbar. Betroffen waren Admin und Gäste. Offen: In scrollbaren Rastern kann er
+      die unterste Kachelreihe noch kurz verdecken.
     - `test_upload_publishes_event` dauert 5 s: sein Event-Loop wird nie geweckt, weil
       der Bus an den Loop des TestClients gebunden wird; er endet erst über den eigenen
       Timeout. Nur ein Testproblem.
