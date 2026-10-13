@@ -102,7 +102,7 @@ virtubooth/
 | Funktion | Vorher | Jetzt |
 |---|---|---|
 | Beitritt | Einwilligungsdialog | Beitritts-Sheet: Partyname, was mit den Fotos passiert, optional der Instagram-Name, ein Knopf „Alles klar, los geht’s!“, kein „Nein“. Die Texte kommen vom Server. |
-| Identität | Namens-Chip | Gästepass oben rechts: Pseudonym, Instagram-Name, Statuspunkt. Er öffnet das „Du“-Sheet (Instagram ändern, Pause und wartende Fotos sehen). |
+| Identität | Namens-Chip | Gästepass auf Start oben links (Pseudonym, Instagram-Name, Statuspunkt), auf den Kamera-Seiten kompakt oben rechts. Er öffnet das „Du“-Sheet (Instagram ändern, Pause und wartende Fotos sehen). |
 | „Deine Bilder“ | gab es nicht | Auf Start die eigenen sichtbaren Fotos (neu: `GET /api/me/photos`), groß ansehen und speichern. |
 | Outbox | nur Fotobox | Beide Aktivitäten. Jedes Foto liegt zuerst im Gerät (IndexedDB) und bleibt dort, bis der Server es hat. Neuer Versuch, wenn das Netz zurück ist, der Tab wieder sichtbar wird, alle 30 s und beim nächsten Besuch. Bei Fehlern „Erneut senden“. |
 | Pause/Stopp | Foto wurde gemacht, dann verworfen | Der Auslöser ist vorher gesperrt und sagt, warum. |
@@ -112,10 +112,10 @@ virtubooth/
 
 | Funktion | Vorher | Jetzt |
 |---|---|---|
-| Live | nur Ausblenden | Weiter nur Ausblenden. Dichtes Raster, 44-px-Schalter, „Rückgängig“ im Toast, Leiste unten am Handy (im Querformat links), Verbindungsanzeige. |
+| Live | nur Ausblenden | Kein Löschen; Aus- und Einblenden mit „Rückgängig“. Dichtes Raster, 44-px-Schalter, „Rückgängig“ im Toast, Leiste unten am Handy (im Querformat links), Verbindungsanzeige. |
 | Verwaltung | Tabs | Seitenleiste am Desktop: Fotos (Kontaktbogen, Filter, Mehrfachauswahl mit Tastatur, Inspektor), Gäste, Instagram, Sperren, Protokoll, Export. |
 | Gästeseite | viele Panels | Statuszeile, Fotos, „Hochladen pausieren“, Sperre im Sheet („Gerätemerkmal auch sperren“), Technik eingeklappt. |
-| Upload-Steuerung | Chip und Sheet | Status-Pille öffnet das Sheet „Hochladen“: „Hochladen für alle stoppen“, „Neue Gäste pausieren“ (beim Beenden: Betroffene freischalten oder pausiert lassen), Liste der pausierten Gäste mit „Hochladen für … erlauben“. Pro Gast auf der Gästeseite. Der Fokus bleibt im Sheet. |
+| Upload-Steuerung | Chip und Sheet | Status-Pille öffnet das Sheet „Hochladen“: „Hochladen für alle stoppen“, „Neue Gäste pausieren“ (beim Beenden: Betroffene freischalten oder pausiert lassen), Liste der pausierten Gäste mit „Freigeben“. Pro Gast auf der Gästeseite. Der Fokus bleibt im Sheet. |
 | Exporte | nur Kommandozeile | Unter Export: Archiv (ZIP mit Fotos, CSV-Listen, optional der Datenbank), Zeitraffer (MP4) und QR-Bogen. Hintergrund-Jobs mit Fortschritt und Download, die neuesten 10 Dateien bleiben. Die Kommandozeile gibt es weiter. |
 | Instagram | Handles kopieren, Fotos ansehen | Dazu ein ZIP pro Handle und die Markierung „Erledigt“. |
 | Protokoll | Tab | Gleicher Inhalt, jetzt als Tabelle, auch auf dem Handy lesbar. |

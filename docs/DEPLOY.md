@@ -366,7 +366,8 @@ network raise `VB_UPLOADS_PER_IP_PER_MIN` and `VB_NEW_USERS_PER_IP_PER_10MIN`.
 
 - Tested on an iPhone and an Android phone on the real domain, including
   opening the link from inside Instagram or WhatsApp (in-app browsers often
-  block the camera; the page tells guests to open Safari or Chrome).
+  block the camera; the page tells guests to scan the code with the camera
+  app instead).
 - The admin live screen shows the test uploads and says "verbunden".
 - QR codes printed from the deployed config (Export → "QR-Bogen erstellen");
   one printed code scanned before the guests arrive.
@@ -383,7 +384,7 @@ file, and both write to `/data/exports/`:
 | | Admin → Verwaltung → Export | CLI in the container |
 |---|---|---|
 | **Photos + lists** | "Archiv erstellen": a ZIP with `photos/<activity>/` (hidden ones under `hidden/` with "Ausgeblendete Fotos mitnehmen"), `photos.csv`, `users.csv`, `instagram.csv`, `manifest.json`, `README.txt`, and with "Datenbank mitnehmen (für ein Backup)" a consistent copy of the database (guests with IPs, fingerprints and bans, all photo rows, the audit log; without admin sessions and export jobs, vacuumed so nothing deleted earlier can be recovered) | `python -m virtubooth.tools.export`: the same content as a `.tar.gz` (`--no-hidden`, `--no-db`, `--out FILE`) |
-| **Timelapse** | "Zeitraffer erstellen": activity, "Fotos pro Sekunde" (1–30), "Weich überblenden", "Ausgeblendete Fotos mitnehmen". H.264 MP4, 1080×1440, the last photo held 2 s | `python -m virtubooth.tools.timelapse`: plus `--fade`, `--out-fps`, `--size`, `--hold-last`, `--crf`, `--preset`, `--limit N` (quick preview), `--dry-run` |
+| **Timelapse** | "Zeitraffer erstellen": activity, "Fotos pro Sekunde" (6, 8, 12, 15, 24 or 30), "Weich überblenden", "Ausgeblendete Fotos mitnehmen". H.264 MP4, 1080×1440, the last photo held 2 s | `python -m virtubooth.tools.timelapse`: plus `--fade`, `--out-fps`, `--size`, `--hold-last`, `--crf`, `--preset`, `--limit N` (quick preview), `--dry-run` |
 | **QR codes** | "QR-Bogen erstellen" with "Adresse der Party": a ZIP with `qr-sheet.html` (one A4 page per code, print from the browser) and SVG/PNG per code | `python -m virtubooth.tools.qr`: plus `--extensions`, `--token` (codes for a token not deployed yet), `--party-name`, `--no-home`, `--out DIR` |
 
 - The admin's exports run as **background jobs**, one at a time, with progress
@@ -392,8 +393,8 @@ file, and both write to `/data/exports/`:
   kept; older ones are deleted with their entry. A restart marks running jobs
   as failed ("Server wurde neu gestartet.").
 - The CLI tools have more options and keep their files until you delete them.
-  `--help` lists everything. Hidden and deleted photos are left out of the
-  timelapse unless you ask for them.
+  `--help` lists everything. Hidden photos are left out of the timelapse
+  unless you ask for them; deleted ones never go in.
 - With Compose, `docker compose exec app …` runs a tool in the running app;
   with the app stopped, use `docker compose run --rm app …`:
 

@@ -243,7 +243,8 @@ three entries. Details and conventions are in
 | `admin.html` → `src/admin/main.tsx` | admin | `/admin/login`, `/admin/live`, `/admin/manage?tab=…`, `/admin/user?id=…` |
 | `gate.html` | none | static: "Scan den QR-Code" / "Hier ist nichts"; an optional script adds the in-app browser hint |
 
-Every entry loads `/boot-check.js` (a classic script) before its module. If
+The guest and admin entries load `/boot-check.js` (a classic script) before
+their module. If
 the app never sets `window.__vbReady`, typically because a content blocker
 dropped a chunk, it shows a German hint to turn the blocker off.
 

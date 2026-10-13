@@ -234,10 +234,12 @@ Each is written in the same transaction as the change.
 
 ## 7. The dashboard: join stop and live overview
 
-The admin home (Live) and the manage header show two one-tap switches side by
-side, „Hochladen stoppen“ (the existing upload stop, §4 `settings.upload_stop`)
-and „Anmeldung stoppen“ (new), plus a status strip while either is on. All
-routes below are admin routes (session, CSRF on mutations, `X-VB-Event-Id`).
+The admin home (Live) and the manage header show two one-tap stop buttons,
+„Hochladen stoppen“ (the existing upload stop, §4 `settings.upload_stop`) and
+„Anmeldung stoppen“ (new): side by side on Live, stacked in the manage sidebar
+on desktop. A button is there only while its stop is off; while a stop is on, a
+status strip row with its resume button replaces it. All routes below are
+admin routes (session, CSRF on mutations, `X-VB-Event-Id`).
 
 ### 7.1 Join stop („Anmeldung stoppen“)
 
