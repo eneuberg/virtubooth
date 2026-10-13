@@ -30,10 +30,18 @@ export function isInAppBrowser() {
     .test(navigator.userAgent);
 }
 
+// Instagram, Facebook, TikTok & co. open links in their own browser, which has
+// no address bar (no „aA“, no lock) and often no camera: send the guest out.
+const IN_APP_HINT = 'In dieser App geht die Kamera nicht. Öffne die Seite über das ⋯-Menü '
+  + 'in deinem Browser (Safari oder Chrome).';
+
 export function cameraErrorMessage(err) {
   const name = err && err.name;
   if (!window.isSecureContext) {
     return 'Die Kamera funktioniert nur über eine sichere Verbindung (https).';
+  }
+  if (isInAppBrowser()) {
+    return IN_APP_HINT;
   }
   if (name === 'NotAllowedError' || name === 'SecurityError') {
     if (isIOS()) {
@@ -50,9 +58,6 @@ export function cameraErrorMessage(err) {
   }
   if (name === 'NotReadableError' || name === 'AbortError') {
     return 'Die Kamera wird gerade von einer anderen App benutzt. Schließ sie und versuch es nochmal.';
-  }
-  if (isInAppBrowser()) {
-    return 'In dieser App geht die Kamera nicht. Öffne den Link bitte in Safari oder Chrome.';
   }
   return 'Die Kamera konnte nicht gestartet werden.';
 }
@@ -88,7 +93,7 @@ async function countCameras() {
 async function getStream(facing, width, height) {
   if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
     throw new CameraError('unsupported', isInAppBrowser()
-      ? 'In dieser App geht die Kamera nicht. Öffne den Link bitte in Safari oder Chrome.'
+      ? IN_APP_HINT
       : 'Dein Browser unterstützt keine Kamera. Nimm Safari oder Chrome.');
   }
   const video = { facingMode: { ideal: facing }, width: { ideal: width }, height: { ideal: height } };

@@ -148,8 +148,9 @@ Main API:
 
 | Export | Purpose |
 |---|---|
-| `boot()` | identify device, show consent banner if needed → `{user, banned}`. Call first. |
-| `api(path, {method, json})` | JSON fetch, throws `ApiError` (`.status .code .message`, German message) |
+| `boot()` | identify device, show the join dialog if needed → `{user, banned}`. Call first. |
+| `fatal(err, {title, actions})` | end every page with `main().catch(fatal)`: full-screen notice with "Neu laden"; shows `ApiError`/`CameraError` messages, a neutral text for network failures (offline and blocked look alike), a generic one for anything else |
+| `api(path, {method, json})` | JSON fetch, throws `ApiError` (`.status .code .message`, German message; `.retryAfter` seconds on 429, already in the message; `.offline` for code `network` when the device says so) |
 | `uploadJpeg(extId, blob, {meta, onProgress})` | upload with progress → server JSON |
 | `openCamera(video, {facing})` | camera controller: `.facing .mirrored .canSwitch .switchFacing() .stop() .width .height`. `facing` is a wish: a PC's only webcam is used either way and counts as `'user'` (mirrored); hide the switch button when `!canSwitch` |
 | `captureFrame(video, w, h, {mirror})` | centre-cropped (cover) frame into a canvas |
@@ -159,11 +160,13 @@ Main API:
 | `h(tag, attrs, ...children)` | safe DOM builder (use instead of innerHTML) |
 | `mountUserChip(el)`, `editInstagram()`, `getUser()` | guest pseudonym + Instagram handle |
 | `isIOS()`, `isInAppBrowser()`, `cameraErrorMessage(err)` | platform helpers |
-| `debug(...)` | on-screen log when the page was opened with `?debug=1` |
+| `sheetOpen()` | true while a dialog (`.vb-scrim`) is open: ignore keyboard shortcuts then |
+| `debug(...)` | on-screen log when the page was opened with `?debug=1` (top of the screen, lets taps through, 🐞 folds it) |
 
 CSS: tokens `--vb-*`; components `.vb-btn(--primary|--big|--block|--ghost|--danger|--cool)`,
 `.vb-icon-btn`, `.vb-shutter`, `.vb-card`, `.vb-chip`, `.vb-input`, `.vb-stage`
-(fullscreen camera) with `.vb-topbar`/`.vb-bottombar`, `.vb-sheet` (dialog) in a `.vb-scrim`,
+(fullscreen camera) with `.vb-topbar`/`.vb-bottombar`, `.vb-sheet` (dialog) in a `.vb-scrim`
+(long dialogs: `.vb-sheet--split > form.vb-sheet-form > .vb-sheet-body` (scrolls) `+ .vb-sheet-foot` (buttons, always on screen)),
 `.vb-progress > span`, `.vb-spinner`, `.vb-hidden`.
 
 UI language: German. Mobile-first, big touch targets, party look (dark,
@@ -192,7 +195,9 @@ extensions, e.g. `return discover_extensions(["beer"])`.
 
 E2E (`tests/e2e/conftest.py`): `live` (real server, `.url()`, `.entry()` =
 QR URL, `.core`), `page`, `guest_page` (consent accepted), `admin_page`,
-`accept_consent_in_browser()`; override `e2e_extensions`. `page.js_errors`
+`accept_consent_in_browser()`, `settle_dialogs(page)` (dialog animations done),
+`shot(page, name)` (screenshot into `$VB_SCREENSHOT_DIR`); override `e2e_extensions` or
+`e2e_settings` (Settings fields, e.g. `{"instagram_account": "@x"}`). `page.js_errors`
 collects console errors (`track_errors(page)` for pages you make yourself).
 `new_context(browser)` is a phone with a front and a back camera,
 `new_context(browser, "desktop")` a 1280x800 PC with one 16:9 webcam showing a

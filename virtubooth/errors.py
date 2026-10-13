@@ -38,7 +38,7 @@ def rate_limited(retry_after: int) -> ApiError:
     return ApiError(
         429,
         "rate_limited",
-        "Langsam! Zu viele Anfragen. Warte kurz und versuch es nochmal.",
+        "Langsam! Zu viele Anfragen. Warte kurz.",
         headers={"Retry-After": str(retry_after)},
     )
 

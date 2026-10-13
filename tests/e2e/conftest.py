@@ -198,13 +198,22 @@ def e2e_extensions() -> Sequence[Extension] | None:
 
 
 @pytest.fixture
-def live(tmp_path: Path, e2e_extensions: Sequence[Extension] | None) -> Iterator[LiveServer]:
+def e2e_settings() -> dict:
+    """Override to change Settings fields of the live server, e.g. {"instagram_account": "@x"}."""
+    return {}
+
+
+@pytest.fixture
+def live(tmp_path: Path, e2e_extensions: Sequence[Extension] | None, e2e_settings: dict) -> Iterator[LiveServer]:
     settings = Settings(
-        party_token=PARTY_TOKEN,
-        admin_password=ADMIN_PASSWORD,
-        secret_key=SECRET_KEY,
-        data_dir=tmp_path / "data",
-        party_name="E2E Party",
+        **{
+            "party_token": PARTY_TOKEN,
+            "admin_password": ADMIN_PASSWORD,
+            "secret_key": SECRET_KEY,
+            "data_dir": tmp_path / "data",
+            "party_name": "E2E Party",
+            **e2e_settings,
+        }
     )
     app = create_app(settings, extensions=e2e_extensions)
     port = _free_port()
@@ -289,6 +298,30 @@ def context(browser: Browser, live: LiveServer) -> Iterator[BrowserContext]:
 @pytest.fixture
 def page(context: BrowserContext) -> Iterator[Page]:
     yield track_errors(context.new_page())
+
+
+def shot(page: Page, name: str, settle_ms: int = 300) -> None:
+    """Screenshot into $VB_SCREENSHOT_DIR (nothing when unset)."""
+    out = os.environ.get("VB_SCREENSHOT_DIR")
+    if not out:
+        return
+    page.wait_for_timeout(settle_ms)
+    Path(out).mkdir(parents=True, exist_ok=True)
+    seen = len(getattr(page, "js_errors", []))
+    page.screenshot(path=str(Path(out) / f"{BROWSER_NAME}_{name}.png"))
+    # WebKit's screenshot injects a <style>, which our CSP refuses: not the page's fault
+    errors = getattr(page, "js_errors", None)
+    if errors is not None:
+        errors[seen:] = [e for e in errors[seen:] if not e.startswith("Refused to apply a stylesheet")]
+
+
+def settle_dialogs(page: Page) -> None:
+    """Wait until the open dialogs' entry animations are done (boxes are final)."""
+    page.evaluate(
+        """() => Promise.all(document.getAnimations()
+            .filter((a) => a.effect && a.effect.target && a.effect.target.closest && a.effect.target.closest('.vb-scrim'))
+            .map((a) => a.finished.catch(() => null)))"""
+    )
 
 
 def accept_consent_in_browser(page: Page, instagram: str = "") -> None:
