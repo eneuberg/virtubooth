@@ -7,7 +7,9 @@ from typing import TYPE_CHECKING
 
 from .admin_auth import AdminAuthService
 from .events import AdminEvents
+from .exports import ExportService
 from .identity import IdentityService
+from .instagram import InstagramService
 from .moderation import ModerationService
 from .upload_controls import UploadControlsService
 from .uploads import UploadService
@@ -26,6 +28,8 @@ class Services:
     moderation: ModerationService
     upload_controls: UploadControlsService
     admin_auth: AdminAuthService
+    exports: ExportService
+    instagram: InstagramService
 
     @classmethod
     def create(cls, core: Core) -> Services:
@@ -40,4 +44,6 @@ class Services:
             moderation=ModerationService(db, repos, events, views),
             upload_controls=UploadControlsService(db, repos, events, views),
             admin_auth=AdminAuthService(core, db, repos),
+            exports=ExportService(core, db, repos, events),
+            instagram=InstagramService(db, repos, events),
         )
