@@ -37,7 +37,10 @@ def snap(page: Page, name: str, settle_ms: int = 700) -> None:
         return
     page.wait_for_timeout(settle_ms)
     Path(out).mkdir(parents=True, exist_ok=True)
+    before = len(page.js_errors)
     page.screenshot(path=str(Path(out) / f"{name}.png"))
+    # WebKit logs the CSP refusing the <style> Playwright injects for screenshots: not the page's fault
+    page.js_errors[before:] = [e for e in page.js_errors[before:] if "Refused to apply a stylesheet" not in e]
 
 
 @pytest.fixture
@@ -689,6 +692,7 @@ def test_back_button_asks_before_leaving_unsent_photos(guest_page, live):
     page.get_by_test_id("back").click()
     sheet.get_by_test_id("leave-go").click()
     page.wait_for_url(live.url("/"))
+    expect(page.get_by_test_id("tile-booth")).to_be_visible()  # home has booted: nothing left in flight
 
     # back online, back in the Fotobox: both are sent
     net.offline = False
@@ -701,6 +705,7 @@ def test_back_button_asks_before_leaving_unsent_photos(guest_page, live):
     wait_kept(page, 0)
     page.get_by_test_id("back").click()  # nothing unsent: straight home
     page.wait_for_url(live.url("/"))
+    expect(page.get_by_test_id("tile-booth")).to_be_visible()
     assert network_errors_only(page) == []
 
 

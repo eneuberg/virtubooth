@@ -102,7 +102,8 @@ function setupRenderer(prefer) {
   if (window.ResizeObserver) {
     const observer = new ResizeObserver(onResize);
     observer.observe(els.frame);
-    observer.observe(els.strip);
+    // the border box: fitStrip() changes the padding, which must not notify again
+    observer.observe(els.strip, { box: 'border-box' });
   } else {
     window.addEventListener('resize', onResize);
   }

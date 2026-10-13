@@ -30,7 +30,11 @@ def shot(page: Page, name: str, settle_ms: int = 700) -> None:
         return
     page.wait_for_timeout(settle_ms)  # let transitions/confetti settle for the picture
     Path(out).mkdir(parents=True, exist_ok=True)
+    before = len(getattr(page, "js_errors", []))
     page.screenshot(path=str(Path(out) / f"{name}.png"))
+    if hasattr(page, "js_errors"):
+        # WebKit logs the CSP refusing the <style> Playwright injects for screenshots: not the page's fault
+        page.js_errors[before:] = [e for e in page.js_errors[before:] if "Refused to apply a stylesheet" not in e]
 
 
 @pytest.fixture
