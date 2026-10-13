@@ -516,6 +516,31 @@ nothing.
   `docker compose logs app` for the addresses, and keep the password long and
   random.
 
+### Changing or resetting the admin password
+
+The host can change the password in the admin: Verwaltung → „Einstellungen“
+(the gear) → „Admin-Passwort“, with the current one. The new password is stored
+as a scrypt hash in the database, and from then on it is the only valid one:
+`VB_ADMIN_PASSWORD` no longer logs in. It stays required in the configuration,
+as the first password and as what a reset goes back to. Every other admin
+session ends at once; the device that changed it stays logged in. The startup
+log says which password applies.
+
+Forgotten? Reset it on the server, the app may keep running:
+
+```bash
+docker compose exec app virtubooth reset-admin-password --from-env  # VB_ADMIN_PASSWORD applies again
+docker compose exec app virtubooth reset-admin-password             # asks twice for a new one
+```
+
+In Coolify, open the terminal of the app container (the application →
+Terminal) and run `virtubooth reset-admin-password --from-env` there. Either
+way every admin is logged out (an open live view notices within 30 s) and the
+audit log gets „Admin-Passwort zurückgesetzt (Server)“. A reset does not lift a
+login lock (wait, or restart). The login-from-the-server command above uses
+`VB_ADMIN_PASSWORD`: after a password change in the admin, reset with
+`--from-env` first.
+
 ## Logs and monitoring
 
 ```bash
