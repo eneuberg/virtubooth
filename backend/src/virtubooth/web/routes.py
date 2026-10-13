@@ -9,8 +9,9 @@
 | `/admin/login`           | admin.html (public)                                       |
 | `/admin/<route>`         | session → admin.html; else 303 `/admin/login?next=<path+query>` |
 | `/assets/<file>`         | public, immutable, precompressed `.br`/`.gz` sibling       |
-| `/<file>`                | public root file of the build (boot-check.js, icon.svg),  |
-|                          | served by the 404 handler (`not_found_page`)              |
+| `/<file>`                | an allow-listed root file of the build (boot-check.js,    |
+|                          | icon.svg, ...: `PUBLIC_ROOT_FILES`), served by the 404    |
+|                          | handler (`not_found_page`)                                |
 | anything else            | not found (404), or the gate (404) without access          |
 """
 
@@ -77,7 +78,7 @@ def asset(rel: str, request: Request, core: CoreDep) -> Response:
 
 
 def not_found_page(request: Request, core: CoreDep) -> Response:
-    """For every other GET: a public root file of the build, else the 404 page
+    """For every other GET: an allow-listed root file of the build, else the 404 page
     (the gate without access: every unknown page says "scan the QR code" too)."""
     name = request.url.path.removeprefix("/")
     if request.method in ("GET", "HEAD"):

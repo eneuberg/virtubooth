@@ -2,12 +2,22 @@
 
 Sessions are random 256-bit tokens; the DB stores only their SHA-256. The
 cookie is HttpOnly + SameSite=Strict, sessions expire after
-VB_ADMIN_SESSION_HOURS and die when the password changes. Login attempts are
-rate limited per IP and globally.
+VB_ADMIN_SESSION_HOURS and die when the password changes. Logging out ends the
+session's open event streams at once.
+
+Login attempts are rate limited per IP (IPv6: per /64) and globally: after
+LOGIN_FAILURES_GLOBAL wrong passwords within LOGIN_FAILURES_WINDOW, every login
+is refused for LOGIN_LOCK_SECONDS (429 `login_locked`), the right password
+included, so distributed guessing gains nothing. That trades a few minutes of
+admin-login denial during an attack for real brute-force protection: admins
+who are logged in already keep working, requests straight from the server
+itself (loopback, no proxy) are exempt, and a restart clears the lock (the
+buckets live in memory).
 """
 
 from __future__ import annotations
 
+import logging
 import secrets
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
@@ -23,6 +33,17 @@ if TYPE_CHECKING:
     from ..runtime import Core
 
 MAX_TOKEN_LENGTH = 128
+
+log = logging.getLogger("virtubooth.auth")
+
+
+def login_locked(retry_after: int) -> errors.ApiError:
+    return errors.ApiError(
+        429,
+        "login_locked",
+        "Zu viele Fehlversuche. Login ist kurz gesperrt.",
+        headers={"Retry-After": str(max(1, retry_after))},
+    )
 
 
 @dataclass(frozen=True)
@@ -41,29 +62,36 @@ class AdminAuthService:
         self.db = db
         self.repos = repos
 
-    def login(self, password: str, *, ip: str, user_agent: str) -> str:
+    def login(self, password: str, *, ip: str, user_agent: str, local: bool = False) -> str:
         """A new session token, or an ApiError (429 rate_limited / login_locked,
-        401 wrong_password)."""
+        401 wrong_password). `local`: the request came straight from this
+        machine (see `is_direct_loopback`); it is exempt from the global lock."""
         limits = self.core.limits
+        if not local:
+            remaining = limits.login_lock.remaining()
+            if remaining:
+                # not even compared: a lucky guess must not get through either
+                raise login_locked(remaining)
         for limiter in (limits.login_ip, limits.login_ip_hourly):
             if not limiter.hit(ip):
                 raise errors.rate_limited(limiter.retry_after(ip))
 
         settings = self.core.settings
         if not constant_time_equals(password, settings.admin_password.get_secret_value()):
-            # The global budget slows down guessing spread over many IPs. It only
-            # ever refuses wrong passwords: otherwise anyone could lock the real
-            # admin out by failing 50 times. The password itself is long and random.
-            failures = limits.login_failures_global
-            failures.hit("global")
             self.repos.audit.log("anonymous", "admin.login_failed", f"ip:{ip}", at=now_iso())
-            if not failures.available("global"):
-                raise errors.ApiError(
-                    429,
-                    "login_locked",
-                    "Zu viele Fehlversuche. Login ist kurz gesperrt.",
-                    headers={"Retry-After": str(failures.retry_after("global"))},
-                )
+            if not local:
+                failures = limits.login_failures_global
+                failures.hit("global")
+                if not failures.available("global"):
+                    limits.login_lock.trip()
+                    log.warning(
+                        "admin login locked for %d s: too many wrong passwords "
+                        "(%d within %d min, from any address)",
+                        limits.login_lock.seconds,
+                        failures.capacity,
+                        round(failures.capacity / failures.refill / 60),
+                    )
+                    raise login_locked(limits.login_lock.remaining())
             raise errors.ApiError(401, "wrong_password", "Falsches Passwort.")
 
         token = secrets.token_urlsafe(32)
@@ -98,3 +126,5 @@ class AdminAuthService:
         with self.db.tx():
             self.repos.admin_sessions.delete(admin.session_hash)
             self.repos.audit.log(admin.actor, "admin.logout", at=now_iso())
+            # its open event streams end now, not at their next session check
+            self.db.on_commit(lambda: self.core.bus.end_session(admin.session_hash))

@@ -11,7 +11,8 @@ Archive layout (everything inside one folder named like the archive):
       photos.csv                         one row per exported photo
       users.csv                          one row per guest
       instagram.csv                      Instagram handle -> photos to tag
-      virtubooth.db                      consistent SQLite copy (backup API)
+      virtubooth.db                      consistent SQLite copy (backup API), without
+                                         admin sessions and export jobs (SCRUBBED_TABLES)
 
 Everything comes from one database snapshot, so the CSVs, the photo files and
 the database copy agree even while the app keeps running.
@@ -79,6 +80,30 @@ class Snapshot:
         return [e for e in self.entries if e.arcname]
 
 
+# Emptied in every database copy that goes into an archive: admin sessions
+# (token hashes, password tags, the admins' IPs and browsers) and the export
+# jobs (the server's own bookkeeping). The tables stay, so the copy still opens
+# as a virtubooth database (restoring it logs every admin out).
+SCRUBBED_TABLES = ("admin_sessions", "export_jobs")
+
+
+def scrub_snapshot(path: Path) -> None:
+    """Empty SCRUBBED_TABLES in a database copy, then VACUUM: the backup API
+    copies free pages too, so rows deleted earlier (also in the live database)
+    could otherwise be recovered from the file. Leaves a standalone file
+    (journal_mode=DELETE, no -wal/-shm companions)."""
+    conn = sqlite3.connect(path, isolation_level=None)
+    try:
+        conn.execute("PRAGMA journal_mode=DELETE")
+        conn.execute("BEGIN IMMEDIATE")
+        for table in SCRUBBED_TABLES:
+            conn.execute(f"DELETE FROM {table}")  # fixed names, never input
+        conn.execute("COMMIT")
+        conn.execute("VACUUM")
+    finally:
+        conn.close()
+
+
 def snapshot_db(db_path: Path, dest: Path) -> None:
     """Consistent copy via SQLite's online backup API (safe while the app writes)."""
     src = sqlite3.connect(db_path, timeout=30)
@@ -103,7 +128,8 @@ def all_users(repos: Repositories) -> list[User]:
 
 def take_snapshot(data_dir: Path, tmp: Path, *, include_hidden: bool) -> Snapshot:
     """Copy the live database into `tmp` (backup API) and plan the export from
-    the copy; the photo files come from `data_dir`."""
+    the copy; the photo files come from `data_dir`. The copy is scrubbed
+    (`scrub_snapshot`) before anything packs it."""
     snap = tmp / DB_NAME
     snapshot_db(data_dir / DB_NAME, snap)
     db = Database(snap)  # reads the snapshot, photo files from data_dir
@@ -113,12 +139,8 @@ def take_snapshot(data_dir: Path, tmp: Path, *, include_hidden: bool) -> Snapsho
         users = all_users(repos)
     finally:
         db.close()
-    # Database() switched the snapshot to WAL; make it a standalone file again
-    conn = sqlite3.connect(snap)
-    try:
-        conn.execute("PRAGMA journal_mode=DELETE")
-    finally:
-        conn.close()
+    # also makes it a standalone file again (Database() switched it to WAL)
+    scrub_snapshot(snap)
     return Snapshot(snap, entries, users)
 
 
@@ -268,9 +290,13 @@ def readme(
     if include_db:
         lines += [
             "virtubooth.db",
-            "    Consistent copy of the SQLite database: all tables, including hidden",
-            "    and deleted photo rows, IP addresses, browser fingerprints and the",
-            "    admin audit log. Open with `sqlite3 virtubooth.db` or DB Browser for SQLite.",
+            "    Consistent copy of the SQLite database: guests (pseudonyms, Instagram",
+            "    handles, IP addresses, browsers, device fingerprints, bans), all photo",
+            "    rows (hidden and deleted ones included), device bans, the admin audit",
+            "    log (with the addresses admins logged in from) and the upload settings.",
+            "    Admin sessions and export jobs are removed; nothing deleted earlier",
+            "    can be recovered from the file. Open with `sqlite3 virtubooth.db` or",
+            "    DB Browser for SQLite.",
         ]
     lines += [
         "",
