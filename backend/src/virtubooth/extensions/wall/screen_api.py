@@ -48,6 +48,7 @@ from .feed import (
     visible_photo,
     visible_photos,
     wall_photos,
+    wall_qr,
 )
 from .hub import Wall, WallHub
 from .media import photo_file
@@ -196,6 +197,7 @@ def build_router(wall: Wall) -> APIRouter:
         responses=error_responses(401, 422),
     )
     def feed(
+        request: Request,
         core: CoreDep,
         hub: HubDep,
         _via: WallDep,
@@ -210,6 +212,7 @@ def build_router(wall: Wall) -> APIRouter:
         return WallFeed(
             config=config,
             event_name=event_name(core),
+            qr=wall_qr(core, config, str(request.base_url)),
             total=total,
             photos=wall_photos(core, config, hub.enrichment, photos),
             cursor=cursor,

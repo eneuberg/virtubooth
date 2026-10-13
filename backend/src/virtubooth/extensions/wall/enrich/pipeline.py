@@ -104,6 +104,10 @@ class PhotoInfo:
     height: int
     meta: Mapping[str, Any]
     user_name: str
+    # the QR code the guest joined through („Otter 3“), None: unknown
+    code_name: str | None = None
+    # the guest switched the automatic analysis off: basic image values only
+    opt_out: bool = False
 
 
 @dataclass

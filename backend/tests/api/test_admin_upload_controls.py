@@ -111,7 +111,13 @@ def test_paused_guest_cannot_upload_but_keeps_everything_else(admin, guest, core
     me = identify(g)
     assert me["state"] == "ok" and me["user"]["uploads_paused"] is True
     # the guest sees only the flag, not why or since when
-    assert set(me["user"]) == {"name", "instagram", "banned", "uploads_paused"}
+    assert set(me["user"]) == {
+        "name",
+        "instagram",
+        "banned",
+        "uploads_paused",
+        "analysis_opt_out",
+    }
 
     # idempotent
     assert set_paused(admin, user_id, True)["changed"] is False

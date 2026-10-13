@@ -636,6 +636,200 @@
         "title": "AdminUser",
         "type": "object"
       },
+      "AnalysisBox": {
+        "properties": {
+          "h": {
+            "title": "H",
+            "type": "number"
+          },
+          "kind": {
+            "enum": [
+              "face",
+              "hand",
+              "person",
+              "object"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "score": {
+            "title": "Score",
+            "type": "number"
+          },
+          "w": {
+            "title": "W",
+            "type": "number"
+          },
+          "x": {
+            "description": "0..1 from the left",
+            "title": "X",
+            "type": "number"
+          },
+          "y": {
+            "description": "0..1 from the top",
+            "title": "Y",
+            "type": "number"
+          }
+        },
+        "required": [
+          "kind",
+          "x",
+          "y",
+          "w",
+          "h",
+          "label",
+          "score"
+        ],
+        "title": "AnalysisBox",
+        "type": "object"
+      },
+      "AnalysisCounts": {
+        "properties": {
+          "done": {
+            "title": "Done",
+            "type": "integer"
+          },
+          "failed": {
+            "title": "Failed",
+            "type": "integer"
+          },
+          "pending": {
+            "title": "Pending",
+            "type": "integer"
+          },
+          "running": {
+            "title": "Running",
+            "type": "integer"
+          },
+          "skipped": {
+            "title": "Skipped",
+            "type": "integer"
+          },
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "pending",
+          "running",
+          "done",
+          "failed",
+          "skipped",
+          "total"
+        ],
+        "title": "AnalysisCounts",
+        "type": "object"
+      },
+      "AnalysisStatus": {
+        "properties": {
+          "analyzers": {
+            "items": {
+              "$ref": "#/components/schemas/AnalyzerStatus"
+            },
+            "title": "Analyzers",
+            "type": "array"
+          },
+          "counts": {
+            "$ref": "#/components/schemas/AnalysisCounts"
+          },
+          "worker": {
+            "$ref": "#/components/schemas/WorkerStatus"
+          }
+        },
+        "required": [
+          "worker",
+          "counts",
+          "analyzers"
+        ],
+        "title": "AnalysisStatus",
+        "type": "object"
+      },
+      "AnalyzerStatus": {
+        "properties": {
+          "available": {
+            "title": "Available",
+            "type": "boolean"
+          },
+          "enabled": {
+            "title": "Enabled",
+            "type": "boolean"
+          },
+          "facts": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Facts",
+            "type": "array"
+          },
+          "kind": {
+            "enum": [
+              "basic",
+              "ml"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Why it cannot run (German); null when available.",
+            "title": "Reason"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          },
+          "version": {
+            "title": "Version",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "title",
+          "kind",
+          "version",
+          "enabled",
+          "available",
+          "reason",
+          "facts"
+        ],
+        "title": "AnalyzerStatus",
+        "type": "object"
+      },
+      "AnalyzersIn": {
+        "properties": {
+          "disabled": {
+            "description": "The complete set of analyzers to switch off.",
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 50,
+            "title": "Disabled",
+            "type": "array"
+          }
+        },
+        "required": [
+          "disabled"
+        ],
+        "title": "AnalyzersIn",
+        "type": "object"
+      },
       "ArchiveExportIn": {
         "properties": {
           "kind": {
@@ -1349,6 +1543,11 @@
             "title": "Accept Label",
             "type": "string"
           },
+          "analysis": {
+            "default": false,
+            "title": "Analysis",
+            "type": "boolean"
+          },
           "instagram_account": {
             "title": "Instagram Account",
             "type": "string"
@@ -1406,6 +1605,24 @@
           "id"
         ],
         "title": "DeletePhotoOut",
+        "type": "object"
+      },
+      "DetailLine": {
+        "properties": {
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "value": {
+            "title": "Value",
+            "type": "string"
+          }
+        },
+        "required": [
+          "label",
+          "value"
+        ],
+        "title": "DetailLine",
         "type": "object"
       },
       "DeviceBanOut": {
@@ -2308,6 +2525,10 @@
       "GuestUser": {
         "description": "What the guest's own browser may see about itself (exactly these keys).",
         "properties": {
+          "analysis_opt_out": {
+            "title": "Analysis Opt Out",
+            "type": "boolean"
+          },
           "banned": {
             "title": "Banned",
             "type": "boolean"
@@ -2336,7 +2557,8 @@
           "name",
           "instagram",
           "banned",
-          "uploads_paused"
+          "uploads_paused",
+          "analysis_opt_out"
         ],
         "title": "GuestUser",
         "type": "object"
@@ -2644,6 +2866,11 @@
             "title": "Accept",
             "type": "boolean"
           },
+          "analysis_opt_out": {
+            "default": false,
+            "title": "Analysis Opt Out",
+            "type": "boolean"
+          },
           "fp": {
             "$ref": "#/components/schemas/Fingerprint"
           },
@@ -2768,6 +2995,20 @@
           "password"
         ],
         "title": "LoginIn",
+        "type": "object"
+      },
+      "MeAnalysisIn": {
+        "description": "„Meine Fotos nicht automatisch auswerten“: true = the Live-Wall analysis\nlooks only at image values (brightness, colour, sharpness) of my photos.",
+        "properties": {
+          "opt_out": {
+            "title": "Opt Out",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "opt_out"
+        ],
+        "title": "MeAnalysisIn",
         "type": "object"
       },
       "MeIn": {
@@ -3358,6 +3599,93 @@
         "title": "PauseState",
         "type": "object"
       },
+      "PhotoAnalysis": {
+        "properties": {
+          "attempts": {
+            "title": "Attempts",
+            "type": "integer"
+          },
+          "boxes": {
+            "items": {
+              "$ref": "#/components/schemas/AnalysisBox"
+            },
+            "title": "Boxes",
+            "type": "array"
+          },
+          "details": {
+            "items": {
+              "$ref": "#/components/schemas/DetailLine"
+            },
+            "title": "Details",
+            "type": "array"
+          },
+          "error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error"
+          },
+          "facts": {
+            "additionalProperties": {
+              "type": "number"
+            },
+            "title": "Facts",
+            "type": "object"
+          },
+          "finished_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Finished At"
+          },
+          "photo_id": {
+            "description": "The photo's public id.",
+            "title": "Photo Id",
+            "type": "string"
+          },
+          "state": {
+            "enum": [
+              "pending",
+              "running",
+              "done",
+              "failed",
+              "skipped"
+            ],
+            "title": "State",
+            "type": "string"
+          },
+          "versions": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "title": "Versions",
+            "type": "object"
+          }
+        },
+        "required": [
+          "photo_id",
+          "state",
+          "attempts",
+          "error",
+          "finished_at",
+          "versions",
+          "facts",
+          "boxes",
+          "details"
+        ],
+        "title": "PhotoAnalysis",
+        "type": "object"
+      },
       "PhotoChangeOut": {
         "properties": {
           "changed": {
@@ -3886,6 +4214,36 @@
           }
         },
         "title": "QrOptions",
+        "type": "object"
+      },
+      "RerunIn": {
+        "properties": {
+          "scope": {
+            "enum": [
+              "failed",
+              "all"
+            ],
+            "title": "Scope",
+            "type": "string"
+          }
+        },
+        "required": [
+          "scope"
+        ],
+        "title": "RerunIn",
+        "type": "object"
+      },
+      "RerunOut": {
+        "properties": {
+          "queued": {
+            "title": "Queued",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "queued"
+        ],
+        "title": "RerunOut",
         "type": "object"
       },
       "SessionOut": {
@@ -5218,11 +5576,22 @@
           "event_name": {
             "title": "Event Name",
             "type": "string"
+          },
+          "qr": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/WallQr"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "required": [
           "config",
-          "event_name"
+          "event_name",
+          "qr"
         ],
         "title": "WallConfigData",
         "type": "object"
@@ -5321,6 +5690,17 @@
             "title": "Photos",
             "type": "array"
           },
+          "qr": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/WallQr"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The corner QR code (overlay.qr on), else null."
+          },
           "server_time": {
             "title": "Server Time",
             "type": "string"
@@ -5334,6 +5714,7 @@
         "required": [
           "config",
           "event_name",
+          "qr",
           "total",
           "photos",
           "cursor",
@@ -5507,6 +5888,19 @@
             "default": false,
             "title": "Qr",
             "type": "boolean"
+          },
+          "qr_code_id": {
+            "anyOf": [
+              {
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The QR code shown in the corner; null = the lowest active one.",
+            "title": "Qr Code Id"
           }
         },
         "title": "WallOverlay",
@@ -5786,6 +6180,26 @@
         "title": "WallPlaylistEntry",
         "type": "object"
       },
+      "WallQr": {
+        "properties": {
+          "name": {
+            "description": "The code's name, e.g. „Otter 1“.",
+            "title": "Name",
+            "type": "string"
+          },
+          "url": {
+            "description": "What the code opens: absolute with VB_PUBLIC_BASE_URL (or in the feed), else a path to resolve against the wall's own origin.",
+            "title": "Url",
+            "type": "string"
+          }
+        },
+        "required": [
+          "url",
+          "name"
+        ],
+        "title": "WallQr",
+        "type": "object"
+      },
       "WallRemoveData": {
         "properties": {
           "ids": {
@@ -5949,6 +6363,57 @@
           "label"
         ],
         "title": "WallWinner",
+        "type": "object"
+      },
+      "WorkerStatus": {
+        "properties": {
+          "last_beat_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Beat At"
+          },
+          "message": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "German hint for the admin, e.g. missing models.",
+            "title": "Message"
+          },
+          "ml": {
+            "description": "The worker has the ML packages (`ml` extra).",
+            "title": "Ml",
+            "type": "boolean"
+          },
+          "state": {
+            "enum": [
+              "running",
+              "starting",
+              "stopped",
+              "off",
+              "crashed"
+            ],
+            "title": "State",
+            "type": "string"
+          }
+        },
+        "required": [
+          "state",
+          "ml",
+          "message",
+          "last_beat_at"
+        ],
+        "title": "WorkerStatus",
         "type": "object"
       }
     }
@@ -12305,6 +12770,118 @@
         ]
       }
     },
+    "/api/me/analysis": {
+      "put": {
+        "description": "„Meine Fotos nicht automatisch auswerten“ on or off. The guest's photos\nare analysed again: with it on, only image values (no faces, hands,\nexpressions), and they never win a category that needs more.",
+        "operationId": "update_my_analysis_api_me_analysis_put",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MeAnalysisIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MeOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Invalid input (see `error`)"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Needs consent or an admin session"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Forbidden: banned, paused, stopped, joining closed or a foreign Origin (CSRF)"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Not found, or no party access (`scan_qr`)"
+          },
+          "411": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Content-Length required"
+          },
+          "413": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Request too large"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Request validation failed (`invalid_request`)"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Rate limited (`Retry-After` header)"
+          }
+        },
+        "summary": "Update My Analysis",
+        "tags": [
+          "guest"
+        ]
+      }
+    },
     "/api/me/photos": {
       "get": {
         "description": "The guest's own photos that are still up (not hidden, not deleted),\nnewest first, at most 60.",
@@ -12550,6 +13127,275 @@
         "summary": "Stats",
         "tags": [
           "extension:booth"
+        ]
+      }
+    },
+    "/api/x/wall/admin/analysis": {
+      "get": {
+        "description": "Worker state, photo counts per state and the analyzers.",
+        "operationId": "analysis_status_api_x_wall_admin_analysis_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AnalysisStatus"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Invalid input (see `error`)"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Needs consent or an admin session"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Forbidden: banned, paused, stopped, joining closed or a foreign Origin (CSRF)"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Not found, or no party access (`scan_qr`)"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Request validation failed (`invalid_request`)"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Rate limited (`Retry-After` header)"
+          }
+        },
+        "summary": "Analysis Status",
+        "tags": [
+          "extension:wall",
+          "wall"
+        ]
+      }
+    },
+    "/api/x/wall/admin/analysis/analyzers": {
+      "put": {
+        "description": "Switch analyzers off: `disabled` is the complete set (an empty list\nswitches everything on, FairFace age included). `basic` always runs.",
+        "operationId": "set_analyzers_api_x_wall_admin_analysis_analyzers_put",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AnalyzersIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AnalysisStatus"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Invalid input (see `error`)"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Needs consent or an admin session"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Forbidden: banned, paused, stopped, joining closed or a foreign Origin (CSRF)"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Not found, or no party access (`scan_qr`)"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Request validation failed (`invalid_request`)"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Rate limited (`Retry-After` header)"
+          }
+        },
+        "summary": "Set Analyzers",
+        "tags": [
+          "extension:wall",
+          "wall"
+        ]
+      }
+    },
+    "/api/x/wall/admin/analysis/rerun": {
+      "post": {
+        "description": "Analyse failed (or all) photos again; the worker picks them up newest first.",
+        "operationId": "rerun_api_x_wall_admin_analysis_rerun_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RerunIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RerunOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Invalid input (see `error`)"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Needs consent or an admin session"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Forbidden: banned, paused, stopped, joining closed or a foreign Origin (CSRF)"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Not found, or no party access (`scan_qr`)"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Request validation failed (`invalid_request`)"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Rate limited (`Retry-After` header)"
+          }
+        },
+        "summary": "Rerun",
+        "tags": [
+          "extension:wall",
+          "wall"
         ]
       }
     },
@@ -13058,6 +13904,192 @@
         "summary": "Set Password",
         "tags": [
           "extension:wall"
+        ]
+      }
+    },
+    "/api/x/wall/admin/photos/{public_id}/analysis": {
+      "get": {
+        "description": "One photo's analysis: facts, boxes, German details. A photo the worker\nhas not reached yet is `pending`.",
+        "operationId": "photo_analysis_api_x_wall_admin_photos__public_id__analysis_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "public_id",
+            "required": true,
+            "schema": {
+              "title": "Public Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PhotoAnalysis"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Invalid input (see `error`)"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Needs consent or an admin session"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Forbidden: banned, paused, stopped, joining closed or a foreign Origin (CSRF)"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Not found, or no party access (`scan_qr`)"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Request validation failed (`invalid_request`)"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Rate limited (`Retry-After` header)"
+          }
+        },
+        "summary": "Photo Analysis",
+        "tags": [
+          "extension:wall",
+          "wall"
+        ]
+      },
+      "post": {
+        "description": "„Neu analysieren“: queue this photo again (state `pending`).",
+        "operationId": "request_analysis_api_x_wall_admin_photos__public_id__analysis_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "public_id",
+            "required": true,
+            "schema": {
+              "title": "Public Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PhotoAnalysis"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Invalid input (see `error`)"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Needs consent or an admin session"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Forbidden: banned, paused, stopped, joining closed or a foreign Origin (CSRF)"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Not found, or no party access (`scan_qr`)"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Request validation failed (`invalid_request`)"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Rate limited (`Retry-After` header)"
+          }
+        },
+        "summary": "Request Analysis",
+        "tags": [
+          "extension:wall",
+          "wall"
         ]
       }
     },

@@ -11,10 +11,10 @@ from virtubooth.services.identity import create_user
 ONLINE_COLS = {"online_seconds", "online_sessions", "online_at"}
 
 
-def test_migration_6_is_the_last_step():
+def test_migration_6_follows_5():
     versions = [v for v, _ in dbmod.MIGRATIONS]
     assert versions == sorted(set(versions))
-    assert versions[-1] == dbmod.SCHEMA_VERSION == 6
+    assert versions.index(6) == versions.index(5) + 1
 
 
 def test_v4_database_upgrades_with_online_columns(tmp_path, monkeypatch):
@@ -38,7 +38,7 @@ def test_v4_database_upgrades_with_online_columns(tmp_path, monkeypatch):
     monkeypatch.undo()
     db = Database(path)
     try:
-        assert db.one("PRAGMA user_version")[0] == 6
+        assert db.one("PRAGMA user_version")[0] == dbmod.SCHEMA_VERSION
         cols = {r[1] for r in db.all("PRAGMA table_info(users)")}
         assert ONLINE_COLS <= cols
         row = db.one("SELECT online_seconds, online_sessions, online_at FROM users")
@@ -59,6 +59,6 @@ def test_v4_database_upgrades_with_online_columns(tmp_path, monkeypatch):
     # reopening changes nothing
     again = Database(path)
     try:
-        assert again.one("PRAGMA user_version")[0] == 6
+        assert again.one("PRAGMA user_version")[0] == dbmod.SCHEMA_VERSION
     finally:
         again.close()

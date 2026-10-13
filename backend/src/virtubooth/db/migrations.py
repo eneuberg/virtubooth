@@ -227,6 +227,13 @@ CREATE TABLE wall_facts (
 CREATE INDEX wall_facts_key_value ON wall_facts(key, value);
 """
 
+# v10: the guest's „Meine Fotos nicht automatisch auswerten“ (Live-Wall photo
+# analysis): 1 = only image values (brightness, colour, sharpness), no faces,
+# hands or expressions; such photos never win a category that needs them.
+SCHEMA_V10 = """
+ALTER TABLE users ADD COLUMN analysis_opt_out INTEGER NOT NULL DEFAULT 0;
+"""
+
 # (version, script): each step upgrades the database from the version before.
 MIGRATIONS: tuple[tuple[int, str], ...] = (
     (1, SCHEMA),
@@ -236,6 +243,7 @@ MIGRATIONS: tuple[tuple[int, str], ...] = (
     (5, SCHEMA_V5),
     (6, SCHEMA_V6),
     (9, SCHEMA_V9),
+    (10, SCHEMA_V10),
 )
 SCHEMA_VERSION = MIGRATIONS[-1][0]
 

@@ -32,7 +32,7 @@ from ....core.clock import now_iso
 from ....repositories.container import Repositories
 from ....tools._common import open_repos
 from . import jobs, models
-from .analyzers import create_all, ml_installed, thread_limit
+from .analyzers import INFOS, create_all, ml_installed, thread_limit
 from .pipeline import FRAME_SIDE, Analyzer, AnalyzerInfo, Frame, PhotoInfo, Pipeline
 
 log = logging.getLogger("virtubooth.wall.enrich")
@@ -144,6 +144,9 @@ class Worker:
             jobs.skip(db, photo.id, "Fotodatei fehlt")
             return "skipped"
         disabled = jobs.disabled_analyzers(repos.app_settings)
+        if photo.opt_out:
+            # „Meine Fotos nicht automatisch auswerten“: image values only
+            disabled |= {i.name for i in INFOS if i.kind != "basic"}
         started = time.perf_counter()
         try:
             frame = load_frame(path, photo)

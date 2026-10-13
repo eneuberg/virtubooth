@@ -28,6 +28,15 @@ if TYPE_CHECKING:
 INSTAGRAM_MAX = 30
 INSTAGRAM_RE = re.compile(rf"^[a-z0-9._]{{1,{INSTAGRAM_MAX}}}$")
 MY_PHOTOS_MAX = 60
+# the Live-Wall extension; while it is loaded, its photo analysis runs
+WALL_EXTENSION = "wall"
+# the join texts' paragraph about it (VB_CONSENT_VERSION: see DEPLOY.md)
+WALL_ANALYSIS_TEXT = (
+    "Für die Live-Wall der Party werden Fotos automatisch auf dem Server ausgewertet: "
+    "Gesichter und Hände zählen, Gesichtsausdruck und ungefähres Alter schätzen – nur zum "
+    "Spaß, für Kategorien wie „Grinsekatzen“. Nichts davon verlässt den Server, und du "
+    "kannst es für deine Fotos ausschalten."
+)
 
 
 def normalize_instagram(raw: str | None) -> str | None:
@@ -75,6 +84,7 @@ def create_user(
     user_agent: str,
     banned_reason: str | None = None,
     code_id: int | None = None,
+    analysis_opt_out: bool = False,
 ) -> User:
     """A new identity. While the new-guest lock is on it starts paused.
     `code_id`: the QR code it joined through."""
@@ -94,6 +104,7 @@ def create_user(
             banned_reason=banned_reason,
             lock_period=lock.period if lock.enabled else None,
             code_id=code_id,
+            analysis_opt_out=analysis_opt_out,
         )
         user = repos.users.get(uid)
     assert user is not None
@@ -118,6 +129,7 @@ class IdentityService:
         s = self.core.settings
         insta = f" ({s.instagram_account})" if s.instagram_account else ""
         name = self.core.services.host_settings.event_name()
+        analysis = self.analysis_active()
         return ConsentInfo(
             version=s.consent_version,
             title=f"Willkommen bei {name}!",
@@ -130,13 +142,19 @@ class IdentityService:
                 "Die Gastgeber sehen zu jedem Gast eine kleine Statistik: wie viele Fotos du "
                 "gemacht hast, wie lange die Seite bei dir offen war und über welchen QR-Code "
                 "du gekommen bist.",
+                *([WALL_ANALYSIS_TEXT] if analysis else []),
                 "Wenn du das nicht möchtest, mach hier bitte keine Fotos.",
             ],
             instagram_prompt="Instagram-Name (freiwillig). Dann können wir dich markieren.",
             accept_label="Alles klar, los geht’s!",
             party_name=name,
             instagram_account=s.instagram_account,
+            analysis=analysis,
         )
+
+    def analysis_active(self) -> bool:
+        """The Live-Wall (and with it the photo analysis) is loaded."""
+        return WALL_EXTENSION in self.core.extensions
 
     def uploads_stopped(self) -> bool:
         return self.repos.app_settings.upload_stop().enabled
@@ -178,9 +196,11 @@ class IdentityService:
         ip: str,
         user_agent: str,
         code_id: int | None = None,
+        analysis_opt_out: bool = False,
     ) -> JoinResult:
         """`code_id`: the QR code the browser scanned; stored on a new guest
-        only (a device that joined already keeps its first code)."""
+        only (a device that joined already keeps its first code), like
+        `analysis_opt_out` (the switch in the join sheet)."""
         if existing is not None:
             return self._rejoin(existing, instagram)
         if self.repos.app_settings.join_stop().enabled:
@@ -204,6 +224,7 @@ class IdentityService:
                 user_agent=user_agent,
                 banned_reason=banned_reason,
                 code_id=code_id,
+                analysis_opt_out=analysis_opt_out,
             )
             self.events.user_created(user)
         return JoinResult(user, created=True, instagram_kept=False)
@@ -235,6 +256,7 @@ class IdentityService:
         user_agent: str,
         banned_reason: str | None = None,
         code_id: int | None = None,
+        analysis_opt_out: bool = False,
     ) -> User:
         return create_user(
             self.db,
@@ -247,7 +269,16 @@ class IdentityService:
             user_agent=user_agent,
             banned_reason=banned_reason,
             code_id=code_id,
+            analysis_opt_out=analysis_opt_out,
         )
+
+    def set_analysis_opt_out(self, user: User, opt_out: bool) -> User:
+        """„Meine Fotos nicht automatisch auswerten“ on or off (see
+        UsersRepo.set_analysis_opt_out: the guest's photos are analysed again)."""
+        self.repos.users.set_analysis_opt_out(user.id, opt_out)
+        updated = self.repos.users.get(user.id)
+        assert updated is not None
+        return updated
 
     def set_instagram(self, user: User, raw: str | None) -> User:
         self.repos.users.set_instagram(user.id, normalize_instagram(raw))

@@ -174,6 +174,9 @@ def _by_facts(
     visible, vparams = _visible(flt)
     conds = [visible]
     params += vparams
+    if any(BY_NAME[n].kind == "ml" for n in cat.needs if n in BY_NAME):
+        # „Meine Fotos nicht automatisch auswerten“: never by faces, hands, ...
+        conds.append("p.user_id NOT IN (SELECT id FROM users WHERE analysis_opt_out = 1)")
     for key, op, value in cat.where:
         assert op in _OPS
         conds.append(f"{alias[key]}.value {op} ?")

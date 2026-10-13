@@ -62,10 +62,13 @@ def fp(n: int = 1) -> dict[str, Any]:
 
 @pytest.fixture(autouse=True)
 def clean_env(monkeypatch: pytest.MonkeyPatch) -> None:
-    """The developer's own VB_* variables must not leak into the app or the tools."""
+    """The developer's own VB_* variables must not leak into the app or the tools.
+    The Live-Wall's analysis worker stays off (a test opts in by deleting
+    VB_WALL_WORKER); live e2e servers inherit this too."""
     for name in list(os.environ):
         if name.startswith("VB_"):
             monkeypatch.delenv(name)
+    monkeypatch.setenv("VB_WALL_WORKER", "off")
 
 
 @pytest.fixture

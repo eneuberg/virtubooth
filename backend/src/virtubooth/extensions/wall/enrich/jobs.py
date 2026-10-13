@@ -17,6 +17,7 @@ from typing import Any, Literal
 
 from ....core.clock import now_iso
 from ....db.database import Database
+from ....domain.codes import code_name
 from ....repositories.app_settings import AppSettingsRepo
 from .analyzers import ALWAYS_ON, BY_NAME, DEFAULT_DISABLED
 from .pipeline import PhotoInfo
@@ -78,8 +79,10 @@ def claim(db: Database) -> PhotoInfo | None:
     with db.tx() as c:
         row = c.execute(
             "SELECT p.id, p.public_id, p.extension, p.filename, p.created_at, p.width, "
-            "p.height, p.meta, u.name AS user_name, COALESCE(a.attempts, 0) AS attempts "
+            "p.height, p.meta, u.name AS user_name, u.analysis_opt_out, "
+            "c.id AS code_id, c.animal AS code_animal, COALESCE(a.attempts, 0) AS attempts "
             "FROM photos p JOIN users u ON u.id = p.user_id "
+            "LEFT JOIN party_codes c ON c.id = u.code_id "
             "LEFT JOIN wall_analysis a ON a.photo_id = p.id "
             f"WHERE {_NEEDS_WORK} ORDER BY p.id DESC LIMIT 1"
         ).fetchone()
@@ -93,6 +96,8 @@ def claim(db: Database) -> PhotoInfo | None:
         id=row["id"], public_id=row["public_id"], extension=row["extension"],
         filename=row["filename"], created_at=row["created_at"], width=row["width"],
         height=row["height"], meta=json.loads(row["meta"] or "{}"), user_name=row["user_name"],
+        code_name=code_name(row["code_animal"], row["code_id"]) if row["code_id"] else None,
+        opt_out=bool(row["analysis_opt_out"]),
     )  # fmt: skip
 
 

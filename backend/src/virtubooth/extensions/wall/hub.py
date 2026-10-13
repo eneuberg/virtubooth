@@ -29,7 +29,7 @@ from ...core.events import Closed, Event, EventBus
 from .auth import LoginLimits
 from .config import WallConfig, load_config
 from .enrichment import Enrichment, load_enrichment
-from .feed import Visibility, visibility, visible_by_ids, wall_photos
+from .feed import Visibility, config_payload, visibility, visible_by_ids, wall_photos
 from .media import drop_cached
 from .schemas import WallPhoto
 
@@ -158,6 +158,10 @@ class WallHub:
                 await to_thread.run_sync(drop_cached, self.core, data["id"])
             elif type_ == "user.banned":
                 self._remove([p["id"] for p in data.get("photos", [])])
+            elif type_ in ("settings.event", "code.changed"):
+                # the event name or the corner QR code may have changed
+                payload = await to_thread.run_sync(self._config_payload)
+                self.bus.publish("config", payload)
         except Exception:
             # never let one odd event stop the translator
             log.exception("wall: handling a %s event failed", type_)
@@ -217,6 +221,9 @@ class WallHub:
             return state, None, created
         (wall_photo,) = wall_photos(self.core, config, self.enrichment, [photo])
         return state, wall_photo, created
+
+    def _config_payload(self) -> dict[str, Any]:
+        return config_payload(self.core, load_config(self.core.repos.app_settings))
 
     # ---------------------------------------------------------------- poller
 

@@ -22,6 +22,12 @@ from virtubooth.repositories.container import Repositories
 from virtubooth.services.identity import create_user
 
 
+@pytest.fixture(autouse=True)
+def worker_on(monkeypatch: pytest.MonkeyPatch) -> None:
+    """These tests spawn the real worker (conftest switches it off by default)."""
+    monkeypatch.delenv("VB_WALL_WORKER", raising=False)
+
+
 @pytest.fixture
 def data_dir(tmp_path: Path) -> Iterator[tuple[Path, Database, int]]:
     """A data dir with one demo photo (ML analyzers find no models here: basic only)."""

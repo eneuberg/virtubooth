@@ -95,11 +95,14 @@ class BasicAnalyzer:
                 details.append((labels.get(key, key), str(value)))
         details += [
             ("Gast", photo.user_name or "–"),
+            ("QR-Code", photo.code_name or "–"),
             ("Größe", f"{frame.width} × {frame.height} px"),
             ("Helligkeit", f"{facts['brightness'] * 100:.0f} %"),
             ("Farbigkeit", _number(facts["colorfulness"])),
             ("Schärfe", _number(facts["sharpness"])),
         ]
+        if photo.opt_out:
+            details.append(("Auswertung", "vom Gast ausgeschaltet (nur Bildwerte)"))
         return Result(facts=facts, details=details)
 
 

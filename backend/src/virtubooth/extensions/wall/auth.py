@@ -26,7 +26,7 @@ from ...core.clock import now_iso
 from ...core.ratelimit import IpRateLimiter
 from ...core.security import client_ip, cookie_secure
 from ...repositories.app_settings import AppSettingsRepo
-from .passwords import verify_password
+from ...core.passwords import verify_password
 from .schemas import Via
 
 if TYPE_CHECKING:
@@ -195,7 +195,7 @@ def login(core: Core, limits: LoginLimits, request: Request, password: str) -> P
     for limiter in (limits.per_minute, limits.per_hour):
         if not limiter.hit(ip):
             raise rate_limited(limiter.retry_after(ip))
-    if not verify_password(password, state.hash):
+    if state.hash is None or not verify_password(password, state.hash):
         core.repos.audit.log("anonymous", "wall.login_failed", f"ip:{ip}", at=now_iso())
         raise wrong_password()
     return state

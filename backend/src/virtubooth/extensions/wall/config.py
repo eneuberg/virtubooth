@@ -103,6 +103,9 @@ class WallOverlay(BaseModel):
     event_name: bool = True
     counter: bool = True
     qr: bool = False
+    qr_code_id: int | None = Field(
+        None, ge=1, description="The QR code shown in the corner; null = the lowest active one."
+    )
     corner: Corner = "bottom-right"
 
 

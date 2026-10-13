@@ -100,6 +100,13 @@ class FakeEnrichment:
     values: dict[str, dict[int, float]] = field(default_factory=dict)
     filters: list[PhotoFilter] = field(default_factory=list)
     asked: list[list[str]] = field(default_factory=list)
+    # analyzers switched on and able to run (FairFace "age" is off by default)
+    active: set[str] = field(
+        default_factory=lambda: {"basic", "faces", "emotion", "gestures", "objects", "tags"}
+    )
+
+    def active_analyzers(self) -> set[str]:
+        return set(self.active)
 
     def start(self) -> None:
         self.started += 1

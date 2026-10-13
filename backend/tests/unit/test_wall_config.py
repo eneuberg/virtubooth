@@ -47,7 +47,13 @@ DEFAULTS = {
         "fps": 30,
         "calm": False,
     },
-    "overlay": {"event_name": True, "counter": True, "qr": False, "corner": "bottom-right"},
+    "overlay": {
+        "event_name": True,
+        "counter": True,
+        "qr": False,
+        "qr_code_id": None,
+        "corner": "bottom-right",
+    },
 }
 UPLOADS = ("beer", "booth")
 

@@ -1,22 +1,16 @@
 """The wall's admin API (PLAN-WALL §4.3) and the categories on both sides,
-with a fake photo analysis; and the wall without any analysis."""
+with a fake photo analysis; and the wall with the real analysis service."""
 
 from __future__ import annotations
-
-import importlib
 
 import pytest
 from fastapi.testclient import TestClient
 
 from virtubooth.app import create_app
-from virtubooth.extensions.wall import enrichment as enrichment_module
 from virtubooth.extensions.wall import make_extension
-from virtubooth.extensions.wall.enrichment import (
-    ANALYZERS_KEY,
-    SERVICE_MODULE,
-    NullEnrichment,
-    load_enrichment,
-)
+from virtubooth.extensions.wall.enrich.categories import CATALOGUE
+from virtubooth.extensions.wall.enrich.service import EnrichmentService
+from virtubooth.extensions.wall.enrichment import load_enrichment
 
 from ..conftest import ADMIN_PASSWORD, BASE_URL, ORIGIN, accept_consent, scan
 from .wall_support import (
@@ -68,7 +62,7 @@ def test_admin_only(client, admin):
         assert r.status_code == 403, path
 
 
-def test_get_config(admin, core):
+def test_get_config(admin, core, fake):
     body = admin.get("/api/x/wall/admin/config").json()
     assert body["config"] == body["defaults"]
     assert body["defaults"]["delay_s"] == 20 and body["defaults"]["rev"] == 0
@@ -90,7 +84,7 @@ def test_get_config(admin, core):
     # FairFace ("age") is off until the analysis admin switches it on
     assert cats["generationen"]["available"] is False
     assert cats["generationen"]["reason"] == "Braucht die Analyse „age“."
-    core.repos.app_settings.put(ANALYZERS_KEY, {"disabled": ["objects"]}, at="x")
+    fake.active = {"basic", "faces", "tags", "age"}
     cats = {c["id"]: c for c in admin.get("/api/x/wall/admin/config").json()["categories"]}
     assert cats["generationen"]["available"] is True
     assert cats["volles_haus"]["reason"] == "Braucht die Analyse „objects“."
@@ -184,47 +178,33 @@ def test_categories(admin, guest, core, fake, make_client):
     assert body[2]["winners"] == []
 
 
-def test_without_analysis(settings, demo_extension, monkeypatch):
-    """No `enrich` package: categories stay empty, photos say analysis "off"."""
-
-    def missing(name, *args, **kwargs):
-        if name == SERVICE_MODULE:
-            raise ModuleNotFoundError(f"No module named {name!r}", name=name)
-        return importlib.import_module(name, *args, **kwargs)
-
-    monkeypatch.setattr(enrichment_module.importlib, "import_module", missing)
+def test_with_the_real_analysis(settings, demo_extension):
+    """The app's own service: its catalogue, photos `pending` until the worker
+    (off in tests) gets to them, the analysis admin routes under /api/x/wall."""
     app = create_app(settings, extensions=[demo_extension, make_extension()])
     try:
         with TestClient(app, base_url=BASE_URL, follow_redirects=False) as admin:
+            core = app.state.core
+            assert isinstance(load_enrichment(core), EnrichmentService)
             admin.post("/api/admin/login", json={"password": ADMIN_PASSWORD}, headers=ORIGIN)
             body = admin.get("/api/x/wall/admin/config").json()
-            assert body["categories"] == []
-            assert admin.get("/api/x/wall/admin/categories").json() == {"categories": []}
-            assert admin.get("/livewall/api/categories").json() == {"categories": []}
+            cats = {c["id"]: c for c in body["categories"]}
+            assert list(cats) == [c.id for c in CATALOGUE]
+            # without the ml extra only the basic image values run
+            assert cats["farbexplosion"]["available"] is True
+            assert cats["eroeffnung"]["available"] is True
+            status = admin.get("/api/x/wall/admin/analysis").json()
+            assert status["worker"]["state"] == "off"
             scan(admin)
             accept_consent(admin)
             pid = upload(admin)
-            age_photos(app.state.core)
+            age_photos(core)
             (photo,) = admin.get("/livewall/api/feed").json()["photos"]
-            assert photo["id"] == pid and photo["analysis"] == "off" and photo["facts"] == {}
+            assert photo["id"] == pid and photo["analysis"] == "pending" and photo["facts"] == {}
+            r = admin.get(f"/api/x/wall/admin/photos/{pid}/analysis")
+            assert r.status_code == 200 and r.json()["state"] == "pending"
     finally:
         app.state.core.db.close()
-
-
-def test_loader_falls_back_only_for_the_missing_package(core, monkeypatch):
-    def fail(name):
-        raise ModuleNotFoundError("No module named 'numpy'", name="numpy")
-
-    monkeypatch.setattr(enrichment_module.importlib, "import_module", fail)
-    with pytest.raises(ModuleNotFoundError):
-        load_enrichment(core)
-    for name in (SERVICE_MODULE, "virtubooth.extensions.wall.enrich"):
-
-        def gone(_name, missing=name):
-            raise ModuleNotFoundError(f"No module named {missing!r}", name=missing)
-
-        monkeypatch.setattr(enrichment_module.importlib, "import_module", gone)
-        assert isinstance(load_enrichment(core), NullEnrichment)
 
 
 def test_fake_analysis_runs_with_the_app(fake, client):

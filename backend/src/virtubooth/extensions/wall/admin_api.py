@@ -17,10 +17,16 @@ from ...core.errors import error_responses
 from ...runtime import Core
 from . import auth
 from .config import WallConfig, changed_keys, load_config, parse_settings, store_config
-from .enrichment import ANALYZERS_KEY, enabled_analyzers
-from .feed import WALL_PATH, event_name, photo_filter, upload_ids, visible_by_ids
+from .feed import (
+    WALL_PATH,
+    config_payload,
+    event_name,
+    photo_filter,
+    upload_ids,
+    visible_by_ids,
+)
 from .hub import Wall, WallHub
-from .passwords import hash_password
+from ...core.passwords import hash_password
 from .schemas import (
     WallAdminCategoriesOut,
     WallAdminCategory,
@@ -50,7 +56,7 @@ async def json_body(request: Request) -> Any:
 
 
 def category_infos(core: Core, hub: WallHub, config: WallConfig) -> list[WallCategoryInfo]:
-    enabled = enabled_analyzers(core.repos.app_settings.get(ANALYZERS_KEY).get("disabled"))
+    enabled = hub.enrichment.active_analyzers()
     disabled = set(config.categories.disabled)
     out: list[WallCategoryInfo] = []
     for cat in hub.enrichment.catalogue():
@@ -153,7 +159,7 @@ def build_router(wall: Wall) -> APIRouter:
             core.repos.audit.log(
                 admin.actor, "wall.config", "", {"changed": changed_keys(old, new)}, at=now
             )
-            payload = {"config": new.model_dump(mode="json"), "event_name": event_name(core)}
+            payload = config_payload(core, new)
 
             def announce() -> None:
                 hub.bus.publish("config", payload)

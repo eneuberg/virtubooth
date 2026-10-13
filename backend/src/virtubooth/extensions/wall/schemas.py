@@ -36,9 +36,18 @@ class WallPhoto(BaseModel):
     analysis: AnalysisState
 
 
+class WallQr(BaseModel):
+    url: str = Field(
+        description="What the code opens: absolute with VB_PUBLIC_BASE_URL (or in the feed), "
+        "else a path to resolve against the wall's own origin."
+    )
+    name: str = Field(description="The code's name, e.g. „Otter 1“.")
+
+
 class WallFeed(BaseModel):
     config: WallConfig
     event_name: str
+    qr: WallQr | None = Field(description="The corner QR code (overlay.qr on), else null.")
     total: int = Field(description="Every photo visible on the wall.")
     photos: list[WallPhoto] = Field(description="Newest first, at most `limit`.")
     cursor: str = Field(description="Pass as `?since=` to the stream: nothing is missed.")
@@ -149,6 +158,7 @@ class WallRemoveData(BaseModel):
 class WallConfigData(BaseModel):
     config: WallConfig
     event_name: str
+    qr: WallQr | None
 
 
 class WallEmptyData(BaseModel):

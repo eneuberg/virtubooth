@@ -12,11 +12,12 @@ from datetime import UTC, datetime, timedelta
 from typing import TYPE_CHECKING, Any, Final, Literal, cast
 
 from ...core.clock import iso
+from ...domain.codes import entry_path
 from ...domain.models import Photo
 from ...repositories._rows import PHOTO_COLS, photo_from_row
 from .config import WallConfig
-from .enrichment import PUBLIC_FACTS, Enrichment, NullEnrichment, PhotoFilter
-from .schemas import AnalysisState, WallPhoto, WallPhotoUrls
+from .enrichment import PUBLIC_FACTS, Enrichment, PhotoFilter
+from .schemas import AnalysisState, WallPhoto, WallPhotoUrls, WallQr
 
 if TYPE_CHECKING:
     from ...runtime import Core
@@ -119,8 +120,8 @@ def wall_photos(
     core: Core, config: WallConfig, enrichment: Enrichment, photos: Sequence[Photo]
 ) -> list[WallPhoto]:
     summaries = enrichment.summaries([p.id for p in photos]) if photos else {}
-    # with an analysis, a photo it has not picked up yet is waiting for it
-    unknown: AnalysisState = "off" if isinstance(enrichment, NullEnrichment) else "pending"
+    # a photo the analysis has not picked up yet is waiting for it
+    unknown: AnalysisState = "pending"
     out: list[WallPhoto] = []
     for p in photos:
         summary = summaries.get(p.id)
@@ -154,4 +155,33 @@ def wall_photos(
 
 
 def event_name(core: Core) -> str:
-    return core.settings.party_name
+    """The host's event name (Verwaltung → Einstellungen), else VB_PARTY_NAME."""
+    return core.services.host_settings.event_name()
+
+
+def wall_qr(core: Core, config: WallConfig, origin: str | None = None) -> WallQr | None:
+    """The corner QR code: the chosen code (null = the lowest active one) while
+    it is active; None when the overlay is off or the code was revoked. The URL
+    is absolute with VB_PUBLIC_BASE_URL or `origin`, else a path."""
+    if not config.overlay.qr:
+        return None
+    active = [c for c in core.repos.codes.list() if c.active]
+    wanted = config.overlay.qr_code_id
+    if wanted is None:
+        code = min(active, key=lambda c: c.id) if active else None
+    else:
+        code = next((c for c in active if c.id == wanted), None)
+    if code is None:
+        return None
+    base = (core.settings.public_base_url or origin or "").rstrip("/")
+    return WallQr(url=base + entry_path(code.target, code.token), name=code.name)
+
+
+def config_payload(core: Core, config: WallConfig) -> dict[str, Any]:
+    """The `config` event's data (WallConfigData)."""
+    qr = wall_qr(core, config)
+    return {
+        "config": config.model_dump(mode="json"),
+        "event_name": event_name(core),
+        "qr": qr.model_dump(mode="json") if qr else None,
+    }
