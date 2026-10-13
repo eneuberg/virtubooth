@@ -12,12 +12,13 @@ from typing import Any
 
 import cv2
 import numpy as np
-import numpy.typing as npt
 
 from ..pipeline import Frame, Result
 from . import thread_limit
 
-Array = npt.NDArray[Any]
+# numpy arrays, typed loosely: without the `ml` extra (CI) numpy's types are
+# missing and mypy must still pass
+Array = Any
 
 if _threads := thread_limit():
     cv2.setNumThreads(_threads)  # OpenCV's own pool (YuNet, resizes)
