@@ -220,3 +220,13 @@ def settle(page: Page) -> None:
 def confirm_dialog(page: Page) -> Locator:
     """The open confirm question (not a toast: a toast with an action is an alertdialog too)."""
     return page.get_by_test_id("confirm").get_by_role("alertdialog")
+
+
+def wait_until(check: Callable[[], bool], timeout: float = 5.0, what: str = "condition") -> None:
+    """Poll a Python-side check (the CSP forbids wait_for_function's string eval)."""
+    import time
+
+    deadline = time.monotonic() + timeout
+    while not check():
+        assert time.monotonic() < deadline, f"timed out waiting for {what}"
+        time.sleep(0.05)

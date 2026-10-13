@@ -229,7 +229,8 @@ export function PhotosSection() {
             Alle auswählen
           </Button>
           <span className="text-xs text-ink-muted max-lg:hidden">
-            Shift-Klick wählt einen Bereich. Pfeiltasten bewegen, X blendet aus, Entf löscht.
+            Shift-Klick wählt einen Bereich, Esc hebt die Auswahl auf. Pfeiltasten bewegen, X blendet aus,
+            Entf löscht.
           </span>
           {incoming.length > 0 ? (
             <Button

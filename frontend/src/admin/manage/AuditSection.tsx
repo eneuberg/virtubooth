@@ -78,7 +78,7 @@ export function AuditSection() {
           Wer hat wann was gemacht. Jede Admin-Sitzung hat eine eigene Kennung.
         </p>
       </header>
-      <div data-testid="audit">
+      <div data-testid="audit" className="min-w-0">
         <DataTable
           aria-label="Protokoll"
           columns={COLUMNS}
