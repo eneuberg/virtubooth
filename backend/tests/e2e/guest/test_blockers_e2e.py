@@ -9,7 +9,7 @@ from __future__ import annotations
 import pytest
 from playwright.sync_api import Page, expect
 
-from ..conftest import LiveServer, accept_consent_in_browser, settle_dialogs
+from ..conftest import LOADED, LiveServer, accept_consent_in_browser, settle_dialogs
 from .blockers import assert_survives_blockers, notice_word_hits, rendered_elements
 from .conftest import reload, upload
 
@@ -72,10 +72,10 @@ def test_start_and_its_sheets_survive_blockers(page: Page, live: LiveServer):
 
 
 def test_gate_and_banned_survive_blockers(page: Page, live: LiveServer):
-    page.goto(live.url("/"))
+    page.goto(live.url("/"), wait_until=LOADED)
     expect(page.get_by_test_id("gate")).to_be_visible()
     assert_survives_blockers(page, "gate")
-    page.goto(live.entry("/"))
+    page.goto(live.entry("/"), wait_until=LOADED)
     accept_consent_in_browser(page)
     [user] = live.core.repos.users.list()
     live.core.services.moderation.ban_user(user.id, actor="admin")

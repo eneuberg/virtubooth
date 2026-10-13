@@ -343,7 +343,14 @@ def track_errors(page: Page) -> Page:
     return page
 
 
-def wait_until_ready(page: Page, timeout: float = 10.0) -> None:
+# Navigations wait for DOMContentLoaded (the app's module scripts ran), then for what
+# the test needs (`wait_until_ready`, a test id), not for the load event: that also
+# waits for fonts, images and, in Firefox, any request still open, and under load it
+# timed out where the page itself was fine.
+LOADED = "domcontentloaded"
+
+
+def wait_until_ready(page: Page, timeout: float = 20.0) -> None:
     """Wait for `window.__vbReady` (set once the app booted). Polls with
     evaluate(): a string wait_for_function would need eval, which the CSP blocks."""
     deadline = time.monotonic() + timeout
@@ -408,7 +415,7 @@ def join_via_api(
     other areas that need a joined guest. Leaves the page on "/" (reloaded),
     returns the JSON answer of POST /api/join. Each call with a fresh context is
     a new guest; `fp_hash` (16..64 hex) sets the device-trait hash."""
-    page.goto(live.entry("/"))
+    page.goto(live.entry("/"), wait_until=LOADED)
     answer: dict[str, Any] = page.evaluate(
         """async ([instagram, fp]) => {
             const id = await (await fetch('/api/identify', {method: 'POST',
@@ -421,7 +428,10 @@ def join_via_api(
         [instagram, fp_hash or os.urandom(16).hex()],
     )
     assert answer["status"] in (200, 201), answer
-    page.reload()
+    # the app's own first requests are answered (it shows the join sheet or Start):
+    # a reload in the middle of one is logged as an error by WebKit
+    page.locator("[data-testid=join], [data-testid=start]").first.wait_for()
+    page.reload(wait_until=LOADED)
     wait_until_ready(page)
     return answer
 

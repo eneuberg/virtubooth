@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import base64
 import json
+import time
 from collections.abc import Iterator
 from pathlib import Path
 
@@ -139,14 +140,23 @@ def hold_uploads(page: Page) -> list[Route]:
     return held
 
 
-def centred(page: Page, filter_id: str) -> None:
-    """Wait until the strip has scrolled the selected swatch to the middle."""
-    strip = page.get_by_test_id("filter-strip")
-    chip = page.get_by_test_id(f"filter-{filter_id}")
-    for _ in range(50):
-        s, c = strip.bounding_box(), chip.bounding_box()
-        if s and c and abs((c["x"] + c["width"] / 2) - (s["x"] + s["width"] / 2)) < 3:
-            return
+# how far the swatch's middle is from the strip's, read in one go (a locator's
+# bounding_box waits up to 30 s for its element, twice per poll)
+OFF_CENTRE = """(id) => {
+  const strip = document.querySelector('[data-testid=filter-strip]');
+  const chip = document.querySelector(`[data-testid=filter-${id}]`);
+  if (!strip || !chip) return null;
+  const s = strip.getBoundingClientRect(), c = chip.getBoundingClientRect();
+  return Math.abs(c.x + c.width / 2 - (s.x + s.width / 2));
+}"""
+
+
+def centred(page: Page, filter_id: str, timeout: float = 10) -> None:
+    """Wait until the strip has scrolled the selected swatch to the middle (smooth
+    scrolling takes a while on a busy machine; the strip re-centres after a resize)."""
+    deadline = time.monotonic() + timeout
+    while (off := page.evaluate(OFF_CENTRE, filter_id)) is None or off >= 3:
+        assert time.monotonic() < deadline, f"filter {filter_id} {off} px off the middle"
         page.wait_for_timeout(100)
 
 

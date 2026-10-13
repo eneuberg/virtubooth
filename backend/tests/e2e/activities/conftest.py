@@ -24,6 +24,7 @@ from virtubooth.domain.models import Photo, PhotoQuery
 from ...conftest import ADMIN_PASSWORD
 from ..conftest import (
     BROWSER_NAME,
+    LOADED,
     LiveServer,
     join_via_api,
     new_context,
@@ -70,7 +71,7 @@ def pc(browser, live: LiveServer) -> Iterator[Page]:
 
 def open_beer(page: Page, live: LiveServer, query: str = "") -> None:
     fonts_ready(page)
-    page.goto(live.url(f"/x/beer/{query}"))
+    page.goto(live.url(f"/x/beer/{query}"), wait_until=LOADED)
     expect(page.get_by_test_id("beer-app")).to_have_attribute("data-ready", "1", timeout=READY)
     expect(page.get_by_test_id("shutter")).to_be_enabled()
     fonts_ready(page)
@@ -78,7 +79,7 @@ def open_beer(page: Page, live: LiveServer, query: str = "") -> None:
 
 def open_booth(page: Page, live: LiveServer, query: str = "") -> None:
     fonts_ready(page)
-    page.goto(live.url(f"/x/booth/{query}"))
+    page.goto(live.url(f"/x/booth/{query}"), wait_until=LOADED)
     expect(page.get_by_test_id("booth")).to_have_attribute("data-ready", "1", timeout=READY)
     expect(page.get_by_test_id("filter-strip")).to_be_visible()
     fonts_ready(page)

@@ -247,10 +247,12 @@ def test_strip_centres_the_selected_filter(
 
     for fid in ("vhs", "colorpop", "normal", "comic"):
         select_filter(guest, fid)
-        deadline = time.monotonic() + 4  # smooth scrolling (slow on a busy CI machine)
+        # smooth scrolling is slow on a busy machine; a strip that changes size while
+        # it scrolls re-centres itself (FilterStrip)
+        deadline = time.monotonic() + 10
         while offset(fid) >= 4 and time.monotonic() < deadline:
             guest.wait_for_timeout(100)
-        assert offset(fid) < 4, fid
+        assert offset(fid) < 4, (fid, offset(fid))
     box = guest.get_by_test_id("preview").bounding_box()
     assert box and abs(box["width"] / box["height"] - 0.75) < 0.01
     assert box["width"] > min(viewport) * 0.7, box

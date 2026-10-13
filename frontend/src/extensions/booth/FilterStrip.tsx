@@ -25,6 +25,15 @@ function reducedMotion(): boolean {
   }
 }
 
+function centre(list: HTMLElement, id: string, behavior: ScrollBehavior): void {
+  const item = list.querySelector<HTMLElement>(`[data-filter="${CSS.escape(id)}"]`);
+  if (!item) return;
+  const box = list.getBoundingClientRect();
+  const at = item.getBoundingClientRect();
+  const left = list.scrollLeft + (at.left - box.left) - (box.width - at.width) / 2;
+  list.scrollTo({ left, behavior });
+}
+
 export function FilterStrip({ filters, selectedId, onSelect, swatches, isDisabled }: FilterStripProps) {
   const listRef = useRef<HTMLDivElement | null>(null);
   const first = useRef(true);
@@ -32,14 +41,33 @@ export function FilterStrip({ filters, selectedId, onSelect, swatches, isDisable
   // keep the selected swatch in the middle (instantly on the first render)
   useEffect(() => {
     const list = listRef.current;
-    const item = list?.querySelector<HTMLElement>(`[data-filter="${CSS.escape(selectedId)}"]`);
-    if (!list || !item) return;
-    const box = list.getBoundingClientRect();
-    const at = item.getBoundingClientRect();
-    const left = list.scrollLeft + (at.left - box.left) - (box.width - at.width) / 2;
-    list.scrollTo({ left, behavior: first.current || reducedMotion() ? 'auto' : 'smooth' });
+    if (!list) return;
+    centre(list, selectedId, first.current || reducedMotion() ? 'auto' : 'smooth');
     first.current = false;
   }, [selectedId]);
+
+  // and when the strip changes size (the layout settling, a rotation): a smooth scroll
+  // aimed at the old middle would stop off-centre
+  useEffect(() => {
+    const list = listRef.current;
+    if (!list || typeof ResizeObserver === 'undefined') return undefined;
+    let width = list.clientWidth;
+    let frame = 0;
+    const observer = new ResizeObserver(() => {
+      if (list.clientWidth === width) return;
+      width = list.clientWidth;
+      cancelAnimationFrame(frame);
+      frame = requestAnimationFrame(() => {
+        const selected = list.querySelector('[aria-selected="true"]')?.getAttribute('data-filter');
+        if (selected) centre(list, selected, 'auto');
+      });
+    });
+    observer.observe(list);
+    return () => {
+      observer.disconnect();
+      cancelAnimationFrame(frame);
+    };
+  }, []);
 
   const selected = filters.find((f) => f.id === selectedId);
   return (

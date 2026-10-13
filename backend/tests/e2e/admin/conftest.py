@@ -161,7 +161,7 @@ def desktop_page(browser: Browser, live: LiveServer) -> Iterator[Page]:
 
 
 def goto(page: Page, live: LiveServer, path: str) -> None:
-    page.goto(live.url(path))
+    page.goto(live.url(path))  # the load event: the event stream opens only after it
     wait_until_ready(page)
 
 
