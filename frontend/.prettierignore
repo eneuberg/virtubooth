@@ -1,0 +1,6 @@
+dist
+dist-gallery
+node_modules
+pnpm-lock.yaml
+openapi.json
+src/api/schema.gen.ts

@@ -1,0 +1,15 @@
+# pnpm 11 reads its settings from here (not from .npmrc).
+
+# Exact versions only: `pnpm add` writes "1.2.3", never "^1.2.3".
+savePrefix: ''
+
+# TypeScript 6 is newer than what some tools declare as a peer.
+peerDependencyRules:
+  allowedVersions:
+    openapi-typescript>typescript: '6'
+
+minimumReleaseAgeExclude:
+  - '@vitest/mocker@5.0.4'
+  - '@vitest/spy@5.0.4'
+  - vitest@5.0.4
+  - zod@4.6.7

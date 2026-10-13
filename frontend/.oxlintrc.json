@@ -1,0 +1,125 @@
+{
+  "$schema": "./node_modules/oxlint/configuration_schema.json",
+  "plugins": ["typescript", "react", "jsx-a11y", "import", "unicorn", "oxc", "vitest"],
+  "env": { "browser": true, "es2024": true },
+  "categories": {
+    "correctness": "error",
+    "suspicious": "error",
+    "perf": "warn"
+  },
+  "ignorePatterns": ["dist/**", "dist-gallery/**", "src/api/schema.gen.ts", "public/**"],
+  "rules": {
+    "no-eval": "error",
+    "no-new-func": "error",
+    "no-implied-eval": "error",
+    "no-script-url": "error",
+
+    "no-restricted-imports": [
+      "error",
+      {
+        "paths": [
+          { "name": "zod", "message": "CSP: import from 'zod/mini' (the full build probes new Function)." },
+          { "name": "zod/v4", "message": "CSP: import from 'zod/mini'." },
+          { "name": "zod/v3", "message": "CSP: import from 'zod/mini'." },
+          { "name": "sonner", "message": "CSP: injects <style>. Use @/ui/Toast." },
+          { "name": "vaul", "message": "CSP: injects <style>. Use @/ui/Sheet." },
+          { "name": "motion", "message": "CSP: injects <style>. Use CSS transitions." },
+          { "name": "framer-motion", "message": "CSP: injects <style>. Use CSS transitions." },
+          { "name": "styled-components", "message": "CSP: injects <style>. Use Tailwind." },
+          { "name": "react-remove-scroll", "message": "CSP: injects <style>." }
+        ],
+        "patterns": [
+          { "group": ["@radix-ui/*"], "message": "CSP: Radix injects <style>. Use react-aria-components." },
+          { "group": ["@emotion/*"], "message": "CSP: injects <style>. Use Tailwind." },
+          { "group": ["motion/*", "framer-motion/*"], "message": "CSP: injects <style>." },
+          { "group": ["zod/v4/*", "zod/v3/*"], "message": "CSP: import from 'zod/mini'." }
+        ]
+      }
+    ],
+
+    "react/rules-of-hooks": "error",
+    "react/exhaustive-deps": "error",
+    "react/jsx-key": "error",
+    "react/no-danger": "error",
+    "react/jsx-no-script-url": "error",
+    "react/jsx-no-target-blank": "error",
+    "react/self-closing-comp": "error",
+    "react/only-export-components": ["error", { "allowConstantExport": true }],
+    "react/purity": "error",
+    "react/refs": "error",
+    "react/immutability": "error",
+    "react/globals": "error",
+    "react/set-state-in-render": "error",
+    "react/static-components": "error",
+    "react/use-memo": "error",
+    "react/unsupported-syntax": "error",
+    "react/react-in-jsx-scope": "off",
+
+    "jsx-a11y/alt-text": "error",
+    "jsx-a11y/anchor-is-valid": "error",
+    "jsx-a11y/no-autofocus": ["error", { "ignoreNonDOM": true }],
+    "jsx-a11y/no-static-element-interactions": "error",
+    "jsx-a11y/click-events-have-key-events": "error",
+
+    "import/no-cycle": "error",
+    "import/no-unassigned-import": ["error", { "allow": ["**/*.css"] }],
+    "no-underscore-dangle": ["error", { "allow": ["__vbReady"] }],
+    "import/no-self-import": "error",
+    "import/no-duplicates": "error",
+
+    "typescript/consistent-type-imports": "error",
+    "typescript/no-explicit-any": "error",
+    "typescript/no-floating-promises": "error",
+    "typescript/no-misused-promises": ["error", { "checksVoidReturn": { "attributes": false } }],
+    "typescript/await-thenable": "error",
+    "typescript/no-unnecessary-type-assertion": "error",
+
+    "unicorn/no-array-for-each": "off",
+    "unicorn/prefer-node-protocol": "error"
+  },
+  "overrides": [
+    {
+      "files": ["src/extensions/**"],
+      "rules": {
+        "no-restricted-imports": [
+          "error",
+          {
+            "paths": [
+              { "name": "zod", "message": "CSP: import from 'zod/mini'." },
+              { "name": "sonner", "message": "CSP: injects <style>." },
+              { "name": "vaul", "message": "CSP: injects <style>." },
+              { "name": "motion", "message": "CSP: injects <style>." },
+              { "name": "framer-motion", "message": "CSP: injects <style>." },
+              { "name": "styled-components", "message": "CSP: injects <style>." }
+            ],
+            "patterns": [
+              {
+                "group": ["@radix-ui/*", "@emotion/*", "motion/*", "framer-motion/*", "zod/v4/*"],
+                "message": "CSP: injects <style> or uses eval."
+              },
+              {
+                "group": ["@/guest", "@/guest/*", "@/admin", "@/admin/*", "@/styles/*", "@/gallery/*"],
+                "message": "Extensions import only from @/sdk, @/ui, @/api and @/lib."
+              },
+              {
+                "group": ["../../*", "../../../*"],
+                "message": "Extensions import only from @/sdk, @/ui, @/api, @/lib and their own folder."
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "files": ["**/*.test.ts", "**/*.test.tsx", "src/test/**"],
+      "rules": {
+        "typescript/no-floating-promises": "off",
+        "typescript/no-explicit-any": "off"
+      }
+    },
+    {
+      "files": ["scripts/**", "*.config.ts"],
+      "env": { "node": true, "browser": false }
+    }
+  ]
+}
