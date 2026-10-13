@@ -53,7 +53,9 @@ class Guest:
     """A party guest over plain HTTP (its own cookie jar): joins, uploads, can be asked
     whether an upload goes through."""
 
-    def __init__(self, live: LiveServer, *, instagram: str | None = None, fp: int | None = None) -> None:
+    def __init__(
+        self, live: LiveServer, *, instagram: str | None = None, fp: int | None = None
+    ) -> None:
         self.live = live
         self.client = httpx.Client(
             base_url=live.base_url, headers={"User-Agent": IPHONE_UA, "Origin": live.base_url}
@@ -61,7 +63,11 @@ class Guest:
         assert self.client.get(live.entry("/")).status_code == 303
         fingerprint = {
             "hash": fp_hash(fp) if fp is not None else os.urandom(16).hex(),
-            "components": {"screen": "390x844@3", "languages": "de-DE", "timezone": "Europe/Berlin"},
+            "components": {
+                "screen": "390x844@3",
+                "languages": "de-DE",
+                "timezone": "Europe/Berlin",
+            },
         }
         ident = self.client.post("/api/identify", json={"fp": fingerprint}).json()
         version = ident["consent"]["version"] if "consent" in ident else "1"
@@ -92,7 +98,9 @@ class Guest:
             content=beer_jpeg(),
             headers={
                 "Content-Type": "image/jpeg",
-                "X-VB-Meta": quote(json.dumps({"vessel": vessel, "facing": "environment"}), safe=""),
+                "X-VB-Meta": quote(
+                    json.dumps({"vessel": vessel, "facing": "environment"}), safe=""
+                ),
             },
         )
 
@@ -162,7 +170,9 @@ def card(page: Page, photo_id: str) -> Locator:
 
 
 def no_horizontal_scroll(page: Page) -> bool:
-    return bool(page.evaluate("() => document.documentElement.scrollWidth <= window.innerWidth + 1"))
+    return bool(
+        page.evaluate("() => document.documentElement.scrollWidth <= window.innerWidth + 1")
+    )
 
 
 def errors(page: Page, *expected_status: int) -> list[str]:
@@ -184,7 +194,9 @@ def toast(page: Page) -> Locator:
 def wait_live(page: Page) -> None:
     from playwright.sync_api import expect
 
-    expect(page.get_by_test_id("conn").first).to_have_attribute("data-state", "live", timeout=10_000)
+    expect(page.get_by_test_id("conn").first).to_have_attribute(
+        "data-state", "live", timeout=10_000
+    )
 
 
 UPLOAD_FROM_PAGE = """async (shade) => {
@@ -214,7 +226,9 @@ def upload_from_page(page: Page, shade: int = 0) -> dict[str, Any]:
 
 def settle(page: Page) -> None:
     """Wait until running animations (sheets sliding in, toasts) are done."""
-    page.evaluate("() => Promise.all(document.getAnimations().map((a) => a.finished.catch(() => null)))")
+    page.evaluate(
+        "() => Promise.all(document.getAnimations().map((a) => a.finished.catch(() => null)))"
+    )
 
 
 def confirm_dialog(page: Page) -> Locator:

@@ -89,7 +89,9 @@ def test_filters_selection_and_bulk_actions(
     assert errors(page) == []
 
 
-def test_inspector_delete_asks_first(desktop_page: Page, live: LiveServer, guests: Callable[..., Guest]) -> None:
+def test_inspector_delete_asks_first(
+    desktop_page: Page, live: LiveServer, guests: Callable[..., Guest]
+) -> None:
     page = desktop_page
     g = guests(instagram="ben_b")
     keep, doomed = g.upload(), g.upload()
@@ -102,7 +104,9 @@ def test_inspector_delete_asks_first(desktop_page: Page, live: LiveServer, guest
     inspector = page.get_by_test_id("inspector")
     expect(inspector.get_by_role("heading", name="Bier 0002")).to_be_visible()
     assert page.url.endswith(f"/admin/manage?photo={doomed}")
-    expect(inspector.get_by_test_id("download")).to_have_attribute("href", f"/media/{doomed}?download=1")
+    expect(inspector.get_by_test_id("download")).to_have_attribute(
+        "href", f"/media/{doomed}?download=1"
+    )
     inspector.get_by_test_id("delete").click()
     dialog = confirm_dialog(page)
     expect(dialog).to_contain_text(re.compile(r"Bier.0002. endgültig löschen\?"))
@@ -144,7 +148,9 @@ def test_photo_deep_link_opens_the_inspector(
     assert errors(page) == []
 
 
-def test_new_photos_wait_for_the_host(desktop_page: Page, live: LiveServer, guests: Callable[..., Guest]) -> None:
+def test_new_photos_wait_for_the_host(
+    desktop_page: Page, live: LiveServer, guests: Callable[..., Guest]
+) -> None:
     page = desktop_page
     g = guests()
     g.upload()
@@ -162,7 +168,9 @@ def test_new_photos_wait_for_the_host(desktop_page: Page, live: LiveServer, gues
     assert errors(page) == []
 
 
-def test_manage_on_a_phone(admin_page: Page, live: LiveServer, guests: Callable[..., Guest]) -> None:
+def test_manage_on_a_phone(
+    admin_page: Page, live: LiveServer, guests: Callable[..., Guest]
+) -> None:
     g = guests(instagram="phone.user")
     first, doomed = g.upload(), g.upload()
     goto(admin_page, live, "/admin/manage")

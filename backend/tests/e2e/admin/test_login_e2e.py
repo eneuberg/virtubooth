@@ -78,7 +78,13 @@ def test_ip_rate_limit_message(page: Page, live: LiveServer) -> None:
 
 @pytest.mark.parametrize(
     "next_url",
-    ["https://evil.example/", "//evil.example/admin/live", "/admin/../x", "/admin/Live", "javascript:alert(1)"],
+    [
+        "https://evil.example/",
+        "//evil.example/admin/live",
+        "/admin/../x",
+        "/admin/Live",
+        "javascript:alert(1)",
+    ],
 )
 def test_login_never_redirects_off_site(page: Page, live: LiveServer, next_url: str) -> None:
     page.goto(live.url("/admin/login?next=") + next_url.replace("&", "%26"))

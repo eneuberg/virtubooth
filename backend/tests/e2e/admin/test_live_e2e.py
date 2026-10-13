@@ -158,7 +158,9 @@ def test_live_falls_back_to_polling(
     )
     pid = g.upload()
     expect(card(admin_page, pid)).to_be_visible(timeout=12_000)
-    real = [e for e in errors(admin_page) if "/api/admin/events" not in e and "EventSource" not in e]
+    real = [
+        e for e in errors(admin_page) if "/api/admin/events" not in e and "EventSource" not in e
+    ]
     assert real == []
 
 
@@ -209,7 +211,9 @@ def test_infinite_scroll_and_the_new_photos_pill(
 
 
 @pytest.mark.parametrize("viewport", ["landscape", "desktop"])
-def test_live_layouts(browser: Browser, live: LiveServer, guests: Callable[..., Guest], viewport: str) -> None:
+def test_live_layouts(
+    browser: Browser, live: LiveServer, guests: Callable[..., Guest], viewport: str
+) -> None:
     g = guests(instagram="a.very.long.handle.for_layout1")
     for _ in range(6):
         g.upload()

@@ -23,9 +23,8 @@ from .conftest import (
     goto,
     login_api,
     no_horizontal_scroll,
-    settle,
-    wait_until,
     wait_live,
+    wait_until,
 )
 
 pytestmark = pytest.mark.e2e
@@ -83,7 +82,9 @@ def test_contact_sheet_with_the_keyboard_only(
     page.keyboard.press("Escape")
     expect(page.get_by_test_id("bulkbar")).to_have_count(0)
     page.keyboard.press("Enter")
-    expect(page.get_by_test_id("inspector").get_by_role("heading", name="Bier 0009")).to_be_visible()
+    expect(
+        page.get_by_test_id("inspector").get_by_role("heading", name="Bier 0009")
+    ).to_be_visible()
     card(page, ids[8]).focus()
     page.keyboard.press("Delete")
     confirm_dialog(page).get_by_role("button", name="Endgültig löschen").click()
@@ -110,7 +111,9 @@ def test_ban_sheet_keeps_and_returns_the_focus(
             page.keyboard.press("Shift+Tab" if shift else "Tab")
             assert focus_inside(page, "[data-testid=ban-sheet]")
     # the page behind is out of reach for assistive tech
-    assert page.evaluate("() => document.querySelector('main').closest('[aria-hidden=true], [inert]') !== null")
+    assert page.evaluate(
+        "() => document.querySelector('main').closest('[aria-hidden=true], [inert]') !== null"
+    )
     page.keyboard.press("Escape")
     expect(sheet).to_have_count(0)
     expect(ban).to_be_focused()
@@ -125,7 +128,9 @@ def test_ban_sheet_keeps_and_returns_the_focus(
     assert errors(page) == []
 
 
-def test_viewer_focus_and_keys(desktop_page: Page, live: LiveServer, guests: Callable[..., Guest]) -> None:
+def test_viewer_focus_and_keys(
+    desktop_page: Page, live: LiveServer, guests: Callable[..., Guest]
+) -> None:
     page = desktop_page
     g = guests(instagram="key.board")
     older, newer = g.upload(), g.upload()
@@ -179,7 +184,9 @@ def test_live_grid_arrows_and_upload_sheet_focus(
     assert errors(admin_page) == []
 
 
-def test_filters_have_names_on_a_phone(admin_page: Page, live: LiveServer, guests: Callable[..., Guest]) -> None:
+def test_filters_have_names_on_a_phone(
+    admin_page: Page, live: LiveServer, guests: Callable[..., Guest]
+) -> None:
     guests().upload()
     goto(admin_page, live, "/admin/manage")
     expect(admin_page.get_by_role("button", name=re.compile("Aktivität"))).to_be_visible()
@@ -204,14 +211,18 @@ CONTRAST = """(el) => {
 }"""
 
 
-def test_marks_and_badges_contrast(desktop_page: Page, live: LiveServer, guests: Callable[..., Guest]) -> None:
+def test_marks_and_badges_contrast(
+    desktop_page: Page, live: LiveServer, guests: Callable[..., Guest]
+) -> None:
     page = desktop_page
     g = guests()
     hidden = g.upload()
     g.upload()
     live.core.services.moderation.hide_photo(hidden, actor="pytest")
     twin_source = guests(fp=9)
-    live.core.services.moderation.ban_user(twin_source.id, reason="x", fingerprint=True, actor="pytest")
+    live.core.services.moderation.ban_user(
+        twin_source.id, reason="x", fingerprint=True, actor="pytest"
+    )
     guests(fp=9)  # automatically banned
     paused = guests()
     live.core.services.upload_controls.set_user_paused(paused.id, True, actor="pytest")
@@ -226,7 +237,9 @@ def test_marks_and_badges_contrast(desktop_page: Page, live: LiveServer, guests:
         badge = page.get_by_test_id(testid).first.locator("span").first
         checks[f"guests: {testid}"] = badge.evaluate(CONTRAST)
     goto(page, live, "/admin/live")
-    checks["live: hidden caption"] = card(page, hidden).get_by_text("Ausgeblendet").evaluate(CONTRAST)
+    checks["live: hidden caption"] = (
+        card(page, hidden).get_by_text("Ausgeblendet").evaluate(CONTRAST)
+    )
     checks["live: connection"] = page.get_by_test_id("conn").evaluate(CONTRAST)
     for name, ratio in checks.items():
         assert float(ratio) >= 4.5, f"{name}: {float(ratio):.2f}"
@@ -256,7 +269,9 @@ def test_no_sideways_scrolling(
 ) -> None:
     g = guests(instagram="a.very.long.handle.for_layout1")
     g.upload()
-    live.core.services.moderation.ban_user(guests().id, reason="ein sehr langer Grund " * 4, actor="pytest")
+    live.core.services.moderation.ban_user(
+        guests().id, reason="ein sehr langer Grund " * 4, actor="pytest"
+    )
     ctx = admin_context(browser, viewport)
     try:
         page = track_errors(ctx.new_page())

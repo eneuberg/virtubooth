@@ -10,7 +10,17 @@ import pytest
 from playwright.sync_api import Page, expect
 
 from ..conftest import LiveServer
-from .conftest import Guest, card, confirm_dialog, errors, fp_hash, goto, no_horizontal_scroll, toast, wait_live
+from .conftest import (
+    Guest,
+    card,
+    confirm_dialog,
+    errors,
+    fp_hash,
+    goto,
+    no_horizontal_scroll,
+    toast,
+    wait_live,
+)
 
 pytestmark = pytest.mark.e2e
 
@@ -35,15 +45,17 @@ def test_ban_with_the_device_option_and_unban(
     open_details(page)
     expect(page.get_by_test_id("device")).to_contain_text("iPhone, iOS 18.5, Safari 18.5")
     expect(page.get_by_test_id("fp-shared")).to_have_text("Auch auf 1 anderen Gerät:")
-    expect(page.get_by_test_id("fingerprints").get_by_role("link", name=twin.name)).to_have_attribute(
-        "href", f"/admin/user?id={twin.id}"
-    )
+    expect(
+        page.get_by_test_id("fingerprints").get_by_role("link", name=twin.name)
+    ).to_have_attribute("href", f"/admin/user?id={twin.id}")
 
     page.get_by_test_id("ban").click()
     sheet = page.get_by_role("dialog", name=f"„{g.name}“ sperren?")
     expect(sheet).to_be_visible()
     expect(sheet).to_contain_text("Alle 2 sichtbaren Fotos werden ausgeblendet")
-    expect(sheet.get_by_test_id("fp-warning")).to_contain_text("1 anderes Gerät hat dieses Merkmal schon")
+    expect(sheet.get_by_test_id("fp-warning")).to_contain_text(
+        "1 anderes Gerät hat dieses Merkmal schon"
+    )
     expect(sheet.get_by_role("button", name="Abbrechen")).to_be_focused()
     sheet.get_by_label("Grund (freiwillig, nur für euch)").fill("Spam")
     sheet.get_by_text("Gerätemerkmal auch sperren").click()
@@ -51,7 +63,9 @@ def test_ban_with_the_device_option_and_unban(
     expect(sheet).to_have_count(0)
     expect(toast(page)).to_contain_text("Gast und Gerätemerkmal gesperrt")
     expect(page.get_by_test_id("user-status")).to_have_attribute("data-state", "banned")
-    expect(page.get_by_test_id("user-status")).to_contain_text(re.compile(r"Gesperrt seit \d\d:\d\d: Spam"))
+    expect(page.get_by_test_id("user-status")).to_contain_text(
+        re.compile(r"Gesperrt seit \d\d:\d\d: Spam")
+    )
     expect(page.get_by_test_id("user-status")).to_be_focused()
     for pid in (p1, p2):
         expect(card(page, pid).locator("figure")).to_have_attribute("data-hidden", "true")
@@ -65,10 +79,14 @@ def test_ban_with_the_device_option_and_unban(
 
     page.get_by_test_id("unban").click()
     sheet = page.get_by_role("dialog", name=f"„{g.name}“ entsperren?")
-    expect(sheet.get_by_test_id("unban-fp-peers")).to_contain_text("Entsperrt auch 1 weiteres Gerät")
+    expect(sheet.get_by_test_id("unban-fp-peers")).to_contain_text(
+        "Entsperrt auch 1 weiteres Gerät"
+    )
     sheet.get_by_text("Gerätemerkmal-Sperre auch aufheben").click()
     sheet.get_by_test_id("unban-confirm").click()
-    expect(toast(page)).to_contain_text("Gast und Gerätemerkmal entsperrt, 1 weiteres Gerät entsperrt")
+    expect(toast(page)).to_contain_text(
+        "Gast und Gerätemerkmal entsperrt, 1 weiteres Gerät entsperrt"
+    )
     expect(page.get_by_test_id("user-status")).to_have_attribute("data-state", "ok")
     for pid in (p1, p2):
         expect(card(page, pid).locator("figure")).not_to_have_attribute("data-hidden", "true")
@@ -83,7 +101,9 @@ def test_auto_banned_twin_and_its_release(
 ) -> None:
     page = desktop_page
     troll = guests(fp=4)
-    live.core.services.moderation.ban_user(troll.id, reason="Ärger", fingerprint=True, actor="pytest")
+    live.core.services.moderation.ban_user(
+        troll.id, reason="Ärger", fingerprint=True, actor="pytest"
+    )
     twin, other = guests(fp=4), guests(fp=4)
     assert twin.state == "banned" and other.state == "banned"
     goto(page, live, f"/admin/user?id={twin.id}")
@@ -93,13 +113,17 @@ def test_auto_banned_twin_and_its_release(
     expect(note).to_contain_text(f"gesperrt über „{troll.name}“")
     expect(note).to_contain_text("vielleicht ist das jemand anderes")
     open_details(page)
-    expect(page.get_by_test_id("fingerprints")).to_contain_text(f"{other.name} (automatisch gesperrt)")
+    expect(page.get_by_test_id("fingerprints")).to_contain_text(
+        f"{other.name} (automatisch gesperrt)"
+    )
     # pausing makes no sense while banned
     expect(page.get_by_role("switch", name=re.compile("Hochladen pausieren"))).to_be_disabled()
 
     page.get_by_test_id("unban").click()
     sheet = page.get_by_role("dialog", name=re.compile("entsperren"))
-    expect(sheet.get_by_test_id("auto-ban-explain")).to_contain_text("Entsperren gilt nur für dieses Gerät")
+    expect(sheet.get_by_test_id("auto-ban-explain")).to_contain_text(
+        "Entsperren gilt nur für dieses Gerät"
+    )
     sheet.get_by_test_id("unban-confirm").click()
     expect(page.get_by_test_id("user-status")).to_have_attribute("data-state", "ok")
     assert not live.core.repos.users.get(twin.id).banned  # type: ignore[union-attr]
@@ -115,7 +139,9 @@ def test_auto_banned_twin_and_its_release(
     assert errors(page) == []
 
 
-def test_pause_and_resume_uploads(admin_page: Page, live: LiveServer, guests: Callable[..., Guest]) -> None:
+def test_pause_and_resume_uploads(
+    admin_page: Page, live: LiveServer, guests: Callable[..., Guest]
+) -> None:
     g = guests()
     pid = g.upload()
     goto(admin_page, live, f"/admin/user?id={g.id}")
@@ -144,7 +170,9 @@ def test_pause_and_resume_uploads(admin_page: Page, live: LiveServer, guests: Ca
     assert errors(admin_page, 403) == []
 
 
-def test_photos_on_the_user_page(admin_page: Page, live: LiveServer, guests: Callable[..., Guest]) -> None:
+def test_photos_on_the_user_page(
+    admin_page: Page, live: LiveServer, guests: Callable[..., Guest]
+) -> None:
     g = guests(instagram="phone.user")
     keep, doomed = g.upload(), g.upload()
     goto(admin_page, live, f"/admin/user?id={g.id}")

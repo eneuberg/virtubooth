@@ -116,7 +116,9 @@ def main() -> None:
         uploads_per_user_per_min=1000,
     )
     app = create_app(settings)
-    server = uvicorn.Server(uvicorn.Config(app, host="127.0.0.1", port=args.port, log_level="warning"))
+    server = uvicorn.Server(
+        uvicorn.Config(app, host="127.0.0.1", port=args.port, log_level="warning")
+    )
     threading.Thread(target=server.run, daemon=True).start()
     while not server.started:
         time.sleep(0.05)
@@ -128,17 +130,29 @@ def main() -> None:
 
     beer = [photo_bytes(f"beer-{i}.jpg") for i in range(1, 5)]
     booth = [photo_bytes(f"booth-{i}.jpg") for i in range(1, 9)]
-    guests = [Guest(base, i + 1, h, UA_IPHONE if i % 3 == 0 else UA_PHONE) for i, h in enumerate(HANDLES)]
+    guests = [
+        Guest(base, i + 1, h, UA_IPHONE if i % 3 == 0 else UA_PHONE) for i, h in enumerate(HANDLES)
+    ]
     ids: list[str] = []
-    cycle_beer, cycle_booth, cycle_filter = itertools.cycle(beer), itertools.cycle(booth), itertools.cycle(FILTERS)
+    cycle_beer, cycle_booth, cycle_filter = (
+        itertools.cycle(beer),
+        itertools.cycle(booth),
+        itertools.cycle(FILTERS),
+    )
     for round_ in range(4):
         for i, g in enumerate(guests):
             if (i + round_) % 3 == 2:
                 continue
             if (i + round_) % 2:
-                pid = g.upload("beer", next(cycle_beer), {"vessel": "bottle" if i % 2 else "cup", "facing": "environment"})
+                pid = g.upload(
+                    "beer",
+                    next(cycle_beer),
+                    {"vessel": "bottle" if i % 2 else "cup", "facing": "environment"},
+                )
             else:
-                pid = g.upload("booth", next(cycle_booth), {"filter": next(cycle_filter), "facing": "user"})
+                pid = g.upload(
+                    "booth", next(cycle_booth), {"filter": next(cycle_filter), "facing": "user"}
+                )
             if pid:
                 ids.append(pid)
 
@@ -174,7 +188,10 @@ def main() -> None:
     svc.runners["archive"] = slow
     admin.post("/api/admin/exports", json={"kind": "qr", "options": {}})
     time.sleep(1.5)
-    admin.post("/api/admin/exports", json={"kind": "archive", "options": {"include_hidden": False, "include_db": False}})
+    admin.post(
+        "/api/admin/exports",
+        json={"kind": "archive", "options": {"include_hidden": False, "include_db": False}},
+    )
     print("SEEDED", base, "photos:", len(ids), "data:", data, flush=True)
     try:
         while True:

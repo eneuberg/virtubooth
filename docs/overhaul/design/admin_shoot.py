@@ -18,9 +18,24 @@ from playwright.sync_api import Page, sync_playwright
 
 PASSWORD = "admin-admin-1"
 VIEWPORTS = {
-    "phone": {"viewport": {"width": 390, "height": 844}, "device_scale_factor": 2, "is_mobile": True, "has_touch": True},
-    "land": {"viewport": {"width": 844, "height": 390}, "device_scale_factor": 2, "is_mobile": True, "has_touch": True},
-    "small": {"viewport": {"width": 360, "height": 640}, "device_scale_factor": 2, "is_mobile": True, "has_touch": True},
+    "phone": {
+        "viewport": {"width": 390, "height": 844},
+        "device_scale_factor": 2,
+        "is_mobile": True,
+        "has_touch": True,
+    },
+    "land": {
+        "viewport": {"width": 844, "height": 390},
+        "device_scale_factor": 2,
+        "is_mobile": True,
+        "has_touch": True,
+    },
+    "small": {
+        "viewport": {"width": 360, "height": 640},
+        "device_scale_factor": 2,
+        "is_mobile": True,
+        "has_touch": True,
+    },
     "desk": {"viewport": {"width": 1440, "height": 900}},
 }
 
@@ -153,8 +168,10 @@ def main() -> None:
             ctx = browser.new_context(**VIEWPORTS[vp])
             page = ctx.new_page()
             errors: list[str] = []
-            page.on("console", lambda m: errors.append(m.text) if m.type == "error" else None)
-            page.on("pageerror", lambda e: errors.append(str(e)))
+            page.on(
+                "console", lambda m, out=errors: out.append(m.text) if m.type == "error" else None
+            )
+            page.on("pageerror", lambda e, out=errors: out.append(str(e)))
             login(page, args.base)
             for name in names:
                 errors.clear()
@@ -167,7 +184,7 @@ def main() -> None:
                     failed = True
                     print(f"FAIL {name}-{vp}: {exc}", file=sys.stderr)
                 real = [e for e in errors if "401" not in e and "Failed to load resource" not in e]
-                print(f"{name}-{vp}: {'ok' if not real else real}")
+                print(f"{name}-{vp}: {real if real else 'ok'}")
                 if name == "login":
                     login(page, args.base)
             ctx.close()

@@ -48,7 +48,9 @@ def make_users(live: LiveServer, n: int) -> None:
 def test_tab_deep_links(desktop_page: Page, live: LiveServer, tab: str, heading: str) -> None:
     goto(desktop_page, live, f"/admin/manage?tab={tab}")
     expect(desktop_page.get_by_role("heading", name=heading, level=1)).to_be_visible()
-    current = desktop_page.get_by_role("navigation", name="Verwaltung").locator("[aria-current=page]")
+    current = desktop_page.get_by_role("navigation", name="Verwaltung").locator(
+        "[aria-current=page]"
+    )
     expect(current).to_contain_text(heading)
     assert errors(desktop_page) == []
 
@@ -109,7 +111,9 @@ def test_bans_device_bans_and_auto_ban_release(
     page = desktop_page
     troll = guests(instagram="troll", fp=3)
     troll.upload()
-    live.core.services.moderation.ban_user(troll.id, reason="Spam", fingerprint=True, actor="pytest")
+    live.core.services.moderation.ban_user(
+        troll.id, reason="Spam", fingerprint=True, actor="pytest"
+    )
     twin = guests(fp=3)  # the same phone model: starts banned automatically
     assert twin.state == "banned"
     goto(page, live, "/admin/manage?tab=sperren")
@@ -144,14 +148,18 @@ def test_bans_device_bans_and_auto_ban_release(
     assert errors(page) == []
 
 
-def test_audit_log_with_paging(desktop_page: Page, live: LiveServer, guests: Callable[..., Guest]) -> None:
+def test_audit_log_with_paging(
+    desktop_page: Page, live: LiveServer, guests: Callable[..., Guest]
+) -> None:
     page = desktop_page
     g = guests()
     pid = g.upload()
     for i in range(110):
         live.core.repos.audit.log("admin:abcdef12", "photo.hide", f"photo:{pid}", {}, at=now())
         if i == 0:
-            live.core.repos.audit.log("anonymous", "admin.login_failed", "ip:10.0.0.9", {}, at=now())
+            live.core.repos.audit.log(
+                "anonymous", "admin.login_failed", "ip:10.0.0.9", {}, at=now()
+            )
     live.core.services.moderation.ban_user(g.id, reason="Spam", actor="admin:abcdef12")
     goto(page, live, "/admin/manage?tab=protokoll")
     rows = body_rows(page, "Protokoll")
@@ -166,11 +174,15 @@ def test_audit_log_with_paging(desktop_page: Page, live: LiveServer, guests: Cal
     # a photo target opens the photo
     rows.nth(1).get_by_role("link", name="Foto ansehen").click()
     page.wait_for_url(re.compile(rf"/admin/manage\?photo={pid}$"))
-    expect(page.get_by_test_id("inspector").get_by_role("heading", name="Bier 0001")).to_be_visible()
+    expect(
+        page.get_by_test_id("inspector").get_by_role("heading", name="Bier 0001")
+    ).to_be_visible()
     assert errors(page) == []
 
 
-def test_manage_sections_on_a_phone(admin_page: Page, live: LiveServer, guests: Callable[..., Guest]) -> None:
+def test_manage_sections_on_a_phone(
+    admin_page: Page, live: LiveServer, guests: Callable[..., Guest]
+) -> None:
     g = guests(instagram="a.very.long.handle.for_layout1")
     g.upload()
     for tab in ("fotos", "gaeste", "instagram", "sperren", "protokoll", "export"):

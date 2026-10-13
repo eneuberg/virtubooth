@@ -50,14 +50,18 @@ def test_reconnect_replays_what_was_missed(
     wait_dropped(live, subscribers)
     # happens while the browser is away; the server keeps it in its history
     live.core.services.moderation.hide_photo(pid, actor="pytest")
-    expect(card(admin_page, pid).locator("figure")).to_have_attribute("data-hidden", "true", timeout=15_000)
+    expect(card(admin_page, pid).locator("figure")).to_have_attribute(
+        "data-hidden", "true", timeout=15_000
+    )
     expect(admin_page.get_by_test_id("conn")).to_have_attribute("data-state", "live")
     # replayed, not refetched
     assert lists == []
     assert errors(admin_page) == []
 
 
-def test_resync_after_a_gap(admin_page: Page, live: LiveServer, guests: Callable[..., Guest]) -> None:
+def test_resync_after_a_gap(
+    admin_page: Page, live: LiveServer, guests: Callable[..., Guest]
+) -> None:
     g = guests()
     pid = g.upload()
     goto(admin_page, live, "/admin/live")
@@ -70,7 +74,9 @@ def test_resync_after_a_gap(admin_page: Page, live: LiveServer, guests: Callable
     live.core.services.moderation.hide_photo(pid, actor="pytest")
     flood(live, 3)
     fresh = g.upload()
-    expect(card(admin_page, pid).locator("figure")).to_have_attribute("data-hidden", "true", timeout=15_000)
+    expect(card(admin_page, pid).locator("figure")).to_have_attribute(
+        "data-hidden", "true", timeout=15_000
+    )
     expect(card(admin_page, fresh)).to_be_visible()
     expect(admin_page.get_by_test_id("conn")).to_have_attribute("data-state", "live")
     assert errors(admin_page) == []
@@ -88,7 +94,9 @@ def test_a_server_restart_means_resync(
     wait_dropped(live, subscribers)
     live.core.bus.epoch = "0badcafe"  # ids of the old process are stale now
     live.core.services.moderation.hide_photo(pid, actor="pytest")
-    expect(card(admin_page, pid).locator("figure")).to_have_attribute("data-hidden", "true", timeout=15_000)
+    expect(card(admin_page, pid).locator("figure")).to_have_attribute(
+        "data-hidden", "true", timeout=15_000
+    )
     assert errors(admin_page) == []
 
 
@@ -100,7 +108,10 @@ def test_the_end_of_the_session_leads_to_the_login(
     wait_live(admin_page)
     other = admin_page.context.new_page()
     other.goto(live.url("/admin/login"))
-    assert other.evaluate("async () => (await fetch('/api/admin/logout', {method: 'POST'})).status") == 200
+    assert (
+        other.evaluate("async () => (await fetch('/api/admin/logout', {method: 'POST'})).status")
+        == 200
+    )
     other.close()
     admin_page.wait_for_url(re.compile(r"/admin/login\?next=%2Fadmin%2Flive$"), timeout=20_000)
     # the refused stream (401) is logged by the browser: expected here, nothing else

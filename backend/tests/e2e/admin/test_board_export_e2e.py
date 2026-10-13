@@ -25,7 +25,9 @@ def board_rows(page: Page):  # type: ignore[no-untyped-def]
 
 
 @needs_clipboard
-def test_instagram_board(desktop_page: Page, live: LiveServer, guests: Callable[..., Guest]) -> None:
+def test_instagram_board(
+    desktop_page: Page, live: LiveServer, guests: Callable[..., Guest]
+) -> None:
     page = desktop_page
     allow_clipboard(page.context)
     anna, anna2 = guests(instagram="anna.party"), guests(instagram="anna.party")  # two phones
@@ -44,7 +46,9 @@ def test_instagram_board(desktop_page: Page, live: LiveServer, guests: Callable[
     expect(first).to_have_attribute("data-handle", "anna.party")  # most photos first
     expect(first).to_contain_text("3 Fotos")
     expect(first.locator("[data-photo-id]")).to_have_count(3)
-    expect(first.get_by_role("link", name=anna.name)).to_have_attribute("href", f"/admin/user?id={anna.id}")
+    expect(first.get_by_role("link", name=anna.name)).to_have_attribute(
+        "href", f"/admin/user?id={anna.id}"
+    )
     # a banned guest's name gets no ZIP
     troll_row = board_rows(page).filter(has_text="@troll")
     expect(troll_row.get_by_test_id("insta-zip")).to_have_count(0)
@@ -65,7 +69,9 @@ def test_instagram_board(desktop_page: Page, live: LiveServer, guests: Callable[
     first.get_by_text("Erledigt").click()
     expect(board_rows(page)).to_have_count(2)
     expect(page.get_by_test_id("insta-count")).to_contain_text("2 offen")
-    handles = page.evaluate("async () => (await (await fetch('/api/admin/instagram')).json()).handles")
+    handles = page.evaluate(
+        "async () => (await (await fetch('/api/admin/instagram')).json()).handles"
+    )
     assert {h["handle"]: h["done"] for h in handles}["anna.party"] is True
     page.get_by_test_id("insta-show").get_by_text("Erledigt", exact=True).click()
     expect(board_rows(page)).to_have_count(1)
@@ -108,7 +114,9 @@ def test_archive_export_with_progress_download_and_delete(
     form.get_by_role("button", name="Archiv erstellen").click()
     job = page.get_by_test_id("export-job").first
     expect(job).to_have_attribute("data-status", "running")
-    expect(job.get_by_role("progressbar", name="Wird erstellt…")).to_have_attribute("aria-valuenow", "40")
+    expect(job.get_by_role("progressbar", name="Wird erstellt…")).to_have_attribute(
+        "aria-valuenow", "40"
+    )
     # a second start while it runs gets the same job back
     form.get_by_role("button", name="Archiv erstellen").click()
     expect(toast(page)).to_contain_text("Läuft schon")

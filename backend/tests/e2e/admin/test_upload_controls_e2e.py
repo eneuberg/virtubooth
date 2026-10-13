@@ -52,7 +52,9 @@ def test_stop_all_uploads_and_back(
     expect(stop).not_to_be_checked()
     sheet.get_by_test_id("upload-stop-switch").click()
     expect(stop).to_be_checked()
-    expect(sheet.get_by_test_id("upload-stop-switch")).to_contain_text(re.compile(r"Gestoppt seit \d\d:\d\d"))
+    expect(sheet.get_by_test_id("upload-stop-switch")).to_contain_text(
+        re.compile(r"Gestoppt seit \d\d:\d\d")
+    )
     expect(sheet.get_by_test_id("uploads-result")).to_have_text("Hochladen für alle gestoppt.")
     close_sheet(admin_page)
     # every admin screen shows it at once
@@ -63,7 +65,9 @@ def test_stop_all_uploads_and_back(
 
     sheet = open_sheet(admin_page)
     sheet.get_by_test_id("upload-stop-switch").click()
-    expect(sheet.get_by_role("switch", name=re.compile("Hochladen für alle stoppen"))).not_to_be_checked()
+    expect(
+        sheet.get_by_role("switch", name=re.compile("Hochladen für alle stoppen"))
+    ).not_to_be_checked()
     close_sheet(admin_page)
     expect(pill(second)).to_have_attribute("data-state", "paused-new")
     # back to exactly as before: the paused guest and the new-guest pause are untouched
@@ -103,10 +107,14 @@ def test_pause_new_guests_then_restore(
     expect(sheet.get_by_test_id("paused-guests")).to_contain_text(newcomer.name)
     expect(sheet.get_by_test_id("paused-guests")).to_contain_text("automatisch")
     sheet.get_by_test_id("upload-pause-switch").click()
-    expect(sheet.get_by_test_id("pause-end-text")).to_contain_text("1 Gast ist während der Pause beigetreten")
+    expect(sheet.get_by_test_id("pause-end-text")).to_contain_text(
+        "1 Gast ist während der Pause beigetreten"
+    )
     expect(sheet.get_by_test_id("pause-end-keep")).to_have_text("Pausiert lassen")
     sheet.get_by_test_id("pause-end-restore").click()
-    expect(sheet.get_by_test_id("uploads-result")).to_have_text("1\u00a0Gast wieder freigeschaltet.")
+    expect(sheet.get_by_test_id("uploads-result")).to_have_text(
+        "1\u00a0Gast wieder freigeschaltet."
+    )
     expect(sheet.get_by_role("switch", name=re.compile("Neue Gäste pausieren"))).not_to_be_checked()
     close_sheet(admin_page)
     expect(pill(admin_page)).to_have_attribute("data-state", "on")
@@ -157,7 +165,9 @@ def test_release_one_guest_from_the_sheet(
     goto(admin_page, live, "/admin/live")
     wait_live(admin_page)
     # the bottom bar's "Hochladen" opens the same sheet
-    admin_page.get_by_role("navigation", name="Bereiche").get_by_role("button", name="Hochladen").click()
+    admin_page.get_by_role("navigation", name="Bereiche").get_by_role(
+        "button", name="Hochladen"
+    ).click()
     sheet = admin_page.get_by_role("dialog", name="Hochladen")
     expect(sheet.get_by_test_id("paused-guests")).to_contain_text("von Hand")
     sheet.get_by_role("button", name=f"Hochladen für {g.name} erlauben").click()
