@@ -5,6 +5,8 @@ Set VB_SCREENSHOT_DIR=/some/dir to also save phone-size screenshots.
 
 from __future__ import annotations
 
+import re
+
 import io
 import json
 import os
@@ -343,7 +345,8 @@ def test_boot_failure_offers_a_reload(page, live):
     page.route("**/api/identify", lambda route: route.abort())
     page.goto(live.url("/x/beer/"))
     notice = page.locator(".vb-notice")
-    expect(notice).to_contain_text("Keine Verbindung")
+    # offline and blocked look alike to the page: core says "Keine Antwort" unless the device reports offline
+    expect(notice).to_contain_text(re.compile("Keine (Antwort|Verbindung)"))
     expect(notice.get_by_role("link", name="Zur Startseite")).to_be_visible()
     expect(page.get_by_text("Kamera startet")).to_be_hidden()
     shot(page, "boot-failed")
