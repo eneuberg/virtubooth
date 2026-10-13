@@ -21,6 +21,8 @@ function Target({ entry }: { entry: AuditEntry }) {
         </Link>
       );
     case 'photo':
+      // the files are gone: a link would only open "Dieses Foto gibt es nicht mehr"
+      if (entry.action === 'photo.delete') return <span className="text-ink-muted">Foto (gelöscht)</span>;
       return (
         <Link href={`/manage?photo=${encodeURIComponent(target.id)}`} className={LINK}>
           Foto ansehen
