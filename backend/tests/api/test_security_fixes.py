@@ -24,6 +24,7 @@ from virtubooth.api.routers.admin import events as events_router
 from virtubooth.app import create_app_from_env
 from virtubooth.core import errors
 from virtubooth.core import ratelimit as ratelimit_module
+from virtubooth.core.logs import AccessLogFilter, mask_token
 from virtubooth.core.ratelimit import (
     LOGIN_LOCK_SECONDS,
     IpRateLimiter,
@@ -599,6 +600,54 @@ def test_end_session_wakes_a_waiting_stream_from_another_thread():
         return time.monotonic() - started
 
     assert asyncio.run(scenario()) < 1
+
+
+# ================================================== SEC-07 the access log
+
+
+@pytest.mark.parametrize(
+    "query",
+    [
+        f"t={PARTY_TOKEN}",
+        f"%74={PARTY_TOKEN}",
+        f"%74={PARTY_TOKEN}&debug=1",
+        f"debug=1&%74={PARTY_TOKEN}",
+        f"a=1&t={PARTY_TOKEN}&%74={PARTY_TOKEN}",
+        f"t=x&t={PARTY_TOKEN}",
+        "t=",
+        "T=abc",
+        "%2574=abc",
+        "+t=abc",
+        "debug=1",
+    ],
+)
+def test_access_log_masks_every_spelling_starlette_reads_as_t(query):
+    from starlette.datastructures import QueryParams
+
+    masked = mask_token(f"/x/beer/?{query}").partition("?")[2]
+    values = QueryParams(query).getlist("t")
+    for value in filter(None, values):
+        assert f"={value}" not in masked
+    # whatever the app treats as the token entry is masked, nothing else
+    assert ("=***" in masked) == bool(values)
+    record = logging.LogRecord(
+        "uvicorn.access",
+        logging.INFO,
+        "",
+        0,
+        '%s - "%s %s HTTP/%s" %d',
+        ("1.2.3.4:5", "GET", f"/?{query}", "1.1", 303),
+        None,
+    )
+    assert AccessLogFilter().filter(record)
+    if PARTY_TOKEN in query:
+        assert PARTY_TOKEN not in record.getMessage()
+
+
+def test_percent_encoded_entry_is_still_an_entry_and_is_masked(client):
+    r = client.get(f"/?%74={PARTY_TOKEN}")
+    assert r.status_code == 303  # Starlette decodes the key: this is `t`
+    assert mask_token(f"/?%74={PARTY_TOKEN}") == "/?%74=***"
 
 
 # ================================================== SEC-09 cache headers
