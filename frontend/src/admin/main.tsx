@@ -6,7 +6,6 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import '@/styles/app.css';
-import './grease-fix.css';
 import { installPreloadRecovery, markReady } from '@/lib/boot';
 import { AdminApp } from './routes';
 
