@@ -44,9 +44,25 @@ def create_app(settings: Settings, *, extensions: Sequence[Extension] | None = N
         # after uvicorn configured logging, so the filter isn't replaced
         install_access_log_filter()
         core.services.exports.attach()
+        for ext in exts:
+            if ext.on_start is not None:
+                try:
+                    ext.on_start(core)
+                except Exception:
+                    logging.getLogger("virtubooth").exception(
+                        "extension %s: on_start failed", ext.id
+                    )
         try:
             yield
         finally:
+            for ext in reversed(exts):
+                if ext.on_stop is not None:
+                    try:
+                        ext.on_stop(core)
+                    except Exception:
+                        logging.getLogger("virtubooth").exception(
+                            "extension %s: on_stop failed", ext.id
+                        )
             await to_thread.run_sync(core.services.exports.detach)
             # empty the WAL: a copied data folder then holds everything in virtubooth.db
             await to_thread.run_sync(core.db.checkpoint)
@@ -95,6 +111,9 @@ def create_app(settings: Settings, *, extensions: Sequence[Extension] | None = N
                 responses=errors.error_responses(404, 422, 429),
             )
     app.include_router(web_routes.router)
+    for ext in exts:
+        if ext.web_router is not None:
+            app.include_router(ext.web_router)
 
     # last added = outermost
     app.add_middleware(GuardMiddleware, core=core)

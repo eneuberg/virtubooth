@@ -4,6 +4,8 @@ Contract with the frontend build (docs/overhaul/contracts/web-serving.md):
 
 - `index.html` (guest app), `admin.html` (admin app), `gate.html` (static page
   for "no access" and "not found", both HTTP 404) in the root;
+- optional extra entries in the root (e.g. `wall.html`), which an extension's own
+  page route serves through `extra_page()`;
 - hashed files in `assets/`, optionally with precompressed `.br` / `.gz` siblings;
 - of the other root files only PUBLIC_ROOT_FILES are served (`boot-check.js`,
   `gate-hint.js`, the icons, `robots.txt`), without any cookie; everything
@@ -22,6 +24,7 @@ from __future__ import annotations
 import hashlib
 import logging
 import mimetypes
+import re
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Literal
@@ -33,6 +36,8 @@ from ..settings import ConfigError, Settings
 log = logging.getLogger("virtubooth.web")
 
 ENTRIES = ("index.html", "admin.html", "gate.html")
+# optional extra entries (WebFrontend.extra_page), e.g. wall.html
+EXTRA_PAGE_RE = re.compile(r"^[a-z][a-z0-9-]{0,40}\.html$")
 GATE_PLACEHOLDER = 'data-vb-mode="gate"'
 NOT_FOUND_MARK = 'data-vb-mode="notfound"'
 PageMode = Literal["gate", "notfound"]
@@ -187,6 +192,23 @@ class WebFrontend:
         page = self._read("admin.html")
         return self._html_response(page.text, page.etag, 200)
 
+    def extra_page(self, name: str) -> HTMLResponse | None:
+        """An optional HTML entry of the build beyond ENTRIES (e.g. `wall.html` for
+        an extension's own page): cached and served like the entries, None when the
+        build lacks it. Dev placeholder mode answers with a tiny placeholder."""
+        if not EXTRA_PAGE_RE.match(name) or name in ENTRIES:
+            return None
+        if self.root is None:
+            text = _extra_placeholder(name)
+            return self._html_response(text, _etag(text), 200)
+        if safe_path(self.root, name) is None:
+            return None
+        try:
+            page = self._read(name)
+        except OSError:  # removed between the check and the read
+            return None
+        return self._html_response(page.text, page.etag, 200)
+
     def page_404(self, mode: PageMode) -> HTMLResponse:
         """gate.html as a 404: "scan the QR code" (gate) or "nothing here" (notfound)."""
         page = self._read("gate.html")
@@ -234,6 +256,18 @@ class WebFrontend:
         return FileResponse(
             path, media_type=_media_type(path), headers={"Cache-Control": PUBLIC_FILE_CACHE}
         )
+
+
+def _extra_placeholder(name: str) -> str:
+    """VB_DEV=1 without a web dir: an extra entry (CSP-clean, like _PLACEHOLDERS)."""
+    return (
+        "<!doctype html>\n"
+        '<html lang="de"><head><meta charset="utf-8">'
+        '<meta name="viewport" content="width=device-width, initial-scale=1">'
+        f"<title>virtubooth {name} (dev)</title></head><body>"
+        '<main data-testid="dev-placeholder"><h1>virtubooth</h1>'
+        f"<p>{name} ist nicht gebaut (VB_DEV=1).</p></main></body></html>\n"
+    )
 
 
 def _etag(text: str) -> str:
