@@ -32,7 +32,7 @@ SMOKE_PORT ?= 8180
 PYTEST_ARGS ?=
 E2E_ARGS ?=
 # parallel pytest workers (pytest-xdist; 0 = one process). Every e2e worker runs its
-# own servers and browser: about 0.7 GB of RAM each (Chromium, Firefox, WebKit alike)
+# own servers and browser: 0.8 (Chromium) to 1 GB (Firefox, WebKit) of RAM each
 E2E_WORKERS ?= 4
 WEBKIT_WORKERS ?= $(E2E_WORKERS)
 TEST_WORKERS ?= 4

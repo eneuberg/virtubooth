@@ -316,13 +316,21 @@ virtubooth/
 make browsers       # once: Playwright's Chromium and Firefox for e2e
 make lint           # ruff (all Python, Markdown snippets), oxlint + prettier
 make typecheck      # mypy --strict, tsc -b
-make test           # backend unit + API tests (pytest), frontend unit tests (Vitest)
-make e2e            # builds frontend/dist, browser tests in Chromium
+make test           # backend unit + API tests (pytest, 4 workers), frontend unit tests (Vitest)
+make e2e            # browser tests in Chromium, 4 in parallel (rebuilds frontend/dist if stale)
 make e2e-firefox    # the same in Firefox
 make e2e-webkit     # the same in WebKit, inside the Playwright Docker image
-make docker-smoke   # build the image, run it, check it end to end
-make check          # everything CI runs
+make e2e-changed    # only the e2e test files changed since main (all of them if a helper changed)
+make docker-smoke   # build the image (cached layers), run it, check it end to end
+make check          # the everyday gate: lint, typecheck, test, OpenAPI drift, Chromium e2e (~2.5 min)
+make check-all      # check + Firefox, WebKit and the Docker smoke test (more than CI)
 ```
+
+The browser tests run in parallel (pytest-xdist): `E2E_WORKERS=4` by default, 0.8 to
+1 GB of RAM per worker (about 2 min per browser); `E2E_WORKERS=0` runs them in one
+process (for `--pdb` or breakpoints). Targeted runs take pytest arguments, with paths from `backend/`:
+`make e2e E2E_ARGS="tests/e2e/admin -k live"`, `make e2e E2E_ARGS=--lf` (the last
+failures), `make e2e-firefox E2E_ARGS="-k booth -x"`.
 
 What each suite covers, the e2e harness, the content-blocker audit and the
 Docker smoke test: [ARCHITECTURE.md → Testing](docs/ARCHITECTURE.md#testing).

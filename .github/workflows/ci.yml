@@ -140,7 +140,7 @@ jobs:
         run: |
           uv sync
           uv run playwright install --with-deps ${{ matrix.browser }}
-      # 4 workers for the runner's 4 vCPUs and 16 GB (about 0.7 GB each, see the Makefile)
+      # 4 workers for the runner's 4 vCPUs and 16 GB (up to 1 GB each, see the Makefile)
       - name: e2e (pytest + Playwright, fake cameras, zero console errors)
         working-directory: backend
         env:

@@ -620,7 +620,7 @@ All of these are optional. Beer Cam (`extensions/beer/`) and Fotobox
 |---|---|---|
 | unit + API | `backend/tests/unit`, `backend/tests/api` (TestClient, stub web dir in `tests/fixtures/web`) | `make test` or `cd backend && uv run pytest -q` |
 | frontend unit | `frontend/src/**/*.test.ts(x)`, Vitest + Testing Library on happy-dom | `make test` or `cd frontend && pnpm test` |
-| e2e | `backend/tests/e2e/{guest,activities,admin}`, Playwright against a live server serving `frontend/dist` | `make e2e`, `make e2e-firefox`, `make e2e-webkit` |
+| e2e | `backend/tests/e2e/{guest,activities,admin}`, Playwright against a live server serving `frontend/dist` | `make e2e`, `make e2e-firefox`, `make e2e-webkit`, `make e2e-changed` |
 | content blockers | `scripts/check-names.mjs` (build), `tests/unit/test_core_blockers.py`, `tests/e2e/guest/test_blockers_e2e.py` | `make build-web`, `make test`, `VB_BLOCKLISTS=.blocklists` for the full lists |
 | container | `scripts/docker-smoke.sh` + `scripts/smoke.py` | `make docker-smoke` |
 
@@ -648,6 +648,17 @@ What the suites cover:
   `VB_E2E_BROWSER=chromium|firefox`, or run WebKit (Safari's engine) with
   `backend/tests/e2e/run_webkit.sh` in `mcr.microsoft.com/playwright/python:v1.63.0-noble`.
   Extra pytest arguments: `make e2e E2E_ARGS="-k beer -x"`.
+- **Speed.** The suites run in parallel with pytest-xdist (`make test`: 4 workers,
+  `make e2e*`: `E2E_WORKERS=4`, CI the same; `0` = one process). Each e2e test has its
+  own server (`live`: a fresh data directory and a port bound before the server starts,
+  so workers never collide); each worker has one browser and a fresh context per test.
+  The harness re-checks waiting `expect()`s and `wait_for()`s every 100 ms instead of
+  Playwright's 500 ms (`tests/e2e/fastpoll.py`; `VB_E2E_SLOW_POLL=1` turns it off).
+  With 4 workers the whole suite takes about 2 min in Chromium and Firefox and 2.5 min
+  in WebKit (serially 8 to 10 min), at 0.8 to 1 GB of RAM per worker. The e2e targets
+  rebuild `frontend/dist` only when a file in `frontend/` changed.
+  `make check` is the everyday gate (lint, typecheck and tests side by side, then
+  Chromium e2e); `make check-all` adds Firefox, WebKit and the Docker smoke test.
 - **Content-blocker audit.** uBlock, AdGuard, Brave and iOS blockers drop URLs
   and hide elements that look like ads, tracking or cookie notices, which can
   silently break a page. Names stay neutral everywhere, and three checks keep

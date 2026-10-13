@@ -19,9 +19,9 @@ uv run virtubooth gen-env > ../.env       # fresh secrets
 set -a && . ../.env && set +a && uv run virtubooth serve        # :8000 (--port, --reload)
 VB_DEV=1 uv run virtubooth serve          # without a frontend build: placeholder pages + the API
 uv run playwright install chromium firefox                      # once, for e2e
-uv run pytest -m e2e                      # browsers against frontend/dist (build it first)
-VB_E2E_BROWSER=firefox uv run pytest -m e2e
-tests/e2e/run_webkit.sh                   # WebKit in the Playwright Docker image
+uv run pytest -m e2e -n 4                 # browsers against frontend/dist (build it first), 4 in parallel
+VB_E2E_BROWSER=firefox uv run pytest -m e2e -n 4
+tests/e2e/run_webkit.sh -n 4              # WebKit in the Playwright Docker image
 VB_BLOCKLISTS=.blocklists uv run pytest tests/unit/test_core_blockers.py   # full filter lists
 uv run python -m virtubooth.tools.qr --help                     # also: timelapse, export
 ```
