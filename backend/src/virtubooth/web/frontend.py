@@ -5,7 +5,10 @@ Contract with the frontend build (docs/overhaul/contracts/web-serving.md):
 - `index.html` (guest app), `admin.html` (admin app), `gate.html` (static page
   for "no access" and "not found", both HTTP 404) in the root;
 - hashed files in `assets/`, optionally with precompressed `.br` / `.gz` siblings;
-- other root files (`boot-check.js`, `icon.svg`, ...) are public;
+- of the other root files only PUBLIC_ROOT_FILES are served (`boot-check.js`,
+  `gate-hint.js`, the icons, `robots.txt`), without any cookie; everything
+  else in the root (the HTML entries' `.br`/`.gz` siblings, files a future
+  build step drops there) is not found;
 - `gate.html` contains `data-vb-mode="gate"` exactly once (on `<html>`); the
   not-found variant is the same file with it rewritten to `data-vb-mode="notfound"`.
   The response also says `X-VB-Page: gate|notfound`. No script is needed.
@@ -34,9 +37,21 @@ GATE_PLACEHOLDER = 'data-vb-mode="gate"'
 NOT_FOUND_MARK = 'data-vb-mode="notfound"'
 PageMode = Literal["gate", "notfound"]
 
-HTML_CACHE = "no-cache"
+# the HTML differs with the cookies (app, gate, login redirect): never in a shared cache
+HTML_CACHE = "private, no-cache"
 ASSET_CACHE = "public, max-age=31536000, immutable"
 PUBLIC_FILE_CACHE = "public, max-age=300"
+# root files of the build served to anyone (Vite copies frontend/public/ there)
+PUBLIC_ROOT_FILES = frozenset(
+    {
+        "boot-check.js",
+        "gate-hint.js",
+        "icon.svg",
+        "favicon.ico",
+        "apple-touch-icon.png",
+        "robots.txt",
+    }
+)
 # precompressed siblings, in order of preference
 ENCODINGS = (("br", ".br"), ("gzip", ".gz"))
 
@@ -210,8 +225,8 @@ class WebFrontend:
         return FileResponse(path, media_type=_media_type(path), headers=headers)
 
     def public_file(self, name: str) -> Response | None:
-        """A file in the web root other than the HTML entries (boot-check.js, icon.svg)."""
-        if self.root is None or "/" in name or name.endswith(".html"):
+        """A root file of the build on the allow-list (boot-check.js, icon.svg, ...)."""
+        if self.root is None or name not in PUBLIC_ROOT_FILES:
             return None
         path = safe_path(self.root, name)
         if path is None:

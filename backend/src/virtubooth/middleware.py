@@ -10,8 +10,8 @@ GuardMiddleware, in order:
    admin sessions are exempt.
 
 SecurityHeadersMiddleware adds CSP & co. and a default Cache-Control
-(`no-store` for /api/, `no-cache` for pages; routes may set their own, e.g.
-`/assets/` immutable and `/media/` private).
+(`no-store` for /api/, `private, no-cache` for pages; routes may set their own,
+e.g. `/assets/` immutable and `/media/` private).
 """
 
 from __future__ import annotations
@@ -114,7 +114,8 @@ class GuardMiddleware:
         rest = [(k, v) for k, v in request.query_params.multi_items() if k != "t"]
         # "//evil.example/" would be a protocol-relative URL: always one leading slash
         target = "/" + request.url.path.lstrip("/") + (f"?{urlencode(rest)}" if rest else "")
-        response = RedirectResponse(target, status_code=303)
+        # carries Set-Cookie: no cache may keep it
+        response = RedirectResponse(target, status_code=303, headers={"Cache-Control": "no-store"})
         set_cookie(
             response,
             request,
@@ -150,8 +151,9 @@ class SecurityHeadersMiddleware:
                     headers.setdefault("Strict-Transport-Security", "max-age=31536000")
                 api = path.startswith("/api/")
                 if "cache-control" not in headers:
-                    # API answers are personal; HTML revalidates via ETag
-                    headers["Cache-Control"] = "no-store" if api else "no-cache"
+                    # API answers are personal; pages depend on the cookies and
+                    # revalidate via ETag, never from a shared cache
+                    headers["Cache-Control"] = "no-store" if api else "private, no-cache"
                 elif api and headers.get("content-type", "").startswith("text/event-stream"):
                     # FastAPI's SSE response says no-cache; the admin stream is personal
                     headers["Cache-Control"] = "no-store"

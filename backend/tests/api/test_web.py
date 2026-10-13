@@ -34,7 +34,7 @@ def test_guest_entry_needs_access(client):
     r = client.get("/")
     assert r.status_code == 200 and 'data-testid="stub-guest-app"' in r.text
     assert r.headers["content-type"].startswith("text/html")
-    assert r.headers["cache-control"] == "no-cache"
+    assert r.headers["cache-control"] == "private, no-cache"
     assert "default-src 'self'" in r.headers["content-security-policy"]
 
 
@@ -87,7 +87,7 @@ def test_admin_routes(client, admin):
     for path in ("/admin/live", "/admin/manage", "/admin/user?id=5", "/admin/manage/export"):
         r = admin.get(path)
         assert r.status_code == 200 and 'data-testid="stub-admin-app"' in r.text, path
-        assert r.headers["cache-control"] == "no-cache"
+        assert r.headers["cache-control"] == "private, no-cache"
     assert admin.get("/admin/.env").status_code == 404
 
 

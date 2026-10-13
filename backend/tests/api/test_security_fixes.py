@@ -38,7 +38,7 @@ from virtubooth.services.images import MAX_SCANS, process_jpeg
 from virtubooth.settings import Settings, admin_password_warnings
 from virtubooth.tools.export import SCRUBBED_TABLES, snapshot_db, take_snapshot
 
-from ..conftest import ADMIN_PASSWORD, JPEG, ORIGIN, PARTY_TOKEN, SECRET_KEY
+from ..conftest import ADMIN_PASSWORD, JPEG, ORIGIN, PARTY_TOKEN, SECRET_KEY, scan
 from .test_admin_events import Live, Stream, admin_client
 
 # ===================================================== SEC-01 login guessing
@@ -444,6 +444,41 @@ def test_an_http_origin_is_refused_over_tls(app, admin):
         assert not tls.get("/api/admin/session").json()["authenticated"]
 
 
+# ===================================================== SEC-05 root files
+
+
+def test_only_allow_listed_root_files_are_served(client, web_dir):
+    (web_dir / "gate-hint.js").write_text("void 0;\n")
+    (web_dir / "robots.txt").write_text("User-agent: *\nDisallow: /\n")
+    (web_dir / "notes.txt").write_text("not for guests\n")
+    for name in ("index.html", "admin.html", "gate.html", "boot-check.js"):
+        for suffix in (".br", ".gz"):
+            (web_dir / f"{name}{suffix}").write_bytes(b"\x1f\x8b compressed copy")
+    public = ("/boot-check.js", "/gate-hint.js", "/icon.svg", "/robots.txt")
+    hidden = (
+        "/index.html.gz",
+        "/index.html.br",
+        "/admin.html.gz",
+        "/admin.html.br",
+        "/gate.html.br",
+        "/gate.html.gz",
+        "/boot-check.js.br",
+        "/notes.txt",
+        "/index.html",
+    )
+    for anonymous in (True, False):
+        if not anonymous:
+            scan(client)  # with the party cookie: still not found
+        for path in public:
+            r = client.get(path)
+            assert r.status_code == 200 and r.headers["cache-control"] == "public, max-age=300"
+        for path in hidden:
+            r = client.get(path)
+            assert r.status_code == 404, path
+            assert r.headers["x-vb-page"] == ("gate" if anonymous else "notfound"), path
+            assert b"compressed copy" not in r.content and "not for guests" not in r.text
+
+
 # ================================================== SEC-06 event streams
 
 
@@ -564,3 +599,24 @@ def test_end_session_wakes_a_waiting_stream_from_another_thread():
         return time.monotonic() - started
 
     assert asyncio.run(scenario()) < 1
+
+
+# ================================================== SEC-09 cache headers
+
+
+def test_cookie_dependent_html_is_private(client, make_client):
+    gate = client.get("/")
+    assert gate.status_code == 404 and gate.headers["cache-control"] == "private, no-cache"
+    entry = client.get(f"/?t={PARTY_TOKEN}")
+    assert entry.status_code == 303 and entry.headers["cache-control"] == "no-store"
+    assert "vb_access=" in entry.headers["set-cookie"]
+    app_page = client.get("/")
+    assert app_page.status_code == 200
+    assert app_page.headers["cache-control"] == "private, no-cache"
+    not_found = client.get("/nope")
+    assert not_found.status_code == 404
+    assert not_found.headers["cache-control"] == "private, no-cache"
+    redirect = make_client().get("/admin/live")
+    assert redirect.status_code == 303
+    assert redirect.headers["cache-control"] == "private, no-cache"
+    assert make_client().get("/admin/login").headers["cache-control"] == "private, no-cache"
