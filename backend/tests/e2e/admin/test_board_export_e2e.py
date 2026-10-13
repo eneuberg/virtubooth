@@ -82,6 +82,29 @@ def test_instagram_board(
     assert errors(page) == []
 
 
+def test_instagram_done_toast_offers_undo(
+    desktop_page: Page, live: LiveServer, guests: Callable[..., Guest]
+) -> None:
+    """The row leaves the open list at once: the toast says so and can take it back."""
+    page = desktop_page
+    guests(instagram="anna.party").upload()
+    guests(instagram="ben_b").upload()
+    goto(page, live, "/admin/manage?tab=instagram")
+    wait_live(page)
+    expect(board_rows(page)).to_have_count(2)
+    board_rows(page).filter(has_text="@anna.party").get_by_text("Erledigt").click()
+    expect(board_rows(page)).to_have_count(1)
+    expect(toast(page)).to_contain_text("@anna.party erledigt")
+    toast(page).get_by_role("button", name="Rückgängig").click()
+    expect(board_rows(page)).to_have_count(2)
+    expect(toast(page)).to_contain_text("@anna.party wieder offen")
+    handles = page.evaluate(
+        "async () => (await (await fetch('/api/admin/instagram')).json()).handles"
+    )
+    assert not any(h["done"] for h in handles)
+    assert errors(page) == []
+
+
 class Gate:
     """Makes an export runner wait until the test lets it go (to see "running")."""
 

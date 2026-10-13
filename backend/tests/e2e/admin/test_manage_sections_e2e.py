@@ -180,6 +180,26 @@ def test_audit_log_with_paging(
     assert errors(page) == []
 
 
+def test_audit_deleted_photo_is_not_a_link(
+    desktop_page: Page, live: LiveServer, guests: Callable[..., Guest]
+) -> None:
+    page = desktop_page
+    g = guests()
+    gone, kept = g.upload(), g.upload()
+    live.core.services.moderation.hide_photo(kept, actor="admin:abcdef12")
+    assert live.core.services.moderation.delete_photo(gone, actor="admin:abcdef12")
+    goto(page, live, "/admin/manage?tab=protokoll")
+    rows = body_rows(page, "Protokoll")
+    deleted = rows.filter(has_text="Foto gelöscht")
+    expect(deleted).to_contain_text("Foto (gelöscht)")
+    expect(deleted.get_by_role("link")).to_have_count(0)
+    hidden = rows.filter(has_text="Foto ausgeblendet")
+    expect(hidden.get_by_role("link", name="Foto ansehen")).to_have_attribute(
+        "href", f"/admin/manage?photo={kept}"
+    )
+    assert errors(page) == []
+
+
 def test_manage_sections_on_a_phone(
     admin_page: Page, live: LiveServer, guests: Callable[..., Guest]
 ) -> None:
