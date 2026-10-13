@@ -28,6 +28,7 @@ Contents:
 [Backups](#backups) ·
 [Updating](#updating) ·
 [Rotating secrets](#rotating-secrets) ·
+[Locked out of the admin login](#locked-out-of-the-admin-login) ·
 [Logs and monitoring](#logs-and-monitoring) ·
 [Teardown](#teardown) ·
 [Troubleshooting](#troubleshooting)
@@ -141,13 +142,18 @@ Phones only allow the camera on HTTPS pages, so the proxy is not optional.
 Whatever you use, it must:
 
 1. **Terminate TLS** for your domain.
-2. **Pass the original `Host` header.** The CSRF check compares `Origin` with
-   `Host`; otherwise every POST gets `403 bad_origin`. If you cannot, set
-   `VB_ALLOWED_ORIGINS=https://party.example.com`.
+2. **Pass the original `Host` header.** The CSRF check compares the
+   browser's `Origin` (scheme, host and port) with `VB_PUBLIC_BASE_URL` and
+   with the request's own origin; set `VB_PUBLIC_BASE_URL=https://<your-domain>`
+   in any case. Behind TLS it accepts `https://<host>` (the public URL, the
+   request's own origin, or `https://<Host>` when the proxy says
+   `X-Forwarded-Proto: https`); `http://` origins are refused on https
+   deployments. A proxy that rewrites `Host` works through
+   `VB_PUBLIC_BASE_URL` (or `VB_ALLOWED_ORIGINS`).
 3. **Send `X-Forwarded-For` and `X-Forwarded-Proto`**, and the app must trust
    them: `VB_FORWARDED_ALLOW_IPS` lists the proxy's address as the container
    sees it. Otherwise every guest looks like the proxy, and the per-IP rate
-   limits throttle the whole party together.
+   limits throttle the whole party together. `*` is refused.
 4. **Not buffer Server-Sent Events** (the admin's live updates). The app
    sends `X-Accel-Buffering: no` and a ping every 15 s.
 5. **Allow request bodies of at least 8 MB** (`VB_MAX_UPLOAD_BYTES`).
@@ -295,6 +301,13 @@ steps above.
      address is prefilled from the domain), or Coolify's Terminal for service
      `app`: `python -m virtubooth.tools.qr`.
 
+The compose file trusts all private ranges for `X-Forwarded-For` by default.
+To narrow it, set `VB_FORWARDED_ALLOW_IPS` to Coolify's proxy network:
+`docker network inspect coolify --format '{{(index .IPAM.Config 0).Subnet}}'`.
+Other containers on Coolify's shared network could otherwise send a forged
+`X-Forwarded-For` straight to `app:8000` (the global login lock still caps
+them).
+
 Never scale the service beyond one container. If the admin's connection
 state keeps saying "nur Abfrage" (polling) instead of "verbunden", a proxy
 buffers the event stream: turn off "Enable Gzip Compression" for the
@@ -316,7 +329,7 @@ naming the variable when one is missing or invalid.
 | Variable | Default | Purpose |
 |---|---|---|
 | `VB_PARTY_TOKEN` | *required* | The secret in every QR code URL (`?t=`). 16–128 chars of `A-Za-z0-9_-`. Changing it locks out every guest until they scan a new code. |
-| `VB_ADMIN_PASSWORD` | *required* | Admin password, at least 12 characters. Changing it ends every admin session. |
+| `VB_ADMIN_PASSWORD` | *required* | Admin password: at least 12 characters; use 16+ random ones (the log warns at startup otherwise; `gen-env` makes one). Changing it ends every admin session. |
 | `VB_SECRET_KEY` | *required* | Signs cookies, at least 32 characters. Changing it forgets every guest's device (new join, new pseudonym). |
 | `VB_PARTY_NAME` | `Party` | Shown on Start, in the join sheet ("Willkommen bei …!") and on the QR sheet. |
 | `VB_INSTAGRAM_ACCOUNT` | empty | The account you may post photos to, named in the join sheet. |
@@ -325,8 +338,8 @@ naming the variable when one is missing or invalid.
 | `VB_CONSENT_VERSION` | `1` | Stored with each join. Bump it when the join sheet's promise changes; devices that already joined are not asked again. |
 | `VB_EXTENSIONS` | all | Comma-separated activity ids to enable, in this order, e.g. `beer,booth`. |
 | `VB_COOKIE_SECURE` | `auto` | `auto` (Secure when the request came over https), `true` or `false`. `true` behind a TLS proxy. |
-| `VB_FORWARDED_ALLOW_IPS` | `127.0.0.1` | Proxies (IPs or CIDR ranges, comma-separated) whose `X-Forwarded-For`/`-Proto` are trusted. Never `*`. |
-| `VB_ALLOWED_ORIGINS` | empty | Extra origins for the CSRF check. Only needed when the proxy rewrites the `Host` header. |
+| `VB_FORWARDED_ALLOW_IPS` | `127.0.0.1` | Proxies (IPs or CIDR ranges, comma-separated) whose `X-Forwarded-For`/`-Proto` are trusted. `*` is refused at startup. |
+| `VB_ALLOWED_ORIGINS` | empty | Extra origins for the CSRF check, compared exactly (scheme, host, port), e.g. `https://party.example.com`. Rarely needed: `VB_PUBLIC_BASE_URL` is accepted anyway. The only way to allow an `http://` origin on an https deployment. |
 | `VB_MAX_UPLOAD_BYTES` | `8000000` | Maximum size of one photo upload. |
 | `VB_UPLOADS_PER_USER_PER_MIN` | `10` | Uploads per guest per minute. |
 | `VB_UPLOADS_PER_IP_PER_MIN` | `180` | Valid uploads per IP per minute (venue Wi-Fi shares one IP). |
@@ -369,7 +382,7 @@ file, and both write to `/data/exports/`:
 
 | | Admin → Verwaltung → Export | CLI in the container |
 |---|---|---|
-| **Photos + lists** | "Archiv erstellen": a ZIP with `photos/<activity>/` (hidden ones under `hidden/` with "Ausgeblendete Fotos mitnehmen"), `photos.csv`, `users.csv`, `instagram.csv`, `manifest.json`, `README.txt`, and with "Datenbank mitnehmen (für ein Backup)" a consistent copy of the database | `python -m virtubooth.tools.export`: the same content as a `.tar.gz` (`--no-hidden`, `--no-db`, `--out FILE`) |
+| **Photos + lists** | "Archiv erstellen": a ZIP with `photos/<activity>/` (hidden ones under `hidden/` with "Ausgeblendete Fotos mitnehmen"), `photos.csv`, `users.csv`, `instagram.csv`, `manifest.json`, `README.txt`, and with "Datenbank mitnehmen (für ein Backup)" a consistent copy of the database (guests with IPs, fingerprints and bans, all photo rows, the audit log; without admin sessions and export jobs, vacuumed so nothing deleted earlier can be recovered) | `python -m virtubooth.tools.export`: the same content as a `.tar.gz` (`--no-hidden`, `--no-db`, `--out FILE`) |
 | **Timelapse** | "Zeitraffer erstellen": activity, "Fotos pro Sekunde" (1–30), "Weich überblenden", "Ausgeblendete Fotos mitnehmen". H.264 MP4, 1080×1440, the last photo held 2 s | `python -m virtubooth.tools.timelapse`: plus `--fade`, `--out-fps`, `--size`, `--hold-last`, `--crf`, `--preset`, `--limit N` (quick preview), `--dry-run` |
 | **QR codes** | "QR-Bogen erstellen" with "Adresse der Party": a ZIP with `qr-sheet.html` (one A4 page per code, print from the browser) and SVG/PNG per code | `python -m virtubooth.tools.qr`: plus `--extensions`, `--token` (codes for a token not deployed yet), `--party-name`, `--no-home`, `--out DIR` |
 
@@ -404,8 +417,9 @@ of photos per activity, and `exports/`.
 **Hot, while the app runs:** an archive with the database (admin → Export →
 "Archiv erstellen" with "Datenbank mitnehmen", or
 `docker compose exec app python -m virtubooth.tools.export`). The database
-copy is made with SQLite's backup API, so it is consistent. Copy it off with
-`docker compose cp app:/data/exports ./backup-$(date +%F)`.
+copy is made with SQLite's backup API, so it is consistent. It leaves out the
+admin sessions and export jobs: after restoring from it, every admin logs in
+again. Copy it off with `docker compose cp app:/data/exports ./backup-$(date +%F)`.
 
 **Cold, complete:** stop the app so the SQLite files are consistent, archive
 the volume, start again (a few seconds of downtime):
@@ -469,6 +483,36 @@ codes afterwards. In Coolify, edit the variable and redeploy.
   scans and joins again with a new pseudonym; existing photos stay but are no
   longer linked to a device). Change it only if it leaked.
 
+## Locked out of the admin login
+
+Login is rate limited per IP (5 per minute, 20 per hour; IPv6 per /64). After
+**20 wrong passwords within 15 minutes, from anywhere**, every login is
+refused for **5 minutes**: `429 login_locked` with `Retry-After`, and the
+login page says "Zu viele Fehlversuche" and how long to wait. The correct
+password is refused too, so spreading guesses over many addresses gains
+nothing.
+
+- **Admins who are logged in keep working.** Sessions last
+  `VB_ADMIN_SESSION_HOURS` (12 h): log in before the party, on every device you
+  will moderate from.
+- **Wait** the 5 minutes, or **restart** the container: the counters live in
+  memory, so `docker compose restart app` (Coolify: Restart) clears the lock.
+  Guests notice a few seconds without the app; their sessions and photos stay.
+- **From the server itself.** A login sent straight to the app's port from
+  inside the container (no proxy, no `X-Forwarded-For`) is exempt from the
+  lock. This prints a fresh session cookie, which you can set as `vb_admin`
+  for your domain in the browser's developer tools:
+
+  ```bash
+  docker compose exec app python -c "import json, os, urllib.request as u; r = u.urlopen(u.Request('http://127.0.0.1:8000/api/admin/login', json.dumps({'password': os.environ['VB_ADMIN_PASSWORD']}).encode(), {'Content-Type': 'application/json', 'Origin': 'http://127.0.0.1:8000'})); print(r.headers['Set-Cookie'].split(';')[0])"
+  ```
+
+  A browser through an SSH tunnel does not count as local: it arrives from
+  the Docker gateway.
+- If the lock keeps coming back, someone is guessing: check
+  `docker compose logs app` for the addresses, and keep the password long and
+  random.
+
 ## Logs and monitoring
 
 ```bash
@@ -501,14 +545,17 @@ until this point; only deleting (in the admin, or the volume) removes files.
 |---|---|
 | Every page says "Scan den QR-Code" | No or an outdated access cookie: open the QR URL with `?t=<current token>`. |
 | The camera does not start on the phone | Not on HTTPS, permission denied, or an in-app browser. Use the HTTPS URL in Safari or Chrome and check the site's camera permission. The page names the problem. |
-| `403 bad_origin` on every join or upload | The proxy rewrites the `Host` header. Pass it through, or set `VB_ALLOWED_ORIGINS`. |
+| `403 bad_origin` on every join or upload | The proxy rewrites the `Host` header. Pass it through, or set `VB_PUBLIC_BASE_URL` to the public URL (or `VB_ALLOWED_ORIGINS`). |
+| `403 bad_origin` behind https only | The CSRF check compares the scheme. Set `VB_PUBLIC_BASE_URL=https://<host>` and trust the proxy (`VB_FORWARDED_ALLOW_IPS`). |
 | Many `429` answers during the party | Guests share an IP: set `VB_FORWARDED_ALLOW_IPS` for your proxy, and raise the per-IP limits for venue Wi-Fi. |
 | Cookies lack `Secure` behind HTTPS | Set `VB_COOKIE_SECURE=true`, or trust the proxy (`VB_FORWARDED_ALLOW_IPS`) so `auto` sees https. |
-| The container exits on start | `docker compose logs app`: a missing or too short secret is reported by its `VB_*` name. "no built frontend was found" means `VB_WEB_DIR` points somewhere else; in Docker it must be `/app/web` (both compose files pin it). |
+| The container exits on start | `docker compose logs app`: a missing or too short secret is reported by its `VB_*` name, and so is `*` in `VB_FORWARDED_ALLOW_IPS`. "no built frontend was found" means `VB_WEB_DIR` points somewhere else; in Docker it must be `/app/web` (both compose files pin it). |
 | `.env` changes have no effect | Use `docker compose up -d`, not `restart`. |
 | The image build stops in `pnpm install` or `pnpm build` | Out of memory (the frontend build needs about 1 GB) or no network to the npm registry. Add swap, or build elsewhere and set `VB_IMAGE`. |
 | A guest sees "Die Seite startet nicht" | A content blocker or an old browser blocked part of the page. The page says to turn the blocker off for this site and reload. |
 | The admin's connection says "nur Abfrage" or "getrennt" | The event stream does not get through: the proxy buffers it (Coolify: turn off gzip for the resource; nginx: see above), or the network dropped. Updates still arrive every 5 s. |
-| Admin login says "Zu viele Fehlversuche" | Someone guessed wrong 50+ times this hour. The correct password still works; restarting the container resets the counter. |
+| Admin login says "Zu viele Fehlversuche" | 20+ wrong passwords within 15 minutes from anywhere: every login waits 5 minutes, the correct one too. Logged-in admins keep working. Wait, or restart the container to clear it ([details](#locked-out-of-the-admin-login)). |
+| The log warns about `VB_ADMIN_PASSWORD` at startup | It is shorter than 16 characters or very repetitive. It still works (12 is the minimum); replace it with a long random one (`virtubooth gen-env`). |
+| A fifth admin tab keeps reconnecting another one | One login keeps at most 4 live screens; a fifth closes the oldest, which reconnects. Close tabs you don't need. |
 | A timelapse export fails with "Für den Zeitraffer fehlt ffmpeg" | Only outside Docker: install ffmpeg with libx264. The image has it. |
 | A timelapse export fails with "Keine Fotos für den Zeitraffer" | That activity has no visible photos yet. Pick another one, or tick "Ausgeblendete Fotos mitnehmen". |

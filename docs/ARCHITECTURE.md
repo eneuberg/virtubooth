@@ -64,6 +64,10 @@ route:
 | `GuestDep` | the same, for uploads | the same, with the upload wording |
 | `AdminDep` | a live admin session (`vb_admin`, hashed in the DB) | 401 `admin_required` |
 
+What was checked and fixed in the overhaul's security review (login lock,
+CSRF origin rules, upload metadata, root-file allow-list, export contents) is
+in [overhaul/SECURITY_REVIEW.md](overhaul/SECURITY_REVIEW.md).
+
 Errors are always `ErrorBody {error: ErrorCode, message}` with a German
 `message` the UI shows as-is. Every route declares a response model and its
 error statuses, so `virtubooth export-openapi` writes a complete schema.
@@ -96,7 +100,7 @@ sequenceDiagram
   R->>R: GuestDep: access cookie, joined, not banned
   R->>S: upload(ext, user, request)
   S->>S: paused? stopped? JPEG? per-guest limit, IP/global limits, size cap
-  S->>S: meta keys + validate_meta, decode, exact size, re-encode (no EXIF), thumbnail
+  S->>S: meta keys + validate_meta, size from the header, decode (≤ 100 scans), re-encode (no metadata), thumbnail
   S->>DB: write photo + thumbnail atomically, then insert the photos row (seq)
   S->>S: the extension's on_upload(ctx): extra answer fields
   S-->>B: photo.created
@@ -110,8 +114,14 @@ sequenceDiagram
 2. **`GuardMiddleware`** (pure ASGI, `middleware.py`):
    - a `GET` with `?t=` is the token entry: valid → 303 to the same URL
      without `t` plus the access cookie, invalid → the gate page;
-   - every `POST/PUT/PATCH/DELETE` must carry a same-origin `Origin` (or
-     `Referer`), else 403 `bad_origin`;
+   - every `POST/PUT/PATCH/DELETE` must carry an `Origin` (or `Referer`)
+     whose full origin (scheme, host, port) is `VB_PUBLIC_BASE_URL`'s, an
+     entry of `VB_ALLOWED_ORIGINS`, or the request's own (the scheme uvicorn
+     derived, https with a trusted `X-Forwarded-Proto`, plus `Host`). Behind
+     a TLS proxy the app does not trust, `https://<Host>` also counts, but only
+     when the proxy sends `X-Forwarded-Proto: https`, `VB_PUBLIC_BASE_URL` is
+     https or `VB_COOKIE_SECURE=true`. `http://` origins are refused on https
+     deployments. Anything else is 403 `bad_origin`;
    - JSON bodies need a `Content-Length` of at most 64 KiB;
    - `/api/*` counts against a request budget: per device for joined guests,
      per IP otherwise, none for a logged-in admin.
@@ -176,9 +186,10 @@ sequenceDiagram
   request read anything. Opening the stream with `?since=` that id means
   nothing that happened in between is lost.
 - A client that falls 256 events behind is disconnected. Its reconnect
-  replays the rest. The stream also ends when the admin session is gone
-  (checked every 30 s); the reconnect then gets 401 and the page goes to the
-  login.
+  replays the rest. Logging out closes that session's streams at once (a bus
+  signal); expiry and a password change are caught by a check every 30 s. The
+  reconnect then gets 401 and the page goes to the login. One session holds
+  at most 4 streams: a fifth closes the oldest, which reconnects and replays.
 - A `: ping` comment goes out after 15 s without events, and the stream sends
   `X-Accel-Buffering: no` so proxies don't buffer it.
 - Client side (`frontend/src/admin/store/`): `stream.ts` runs that life cycle,
@@ -200,14 +211,18 @@ to start, unless `VB_DEV=1`, which serves placeholder pages for working with
 | `/admin/login` | `admin.html`, public |
 | `/admin/…` | `admin.html` with a session, else 303 to `/admin/login?next=…` |
 | `/assets/*` | hashed files, `Cache-Control: public, max-age=31536000, immutable`; the `.br`/`.gz` sibling when the client accepts it |
-| `/<file>` | other build files (`boot-check.js`, `icon.svg`), `max-age=300` |
+| `/<file>` | only the allow-listed root files (`PUBLIC_ROOT_FILES`: `boot-check.js`, `gate-hint.js`, `icon.svg`, `favicon.ico`, `apple-touch-icon.png`, `robots.txt`), public, `max-age=300`. Every other root file, such as the HTML entries' `.br`/`.gz` siblings, is not found |
 | anything else | the not-found page (404), or the gate without access |
 
 - **One static file for both 404 pages.** `gate.html` contains both messages
   and `data-vb-mode="gate"` on `<html>`. For "not found" the server rewrites it
   to `notfound` and CSS shows the other block. It works without JavaScript.
-- HTML is `no-cache` with an ETag. Paths are resolved inside the web dir only,
-  and any dot segment is refused, so `.vite/manifest.json` is never served.
+- HTML (the entries, the gate, the not-found page) is `private, no-cache` with
+  an ETag, and so are the page redirects; the `?t=` 303 that sets the access
+  cookie is `no-store`. Paths are resolved inside the web dir only, and any
+  dot segment is refused, so `.vite/manifest.json` is never served.
+- A new file in `frontend/public/` that must be reachable needs an entry in
+  `PUBLIC_ROOT_FILES` (`backend/src/virtubooth/web/frontend.py`).
 - **Strict CSP on every answer**: `default-src 'self'; script-src 'self';
   style-src 'self'; img-src 'self' blob: data:; media-src 'self' blob:;
   connect-src 'self'; font-src 'self'; object-src 'none'; base-uri 'none';

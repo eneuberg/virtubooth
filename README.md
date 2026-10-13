@@ -72,7 +72,9 @@ as extensions.
 ### For the host (`/admin`)
 
 - **Login** with `VB_ADMIN_PASSWORD`, rate limited, with the lockout said in
-  words. The admin needs no party token.
+  words ("Zu viele Fehlversuche"). The admin needs no party token. Logging out
+  ends the live screens of that login at once; one browser keeps at most 4
+  live tabs, and a fifth reconnects the oldest.
 - **Live** (`/admin/live`). A dense grid of photos as they arrive, a 44 px
   hide toggle per photo ("Ausblenden", with "Rückgängig" in a toast), and the
   connection state ("verbunden"). You can **only hide** here, so an accidental
@@ -249,7 +251,8 @@ make check                  # everything CI runs
   `cd backend && VB_BLOCKLISTS=.blocklists uv run pytest tests/unit/test_core_blockers.py`.
 - **Docker smoke** (`scripts/docker-smoke.sh`): runs the image like
   `compose.yaml` does (read-only, no capabilities, fresh volume and secrets)
-  and checks the gate, the token entry, hashed and precompressed assets, the
+  and checks the image (USER 10001, no `VB_DEV`, no `.env`), the gate, the
+  token entry, hashed and precompressed assets, the root-file allow-list, the
   CSP, a guest joining and uploading, the admin login and event stream, one
   export job of each kind, the CLI tools and a clean stop.
 
@@ -264,15 +267,32 @@ make check                  # everything CI runs
   pinned to the device by a signed cookie, plus a localStorage copy. Device
   traits are stored as a moderation **hint**, never as an identity:
   identical phones often look the same.
-- **Admin.** A password from the environment (at least 12 characters). The
-  session is a random token stored hashed, in a `SameSite=Strict` cookie that
-  expires. Login is rate limited per IP; after 50 wrong guesses an hour, wrong
-  guesses are locked out, but the right password still works.
-- **Every state-changing request** passes a CSRF origin check, a body size
-  cap, and per-device, per-IP and global rate limits. Uploads are validated
-  (JPEG only, size and dimension caps), re-encoded (EXIF and GPS stripped) and
-  stored outside the web root. A photo is served only to its guest and the
+- **Admin.** A password from the environment: at least 12 characters, and
+  use 16+ random ones (`gen-env` makes one; the log warns at startup when it
+  is shorter than 16 characters or very repetitive). The session is a random
+  token stored hashed, in a `SameSite=Strict` cookie that expires
+  (`VB_ADMIN_SESSION_HOURS`, 12 h; log in before the guests arrive).
+- **Admin login lock.** Login is rate limited per IP (5 per minute, 20 per
+  hour; IPv6 per /64). After 20 wrong passwords within 15 minutes from
+  anywhere, **every** login is refused for 5 minutes (429 with `Retry-After`,
+  "Zu viele Fehlversuche"), the correct password too, so spreading guesses
+  over many addresses gains nothing. Admins who are logged in keep working.
+  To get in during a lock, wait, or restart the container (`docker compose
+  restart app`; the counters live in memory). A login sent from the server
+  itself straight to the app's port (no proxy) is exempt. See
+  [DEPLOY.md](docs/DEPLOY.md#locked-out-of-the-admin-login).
+- **Every state-changing request** passes a CSRF check of the full origin
+  (scheme, host and port: `VB_PUBLIC_BASE_URL`, `VB_ALLOWED_ORIGINS` or the
+  request's own; `http://` origins are refused on https deployments), a body
+  size cap, and per-device, per-IP and global rate limits.
+- **Uploads** are validated (JPEG only, the activity's exact size, at most
+  100 scans, byte caps) and re-encoded, so all metadata is stripped
+  (EXIF/GPS, XMP, ICC, comments) and never reaches the disk. Photos are stored
+  outside the web root, and a photo is served only to its guest and the
   admin.
+- **Pages.** Without the party cookie only the gate and a short allow-list of
+  root files (`boot-check.js`, icons, `robots.txt`) are served. HTML is
+  `private, no-cache`; the token redirect is `no-store`.
 - **Strict CSP**: `script-src 'self'; style-src 'self'`, no inline scripts or
   styles, no external hosts, plus `X-Frame-Options: DENY`, COOP/CORP and a
   Permissions-Policy that allows only the camera. A pnpm patch removes the
@@ -280,9 +300,15 @@ make check                  # everything CI runs
 - **Container.** Runs as uid 10001 on a read-only root filesystem, without
   Linux capabilities and with `no-new-privileges`, CPU/memory/PID limits and
   a health check. Everything it writes is in the `/data` volume.
+- **Exports.** The database copy in the admin's archive and in the CLI
+  export holds guests with IPs, fingerprints and bans, all photo rows and the
+  audit log, but no admin sessions and no export jobs, and it is vacuumed so
+  nothing deleted earlier can be recovered.
 - **Retention.** Hidden photos stay on disk; only deleting removes files.
   After the party, export what you keep and delete the volume
   ([docs/DEPLOY.md](docs/DEPLOY.md#teardown)).
+- The full security review of the overhaul, with what was fixed and what was
+  accepted: [docs/overhaul/SECURITY_REVIEW.md](docs/overhaul/SECURITY_REVIEW.md).
 
 ## Extension platform
 

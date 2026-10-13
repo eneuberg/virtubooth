@@ -107,6 +107,12 @@ are no barrel `index.ts` files, except the extension registrations.
   element (no `react-aria-*` default classes), 44 px touch targets, and
   `window.__vbReady = true` once an app has rendered (`lib/boot.ts`
   `markReady()`): `public/boot-check.js` explains a page that never starts.
+- **`public/` is an allow-list on the server.** Without the party cookie the
+  backend serves only the root files listed in `PUBLIC_ROOT_FILES`
+  (`backend/src/virtubooth/web/frontend.py`): `boot-check.js`, `gate-hint.js`,
+  `icon.svg`, `favicon.ico`, `apple-touch-icon.png`, `robots.txt`. Any other
+  root file is a 404, so a new file in `public/` that must be reachable needs
+  an entry there. Everything Vite bundles goes to `assets/` and needs nothing.
 - **Browser targets:** Chrome/Edge 111, Firefox 114, Safari and iOS 16
   (`vite.config.ts`).
 - **Versions are exact** (`package.json`, no ranges). A new dependency needs a

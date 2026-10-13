@@ -35,6 +35,9 @@ services:
       # Coolify's proxy reaches the app over Docker's private networks, and
       # nothing else can (no published port). Traefik replaces any
       # X-Forwarded-For a client sends, so the first entry is the real guest.
+      # Narrow it to the coolify network's subnet if other apps share it:
+      #   docker network inspect coolify --format '{{(index .IPAM.Config 0).Subnet}}'
+      # Never "*" (refused at startup).
       - VB_FORWARDED_ALLOW_IPS=${VB_FORWARDED_ALLOW_IPS:-10.0.0.0/8,172.16.0.0/12,192.168.0.0/16}
       # fixed for the container (/app/web: the frontend build in the image)
       - VB_DATA_DIR=/data
