@@ -53,6 +53,7 @@ export function MyPhotos({ activityNames, className }: { activityNames: string; 
     <section
       aria-labelledby={titleId}
       data-testid="my-photos"
+      data-state={isPending ? 'loading' : isError ? 'error' : 'ready'}
       className={cx('grid content-start gap-3', className)}
     >
       <h2 id={titleId} className="flex items-baseline gap-2 text-lg font-bold">

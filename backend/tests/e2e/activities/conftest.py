@@ -39,10 +39,13 @@ SCREENSHOT_DIR = os.environ.get("VB_SCREENSHOT_DIR")
 
 
 def fonts_ready(page: Page) -> None:
-    """Wait for the web fonts in flight: Firefox logs a font download that a navigation
-    aborts as a console error (NS_BINDING_ABORTED), which is not the page's fault."""
+    """Wait for the web fonts and Start's requests in flight: Firefox logs a font download
+    that a navigation aborts as a console error (NS_BINDING_ABORTED), WebKit an aborted
+    fetch ("… due to access control checks"); neither is the page's fault. And a ban that
+    lands while "Deine Bilder" is still loading answers it with a 403."""
     if page.get_by_test_id("start").count():  # Start: the beer counter brings the Doto font
         page.get_by_test_id("beer-count").wait_for()
+        expect(page.get_by_test_id("my-photos")).not_to_have_attribute("data-state", "loading")
     page.evaluate("() => document.fonts.ready.then(() => null)")
 
 
@@ -146,23 +149,29 @@ def media_size(page: Page, url: str) -> tuple[int, int]:
     return Image.open(io.BytesIO(bytes(data))).size
 
 
-def add_beers(live: LiveServer, n: int) -> None:
-    """Beers from other guests, straight into the DB."""
+def add_photos(live: LiveServer, ext: str, n: int) -> None:
+    """Photos from other guests, straight into the DB (rows only, no files)."""
     user = live.core.repos.users.list(limit=1)[0]
+    meta = {"vessel": "bottle"} if ext == "beer" else {"filter": "normal", "facing": "user"}
     for _ in range(n):
         name = secrets.token_hex(4)
         live.core.repos.photos.insert(
             public_id=secrets.token_urlsafe(12).replace("-", "a"),
-            extension="beer",
+            extension=ext,
             user_id=user.id,
             filename=f"{name}.jpg",
             thumb_filename=f"thumbs/{name}.jpg",
             width=1080,
             height=1440,
             size=1,
-            meta={"vessel": "bottle"},
+            meta=meta,
             created_at="2026-10-13T20:00:00.000+00:00",
         )
+
+
+def add_beers(live: LiveServer, n: int) -> None:
+    """Beers from other guests, straight into the DB."""
+    add_photos(live, "beer", n)
 
 
 # ---------------------------------------------------------------- the host

@@ -46,8 +46,8 @@ export function splitPrompt(prompt: string): { label: string; help: string | nul
 }
 
 /**
- * "Was passiert mit meinen Fotos?" for a guest whose accepted texts are not stored on
- * this device (joined before this version, or storage blocked). Says the same as
+ * "Was passiert mit meinen Fotos?" before the session knows the server's join texts
+ * (every identified answer carries them, so this is a safety net). Says the same as
  * the join texts, in short.
  */
 export function fallbackJoinText(instagramAccount: string): string[] {
@@ -59,9 +59,9 @@ export function fallbackJoinText(instagramAccount: string): string[] {
   ];
 }
 
-/** The join texts to show read-only: the accepted ones, else the fallback. */
-export function joinTextFor(accepted: JoinInfo | null, instagramAccount: string): string[] {
-  return accepted ? accepted.paragraphs.map(tidy).filter(Boolean) : fallbackJoinText(instagramAccount);
+/** The join texts to show read-only: the server's, else the fallback. */
+export function joinTextFor(texts: JoinInfo | null, instagramAccount: string): string[] {
+  return texts ? texts.paragraphs.map(tidy).filter(Boolean) : fallbackJoinText(instagramAccount);
 }
 
 /**

@@ -129,13 +129,16 @@ def test_long_handle_ellipsizes_on_a_small_phone(make_page, live: LiveServer):
     page = make_page("small")
     page.goto(live.entry("/"))
     accept_consent_in_browser(page)
-    live.core.repos.users.set_instagram(only_user(live).id, "a" * 30)
+    # the longest handle Instagram allows, in wide letters: too wide in every engine
+    # ("a" * 30 just fits in WebKit's metrics)
+    handle = "w" * 30
+    live.core.repos.users.set_instagram(only_user(live).id, handle)
     reload(page)
     passed = page.get_by_test_id("guest-pass")
-    expect(passed).to_contain_text("@" + "a" * 30)
+    expect(passed).to_contain_text("@" + handle)
     box = passed.bounding_box()
     assert box is not None and box["x"] + box["width"] <= 360 - 16 + 1
-    label = passed.get_by_text("@" + "a" * 30)
+    label = passed.get_by_text("@" + handle)
     assert label.evaluate("(el) => el.scrollWidth > el.clientWidth")  # cut with an ellipsis
     assert no_horizontal_scroll(page)
     shot(page, "start_long_handle_small")
@@ -200,6 +203,24 @@ def test_banned_guest_sees_why_and_can_come_back(guest_page: Page, live: LiveSer
     assert page.js_errors == []  # type: ignore[attr-defined]
 
 
+def test_a_ban_found_on_start_asks_for_no_photos(page: Page, live: LiveServer):
+    """Back on the tab after a ban: the session's re-check finds it, Start makes way,
+    and "Deine Bilder" (403 for a banned device, logged as an error) is not asked for,
+    not even with stale photos."""
+    page.clock.install()
+    join_via_api(page, live)
+    expect(page.get_by_test_id("my-photos")).to_have_attribute("data-state", "ready")
+    asked: list[str] = []
+    page.on("request", lambda r: asked.append(r.url) if "/api/me/photos" in r.url else None)
+    live.core.services.moderation.ban_user(only_user(live).id, reason="Test", actor="admin")
+    page.clock.fast_forward(20_000)  # the photos are stale now
+    wake(page)
+    expect(page.get_by_test_id("banned")).to_be_visible()
+    page.wait_for_load_state("networkidle")
+    assert asked == []
+    assert page.js_errors == []  # type: ignore[attr-defined]
+
+
 def test_start_on_desktop(make_page, live: LiveServer):
     """The host's PC: hero and own photos left, the strips right; Enter on a strip opens it."""
     page = make_page("desk")
@@ -252,4 +273,19 @@ def test_footer_reopens_the_join_text(guest_page: Page, live: LiveServer):
     help_sheet = page.get_by_role("dialog", name="Hilfe")
     help_sheet.get_by_role("button", name="Die Kamera startet nicht").click()
     expect(help_sheet).to_contain_text("Danach die Seite neu laden")
+    assert page.js_errors == []  # type: ignore[attr-defined]
+
+
+def test_join_text_comes_from_the_server(page: Page, live: LiveServer):
+    """A guest who joined elsewhere (another browser profile, cleared storage) reads
+    the server's join texts, not a short fallback: identify sends them."""
+    join_via_api(page, live)
+    page.evaluate("() => localStorage.clear()")
+    reload(page)
+    page.get_by_role("button", name="Was passiert mit meinen Fotos?").click()
+    sheet = page.get_by_role("dialog", name="Was passiert mit meinen Fotos?")
+    # only the server's texts say this (the fallback doesn't)
+    expect(sheet).to_contain_text("Bei Ärger können wir einzelne Geräte sperren.")
+    expect(sheet).to_contain_text("@e2e.party")
+    assert page.evaluate("() => localStorage.getItem('vb_join_text')") is None
     assert page.js_errors == []  # type: ignore[attr-defined]

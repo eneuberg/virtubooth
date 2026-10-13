@@ -14,13 +14,15 @@
  *   state) on focus / visibility, every 30 s while paused, stopped or banned, and
  *   after an upload answered 403. From `error` it retries in full.
  * - noteUploadAnswer() lets an upload answer update paused / stopped at once.
+ * - Every identified answer carries the join texts (`join_text`, the current
+ *   version): useJoinText() for "Was passiert mit meinen Fotos?".
  */
 import { useEffect } from 'react';
 import { useStore } from 'zustand';
 import { createStore } from 'zustand/vanilla';
 import { api, unwrap } from '@/api/client';
 import { ApiError, isApiError, type ApiErrorCode } from '@/api/errors';
-import type { ConsentInfo, GuestUser, IdentifyResponse, JoinResponse } from '@/api/types';
+import type { ConsentInfo, GuestUser, IdentifyResponse, JoinResponse, KnownGuest } from '@/api/types';
 import { msg } from '@/lib/messages.de';
 import { debugLog } from './debug';
 import { getDeviceTraits } from './device';
@@ -47,15 +49,21 @@ export interface JoinOutcome {
 interface Store {
   session: SessionState;
   outcome: JoinOutcome | null;
+  /** the join texts from the last identified answer (null before one came) */
+  joinText: JoinInfo | null;
 }
 
 export const UID_KEY = 'vb_uid';
-/** the join texts the guest accepted, for "Was passiert mit meinen Fotos?" */
-export const JOIN_TEXT_KEY = 'vb_join_text';
+/** where wave 2 cached the accepted texts; the server sends them now (removed on sight) */
+const OLD_JOIN_TEXT_KEY = 'vb_join_text';
 export const RECHECK_MS = 30_000;
 const QUIET_MS = 2_000;
 
-export const sessionStore = createStore<Store>(() => ({ session: { status: 'loading' }, outcome: null }));
+export const sessionStore = createStore<Store>(() => ({
+  session: { status: 'loading' },
+  outcome: null,
+  joinText: null,
+}));
 
 // ------------------------------------------------------------------ storage
 
@@ -75,53 +83,42 @@ function writeStorage(key: string, value: string): void {
   }
 }
 
-/** The join texts accepted on this device, if any (shown read-only later). */
-export function acceptedJoinText(): JoinInfo | null {
-  const raw = readStorage(JOIN_TEXT_KEY);
-  if (!raw) return null;
+function removeStorage(key: string): void {
   try {
-    const value: unknown = JSON.parse(raw);
-    if (
-      value &&
-      typeof value === 'object' &&
-      'paragraphs' in value &&
-      Array.isArray(value.paragraphs) &&
-      'title' in value &&
-      typeof value.title === 'string'
-    ) {
-      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- our own JSON, shape checked above
-      return value as JoinInfo;
-    }
+    localStorage.removeItem(key);
   } catch {
-    // a broken entry: as if there was none
+    // blocked storage: nothing to clean up
   }
-  return null;
 }
 
 // ------------------------------------------------------------------ state
 
-function set(session: SessionState, outcome?: JoinOutcome | null): void {
-  sessionStore.setState(outcome === undefined ? { session } : { session, outcome });
+function set(session: SessionState): void {
+  sessionStore.setState({ session });
 }
 
 function get(): SessionState {
   return sessionStore.getState().session;
 }
 
-function fromIdentified(res: {
-  state: 'ok' | 'banned';
-  user: GuestUser;
-  uploads_stopped: boolean;
-  uid_token: string;
-}): SessionState {
+function fromIdentified(res: KnownGuest): SessionState {
   writeStorage(UID_KEY, res.uid_token);
   if (res.state === 'banned' || res.user.banned) return { status: 'banned', user: res.user };
   return { status: 'ready', user: res.user, uploadsStopped: res.uploads_stopped };
 }
 
-function fromIdentify(res: IdentifyResponse): SessionState {
-  if (res.state === 'needs_consent') return { status: 'needs_join', join: res.consent };
-  return fromIdentified(res);
+/** The store update for an identify or join answer. */
+function applyIdentify(res: IdentifyResponse, outcome?: JoinOutcome): void {
+  if (res.state === 'needs_consent') {
+    set({ status: 'needs_join', join: res.consent });
+    return;
+  }
+  removeStorage(OLD_JOIN_TEXT_KEY);
+  sessionStore.setState({
+    session: fromIdentified(res),
+    joinText: res.join_text,
+    ...(outcome ? { outcome } : {}),
+  });
 }
 
 function asApiError(err: unknown): ApiError {
@@ -142,7 +139,7 @@ async function identify(full: boolean): Promise<void> {
   const fp = full ? await getDeviceTraits() : undefined;
   debugLog('identify', full ? 'full' : 'quiet', fp ? fp.hash.slice(0, 12) : '');
   const res = await unwrap(api.POST('/api/identify', { body: { ...(fp ? { fp } : {}), uid } }));
-  set(fromIdentify(res));
+  applyIdentify(res);
 }
 
 function run(task: () => Promise<void>): Promise<void> {
@@ -198,6 +195,11 @@ export function useJoinOutcome(): JoinOutcome | null {
   return useStore(sessionStore, (s) => s.outcome);
 }
 
+/** The join texts for a joined guest to read again (null until identified). */
+export function useJoinText(): JoinInfo | null {
+  return useStore(sessionStore, (s) => s.joinText);
+}
+
 /** The current state outside React. */
 export function getSession(): SessionState {
   return get();
@@ -231,8 +233,7 @@ export async function joinParty(input: { instagram: string | null }): Promise<vo
     }
     throw err;
   }
-  writeStorage(JOIN_TEXT_KEY, JSON.stringify(s.join));
-  set(fromIdentified(res), {
+  applyIdentify(res, {
     alreadyJoined: res.already_joined,
     instagramKept: res.instagram_kept,
     user: res.user,
@@ -332,5 +333,5 @@ export function resetSession(): void {
   started = false;
   inflight = null;
   lastQuiet = 0;
-  sessionStore.setState({ session: { status: 'loading' }, outcome: null });
+  sessionStore.setState({ session: { status: 'loading' }, outcome: null, joinText: null });
 }

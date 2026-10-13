@@ -2,7 +2,6 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { setNoAccessHandler } from '@/api/errors';
 import type { ConsentInfo, GuestUser } from '@/api/types';
 import {
-  acceptedJoinText,
   canUpload,
   getSession,
   joinParty,
@@ -75,7 +74,14 @@ function serve(...replies: Array<Reply | Error>) {
 
 const known = (u: GuestUser = user(), over: Record<string, unknown> = {}): Reply => ({
   status: 200,
-  body: { state: u.banned ? 'banned' : 'ok', user: u, uploads_stopped: false, uid_token: 'uid.sig', ...over },
+  body: {
+    state: u.banned ? 'banned' : 'ok',
+    user: u,
+    uploads_stopped: false,
+    uid_token: 'uid.sig',
+    join_text: consent(),
+    ...over,
+  },
 });
 const unknownDevice = (c: ConsentInfo = consent()): Reply => ({
   status: 200,
@@ -88,6 +94,7 @@ const joined = (u: GuestUser = user(), over: Record<string, unknown> = {}): Repl
     user: u,
     uploads_stopped: false,
     uid_token: 'uid.new',
+    join_text: consent(),
     already_joined: false,
     instagram_kept: false,
     ...over,
@@ -124,7 +131,7 @@ describe('session state machine', () => {
     expect(getSession()).toEqual({ status: 'needs_join', join: consent() });
   });
 
-  it('joins: sends version, name and traits, stores the uid token and the texts', async () => {
+  it('joins: sends version, name and traits, stores the uid token, keeps the texts', async () => {
     const calls = serve(unknownDevice(), joined(user({ instagram: 'anna' })));
     await startSession();
     await joinParty({ instagram: '  anna ' });
@@ -138,7 +145,7 @@ describe('session state machine', () => {
       uploadsStopped: false,
     });
     expect(localStorage.getItem('vb_uid')).toBe('uid.new');
-    expect(acceptedJoinText()?.title).toBe(consent().title);
+    expect(sessionStore.getState().joinText).toEqual(consent());
     expect(sessionStore.getState().outcome).toMatchObject({ alreadyJoined: false });
   });
 
@@ -147,6 +154,15 @@ describe('session state machine', () => {
     await startSession();
     expect(getSession()).toMatchObject({ status: 'ready', user: user() });
     expect(localStorage.getItem('vb_uid')).toBe('fresh.uid');
+  });
+
+  it('a known device gets the join texts to read again; the old cache goes', async () => {
+    localStorage.setItem('vb_join_text', JSON.stringify(consent({ title: 'Alt' })));
+    serve(known(user(), { join_text: consent({ version: '2' }) }));
+    expect(sessionStore.getState().joinText).toBeNull();
+    await startSession();
+    expect(sessionStore.getState().joinText).toEqual(consent({ version: '2' }));
+    expect(localStorage.getItem('vb_join_text')).toBeNull();
   });
 
   it('a banned device ends up banned', async () => {

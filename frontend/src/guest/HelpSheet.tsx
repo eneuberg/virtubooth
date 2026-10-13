@@ -4,7 +4,7 @@
  * permission, in-app browsers. Test id `help`.
  */
 import { inAppBrowserName, isIOS } from '@/sdk/platform';
-import { acceptedJoinText } from '@/sdk/session';
+import { useJoinText } from '@/sdk/session';
 import { HelpDisclosure } from '@/ui/HelpDisclosure';
 import { Sheet } from '@/ui/Sheet';
 import { inAppAdvice, joinTextFor } from './copy';
@@ -25,7 +25,7 @@ function cameraHelp(): string {
 }
 
 export function HelpSheet({ topic, onClose, instagramAccount }: HelpSheetProps) {
-  const paragraphs = joinTextFor(acceptedJoinText(), instagramAccount);
+  const paragraphs = joinTextFor(useJoinText(), instagramAccount);
   const advice = inAppAdvice(inAppBrowserName());
   return (
     <Sheet

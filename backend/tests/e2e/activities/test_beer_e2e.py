@@ -373,8 +373,8 @@ def test_banned_guest_sees_a_screen_and_no_camera(guest: Page, live: LiveServer,
     assert page.evaluate("() => window.__gum") == 0  # the camera never opened
     shot(page, "beer-banned")
     expect(screen.get_by_role("button", name="Seite neu laden")).to_be_visible()  # GP's gate
-    # Start ("/", where the guest joined) may refetch "Deine Bilder" right after the ban
-    assert errors_except(page, "/api/me/photos") == []
+    # Start ("/", where the guest joined) asks for "Deine Bilder" only while not banned
+    assert page.js_errors == []
 
 
 def test_banned_while_on_the_page(guest: Page, live: LiveServer, admin: Admin):
