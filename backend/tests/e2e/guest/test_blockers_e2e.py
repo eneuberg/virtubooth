@@ -2,7 +2,7 @@
 a status), the "Du" sheet, the viewer, help, the gate. Element-hiding rules key on
 class names, ids and test ids; a hidden join sheet would leave the guest at a page
 that never starts. Uses the reusable helper in blockers.py (the old DOM blocker
-checks of e2e_legacy, now on the real DOM)."""
+checks of the pre-overhaul e2e tests, now on the real DOM)."""
 
 from __future__ import annotations
 

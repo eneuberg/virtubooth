@@ -20,12 +20,14 @@ import tarfile
 import tempfile
 from collections.abc import Iterator
 from dataclasses import dataclass, field
+from datetime import UTC, datetime
 from pathlib import Path
 
 import pytest
 import segno
 from PIL import Image
 
+from virtubooth.core import clock
 from virtubooth.core.clock import now_iso
 from virtubooth.core.events import EventBus
 from virtubooth.db.database import Database
@@ -213,6 +215,49 @@ def test_resolve_data_dir_flag_env_default(monkeypatch, tmp_path):
     monkeypatch.delenv("VB_DATA_DIR")
     monkeypatch.chdir(tmp_path)
     assert _common.resolve_data_dir(None) == tmp_path / "data"
+
+
+# 16:30:05 UTC = 18:30:05 in Berlin (summer time)
+FROZEN_NOW = datetime(2026, 10, 13, 16, 30, 5, tzinfo=UTC)
+
+
+@pytest.fixture
+def frozen_clock(monkeypatch: pytest.MonkeyPatch) -> None:
+    class Frozen(datetime):
+        @classmethod
+        def now(cls, tz=None):
+            return FROZEN_NOW.astimezone(tz) if tz else FROZEN_NOW.replace(tzinfo=None)
+
+    monkeypatch.setattr(clock, "datetime", Frozen)
+
+
+def test_tool_timestamps_use_vb_timezone(frozen_clock, monkeypatch):
+    """File names follow VB_TIMEZONE like the admin UI's exports, not the
+    container's UTC clock."""
+    assert _common.tool_timezone() == "Europe/Berlin"
+    assert _common.timestamp() == "20261013-183005"
+    monkeypatch.setenv("VB_TIMEZONE", "  ")  # blank = the default, as in Settings
+    assert _common.timestamp() == "20261013-183005"
+    monkeypatch.setenv("VB_TIMEZONE", "UTC")
+    assert _common.timestamp() == "20261013-163005"
+    monkeypatch.setenv("VB_TIMEZONE", "America/New_York")
+    assert _common.local_time().isoformat() == "2026-10-13T12:30:05-04:00"
+    for bad in ("Mars/Olympus", "../etc/passwd"):
+        monkeypatch.setenv("VB_TIMEZONE", bad)
+        with pytest.raises(_common.ToolError, match="unknown time zone VB_TIMEZONE"):
+            _common.timestamp()
+
+
+def test_export_name_and_readme_use_party_time(party, frozen_clock, monkeypatch, capsys):
+    monkeypatch.setenv("VB_TIMEZONE", "Asia/Tokyo")
+    assert export.main(["--data-dir", str(party.path), "--no-db"]) == 0
+    archive = party.path / "exports" / "virtubooth-export-20261014-013005.tar.gz"
+    _, files = read_tar(archive)
+    assert "Created 2026-10-14 01:30 (Asia/Tokyo) from" in files["README.txt"].decode()
+
+    monkeypatch.setenv("VB_TIMEZONE", "Nowhere/Town")
+    assert export.main(["--data-dir", str(party.path)]) == 1
+    assert "unknown time zone VB_TIMEZONE='Nowhere/Town'" in capsys.readouterr().err
 
 
 def test_open_repos_refuses_dir_without_db(tmp_path):

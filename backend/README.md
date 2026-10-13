@@ -82,7 +82,6 @@ Rules of thumb:
 | `unit/` | migrations, tools, settings, events, OpenAPI export, content blockers, frontend contract |
 | `fixtures/` | `blocker_rules.txt`, `web/` (a stub frontend build) |
 | `e2e/` | Playwright harness serving `frontend/dist` (skipped without a build): `guest/`, `activities/`, `admin/`, `run_webkit.sh` |
-| `e2e_legacy/` | the pre-overhaul DOM tests, never collected: reference only, removed after the overhaul |
 
 Contracts for the frontend: `../docs/overhaul/contracts/web-serving.md` and
 `../docs/overhaul/contracts/api.md`.

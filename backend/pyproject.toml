@@ -40,8 +40,7 @@ packages = ["src/virtubooth"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-# e2e_legacy holds the old DOM tests as a reference for wave 2: never collected
-norecursedirs = [".venv", "data", "e2e_legacy", "fixtures"]
+norecursedirs = [".venv", "data", "fixtures"]
 markers = [
     "e2e: browser end-to-end tests (playwright, against the built frontend/dist)",
     "visual: opt-in screenshot comparisons",
@@ -53,7 +52,6 @@ addopts = "-m 'not e2e and not visual'"
 [tool.ruff]
 line-length = 100
 target-version = "py312"
-extend-exclude = ["tests/e2e_legacy"]
 
 [tool.ruff.lint]
 select = ["E", "F", "W", "I", "B", "UP", "SIM", "C4", "RUF", "ASYNC", "PIE", "LOG", "T10"]

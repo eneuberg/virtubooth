@@ -48,6 +48,8 @@ def create_app(settings: Settings, *, extensions: Sequence[Extension] | None = N
             yield
         finally:
             await to_thread.run_sync(core.services.exports.detach)
+            # empty the WAL: a copied data folder then holds everything in virtubooth.db
+            await to_thread.run_sync(core.db.checkpoint)
 
     # runtime docs stay off; `virtubooth export-openapi` writes the schema
     app = FastAPI(

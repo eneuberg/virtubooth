@@ -1,4 +1,4 @@
-"""Helpers shared by the CLI tools: data dir, database, photo iteration, errors."""
+"""Helpers shared by the CLI tools: data dir, database, time zone, photo iteration, errors."""
 
 from __future__ import annotations
 
@@ -10,7 +10,9 @@ from collections.abc import Callable, Iterator, Sequence
 from contextlib import contextmanager
 from datetime import datetime
 from pathlib import Path
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
+from ..core.clock import DEFAULT_TIMEZONE, local_now
 from ..db.database import Database
 from ..domain.models import Photo, PhotoQuery
 from ..repositories.container import Repositories
@@ -104,8 +106,27 @@ def check_free_space(folder: Path, needed: int) -> None:
         )
 
 
+def tool_timezone() -> str:
+    """$VB_TIMEZONE (blank: Europe/Berlin), the zone the app's own exports use.
+
+    The container's clock runs in UTC, so plain `datetime.now()` would name
+    files an hour or two off from the admin UI's exports."""
+    name = os.environ.get("VB_TIMEZONE", "").strip() or DEFAULT_TIMEZONE
+    try:
+        ZoneInfo(name)
+    except (ZoneInfoNotFoundError, ValueError) as exc:
+        raise ToolError(f"unknown time zone VB_TIMEZONE={name!r} (e.g. Europe/Berlin)") from exc
+    return name
+
+
+def local_time() -> datetime:
+    """Now, on the party's wall clock ($VB_TIMEZONE)."""
+    return local_now(tool_timezone())
+
+
 def timestamp() -> str:
-    return datetime.now().strftime("%Y%m%d-%H%M%S")
+    """For file names: 20261013-183000, party time."""
+    return local_time().strftime("%Y%m%d-%H%M%S")
 
 
 def human_size(n: float) -> str:

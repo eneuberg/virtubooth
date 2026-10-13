@@ -57,7 +57,7 @@ The host reads the final REPORT.md, not this file.
    - Start empty-state copy builds "der <Titel>" for any activity (`src/guest`);
    - CLI tools' file timestamps use UTC, the admin exports use `VB_TIMEZONE`;
    - optional: `PRAGMA wal_checkpoint(TRUNCATE)` on shutdown.
-2. Delete `backend/tests/e2e_legacy/` (PLAN wave 4).
+2. Delete `backend/tests/e2e_legacy/` (PLAN wave 4). Done: removed after the overhaul.
 3. Final runs, once each:
    - `make check` (lint, typecheck, test, openapi-check);
    - `make e2e`, `make e2e-firefox`, `make e2e-webkit`;

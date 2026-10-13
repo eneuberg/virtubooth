@@ -2,7 +2,7 @@
 Bilder" (only the guest's own visible photos) and the viewer, the guest pass and
 its "Du" sheet (Instagram name), the status slot (paused, stopped), the banned
 screen, and the layouts (small phone, landscape, desktop). Ported from
-e2e_legacy/test_core_e2e.py, test_core_ui_e2e.py and the guest part of
+the pre-overhaul test_core_e2e.py, test_core_ui_e2e.py and the guest part of
 test_desktop_e2e.py."""
 
 from __future__ import annotations

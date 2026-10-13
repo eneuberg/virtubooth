@@ -38,7 +38,7 @@ Their **frontend code** is replaced. Their **backend logic and API tests** survi
 | CSP | Unchanged and strict: `script-src 'self'`, `style-src 'self'`. Libraries that inject `<style>` or use eval are banned (stack.md list). Every e2e test fails on console errors, as it does today. |
 | Content blockers | Neutral names in source paths, built assets (hex-hash names), classes, ids and test ids. The blocker test is extended to cover `dist/` and `frontend/src`. API paths stay as they are. |
 | API paths | Unchanged, no `/api/v1`. Response shapes may gain fields but never lose them silently: e2e and API tests define them. |
-| Tests | Python pytest stays the backend and e2e oracle. It moves to `backend/tests`, and e2e runs against the built `frontend/dist`. Frontend unit tests use Vitest. The old DOM-based e2e tests are moved to `backend/tests/e2e_legacy/` (not collected) as a reference while the new UI's e2e tests are written. |
+| Tests | Python pytest stays the backend and e2e oracle. It moves to `backend/tests`, and e2e runs against the built `frontend/dist`. Frontend unit tests use Vitest. The old DOM-based e2e tests are moved to `backend/tests/e2e_legacy/` (not collected; removed after the overhaul) as a reference while the new UI's e2e tests are written. |
 | Push | Never. Everything stays on local branch `overhaul`. |
 
 ### Scope: new product features (from the UX audit)
@@ -305,7 +305,7 @@ Keep today's `data-testid`s for concepts that still exist (join, tile-*, shutter
 - **QA** walkthrough (report only, all browsers and viewports, compared with the UX audit's screenshots).
 - **Security review** of the delta: new endpoints, web serving, CSP with the new bundle, export downloads.
 - **Fix agents** for the findings.
-- Delete `e2e_legacy/`.
+- Delete `e2e_legacy/` (done: removed after the overhaul).
 - Final full runs: unit, Chromium, Firefox, WebKit, Docker smoke, blockers with the full lists.
 
 ### Wave 5: report

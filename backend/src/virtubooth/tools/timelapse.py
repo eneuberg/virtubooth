@@ -381,7 +381,8 @@ def build_parser() -> argparse.ArgumentParser:
         "--out",
         metavar="FILE",
         help="output .mp4 or directory "
-        "(default: <data-dir>/exports/<extension>-timelapse-<timestamp>.mp4)",
+        "(default: <data-dir>/exports/<extension>-timelapse-<timestamp>.mp4, "
+        "the time in $VB_TIMEZONE, default Europe/Berlin)",
     )
     p.add_argument("--ffmpeg", default="ffmpeg", help="ffmpeg binary (default: from PATH)")
     p.add_argument(
