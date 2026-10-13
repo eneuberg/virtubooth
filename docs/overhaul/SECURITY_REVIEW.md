@@ -597,3 +597,315 @@ shared Docker network could reach `app:8000` directly with a forged `X-Forwarded
    root files.
 5. Before release: remove `VB_DEV=1` from the image, drop the `minimumReleaseAgeExclude`
    entries once aged, refuse `VB_FORWARDED_ALLOW_IPS=*`.
+
+## Resolution
+
+Security-fix agent (wave 4), branch `ov/secfix`, 2026-10-13. One commit per
+finding (two pairs share one); the regression tests are in
+`backend/tests/api/test_security_fixes.py`, one section per finding.
+
+**Verification**
+- Backend: `uv run pytest -q` → 502 passed, 1 skipped (86 new tests; 8 existing
+  tests adapted to the new behaviour). `ruff check`, `ruff format --check` and
+  `mypy src` are clean.
+- Browser e2e against the built frontend (`pytest -m e2e`): 173 passed,
+  22 skipped. The lockout e2e test now logs in through a proxy header, because
+  direct loopback is exempt from the lock.
+- `export-openapi` is still deterministic. Only one description changed (the
+  archive's `include_db`); `frontend/openapi.json` and `schema.gen.ts` are
+  regenerated, and `pnpm typecheck` passes.
+- Live re-run of the reviewer's PoCs on `127.0.0.1:8210`:
+  - setup: built `frontend/dist`, `gen-env` secrets, the weak password
+    `Sommerfest2026` (to see the startup warning), `X-Forwarded-For` for
+    distinct clients as before;
+  - all 37 checks pass, so every PoC for SEC-01 to SEC-07 now fails;
+  - `virtubooth serve` with `*` in the proxy list exits with code 2.
+
+### Status
+
+| ID | Status | Commit | Change |
+|---|---|---|---|
+| SEC-01 | fixed | `6549ca6` | Per-IP limits key IPv6 on the /64. The global lock refuses every login, the right password included. Startup warning for weak passwords. |
+| SEC-02 | fixed | `d042502` | `img.info.clear()` before both saves: no COM, EXIF, XMP or ICC in the photo or the thumbnail. |
+| SEC-03 | fixed | `76356a6` | The archive's DB copy has `admin_sessions` and `export_jobs` emptied and is VACUUMed. README.txt and `include_db` list the contents. |
+| SEC-04 | fixed | `bf6dfe0` | Full origin (scheme, host, port), proxy-aware; rules below. |
+| SEC-05 | fixed | `22e6bee` | Allow-list of root files. HTML and its `.br`/`.gz` siblings are not served. |
+| SEC-06 | fixed | `5086d41` | Logout closes the session's streams at once (bus signal). At most 4 streams per session. |
+| SEC-07 | fixed | `c8dee31` | The access log parses the query and masks every key that decodes to `t`. |
+| SEC-08 | INT-A | – | INT-A removes `VB_DEV=1` from the image. Re-check after the merge: `USER 10001:10001`, no `.env` in the context, `.dockerignore` an allow-list. |
+| SEC-09 | fixed | `22e6bee` | HTML, the gate and redirects send `private, no-cache`; the `?t=` 303 sends `no-store`. |
+| SEC-10 | partly fixed, rest accepted | `4adf95d` | At most 20 fingerprint rows per guest (banned ones are kept). Evasion and poisoning are accepted (see below). |
+| SEC-11 | accepted | – | See below. |
+| SEC-12 | accepted | – | See below. |
+| SEC-13 | deferred (time) | – | The pins are not a day old yet; see below. |
+| SEC-14 | fixed | `d042502` | At most 100 scans per JPEG. The size is checked from the header before decoding (verified, with a test). |
+| SEC-15 | fixed | `fa9082a` | `*` in `VB_FORWARDED_ALLOW_IPS` / `--forwarded-allow-ips` is a config error. No compose file or `.env.example` uses `*`. |
+
+### What the host needs to know
+
+**Admin login (SEC-01)**
+- Per-IP limits are unchanged: 5 per minute, 20 per hour.
+- IPv6 clients now share one budget per /64. This applies to every per-IP
+  budget (login, API, uploads and new guests per IP). On a venue Wi-Fi with
+  IPv6, all guests share the venue's /64, just as IPv4 guests share the NAT
+  address. The per-IP defaults already assume that.
+- **Global lock:** after 20 wrong passwords within 15 minutes, from any
+  address, **every** login is refused for **5 minutes**, the correct
+  password too. The answer is `429 login_locked` with `Retry-After`, and the
+  login page says how long to wait.
+  - Each new failure after the window refills a little and trips the lock
+    again. So a distributed attack gets at most about 80 guesses an hour,
+    whatever its number of addresses, and a lucky guess never gets through.
+  - The trade-off: during an attack the admin may not be able to log in from
+    outside for minutes at a time.
+- **What keeps working during a lock:**
+  - admins who are already logged in (sessions last 12 h): log in before the
+    party;
+  - direct loopback logins: a request from the machine itself straight to the
+    app's port, with no `X-Forwarded-For`/`Forwarded` header. A forwarded
+    `127.0.0.1` never counts. In Docker this is only
+    `docker compose exec app …`: a browser through an SSH tunnel arrives from
+    the Docker gateway, not from loopback;
+  - a restart (`docker compose restart app`) clears the lock, because the
+    buckets live in memory.
+- **Password warning:** at startup the log warns when `VB_ADMIN_PASSWORD` is
+  shorter than 16 characters or has very little variety (fewer than 8
+  distinct characters, or only one character class below 20 characters). The
+  password itself is never logged. The 12-character minimum stays, so an
+  existing deployment keeps starting.
+
+**CSRF origin check (SEC-04)**
+
+Origin (or Referer) must match **scheme, host and port** of one of:
+1. an entry of `VB_ALLOWED_ORIGINS` (exact);
+2. `VB_PUBLIC_BASE_URL` (exact; this also covers proxies that rewrite
+   `Host`);
+3. the request's own origin: the scheme uvicorn derived (a trusted
+   `X-Forwarded-Proto` turns it into https) plus the `Host` header;
+4. `https://<Host>` on a plain-http request, only behind a TLS proxy that the
+   app doesn't trust for `X-Forwarded-Proto`. That is the case when the proxy
+   still sends `X-Forwarded-Proto: https` (Caddy, Traefik, the nginx config
+   in DEPLOY.md), when `VB_PUBLIC_BASE_URL` is https, or when
+   `VB_COOKIE_SECURE=true`.
+
+An `http://` origin is refused for any request that came in over TLS (the own
+scheme or `X-Forwarded-Proto` is https), and for the host of an https
+`VB_PUBLIC_BASE_URL`. Only `VB_ALLOWED_ORIGINS` can allow one.
+
+Verified setups:
+
+| Setup | Result |
+|---|---|
+| Plain http on a laptop or in the LAN | works |
+| Compose with Caddy, Traefik or nginx, proxy trusted | works |
+| The same proxy not trusted (still sends `X-Forwarded-Proto`) | works |
+| Proxy without `X-Forwarded-Proto`, but an https public URL or `VB_COOKIE_SECURE=true` | works |
+| Coolify | works |
+| A proxy that rewrites `Host` | works through the public URL |
+| The host on the server via an SSH tunnel (`http://localhost:8000`) while the public URL is https | works |
+
+The only newly refused case is a misconfiguration: a proxy that sends no
+`X-Forwarded-Proto`, while the public URL is left at `http://localhost:8000`
+and `VB_COOKIE_SECURE` is not `true`. The fix is to set `VB_PUBLIC_BASE_URL`
+to the real https URL, which the QR codes need anyway.
+
+**Live screens (SEC-06)**
+- Logging out ends that session's open event streams within milliseconds.
+  The other tabs then reconnect, get 401 and go to the login page.
+- One login (one browser) keeps at most 4 live streams. A fifth tab closes
+  the oldest stream, which reconnects and replays what it missed.
+- Expiry and a password change are still caught by the periodic check (at
+  most about 45 s).
+
+**Archive (SEC-03)**
+
+`virtubooth.db` in the admin's archive and in `python -m
+virtubooth.tools.export` contains:
+- guests: pseudonyms, Instagram handles, IPs, user agents, fingerprints,
+  bans;
+- all photo rows, hidden and deleted ones included;
+- device bans;
+- the audit log, including the addresses admins logged in from;
+- the upload settings.
+
+It no longer contains admin sessions or export jobs. Both tables are emptied,
+not dropped, so the copy can still be restored as a backup (every admin then
+logs in again). The file is VACUUMed, so nothing deleted earlier can be
+recovered from it.
+
+**Other changes**
+- Root files (SEC-05): only `boot-check.js`, `gate-hint.js`, `icon.svg`,
+  `favicon.ico`, `apple-touch-icon.png` and `robots.txt` are served from the
+  build root. A new file in `frontend/public/` needs an entry in
+  `PUBLIC_ROOT_FILES`. Amendment in `contracts/web-serving.md` §7.
+- Uploads (SEC-02, SEC-14):
+  - nothing the phone or client wrote survives: comments, EXIF/GPS, XMP, ICC
+    and trailing bytes are all dropped;
+  - a JPEG with more than 100 scans is refused as `invalid_image`. Browsers
+    write 1 scan, progressive encoders about 10.
+- Fingerprints (SEC-10): a guest keeps the newest 20 fingerprint rows. Rows
+  whose hash is banned are always kept.
+- `VB_FORWARDED_ALLOW_IPS='*'` (SEC-15): the server refuses to start and
+  names the alternative: the proxy's IP or subnet.
+
+### Accepted, with reasons
+
+- **SEC-10 (evasion, ban poisoning).** The fingerprint is a hint by design
+  (BRIEF: "the fingerprint used only as a hint").
+  - A guest who changes it evades a device ban the same way as one who clears
+    cookies.
+  - Poisoning needs a guest who is about to be banned to predict another
+    device model's exact hash.
+  - The data to warn about shared fingerprints is there (`shared_with` on
+    every fingerprint of `GET /api/admin/users/{user_id}`). Showing it in the ban
+    sheet before a device ban is a UI follow-up for the admin app (frontend,
+    not part of this change).
+  - The row growth, the cheap part, is fixed.
+- **SEC-11 (`uid_token` has no expiry).** Accepted.
+  - The token is an HMAC over the public id, keyed with `VB_SECRET_KEY`, so
+    it can't be forged or enumerated (a forged one gets `needs_consent`).
+  - It only identifies a guest *device* inside a party that already needs the
+    party token, and it grants nothing beyond that guest's own photos.
+  - A party lasts one night. Adding an expiry would log guests out of their
+    identity mid-party when their localStorage outlives the cookie.
+  - **Reset:** rotating `VB_SECRET_KEY` invalidates every uid token at once.
+    It also invalidates every access cookie and every admin session, so every
+    guest joins again and gets a new pseudonym.
+- **SEC-12 (exports filling the disk).** Accepted. Both bounds exist
+  (verified):
+  - `ExportService._prune` (`services/exports.py`) keeps only the newest 10
+    finished export files and deletes older ones with their records;
+  - `check_free_space` (`tools/_common.py`) runs before every archive, both
+    the admin job (`export_runners.run_archive`) and the CLI
+    (`tools/export.py`). It refuses unless the photos' size plus 5 % plus
+    10 MB is free.
+
+  The timelapse is not checked, but an H.264 file is a small fraction of the
+  photos it is made from. Only an admin can start exports (one job at a
+  time), and the admin can delete them.
+- **SEC-14 (no timeout on decoding).** The decode work is bounded instead:
+  - the size comes from the header and is checked before `load()` (exactly
+    1080×1440 for both built-in activities, `max_side` otherwise);
+  - `MAX_IMAGE_PIXELS` is 25 M;
+  - at most 100 scans;
+  - 8 MB per upload, 10 uploads per guest per minute, and the thread pool.
+
+  A timeout on a C decoder can't stop the work anyway; it only frees the
+  request.
+
+### Deferred
+
+- **SEC-13 (`minimumReleaseAgeExclude`).** Checked on 2026-10-13 at
+  07:17 UTC with `npm view <pkg> time --json`:
+
+  | Package | Published (UTC) |
+  |---|---|
+  | `vitest@5.0.4` | 2026-10-12 09:47 |
+  | `@vitest/mocker@5.0.4` | 2026-10-12 09:46 |
+  | `@vitest/spy@5.0.4` | 2026-10-12 09:46 |
+  | `zod@4.6.7` | 2026-10-12 16:29 |
+
+  None is a day old yet. Without the four entries,
+  `pnpm install --frozen-lockfile` fails now ("within the minimumReleaseAge
+  cutoff"; tried and reverted). **To do after 2026-10-13 16:30 UTC:** delete
+  the whole `minimumReleaseAgeExclude` block and its comment from
+  `frontend/pnpm-workspace.yaml`, then run
+  `pnpm install --frozen-lockfile`. The three vitest entries could already
+  go after 09:47 UTC.
+
+### Doc lines for INT-A's files (for the orchestrator to apply)
+
+**`README.md`**
+- Line 58 (upload pipeline): "re-encoded (EXIF and GPS stripped)" → "re-encoded
+  (all metadata stripped: EXIF/GPS, XMP, ICC, comments)".
+- Line 119, `VB_ADMIN_PASSWORD` row: "Admin password (min. 12 chars; use 16+
+  random ones, the log warns otherwise; `gen-env` makes one). Changing it ends
+  all admin sessions."
+- Line 128, `VB_ALLOWED_ORIGINS` row: "Extra origins for the CSRF check,
+  compared exactly (scheme, host, port), e.g. `https://party.example.com`.
+  Rarely needed: `VB_PUBLIC_BASE_URL` is accepted anyway. The only way to
+  allow an `http://` origin on an https deployment."
+- Line 140, `VB_FORWARDED_ALLOW_IPS` row: append "`*` is refused at startup."
+- Lines 195-197 (proxy notes): "The CSRF check compares the full origin,
+  scheme included. Behind TLS it accepts `https://<host>`: the public URL,
+  the request's own origin, or `https://<Host>` when the proxy says
+  `X-Forwarded-Proto: https`. `http://` origins are refused on https
+  deployments. If the proxy rewrites `Host`, set `VB_PUBLIC_BASE_URL` (or
+  `VB_ALLOWED_ORIGINS`)."
+- Lines 285-289 (admin login), replace with: "Sessions last
+  `VB_ADMIN_SESSION_HOURS` (12 h); log in before the guests arrive. Login is
+  rate limited per IP (5 per minute, 20 per hour; IPv6 per /64). After 20
+  wrong passwords within 15 minutes from anywhere, **every** login is refused
+  for 5 minutes ("Zu viele Fehlversuche"), the correct password too, so
+  spreading guesses over many addresses gains nothing. Admins who are logged
+  in keep working. To get in during a lock: wait, or restart the container
+  (`docker compose restart app`; the counters live in memory). A login sent
+  from the server itself straight to the app's port (no proxy) is exempt.
+  Keep the password long and random (`gen-env` does); the log warns at
+  startup when it is shorter than 16 characters or very repetitive."
+- Line 345 (CLI export): "a consistent copy of `virtubooth.db` (guests with
+  IPs, fingerprints and bans, all photo rows, the audit log; without admin
+  sessions and export jobs, vacuumed so nothing deleted earlier can be
+  recovered; leave it out with `--no-db`)".
+- Line 386 (data minimisation): "Photos are re-encoded, so EXIF/GPS, XMP, ICC
+  and comment data from the phone never reaches the disk."
+- Line 445 (troubleshooting), new text: "| Admin login says "Zu viele
+  Fehlversuche" | 20+ wrong passwords within 15 minutes from anywhere: every
+  login waits 5 minutes, the correct one too. Logged-in admins keep working.
+  Wait, or restart the container to clear it. |"
+- New troubleshooting row: "| `403 bad_origin` behind https only | The CSRF
+  check compares the scheme. Set `VB_PUBLIC_BASE_URL=https://<host>` and
+  trust the proxy (`VB_FORWARDED_ALLOW_IPS`). |"
+- Admin section: "Logging out ends the live screens of that login at once. One
+  browser keeps at most 4 live tabs; a fifth reconnects the oldest."
+
+**`.env.example`**
+- `VB_ADMIN_PASSWORD` comment: "Password for /admin. At least 12 characters;
+  use 16+ random ones (the log warns otherwise; gen-env makes one). Changing
+  it ends every admin session."
+- `VB_FORWARDED_ALLOW_IPS` comment, last sentence: "... and never use "*"
+  (refused at startup): anyone reaching the port could then pick their own IP
+  for rate limits."
+- `VB_ALLOWED_ORIGINS` comment: "Extra origins accepted by the CSRF check
+  (comma-separated, compared exactly: scheme, host and port), e.g.
+  https://party.example.com. VB_PUBLIC_BASE_URL is always accepted, so this
+  is only needed for additional hostnames."
+
+**`docs/DEPLOY.md`**
+- §5 point 2: "Pass the original `Host` header. The CSRF check compares the
+  browser's `Origin` (scheme, host, port) with `VB_PUBLIC_BASE_URL` and with
+  the request's own origin; set `VB_PUBLIC_BASE_URL=https://<your-domain>`
+  in any case."
+- §5 point 3: append "`*` is refused."
+- §5.4 Coolify (SEC-15): "The compose file trusts all private ranges by
+  default. To narrow it, set `VB_FORWARDED_ALLOW_IPS` to Coolify's proxy
+  network:
+  `docker network inspect coolify --format '{{(index .IPAM.Config 0).Subnet}}'`.
+  Other containers on Coolify's shared network could otherwise send forged
+  `X-Forwarded-For` straight to `app:8000`. The global login lock still caps
+  them."
+- New short section "Locked out of the admin login": the 20-per-15-minutes /
+  5-minute rule, "logged-in sessions keep working", and
+  `docker compose restart app` clears it.
+
+**`docs/ARCHITECTURE.md`** (lines 42-44, CSRF)
+
+"every POST/PUT/PATCH/DELETE must carry an `Origin` (or `Referer`) whose full
+origin (scheme, host, port) is `VB_PUBLIC_BASE_URL`'s, an entry of
+`VB_ALLOWED_ORIGINS`, or the request's own (scheme + `Host`; also
+`https://<Host>` behind an untrusted TLS proxy). `http://` origins are refused
+on https deployments."
+
+**Compose files:** no change is needed for SEC-15 (neither uses `*`).
+Optionally, `docker-compose.coolify.yaml` could gain this comment at
+`VB_FORWARDED_ALLOW_IPS`: "narrow to the coolify network's subnet if other
+apps share it".
+
+**`docs/overhaul/contracts/api.md`** (not INT-A's, not changed here)
+- §3, `login_locked` row: "every login for 5 min after 20 wrong passwords in
+  15 min from anywhere, the right password included".
+- §4: "The stream ends at once on logout. Otherwise (expiry, password change)
+  the session is checked at most every 30 s. A session holds at most 4
+  streams; a fifth closes its oldest, which reconnects and replays."
+- §6.2 `archive`, `include_db`: "without admin sessions and export jobs,
+  vacuumed".
