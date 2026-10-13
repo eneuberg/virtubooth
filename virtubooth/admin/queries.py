@@ -34,7 +34,8 @@ def stats(db: Database) -> dict[str, Any]:
     deleted = db.one("SELECT COUNT(*) FROM photos WHERE deleted_at IS NOT NULL")
     users = db.one(
         "SELECT COUNT(*) AS total, SUM(banned_at IS NOT NULL) AS banned, "
-        "SUM(instagram IS NOT NULL) AS instagram FROM users"
+        "SUM(instagram IS NOT NULL) AS instagram, "
+        "COUNT(DISTINCT instagram) AS instagram_handles FROM users"
     )
     uploaders = db.one("SELECT COUNT(DISTINCT user_id) FROM photos WHERE deleted_at IS NULL")
     fp_bans = db.one("SELECT COUNT(*) FROM fingerprint_bans")
@@ -52,7 +53,10 @@ def stats(db: Database) -> dict[str, Any]:
         "last_upload_at": photos["last_upload_at"],
         "guests": _int(users["total"]),
         "banned": _int(users["banned"]),
+        # guests (devices) that gave a handle, and the distinct handles: one
+        # person with two phones is two guests but one handle
         "instagram": _int(users["instagram"]),
+        "instagram_handles": _int(users["instagram_handles"]),
         "uploaders": _int(uploaders[0]) if uploaders else 0,
         "fingerprint_bans": _int(fp_bans[0]) if fp_bans else 0,
         "extensions": {

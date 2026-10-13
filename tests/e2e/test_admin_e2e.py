@@ -421,6 +421,9 @@ def test_manage_tabs(desktop_page, live, guests):
 
     page.get_by_role("tab", name="📷 Instagram").click()
     expect(page.locator("[data-testid=insta-row]")).to_have_count(2)
+    # the tab and its panel count the same thing: handles
+    expect(page.locator("#count-instagram")).to_have_text("2")
+    expect(page.get_by_test_id("insta-count")).to_have_text("2 Handles · 2 Gäste")
     page.get_by_test_id("copy-all-handles").click()
     # banned guests are left out when copying all handles
     assert page.evaluate("() => navigator.clipboard.readText()") == "@ben"
@@ -439,6 +442,20 @@ def test_manage_tabs(desktop_page, live, guests):
     expect(page.get_by_test_id("audit")).to_contain_text("Gast entsperrt")
     expect(page.get_by_test_id("audit")).to_contain_text("Fingerprint entsperrt")
     assert page.js_errors == []
+
+
+def test_instagram_tab_and_panel_count_handles(admin_page, live, guests):
+    """One person, two phones, one handle: tab and panel both count handles."""
+    guests(instagram="anna", fp_n=1)
+    guests(instagram="anna", fp_n=2)
+    guests(instagram="ben", fp_n=3)
+    guests(fp_n=4)  # no handle
+    admin_page.goto(live.url("/admin/manage?tab=instagram"))
+    expect(admin_page.locator("[data-testid=insta-row]")).to_have_count(2)
+    expect(admin_page.get_by_test_id("insta-count")).to_have_text("2 Handles · 3 Gäste")
+    expect(admin_page.locator("#count-instagram")).to_have_text("2")
+    expect(admin_page.locator("#count-instagram")).to_have_attribute("title", "2 Handles · 3 Gäste")
+    assert admin_page.js_errors == []
 
 
 # -------------------------------------------------------------------- user

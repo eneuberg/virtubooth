@@ -430,7 +430,7 @@ async function loadGaeste({ more = false } = {}) {
 const insta = { el: document.getElementById('panel-instagram'), data: [], loaded: false };
 const instaBody = h('div', { class: 'adm-list' });
 const instaCopyAll = h('button', { class: 'vb-btn vb-btn--primary adm-btn-sm', type: 'button', 'data-testid': 'copy-all-handles' }, '📋 Alle Handles kopieren');
-const instaCount = h('span', { class: 'adm-num' });
+const instaCount = h('span', { class: 'adm-muted', 'data-testid': 'insta-count' });
 
 function buildInsta() {
   instaCopyAll.addEventListener('click', () => {
@@ -455,8 +455,13 @@ function taggableHandles() {
   return insta.data.filter((e) => e.users.some((u) => !u.banned)).map((e) => e.handle);
 }
 
+/** "4 Handles · 9 Gäste": one person may give the same handle on two phones */
+function handleCount(handles, guests) {
+  return `${handles} ${handles === 1 ? 'Handle' : 'Handles'} · ${guests} ${guests === 1 ? 'Gast' : 'Gäste'}`;
+}
+
 function renderInsta() {
-  instaCount.textContent = `(${insta.data.length})`;
+  instaCount.textContent = handleCount(insta.data.length, insta.data.reduce((n, e) => n + e.users.length, 0));
   instaCopyAll.textContent = `📋 Alle ${taggableHandles().length} Handles kopieren`;
   if (!insta.data.length) {
     instaBody.replaceChildren(h('div', { class: 'adm-empty' }, h('strong', {}, 'Noch keine Handles.'), 'Gäste können ihren Instagram-Namen beim Start oder über den Namens-Chip angeben.'));
@@ -750,7 +755,9 @@ const refreshStats = throttle(async () => {
     const s = await aapi('/api/admin/stats');
     document.getElementById('count-fotos').textContent = String(s.photos);
     document.getElementById('count-gaeste').textContent = String(s.guests);
-    document.getElementById('count-instagram').textContent = String(s.instagram);
+    const instaTab = document.getElementById('count-instagram');
+    instaTab.textContent = String(s.instagram_handles);
+    instaTab.title = handleCount(s.instagram_handles, s.instagram);
     document.getElementById('count-sperren').textContent = String(s.banned + s.fingerprint_bans);
   } catch (_) { /* try again on the next event */ }
 }, 400);

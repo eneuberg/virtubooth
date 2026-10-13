@@ -558,7 +558,8 @@ def test_stats(admin, guest, core):
     )
     s = admin.get("/api/admin/stats").json()
     assert s["photos"] == 2 and s["visible"] == 1 and s["hidden"] == 1 and s["deleted"] == 1
-    assert s["guests"] == 3 and s["banned"] == 1 and s["instagram"] == 1
+    assert s["guests"] == 3 and s["banned"] == 1
+    assert s["instagram"] == 1 and s["instagram_handles"] == 1
     assert s["uploaders"] == 1 and s["fingerprint_bans"] == 1
     assert s["extensions"] == {"demo": {"photos": 2, "hidden": 1}}
     assert s["last_upload_at"]
@@ -589,6 +590,10 @@ def test_instagram_handles(admin, guest, core):
     assert anna["recent"][-1]["id"] == a2 and len(anna["recent"]) == 2
     assert handles[1]["photos"] == 0 and handles[1]["recent"] == []
     assert ben  # used
+    # the tab counts what the panel lists: handles (and says how many guests gave one)
+    stats = admin.get("/api/admin/stats").json()
+    assert stats["instagram_handles"] == len(handles) == 2
+    assert stats["instagram"] == sum(len(h["users"]) for h in handles) == 3
 
 
 def test_audit_log_paged(admin, guest, core):
