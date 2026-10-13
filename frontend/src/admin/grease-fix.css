@@ -1,0 +1,12 @@
+/*
+ * Workaround until src/ui/GreaseMarks.tsx is fixed (reported by AD, wave 2):
+ * the marks use pathLength=1 for the "drawn" animation and vector-effect:
+ * non-scaling-stroke. Browsers scale the dash pattern by the path's user-space
+ * length (~117) but draw it in screen space, so on frames wider than ~130 px only
+ * part of each stroke shows (an X looks like a V). In user space the dashes are
+ * right; the stroke then scales with the frame, so it gets a thinner user width.
+ */
+svg.pointer-events-none[preserveAspectRatio='none'] > path[pathLength] {
+  vector-effect: none;
+  stroke-width: 2.4;
+}
