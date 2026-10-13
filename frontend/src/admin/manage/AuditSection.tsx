@@ -30,6 +30,10 @@ function Target({ entry }: { entry: AuditEntry }) {
       return <span title={target.hash}>Gerätemerkmal {shortHash(target.hash)}</span>;
     case 'ip':
       return <span>IP {target.ip}</span>;
+    case 'instagram':
+      return <span translate="no">@{target.handle}</span>;
+    case 'export':
+      return <span>Export</span>;
     default:
       return <span className="text-ink-muted">{target.text}</span>;
   }
@@ -48,7 +52,14 @@ const COLUMNS: ReadonlyArray<DataColumn<AuditEntry>> = [
     id: 'details',
     label: 'Details',
     hideBelow: 'md',
-    render: (e) => <span className="text-ink-muted">{auditDetails(e) || '–'}</span>,
+    render: (e) => {
+      const text = auditDetails(e) || '–';
+      return (
+        <span title={text} className="block max-w-[22rem] truncate text-ink-muted">
+          {text}
+        </span>
+      );
+    },
   },
   { id: 'actor', label: 'Wer', hideBelow: 'sm', render: (e) => auditActor(e.actor) },
 ];

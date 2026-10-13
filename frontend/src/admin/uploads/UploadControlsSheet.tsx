@@ -16,7 +16,13 @@ import { usePausedUsers, useUploadPause, useUploadStop } from '../store/hooks';
 import { qk } from '../store/keys';
 import { guestCount } from '../lib/labels';
 import { useUploadSheet } from './sheetStore';
-import { endPausePlan, endPauseResult, pauseDescription, pauseSource, stopDescription } from './uploadState';
+import {
+  endPausePlan,
+  endPauseResult,
+  pauseDescription,
+  pauseSourceShort,
+  stopDescription,
+} from './uploadState';
 
 type Busy = null | 'stop' | 'pause' | 'restore' | 'keep' | number;
 interface Result {
@@ -258,7 +264,7 @@ export function UploadControlsSheet() {
                       >
                         {user.name}
                       </Link>
-                      <span className="truncate text-xs text-ink-muted">{pauseSource(user, pause)}</span>
+                      <span className="truncate text-xs text-ink-muted">{pauseSourceShort(user)}</span>
                     </div>
                     <Button
                       size="xs"

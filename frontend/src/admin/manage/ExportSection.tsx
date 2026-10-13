@@ -4,6 +4,7 @@ import { useState, type FormEvent, type ReactNode } from 'react';
 import type { ExportJob, ExportKind, ExportRequest } from '@/api/types';
 import { formatBytes, formatDateTime, formatRelative } from '@/lib/format';
 import { Button, LinkButton } from '@/ui/Button';
+import { cx } from '@/ui/cx';
 import { Checkbox } from '@/ui/Checkbox';
 import { ConfirmDialog } from '@/ui/ConfirmDialog';
 import { EmptyState } from '@/ui/EmptyState';
@@ -165,6 +166,68 @@ export function ExportSection() {
           stehen unten zum Herunterladen bereit.
         </p>
       </header>
+      <section aria-labelledby="export-jobs" className={cx('grid gap-2', jobs.length === 0 && 'order-1')}>
+        <h2 id="export-jobs" className="text-lg font-bold">
+          Erstellte Exporte
+        </h2>
+        {exportsQuery.isPending ? (
+          <Spinner />
+        ) : jobs.length === 0 ? (
+          <p className="text-sm text-ink-muted">Noch keine Exporte.</p>
+        ) : (
+          <ul className="grid border-t border-line" data-testid="export-jobs">
+            {jobs.map((job) => (
+              <li
+                key={job.id}
+                data-testid="export-job"
+                data-status={job.status}
+                data-kind={job.kind}
+                className="flex flex-wrap items-center gap-x-4 gap-y-2 border-b border-line py-3"
+              >
+                <div className="grid min-w-0 flex-1 gap-1">
+                  <span className="font-semibold">{jobTitle(job)}</span>
+                  <JobStatus job={job} />
+                </div>
+                {job.status === 'done' && job.download_url ? (
+                  <LinkButton
+                    size="xs"
+                    variant="primary"
+                    icon={Download}
+                    href={job.download_url}
+                    download={job.file_name ?? ''}
+                    data-testid="export-download"
+                  >
+                    Herunterladen
+                  </LinkButton>
+                ) : null}
+                {job.status === 'queued' ? (
+                  <Button
+                    size="xs"
+                    variant="quiet"
+                    icon={X}
+                    onPress={() => void cancel(job)}
+                    data-testid="export-cancel"
+                  >
+                    Abbrechen
+                  </Button>
+                ) : job.status === 'running' ? null : (
+                  <IconButton
+                    label={`${KIND_LABEL[job.kind]} löschen`}
+                    icon={Trash2}
+                    onPress={() => setDeleting(job)}
+                    data-testid="export-delete"
+                  />
+                )}
+                {job.finished_at ? (
+                  <time dateTime={job.finished_at} className="w-full text-xs text-ink-muted sm:w-auto">
+                    fertig {formatRelative(job.finished_at)}
+                  </time>
+                ) : null}
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
       <div className="grid gap-8 md:grid-cols-2 xl:grid-cols-3">
         <Panel
           icon={Archive}
@@ -298,68 +361,6 @@ export function ExportSection() {
           </Button>
         </Panel>
       </div>
-      <section aria-labelledby="export-jobs" className="grid gap-2">
-        <h2 id="export-jobs" className="text-lg font-bold">
-          Erstellte Exporte
-        </h2>
-        {exportsQuery.isPending ? (
-          <Spinner />
-        ) : jobs.length === 0 ? (
-          <p className="text-sm text-ink-muted">Noch keine Exporte.</p>
-        ) : (
-          <ul className="grid border-t border-line" data-testid="export-jobs">
-            {jobs.map((job) => (
-              <li
-                key={job.id}
-                data-testid="export-job"
-                data-status={job.status}
-                data-kind={job.kind}
-                className="flex flex-wrap items-center gap-x-4 gap-y-2 border-b border-line py-3"
-              >
-                <div className="grid min-w-0 flex-1 gap-1">
-                  <span className="font-semibold">{jobTitle(job)}</span>
-                  <JobStatus job={job} />
-                </div>
-                {job.status === 'done' && job.download_url ? (
-                  <LinkButton
-                    size="xs"
-                    variant="primary"
-                    icon={Download}
-                    href={job.download_url}
-                    download={job.file_name ?? ''}
-                    data-testid="export-download"
-                  >
-                    Herunterladen
-                  </LinkButton>
-                ) : null}
-                {job.status === 'queued' ? (
-                  <Button
-                    size="xs"
-                    variant="quiet"
-                    icon={X}
-                    onPress={() => void cancel(job)}
-                    data-testid="export-cancel"
-                  >
-                    Abbrechen
-                  </Button>
-                ) : job.status === 'running' ? null : (
-                  <IconButton
-                    label={`${KIND_LABEL[job.kind]} löschen`}
-                    icon={Trash2}
-                    onPress={() => setDeleting(job)}
-                    data-testid="export-delete"
-                  />
-                )}
-                {job.finished_at ? (
-                  <time dateTime={job.finished_at} className="w-full text-xs text-ink-muted sm:w-auto">
-                    fertig {formatRelative(job.finished_at)}
-                  </time>
-                ) : null}
-              </li>
-            ))}
-          </ul>
-        )}
-      </section>
       <ConfirmDialog
         isOpen={deleting !== null}
         onOpenChange={(open) => {

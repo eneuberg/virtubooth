@@ -31,6 +31,7 @@ const COLUMNS: ReadonlyArray<DataColumn<AdminUser>> = [
     align: 'end',
     allowsSorting: true,
     width: 'w-16',
+    hideBelow: 'sm',
     render: (u) => <span className="text-ink-muted">#{u.id}</span>,
   },
   {
@@ -41,6 +42,15 @@ const COLUMNS: ReadonlyArray<DataColumn<AdminUser>> = [
     render: (u) => (
       <span translate="no" className="font-semibold">
         {u.name}
+      </span>
+    ),
+  },
+  {
+    id: 'status',
+    label: 'Status',
+    render: (u) => (
+      <span className="inline-flex gap-1.5">
+        <GuestBadges user={u} />
       </span>
     ),
   },
@@ -56,15 +66,6 @@ const COLUMNS: ReadonlyArray<DataColumn<AdminUser>> = [
     align: 'end',
     allowsSorting: true,
     render: (u) => formatNumber(u.photo_count),
-  },
-  {
-    id: 'status',
-    label: 'Status',
-    render: (u) => (
-      <span className="inline-flex gap-1.5">
-        <GuestBadges user={u} />
-      </span>
-    ),
   },
   {
     id: 'seen',

@@ -75,6 +75,16 @@ export function endPauseResult(res: { restored: number; kept: number }): string 
   return 'Neue Gäste können wieder hochladen.';
 }
 
+/** Why a guest is paused, short (a list row): "automatisch, seit 22:41" / "von Hand, seit 22:41". */
+export function pauseSourceShort(
+  user: Pick<AdminUser, 'uploads_paused' | 'uploads_paused_source' | 'uploads_paused_at'>,
+  now?: Date,
+): string | null {
+  if (!user.uploads_paused) return null;
+  const how = user.uploads_paused_source === 'new_guest_lock' ? 'automatisch' : 'von Hand';
+  return `${how}, seit ${clock(user.uploads_paused_at, now)}`;
+}
+
 /** Why a guest is paused: by hand, or by the new-guest pause (still running or not). */
 export function pauseSource(
   user: Pick<

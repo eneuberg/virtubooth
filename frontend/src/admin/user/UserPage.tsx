@@ -193,7 +193,7 @@ function Guest({ detail }: { detail: UserDetail }) {
         <h1 data-testid="user-name" translate="no" className="text-2xl font-bold break-words sm:text-3xl">
           {user.name}
         </h1>
-        <p className="flex flex-wrap items-center gap-x-1 text-md text-ink-muted">
+        <p className="flex flex-wrap items-center text-md text-ink-muted">
           {user.instagram ? (
             <>
               <a
@@ -207,17 +207,21 @@ function Guest({ detail }: { detail: UserDetail }) {
                 @{user.instagram}
                 <ExternalLink aria-hidden="true" className="size-4" strokeWidth={2} />
               </a>
+              <span>, seit {formatTime(user.created_at)} dabei</span>
               <IconButton
                 label="Instagram-Namen kopieren"
                 icon={Copy}
                 onPress={() => void copyHandle(user.instagram ?? '')}
                 data-testid="copy-handle"
+                className="ml-1"
               />
             </>
           ) : (
-            <span data-testid="user-insta">ohne Instagram</span>
+            <>
+              <span data-testid="user-insta">ohne Instagram</span>
+              <span>, seit {formatTime(user.created_at)} dabei</span>
+            </>
           )}
-          <span>, seit {formatTime(user.created_at)} dabei</span>
         </p>
         <p
           id="user-status"

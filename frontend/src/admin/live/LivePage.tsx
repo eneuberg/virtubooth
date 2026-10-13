@@ -9,7 +9,7 @@ import type { AdminPhoto } from '@/api/types';
 import { formatNumber, NBSP } from '@/lib/format';
 import { t } from '@/lib/messages.de';
 import { BottomBar, bottomBarInset } from '@/ui/BottomBar';
-import { Button } from '@/ui/Button';
+import { Button, LinkButton } from '@/ui/Button';
 import { cx } from '@/ui/cx';
 import { EmptyState } from '@/ui/EmptyState';
 import { PhotoTile } from '@/ui/PhotoTile';
@@ -21,7 +21,7 @@ import { HideToggle } from '../common/HideToggle';
 import { PhotoViewer } from '../common/PhotoViewer';
 import { usePhotoParam } from '../common/usePhotoParam';
 import { useHideToggle } from '../common/usePhotoActions';
-import { focusLater } from '../lib/browser';
+import { DESKTOP, focusLater, useMediaQuery } from '../lib/browser';
 import { photoLabel } from '../lib/labels';
 import { arrivedLive } from '../store/applyEvent';
 import { incomingPhotos, listedPhotos } from '../store/cache';
@@ -41,7 +41,7 @@ import { UploadStatusPill } from '../uploads/UploadStatusPill';
 const isAtTop = () => window.scrollY < AT_TOP;
 
 const TOAST_ABOVE_BAR =
-  'bottom-[calc(4.75rem+env(safe-area-inset-bottom))] landscape-phone:bottom-3 landscape-phone:pl-19';
+  'bottom-[calc(4.75rem+env(safe-area-inset-bottom))] landscape-phone:bottom-3 landscape-phone:pl-19 lg:bottom-6';
 
 export function LivePage() {
   useDocumentSurface('dark');
@@ -52,7 +52,7 @@ export function LivePage() {
   );
 }
 
-function LiveHeader() {
+function LiveHeader({ desktop }: { desktop: boolean }) {
   const { data: stats } = useStats();
   return (
     <header className="sticky top-0 z-(--z-sticky) flex items-center gap-3 border-b border-line bg-surface py-2 pt-[max(0.5rem,env(safe-area-inset-top))] pr-3 pl-4">
@@ -76,6 +76,11 @@ function LiveHeader() {
         </p>
       </div>
       <UploadStatusPill className="ml-auto" />
+      {desktop ? (
+        <LinkButton href="/manage" variant="secondary" size="sm" icon={LayoutGrid}>
+          Verwaltung
+        </LinkButton>
+      ) : null}
     </header>
   );
 }
@@ -88,6 +93,7 @@ function LiveScreen() {
   const { photoId, openPhoto, closePhoto } = usePhotoParam();
   const atTop = useAtTop();
   const grid = useGridKeys<HTMLUListElement>();
+  const desktop = useMediaQuery(DESKTOP);
   useAutoMerge('live', ALL_PHOTOS, isAtTop);
 
   const photos = listedPhotos(list.data);
@@ -108,14 +114,14 @@ function LiveScreen() {
   };
 
   return (
-    <div className={cx('min-h-dvh', bottomBarInset)}>
+    <div className={cx('min-h-dvh', !desktop && bottomBarInset)}>
       <a
         href="#live-photos"
         className="sr-only focus:not-sr-only focus:fixed focus:top-2 focus:left-2 focus:z-(--z-toast) focus:rounded-control focus:bg-accent focus:px-4 focus:py-2 focus:text-on-accent"
       >
         Zu den Fotos
       </a>
-      <LiveHeader />
+      <LiveHeader desktop={desktop} />
       {incoming.length > 0 && !atTop ? (
         <div className="pointer-events-none sticky top-20 z-(--z-sticky) flex justify-center">
           <Button
@@ -224,15 +230,17 @@ function LiveScreen() {
           </Button>
         )}
       />
-      <BottomBar
-        label="Bereiche"
-        currentId="live"
-        items={[
-          { id: 'live', label: 'Live', icon: Images, href: '/live' },
-          { id: 'upload', label: t.upload, icon: Upload, onPress: openUploadSheet },
-          { id: 'manage', label: 'Verwaltung', icon: LayoutGrid, href: '/manage' },
-        ]}
-      />
+      {desktop ? null : (
+        <BottomBar
+          label="Bereiche"
+          currentId="live"
+          items={[
+            { id: 'live', label: 'Live', icon: Images, href: '/live' },
+            { id: 'upload', label: t.upload, icon: Upload, onPress: openUploadSheet },
+            { id: 'manage', label: 'Verwaltung', icon: LayoutGrid, href: '/manage' },
+          ]}
+        />
+      )}
     </div>
   );
 }

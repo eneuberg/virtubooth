@@ -145,7 +145,7 @@ export const AUDIT_LABELS: Record<string, string> = {
   'uploads.resume': 'Hochladen läuft wieder',
   'instagram.done': 'Instagram-Name erledigt',
   'instagram.undone': 'Instagram-Name wieder offen',
-  'export.start': 'Export gestartet',
+  'export.create': 'Export gestartet',
   'export.delete': 'Export gelöscht',
 };
 
@@ -162,6 +162,8 @@ export function auditActor(actor: string): string {
 
 export type AuditTarget =
   | { kind: 'user'; id: number }
+  | { kind: 'instagram'; handle: string }
+  | { kind: 'export'; id: string }
   | { kind: 'photo'; id: string }
   | { kind: 'device'; hash: string }
   | { kind: 'ip'; ip: string }
@@ -174,19 +176,38 @@ export function auditTarget(target: string): AuditTarget {
   if (kind === 'photo' && value) return { kind: 'photo', id: value };
   if (kind === 'fp' && value) return { kind: 'device', hash: value };
   if (kind === 'ip' && value) return { kind: 'ip', ip: value };
+  if (kind === 'instagram' && value) return { kind: 'instagram', handle: value };
+  if (kind === 'export' && value) return { kind: 'export', id: value };
   return { kind: 'text', text: target || '–' };
 }
 
-function detailValue(v: unknown): string {
+const KIND_WORDS: Record<string, string> = { archive: 'Archiv', timelapse: 'Zeitraffer', qr: 'QR-Bogen' };
+
+function detailValue(key: string, v: unknown): string {
   if (typeof v === 'boolean') return v ? 'ja' : 'nein';
-  if (typeof v === 'string') return v || '–';
+  if (typeof v === 'string') return (key === 'kind' ? KIND_WORDS[v] : undefined) ?? (v || '–');
   if (typeof v === 'number') return String(v);
   if (v === null || v === undefined) return '–';
-  return JSON.stringify(v);
+  if (Array.isArray(v)) return v.map((x) => detailValue(key, x)).join(', ') || '–';
+  if (typeof v === 'object') {
+    return Object.entries(v)
+      .map(([k, x]) => `${DETAIL_LABELS[k] ?? k} ${detailValue(k, x)}`)
+      .join(', ');
+  }
+  return '–';
 }
 
 const DETAIL_LABELS: Record<string, string> = {
   reason: 'Grund',
+  options: 'Optionen:',
+  include_hidden: 'Ausgeblendete',
+  include_db: 'Datenbank',
+  base_url: 'Adresse',
+  fps: 'Bilder/s',
+  crossfade: 'Überblenden',
+  extension: 'Aktivität',
+  status: 'Status',
+  file_name: 'Datei',
   period: 'Pause Nr.',
   restore: 'freigeschaltet',
   restored: 'freigeschaltet',
@@ -199,8 +220,8 @@ const DETAIL_LABELS: Record<string, string> = {
 export function auditDetails(entry: Pick<AuditEntry, 'details'>): string {
   return Object.entries(entry.details)
     .map(([k, v]) => {
-      const value = detailValue(v);
-      return `${DETAIL_LABELS[k] ?? k}: ${value}`;
+      const label = DETAIL_LABELS[k] ?? k;
+      return label.endsWith(':') ? `${label} ${detailValue(k, v)}` : `${label}: ${detailValue(k, v)}`;
     })
     .join(', ');
 }
