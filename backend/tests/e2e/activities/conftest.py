@@ -43,10 +43,7 @@ def fonts_ready(page: Page) -> None:
     """Wait for the web fonts and Start's requests in flight: Firefox logs a font download
     that a navigation aborts as a console error (NS_BINDING_ABORTED), WebKit an aborted
     fetch ("… due to access control checks"); neither is the page's fault. And a ban that
-    lands while "Deine Bilder" is still loading answers it with a 403. Firefox also
-    aborts Start's lazy card modules when the page navigates away mid-load, and the
-    app's chunk-reload recovery (lib/boot.ts) then reloads "/" instead: the
-    navigation fails with NS_BINDING_ABORTED."""
+    lands while "Deine Bilder" is still loading answers it with a 403."""
     if page.get_by_test_id("start").count():  # Start: the beer counter brings the Doto font
         page.get_by_test_id("beer-count").wait_for()
         expect(page.get_by_test_id("my-photos")).not_to_have_attribute("data-state", "loading")

@@ -282,9 +282,8 @@ def test_no_sideways_scrolling(
         login_api(page, live)
         for path in PAGES:
             goto(page, live, path.format(id=g.id))
-            # leave only once the page is in (its lazy module, its event stream): WebKit
-            # logs a stream it aborts mid-connect as an error, and an aborted module
-            # load makes the app reload the page (lib/boot.ts), not go to the next one
+            # leave only once the page is in (its event stream): WebKit logs a stream it
+            # aborts mid-connect as an error
             wait_live(page)
             # the settled page; while data loads a skeleton may be wider for a moment
             wait_until(
