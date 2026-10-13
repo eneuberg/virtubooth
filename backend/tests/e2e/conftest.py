@@ -316,6 +316,19 @@ def allow_clipboard(context: BrowserContext) -> None:
         context.grant_permissions(["clipboard-read", "clipboard-write"])
 
 
+# Firefox logs a font download that a navigation cancelled as an error
+# ("downloadable font: download failed ... status=2152398850", NS_BINDING_ABORTED):
+# the page left on purpose. A missing or refused font has another status and counts.
+ABORTED_FONT = "status=2152398850"
+
+
+def _is_error(msg: Any) -> bool:
+    if msg.type != "error":
+        return False
+    text: str = msg.text
+    return not ("downloadable font: download failed" in text and ABORTED_FONT in text)
+
+
 def track_errors(page: Page) -> Page:
     """page.js_errors: uncaught exceptions and console errors."""
     errors: list[str] = []
@@ -323,9 +336,7 @@ def track_errors(page: Page) -> Page:
     page.on(
         "console",
         lambda msg: (
-            errors.append(f"{msg.text} @ {msg.location.get('url', '')}")
-            if msg.type == "error"
-            else None
+            errors.append(f"{msg.text} @ {msg.location.get('url', '')}") if _is_error(msg) else None
         ),
     )
     page.js_errors = errors  # type: ignore[attr-defined]
