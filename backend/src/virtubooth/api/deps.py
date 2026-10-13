@@ -56,6 +56,9 @@ def admin_from_cookie(request: Request, core: Core) -> Admin | None:
 def require_access(request: Request, core: CoreDep) -> None:
     if not has_access(request, core):
         raise errors.scan_qr()
+    # every guest API route passes here once per request: the dashboard's
+    # "active now" (throttled to one write per device and minute)
+    core.services.presence.note(request)
 
 
 AccessDep = Depends(require_access)

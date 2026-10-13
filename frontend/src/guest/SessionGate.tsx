@@ -44,7 +44,7 @@ export function BootScreen() {
   );
 }
 
-/** The activity title for "Gleich geht’s zur …" (from the cached activity list). */
+/** The activity title for "Danach öffnet sich „…“" (from the cached activity list). */
 function useDestination(activityId: string | null): string | null {
   const { data } = useQuery({
     queryKey: ACTIVITIES_KEY,

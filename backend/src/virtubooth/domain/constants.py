@@ -28,6 +28,7 @@ PAUSE_NEW_GUEST_LOCK: Final = "new_guest_lock"  # joined while new guests were p
 # settings keys (JSON values)
 UPLOAD_LOCK_KEY: Final = "upload_pause"  # new guests start with uploads paused
 UPLOAD_STOP_KEY: Final = "upload_stop"  # nobody can upload
+JOIN_STOP_KEY: Final = "join_stop"  # nobody new can join (joined guests carry on)
 
 # ids in URLs
 PHOTO_ID_PATTERN: Final = r"^[A-Za-z0-9_-]{8,32}$"

@@ -12,7 +12,8 @@ Archive layout (everything inside one folder named like the archive):
       users.csv                          one row per guest
       instagram.csv                      Instagram handle -> photos to tag
       virtubooth.db                      consistent SQLite copy (backup API), without
-                                         admin sessions and export jobs (SCRUBBED_TABLES)
+                                         admin sessions, export jobs and visitors
+                                         (SCRUBBED_TABLES)
 
 Everything comes from one database snapshot, so the CSVs, the photo files and
 the database copy agree even while the app keeps running.
@@ -82,10 +83,12 @@ class Snapshot:
 
 
 # Emptied in every database copy that goes into an archive: admin sessions
-# (token hashes, password tags, the admins' IPs and browsers) and the export
-# jobs (the server's own bookkeeping). The tables stay, so the copy still opens
-# as a virtubooth database (restoring it logs every admin out).
-SCRUBBED_TABLES = ("admin_sessions", "export_jobs")
+# (token hashes, password tags, the admins' IPs and browsers), the export
+# jobs (the server's own bookkeeping) and the visitors (the dashboard's live
+# counters: browser ids that are worth nothing after the party). The tables
+# stay, so the copy still opens as a virtubooth database (restoring it logs
+# every admin out).
+SCRUBBED_TABLES = ("admin_sessions", "export_jobs", "visitors")
 
 
 def scrub_snapshot(path: Path) -> None:

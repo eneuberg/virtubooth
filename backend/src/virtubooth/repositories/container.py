@@ -13,7 +13,9 @@ from .audit import AuditRepo
 from .bans import FingerprintBansRepo
 from .exports import ExportJobsRepo
 from .instagram import InstagramRepo
+from .overview import OverviewReadModel
 from .photos import PhotosRepo
+from .presence import PresenceRepo
 from .users import UsersRepo
 
 
@@ -29,6 +31,8 @@ class Repositories:
     read_models: AdminReadModels
     exports: ExportJobsRepo
     instagram: InstagramRepo
+    presence: PresenceRepo
+    overview: OverviewReadModel
 
     @classmethod
     def create(cls, db: Database, data_dir: Path) -> Repositories:
@@ -43,4 +47,6 @@ class Repositories:
             read_models=AdminReadModels(db),
             exports=ExportJobsRepo(db),
             instagram=InstagramRepo(db),
+            presence=PresenceRepo(db),
+            overview=OverviewReadModel(db),
         )

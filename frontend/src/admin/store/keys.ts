@@ -29,5 +29,8 @@ export const qk = {
   uploadStop: ['admin', 'upload-stop'] as const,
   uploadPause: ['admin', 'upload-pause'] as const,
   pausedUsers: ['admin', 'paused-users'] as const,
+  joinStop: ['admin', 'join-stop'] as const,
+  /** the dashboard's live counters */
+  overview: ['admin', 'overview'] as const,
   exports: ['admin', 'exports'] as const,
 };

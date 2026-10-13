@@ -64,8 +64,13 @@ def identify(
         ip=client_ip(request),
         user_agent=_user_agent(request),
     )
+    core.services.presence.enter(request, response, user=user)
     if user is None:
-        return NeedsConsentOut(state="needs_consent", consent=identity.consent_info())
+        return NeedsConsentOut(
+            state="needs_consent",
+            consent=identity.consent_info(),
+            join_closed=core.services.join_controls.join_stopped(),
+        )
     return _identified(request, response, core, user)
 
 
@@ -78,7 +83,8 @@ _JOIN_RESPONSES: dict[int | str, dict[str, Any]] = {
 @router.post("/join", dependencies=[AccessDep], status_code=201, responses=_JOIN_RESPONSES)
 def join(body: JoinIn, request: Request, response: Response, core: CoreDep) -> JoinOut:
     """Accept the join dialog: a new pseudonymous guest (201). A device that
-    joined already keeps its identity (200, `already_joined`)."""
+    joined already keeps its identity (200, `already_joined`). While the host
+    stopped joining, a new device gets 403 `join_closed`."""
     result = core.services.identity.join(
         guest_from_cookie(request, core),
         version=body.version,
@@ -89,6 +95,7 @@ def join(body: JoinIn, request: Request, response: Response, core: CoreDep) -> J
     )
     if not result.created:
         response.status_code = 200
+    core.services.presence.enter(request, response, user=result.user)
     base = _identified(request, response, core, result.user)
     return JoinOut(
         **base.model_dump(),

@@ -63,6 +63,10 @@ class UploadStopData(BaseModel):
     upload_stop: StopState
 
 
+class JoinStopData(BaseModel):
+    join_stop: StopState
+
+
 class UploadPauseData(BaseModel):
     upload_pause: PauseState
     restored: list[int]
@@ -163,6 +167,14 @@ class UploadPauseEvent(BaseModel):
     data: UploadPauseData
 
 
+class JoinStopEvent(BaseModel):
+    """The join stop („Anmeldung stoppen“) was switched on or off."""
+
+    type: Literal["settings.join_stop"]
+    id: EventId
+    data: JoinStopData
+
+
 class ExportUpdatedEvent(BaseModel):
     """A job was created or changed status or progress (progress at most every
     5 % or second)."""
@@ -206,6 +218,7 @@ AnyAdminEvent = Annotated[
     | UploadsChangedEvent
     | UploadStopEvent
     | UploadPauseEvent
+    | JoinStopEvent
     | ExportUpdatedEvent
     | ExportDeletedEvent
     | InstagramDoneEvent
@@ -231,6 +244,7 @@ ADMIN_EVENT_TYPES: tuple[str, ...] = (
     "user.uploads_changed",
     "settings.upload_stop",
     "settings.upload_pause",
+    "settings.join_stop",
     "export.updated",
     "export.deleted",
     "instagram.done",

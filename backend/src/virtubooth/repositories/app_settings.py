@@ -4,6 +4,7 @@
 - `upload_pause` = {enabled, since, period, by}: the new-guest lock. The period
   counter persists while it is off.
 - `upload_stop` = {enabled, since, by}: nobody can upload.
+- `join_stop` = {enabled, since, by}: nobody new can join.
 """
 
 from __future__ import annotations
@@ -12,7 +13,7 @@ import json
 from typing import Any
 
 from ..db.database import Database
-from ..domain.constants import UPLOAD_LOCK_KEY, UPLOAD_STOP_KEY
+from ..domain.constants import JOIN_STOP_KEY, UPLOAD_LOCK_KEY, UPLOAD_STOP_KEY
 from ..domain.models import UploadLock, UploadStop
 
 
@@ -72,3 +73,16 @@ class AppSettingsRepo:
 
     def put_upload_stop(self, *, enabled: bool, since: str | None, by: str, at: str) -> None:
         self.put(UPLOAD_STOP_KEY, {"enabled": enabled, "since": since, "by": by}, at=at)
+
+    # --------------------------------------------------------- join switch
+
+    def join_stop(self) -> UploadStop:
+        """Nobody new can join (same shape as the upload stop)."""
+        raw = self.get(JOIN_STOP_KEY)
+        enabled = bool(raw.get("enabled"))
+        return UploadStop(
+            enabled=enabled, since=raw.get("since") if enabled else None, by=raw.get("by")
+        )
+
+    def put_join_stop(self, *, enabled: bool, since: str | None, by: str, at: str) -> None:
+        self.put(JOIN_STOP_KEY, {"enabled": enabled, "since": since, "by": by}, at=at)

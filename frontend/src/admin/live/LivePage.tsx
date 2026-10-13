@@ -21,6 +21,9 @@ import { HideToggle } from '../common/HideToggle';
 import { PhotoViewer } from '../common/PhotoViewer';
 import { usePhotoParam } from '../common/usePhotoParam';
 import { useHideToggle } from '../common/usePhotoActions';
+import { OverviewStrip } from '../dashboard/OverviewStrip';
+import { QuickControls } from '../dashboard/QuickControls';
+import { StatusStrip } from '../dashboard/StatusStrip';
 import { DESKTOP, focusLater, useMediaQuery } from '../lib/browser';
 import { photoLabel } from '../lib/labels';
 import { arrivedLive } from '../store/applyEvent';
@@ -55,8 +58,8 @@ export function LivePage() {
 function LiveHeader({ desktop }: { desktop: boolean }) {
   const { data: stats } = useStats();
   return (
-    <header className="sticky top-0 z-(--z-sticky) flex items-center gap-3 border-b border-line bg-surface py-2 pt-[max(0.5rem,env(safe-area-inset-top))] pr-3 pl-4">
-      <div className="grid min-w-0">
+    <header className="flex items-center gap-3 border-b border-line bg-surface py-2 pt-[max(0.5rem,env(safe-area-inset-top))] pr-3 pl-4">
+      <div className="mr-auto grid min-w-0">
         <div className="flex items-baseline gap-2.5">
           <h1 className="text-lg font-bold">Live</h1>
           <ConnectionBadge />
@@ -75,7 +78,8 @@ function LiveHeader({ desktop }: { desktop: boolean }) {
           )}
         </p>
       </div>
-      <UploadStatusPill className="ml-auto" />
+      {desktop ? <QuickControls /> : null}
+      <UploadStatusPill />
       {desktop ? (
         <LinkButton href="/manage" variant="secondary" size="sm" icon={LayoutGrid}>
           Verwaltung
@@ -121,24 +125,30 @@ function LiveScreen() {
       >
         Zu den Fotos
       </a>
-      <LiveHeader desktop={desktop} />
-      {incoming.length > 0 && !atTop ? (
-        <div className="pointer-events-none sticky top-20 z-(--z-sticky) flex justify-center">
-          <Button
-            variant="primary"
-            size="sm"
-            icon={ArrowUp}
-            data-testid="new-pill"
-            className="pointer-events-auto shadow-float"
-            onPress={() => {
-              merge();
-              window.scrollTo({ top: 0, behavior: 'smooth' });
-            }}
-          >
-            {incoming.length === 1 ? '1 neues Foto' : `${incoming.length} neue Fotos`}
-          </Button>
-        </div>
-      ) : null}
+      {/* the header, the two switches and their status strip stay on screen */}
+      <div className="sticky top-0 z-(--z-sticky) bg-surface">
+        <LiveHeader desktop={desktop} />
+        {desktop ? null : <QuickControls className="border-b border-line px-3 py-2" />}
+        <StatusStrip />
+        {incoming.length > 0 && !atTop ? (
+          <div className="pointer-events-none absolute inset-x-0 top-full flex justify-center pt-3">
+            <Button
+              variant="primary"
+              size="sm"
+              icon={ArrowUp}
+              data-testid="new-pill"
+              className="pointer-events-auto shadow-float"
+              onPress={() => {
+                merge();
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+              }}
+            >
+              {incoming.length === 1 ? '1 neues Foto' : `${incoming.length} neue Fotos`}
+            </Button>
+          </div>
+        ) : null}
+      </div>
+      <OverviewStrip />
       <main id="live-photos" tabIndex={-1} className="px-2 pt-2 pb-6 outline-none">
         {list.isPending ? (
           <SkeletonGrid

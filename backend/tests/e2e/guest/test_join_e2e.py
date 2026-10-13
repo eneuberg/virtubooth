@@ -186,7 +186,7 @@ def test_deep_link_to_an_activity_shows_the_join_sheet_first(page: Page, live: L
     assert page.url == live.url("/x/beer/")
     sheet = page.get_by_test_id("join")
     expect(sheet).to_be_visible()
-    expect(sheet).to_contain_text("Gleich geht’s zur Beer Cam.")
+    expect(sheet).to_contain_text("Danach öffnet sich „Beer Cam“.")
     page.wait_for_timeout(500)
     assert page.evaluate("() => window.__cameraRequests.length") == 0
     assert page.get_by_test_id("activity-menu").count() == 0  # the activity is not rendered

@@ -118,10 +118,23 @@ as they arrive, with the connection state ("verbunden"). A 44 px toggle per
 photo hides it ("Ausblenden", with "Rückgängig" in a toast). Here you can
 **only hide**, so an accidental tap never deletes anything.
 
-**Verwaltung** (`/admin/manage`) has six tabs, in a sidebar on desktop:
+**One-tap stops.** The Live header and the Verwaltung header (the sidebar on
+a laptop) have "Hochladen stoppen" (nobody can upload) and "Anmeldung
+stoppen" (nobody new can join; guests who joined carry on) side by side: one
+tap, no confirmation. While a stop is on, its button gives way to a red or
+amber status strip ("Hochladen gestoppt", "Anmeldung gestoppt") with the
+resume button, the same on every open admin screen.
+
+**Live overview.** Under the Live header, and in full in the "Übersicht" tab:
+active now, uploading now (both the last 5 minutes), photos in the last 15 and
+60 minutes, scanned, not joined, guests, Instagram, paused, banned, per
+activity. It refreshes every 10 seconds and on every relevant event.
+
+**Verwaltung** (`/admin/manage`) has seven tabs, in a sidebar on desktop:
 
 | Tab | What the host does there |
 |---|---|
+| Übersicht | The live overview in full: the numbers above, grouped, with how they are counted. |
 | Fotos | A contact sheet with grease-pencil marks (X = hidden, circle = selected). Filters (Aktivität, Gast, Sichtbar/Ausgeblendet), multi-select with keyboard shortcuts, an inspector, and "Löschen…", which removes the files for good (numbers are never reused). |
 | Gäste | Every guest with pseudonym, Instagram name, photo count and status, filterable (for example "Hochladen pausiert"). |
 | Instagram | Every Instagram name with its photos, a **ZIP per name** to post from, and an **"Erledigt"** mark once you have tagged them. |
@@ -235,6 +248,10 @@ Every setting with its default, including the rate limits:
 - **No accounts.** A guest is a pseudonym tied to one device by a signed
   cookie. The Instagram name is optional. Device traits are kept only as a
   hint for bans, never as an identity.
+- **An anonymous scan count.** Each browser that opens the QR link gets a
+  random id cookie, stored with its first and last visit only (no IP, no
+  device data), so the host's overview can count scans. The guest's "Mehr
+  dazu" says so, and the archive's database copy leaves these ids out.
 - **Private photos.** Uploads are re-encoded, which strips EXIF/GPS and all
   other metadata. A photo is served only to the guest who took it and to the
   admin.

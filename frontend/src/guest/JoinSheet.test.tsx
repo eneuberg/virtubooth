@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from 'vitest';
 import type { ConsentInfo } from '@/api/types';
 import { UiProvider } from '@/ui/UiProvider';
 import { splitParagraphs, splitPrompt, tidy } from './copy';
-import { JoinSheet } from './JoinSheet';
+import { JoinSheet, SCAN_COUNT_NOTE } from './JoinSheet';
 
 vi.mock('@/sdk/device', () => ({
   getDeviceTraits: () => Promise.resolve({ hash: 'ab'.repeat(32), components: {} }),
@@ -54,7 +54,9 @@ describe('JoinSheet', () => {
     expect(dialog.textContent).toContain('nutze die Fotobox bitte nicht');
     const more = within(dialog).getByRole('button', { name: 'Mehr dazu' });
     expect(more.getAttribute('aria-expanded')).toBe('false');
-    expect(dialog.textContent).toContain('Gleich geht’s zur Beer Cam.');
+    fireEvent.click(more);
+    expect(dialog.textContent).toContain(SCAN_COUNT_NOTE);
+    expect(dialog.textContent).toContain('Danach öffnet sich „Beer Cam“.');
   });
 
   it('labels the field with the prompt and keeps the rest as help', () => {
@@ -62,7 +64,7 @@ describe('JoinSheet', () => {
     const field = within(dialog).getByRole('textbox', { name: 'Dein Instagram (freiwillig)' });
     expect(field.getAttribute('maxlength')).toBe('30');
     expect(dialog.textContent).toContain('Dann markieren wir dich!');
-    expect(dialog.textContent).not.toContain('Gleich geht’s');
+    expect(dialog.textContent).not.toContain('Danach öffnet sich');
   });
 
   it('uses only blocker-neutral names', () => {

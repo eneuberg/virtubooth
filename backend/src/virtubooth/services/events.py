@@ -16,6 +16,7 @@ from ..api.schemas.events import (
     FingerprintBannedData,
     FingerprintUnbannedData,
     InstagramDoneData,
+    JoinStopData,
     PhotoDeletedData,
     PhotoEventData,
     UploadPauseData,
@@ -88,6 +89,9 @@ class AdminEvents:
             "settings.upload_pause",
             UploadPauseData(upload_pause=state, restored=restored, kept=kept),
         )
+
+    def join_stop(self, state: StopState) -> None:
+        self._emit("settings.join_stop", JoinStopData(join_stop=state))
 
     def export_updated(self, job: ExportJob) -> None:
         self._emit("export.updated", ExportUpdatedData(job=job))
