@@ -12,6 +12,7 @@ import { Button } from '@/ui/Button';
 import { cx } from '@/ui/cx';
 import { PhotoTile } from '@/ui/PhotoTile';
 import { Skeleton } from '@/ui/Skeleton';
+import { firstPhotoText } from './copy';
 import { useMyPhotos } from './photos';
 import { PhotoViewer } from './PhotoViewer';
 
@@ -20,7 +21,7 @@ const COLLAPSED = 8;
 
 const GRID = 'grid grid-cols-4 gap-x-2 gap-y-3 sm:grid-cols-5 lg:grid-cols-4 xl:grid-cols-5';
 
-function EmptyFrames({ activities }: { activities: string }) {
+function EmptyFrames({ activityTitles }: { activityTitles: ReadonlyArray<string> }) {
   return (
     <div className="grid gap-3" data-testid="my-photos-empty">
       <div aria-hidden="true" className={GRID}>
@@ -33,15 +34,18 @@ function EmptyFrames({ activities }: { activities: string }) {
           </span>
         ))}
       </div>
-      <p className="text-ink-muted">
-        Noch keine Bilder von dir. Mach dein erstes mit {activities}: Es landet dann hier, und du kannst es
-        speichern.
-      </p>
+      <p className="text-ink-muted">{firstPhotoText(activityTitles)}</p>
     </div>
   );
 }
 
-export function MyPhotos({ activityNames, className }: { activityNames: string; className?: string }) {
+export interface MyPhotosProps {
+  /** the activities that take photos, for the invitation while there are none */
+  activityTitles: ReadonlyArray<string>;
+  className?: string;
+}
+
+export function MyPhotos({ activityTitles, className }: MyPhotosProps) {
   const titleId = useId();
   const { data: photos, isPending, isError, refetch } = useMyPhotos();
   const [expanded, setExpanded] = useState(false);
@@ -76,7 +80,7 @@ export function MyPhotos({ activityNames, className }: { activityNames: string; 
           </Button>
         </div>
       ) : list.length === 0 ? (
-        <EmptyFrames activities={activityNames} />
+        <EmptyFrames activityTitles={activityTitles} />
       ) : (
         <>
           <ul className={cx(GRID, 'm-0 list-none p-0')}>

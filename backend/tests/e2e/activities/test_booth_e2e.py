@@ -1,7 +1,7 @@
 """Fotobox in a real browser: WebGL preview, filter carousel (tap, swipe, keys),
 countdown, capture → print → upload, save, camera switch, Canvas2D fallback.
 
-Ported from e2e_legacy/test_booth_e2e.py to the new UI (same behaviours, new
+Ported from the pre-overhaul test_booth_e2e.py to the new UI (same behaviours, new
 selectors). The filter catalogue now comes from GET /api/x/booth/filters.
 """
 

@@ -18,6 +18,7 @@ import { Spinner } from '@/ui/Spinner';
 import { showToast } from '@/ui/Toast';
 import { UiProvider } from '@/ui/UiProvider';
 import { ErrorBoundary } from './ErrorBoundary';
+import { useMyPhotosSync } from './photos';
 import { SessionGate } from './SessionGate';
 import { Start } from './Start';
 
@@ -91,6 +92,7 @@ function useDocumentTitle(): void {
 function Shell() {
   useUploadsFreedToast();
   useDocumentTitle();
+  useMyPhotosSync();
   return (
     <Switch>
       <Route path="/">

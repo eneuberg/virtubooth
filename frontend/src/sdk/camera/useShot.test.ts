@@ -18,8 +18,14 @@ describe('what the print says when a shot is not sent', () => {
     [
       err(403, 'uploads_paused', 'Uploads sind für dich gerade pausiert.'),
       0,
-      'Uploads sind für dich gerade pausiert.',
+      'Hochladen ist für dich gerade pausiert. Die Gastgeber geben es bald wieder frei.',
     ],
+    [
+      err(403, 'uploads_stopped', "Uploads sind gerade kurz gestoppt – gleich geht's weiter."),
+      0,
+      'Hochladen ist kurz angehalten. Gleich geht’s weiter.',
+    ],
+    [err(403, 'banned', 'Dieses Gerät wurde für Uploads gesperrt.'), 0, 'Dieses Gerät ist gesperrt.'],
     [
       err(400, 'invalid_image', 'Bild muss genau 1080×1440 px groß sein.'),
       0,

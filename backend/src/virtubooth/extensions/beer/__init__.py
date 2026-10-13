@@ -7,7 +7,11 @@ outline in the browser, so all frames line up. The page lives in the frontend
 
 POST /api/x/beer/upload   X-VB-Meta {"vessel": "bottle"|"cup", "facing": "user"|"environment"}
                           → 201 {"photo": {...}, "beer_number": seq, "total": n}
-GET  /api/x/beer/stats    → {"total": n, "goal": 1000000}
+GET  /api/x/beer/stats    → {"total": n, "goal": 1000000, "next_number": seq}
+
+Two numbers: `total` is the board (visible, not deleted beers: what counts towards
+the million), a beer's own number is its photo's `seq` (never reused; the frame
+number the guest sees on the print, in "Deine Bilder" and in the file name).
 """
 
 from __future__ import annotations
@@ -34,6 +38,9 @@ router = APIRouter()
 class BeerStats(BaseModel):
     total: int = Field(description="Beers on the board: visible, not deleted.")
     goal: Literal[1_000_000]
+    next_number: int = Field(
+        description="The number the next beer gets (its seq), unless another guest is faster."
+    )
 
 
 class BeerUploadResult(BaseModel):
@@ -49,7 +56,9 @@ def total_beers(core: Core) -> int:
 @router.get("/stats", dependencies=[Depends(require_access)])
 def stats(core: CoreDep) -> BeerStats:
     """The counter. Party access is enough (no join needed)."""
-    return BeerStats(total=total_beers(core), goal=GOAL)
+    return BeerStats(
+        total=total_beers(core), goal=GOAL, next_number=core.repos.photos.next_seq(EXT_ID)
+    )
 
 
 def validate_meta(meta: dict[str, Any]) -> dict[str, Any]:

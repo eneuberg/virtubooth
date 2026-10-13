@@ -1,7 +1,7 @@
 """How the guest app survives content blockers, dead networks and busy servers:
 a blocked device-trait chunk, a blocked entry module (boot-check.js), a blocked or
 offline /api/identify, a 429 with Retry-After, and the ?debug=1 log. Ported from
-e2e_legacy/test_core_e2e.py and test_core_ui_e2e.py (same behaviours, new markup)."""
+the pre-overhaul test_core_e2e.py and test_core_ui_e2e.py (same behaviours, new markup)."""
 
 from __future__ import annotations
 

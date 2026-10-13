@@ -744,7 +744,7 @@ The error state also shows a 5 s error toast.
 **Discard** removes the stills and returns to `camera`.
 
 **Success.**
-- **The number shown is the board count** (`res.total`, which excludes hidden and deleted beers), not `seq`. Both the title and the counter use it.
+- **The number shown is the board count** (`res.total`, which excludes hidden and deleted beers), not `seq`. Both the title and the counter use it. *(Superseded after the overhaul: "Deine Bilder" shows `seq`, so the print and the film edge now show `seq` too, see risk 6.)*
 - Caption `Bier #N · Flasche|Becher`. To-go text: `Noch X bis zur Million – weiter so!` or "Die Million ist voll! Ihr seid Legenden. 🏆".
 - Every 100th: "Jubiläumsbier! 🎉 #N" with confetti `{count:260, duration:3200}`; otherwise a random cheer from 7 and normal confetti.
 - `vibrate([30,60,30])`; focus "Noch eins!".
@@ -1386,7 +1386,7 @@ SQLite `<data>/virtubooth.db` with WAL, `synchronous=NORMAL`, `foreign_keys=ON` 
    - Changing the requested constraints (tests assert exact shapes).
    - The iOS specifics: `playsinline`, `muted`, the video kept in the DOM at opacity 0.001, the restart on visibility, the `play()` nudge, one reused capture canvas, `toBlob` only.
 5. **Exact output size.** The server rejects anything that is not 1080×1440. DPR or resize bugs in a new canvas pipeline become 400s.
-6. **Beer number semantics.** The success number and counter show the **visible board count** (`total`), not `seq`. Easy to "fix" wrongly.
+6. **Beer number semantics.** A beer's own number is its photo's `seq` everywhere the guest sees it (film edge "Nächstes Bier" from `next_number`, the print, "Deine Bilder", the file name): one number per photo. The **visible board count** (`total`) is only the count towards the million (Start counter, "Noch X bis zur Million"). (Before the QA pass the print showed `total`, which disagreed with "Deine Bilder" once beers were hidden.)
 7. **Dialog and keyboard semantics.**
    - The join dialog has no dismiss and focuses the dialog, not the input.
    - Shortcuts are suppressed while any `.vb-scrim` or `.vb-notice` exists.

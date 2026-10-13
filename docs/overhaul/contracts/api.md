@@ -41,6 +41,7 @@ vocabulary) except for the changes listed here. Paths are unchanged; no `/api/v1
 | `PATCH /api/me` for a banned device | still 403 `banned`, message now "Dieses Gerät ist gesperrt." (uploads keep "Dieses Gerät wurde für Uploads gesperrt.") |
 | 405 answers | + `Allow` header |
 | `POST /api/x/{ext}/upload` | unchanged JSON; typed as `UploadOut`: `photo` + the extensions' fields (`beer_number`, `total`, `booth_number`), each optional in the schema (only the uploading extension's are sent) |
+| `GET /api/x/beer/stats` | + `next_number`: the next beer's own number (its `seq`, like the Fotobox's `next_number`); `total` stays the board (visible beers) |
 
 All admin user objects are `AdminUser` now (one shape): `auto_banned` is true
 when the guest is banned only because it joined showing a banned fingerprint;

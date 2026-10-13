@@ -334,7 +334,7 @@ naming the variable when one is missing or invalid.
 | `VB_PARTY_NAME` | `Party` | Shown on Start, in the join sheet ("Willkommen bei …!") and on the QR sheet. |
 | `VB_INSTAGRAM_ACCOUNT` | empty | The account you may post photos to, named in the join sheet. |
 | `VB_PUBLIC_BASE_URL` | empty | Public URL without a trailing slash, e.g. `https://party.example.com`: the QR codes, the admin's QR form, and Secure cookies with `auto`. |
-| `VB_TIMEZONE` | `Europe/Berlin` | The time in photo and export file names. |
+| `VB_TIMEZONE` | `Europe/Berlin` | The time in photo and export file names (admin UI and CLI tools). |
 | `VB_CONSENT_VERSION` | `1` | Stored with each join. Bump it when the join sheet's promise changes; devices that already joined are not asked again. |
 | `VB_EXTENSIONS` | all | Comma-separated activity ids to enable, in this order, e.g. `beer,booth`. |
 | `VB_COOKIE_SECURE` | `auto` | `auto` (Secure when the request came over https), `true` or `false`. `true` behind a TLS proxy. |
@@ -422,7 +422,9 @@ admin sessions and export jobs: after restoring from it, every admin logs in
 again. Copy it off with `docker compose cp app:/data/exports ./backup-$(date +%F)`.
 
 **Cold, complete:** stop the app so the SQLite files are consistent, archive
-the volume, start again (a few seconds of downtime):
+the volume, start again (a few seconds of downtime). On a clean stop the app
+writes the WAL back into `virtubooth.db`, so that file alone holds the whole
+database:
 
 ```bash
 docker compose stop

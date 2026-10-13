@@ -1040,6 +1040,11 @@ export interface components {
              */
             goal: 1000000;
             /**
+             * Next Number
+             * @description The number the next beer gets (its seq), unless another guest is faster.
+             */
+            next_number: number;
+            /**
              * Total
              * @description Beers on the board: visible, not deleted.
              */

@@ -133,7 +133,7 @@ def test_stats_requires_access(client):
     scan(client)  # access is enough, no consent needed
     r = client.get("/api/x/beer/stats")
     assert r.status_code == 200
-    assert r.json() == {"total": 0, "goal": 1_000_000}
+    assert r.json() == {"total": 0, "goal": 1_000_000, "next_number": 1}
 
 
 def test_stats_counts_visible_beers(guest, core):
@@ -147,11 +147,15 @@ def test_stats_counts_visible_beers(guest, core):
     core.services.moderation.hide_photo(
         second.public_id, actor="admin:test"
     )  # taken down: no longer counts
-    assert g.get("/api/x/beer/stats").json()["total"] == 1
+    stats = g.get("/api/x/beer/stats").json()
+    assert stats["total"] == 1
+    assert stats["next_number"] == 4  # the next beer's own number: deleted ones keep theirs
 
     body = upload(g, {"vessel": "cup"}).json()
     assert body["beer_number"] == 4  # numbers are never reused
+    assert body["photo"]["seq"] == 4  # the number "Deine Bilder" shows
     assert body["total"] == 2
+    assert g.get("/api/x/beer/stats").json()["next_number"] == 5
 
 
 def test_rejects_wrong_frame_size(guest):

@@ -1,6 +1,6 @@
 """The static gate page (gate.html, HTTP 404) for no access and for unknown pages,
 with and without JavaScript, and the in-app browser hints (gate and Start).
-Ported from e2e_legacy/test_core_e2e.py (gate) and test_core_ui_e2e.py
+Ported from the pre-overhaul test_core_e2e.py (gate) and test_core_ui_e2e.py
 (gate/404 pages, in-app browser hint)."""
 
 from __future__ import annotations

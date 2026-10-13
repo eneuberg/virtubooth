@@ -2,8 +2,8 @@
 
 The checks of the old hand-written admin files (CSP-safe markup, unsafe DOM
 APIs, the live screen's limits) moved: built HTML and frontend sources are
-checked in tests/unit/test_frontend_contract.py, the rest is kept for wave 2 in
-tests/e2e_legacy/test_static_pages_legacy.py.
+checked in tests/unit/test_frontend_contract.py, the admin UI's behaviour in
+tests/e2e/admin/.
 """
 
 from __future__ import annotations

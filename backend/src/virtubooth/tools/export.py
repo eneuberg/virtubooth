@@ -31,9 +31,9 @@ import tempfile
 import time
 from collections import defaultdict
 from dataclasses import dataclass, replace
-from datetime import datetime
 from pathlib import Path
 
+from ..core.clock import local_now
 from ..db.database import Database
 from ..domain.models import Photo, User
 from ..repositories.container import Repositories
@@ -49,6 +49,7 @@ from ._common import (
     run,
     scratch_parent,
     timestamp,
+    tool_timezone,
 )
 
 PROG = "python -m virtubooth.tools.export"
@@ -233,10 +234,11 @@ def instagram_csv(entries: list[Entry]) -> bytes:
 
 
 def readme(
-    *, data_dir: Path, entries: list[Entry], users: list[User],
+    *, data_dir: Path, entries: list[Entry], users: list[User], timezone: str,
     include_hidden: bool, include_db: bool, cli: bool = True,
 ) -> bytes:  # fmt: skip
-    """README.txt. `cli` False: made by the admin UI (a zip with manifest.json)."""
+    """README.txt. `cli` False: made by the admin UI (a zip with manifest.json).
+    `timezone`: the "Created" line's zone (VB_TIMEZONE)."""
     per_ext: dict[str, list[int]] = defaultdict(lambda: [0, 0])
     for e in entries:
         if e.arcname:
@@ -249,7 +251,7 @@ def readme(
         "virtubooth export",
         "=================",
         "",
-        f"Created {datetime.now():%Y-%m-%d %H:%M} (local time) from {data_dir}",
+        f"Created {local_now(timezone):%Y-%m-%d %H:%M} ({timezone}) from {data_dir}",
         f"Photos: {counts or 'none'}. Guests: {len(users)}.",
         *(
             [f"{missing} photo(s) had no file on disk; their CSV rows have an empty 'file'."]
@@ -364,7 +366,8 @@ def build_parser() -> argparse.ArgumentParser:
         "--out",
         metavar="FILE",
         help="output .tar.gz or directory "
-        "(default: <data-dir>/exports/virtubooth-export-<timestamp>.tar.gz)",
+        "(default: <data-dir>/exports/virtubooth-export-<timestamp>.tar.gz, "
+        "the time in $VB_TIMEZONE, default Europe/Berlin)",
     )
     p.add_argument(
         "--no-hidden",
@@ -439,6 +442,7 @@ def _main(args: argparse.Namespace) -> int:
                         data_dir=data_dir,
                         entries=entries,
                         users=users,
+                        timezone=tool_timezone(),
                         include_hidden=include_hidden,
                         include_db=not args.no_db,
                     ),

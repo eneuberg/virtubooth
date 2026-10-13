@@ -22,13 +22,6 @@ import { HelpSheet, type HelpTopic } from './HelpSheet';
 import { InAppHint } from './InAppHint';
 import { MyPhotos } from './MyPhotos';
 
-/** "der Beer Cam oder der Fotobox" */
-function listNames(titles: string[]): string {
-  const named = titles.map((title) => `der ${title}`);
-  if (named.length <= 1) return named[0] ?? 'der Kamera';
-  return `${named.slice(0, -1).join(', ')} oder ${named.at(-1) ?? ''}`;
-}
-
 export function Start() {
   const { data, isPending, error, refetch } = useActivities();
   const [help, setHelp] = useState<HelpTopic | 'all' | null>(null);
@@ -84,7 +77,7 @@ export function Start() {
       </nav>
 
       <MyPhotos
-        activityNames={listNames(activities.filter((a) => a.uploads).map((a) => a.title))}
+        activityTitles={activities.filter((a) => a.uploads).map((a) => a.title)}
         className="lg:col-start-1"
       />
 

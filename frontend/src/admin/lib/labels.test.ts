@@ -6,6 +6,7 @@ import {
   auditDetails,
   auditTarget,
   describeUA,
+  exportJobTitle,
   metaRows,
   releasedText,
   shortHash,
@@ -93,5 +94,23 @@ describe('admin labels', () => {
     expect(releasedText(1)).toBe(', 1 weiteres Gerät entsperrt');
     expect(releasedText(2)).toBe(', 2 weitere Geräte entsperrt');
     expect(shortHash('e6c336695afa0000')).toBe('e6c3 3669');
+  });
+
+  it('names export jobs by kind and activity title, not the id', () => {
+    const at = '2026-10-13T20:41:00Z';
+    const extensions = new Map([['beer', { title: 'Beer Cam' }]]);
+    const timelapse = {
+      kind: 'timelapse' as const,
+      created_at: at,
+      options: { extension: 'beer', fps: 12, crossfade: false, include_hidden: false },
+    };
+    expect(exportJobTitle(timelapse, extensions)).toMatch(/^Zeitraffer \(Beer Cam\) vom /);
+    expect(exportJobTitle(timelapse)).toMatch(/^Zeitraffer \(beer\) vom /); // catalogue not loaded yet
+    expect(
+      exportJobTitle(
+        { kind: 'archive', created_at: at, options: { include_db: false, include_hidden: false } },
+        extensions,
+      ),
+    ).toMatch(/^Archiv vom /);
   });
 });

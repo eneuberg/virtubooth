@@ -24,6 +24,10 @@ from . import migrations
 
 log = logging.getLogger("virtubooth.db")
 
+BUSY_TIMEOUT_MS = 5000
+# a shutdown waits at most this long for another connection (a CLI tool)
+CHECKPOINT_BUSY_MS = 2000
+
 
 class Database:
     def __init__(self, path: Path) -> None:
@@ -39,7 +43,7 @@ class Database:
             "journal_mode=WAL",
             "synchronous=NORMAL",
             "foreign_keys=ON",
-            "busy_timeout=5000",
+            f"busy_timeout={BUSY_TIMEOUT_MS}",
         ):
             self._conn.execute(f"PRAGMA {pragma}")
         self._migrate()
@@ -125,6 +129,29 @@ class Database:
         with self._lock:
             row: sqlite3.Row | None = self._conn.execute(sql, params).fetchone()
             return row
+
+    def checkpoint(self) -> bool:
+        """Copy the WAL into the database file and empty it (the app's clean
+        shutdown), so a copied data folder holds everything in virtubooth.db.
+
+        True when done. False when another connection (a CLI tool) kept the
+        database busy, or SQLite failed: never raises, the WAL then stays and
+        SQLite replays it on the next open, as after a crash."""
+        with self._lock:
+            if self._depth:
+                return False
+            try:
+                self._conn.execute(f"PRAGMA busy_timeout={CHECKPOINT_BUSY_MS}")
+                try:
+                    busy = self._conn.execute("PRAGMA wal_checkpoint(TRUNCATE)").fetchone()[0]
+                finally:
+                    self._conn.execute(f"PRAGMA busy_timeout={BUSY_TIMEOUT_MS}")
+            except sqlite3.Error:
+                log.warning("WAL checkpoint failed", exc_info=True)
+                return False
+        if busy:
+            log.info("WAL checkpoint incomplete: another connection is using the database")
+        return not busy
 
     def close(self) -> None:
         with self._lock:

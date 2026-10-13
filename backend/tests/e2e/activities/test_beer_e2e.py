@@ -1,6 +1,6 @@
 """Beer Cam in a real browser: fake camera → outline → shutter → upload → print.
 
-Ported from e2e_legacy/test_beer_e2e.py to the new UI (same behaviours, new
+Ported from the pre-overhaul test_beer_e2e.py to the new UI (same behaviours, new
 selectors). New in the overhaul: the shutter is locked up front while uploads are
 paused or stopped, and a beer that can't be sent waits in the outbox.
 """
@@ -483,21 +483,33 @@ def test_shortcuts_wait_while_a_dialog_is_open(guest: Page, live: LiveServer):
     assert len(uploads) == 1
 
 
-def test_the_number_is_the_board_count(guest: Page, live: LiveServer, admin: Admin):
-    """Hosts took a beer down: the photo's seq runs ahead of the board. The guest sees one number."""
-    add_beers(live, 3)
-    admin.hide(photos(live, "beer")[0].public_id)
+def test_the_guest_sees_the_photos_own_number(guest: Page, live: LiveServer, admin: Admin):
+    """Hosts took the first three beers down: the board (what counts towards the
+    million) runs behind the photos' numbers, which are never reused. The guest sees
+    one number per beer, the stored seq: on the film edge before the shot, on the print
+    and in "Deine Bilder". Only "bis zur Million" and the Start counter count the board."""
+    add_beers(live, 3)  # rows without files: hidden, so no page asks for them
+    for taken_down in photos(live, "beer"):
+        admin.hide(taken_down.public_id)
     page = guest
     open_beer(page, live)
     counter = page.get_by_test_id("counter")
-    expect(counter).to_have_attribute("data-total", "2")
-    expect(counter).to_contain_text("0003")
+    expect(counter).to_have_attribute("data-total", "0")  # the board
+    expect(counter).to_contain_text("0004")  # the next beer's own number, not board + 1
     page.get_by_test_id("shutter").click()
-    expect_counted(page, 3)
-    expect(page.get_by_test_id("upload-status")).to_contain_text("0003")
-    assert photos(live, "beer")[-1].seq == 4  # the stored number is unchanged
-    again(page)
-    expect(counter).to_have_attribute("data-total", "3")
+    expect_counted(page, 4)
+    expect(page.get_by_test_id("upload-status")).to_contain_text("0004")
+    expect(page.get_by_test_id("result-text")).to_contain_text(
+        re.compile(r"Noch 999\.999 bis zur Million\.")
+    )
+    stored = photos(live, "beer")[-1]
+    assert stored.seq == 4
+    # back on Start (no reload): the same number in "Deine Bilder", the board with this beer
+    page.get_by_test_id("back").click()
+    expect(page.get_by_test_id(f"photo-{stored.public_id}")).to_contain_text("Bier 0004")
+    expect(page.get_by_test_id("beer-count")).to_have_text("0001")
+    page.get_by_test_id("tile-beer").click()
+    expect(page.get_by_test_id("counter")).to_contain_text("0005")
     assert page.js_errors == []
 
 

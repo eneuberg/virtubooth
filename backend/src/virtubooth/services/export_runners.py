@@ -126,6 +126,7 @@ def run_archive(ctx: JobContext) -> None:
                     data_dir=ctx.data_dir,
                     entries=entries,
                     users=snapshot.users,
+                    timezone=ctx.settings.timezone,
                     include_hidden=opts.include_hidden,
                     include_db=opts.include_db,
                     cli=False,
