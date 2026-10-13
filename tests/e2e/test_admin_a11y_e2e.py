@@ -107,7 +107,7 @@ def test_confirm_dialog_keeps_and_returns_focus(desktop_page, live, guests):
     page.keyboard.press("Enter")
     page.get_by_test_id("confirm-ok").click()
     expect(page.get_by_test_id("user-status")).to_have_text("🚫 GESPERRT")
-    assert page.evaluate("() => document.activeElement.closest('[data-testid=ban-panel]') !== null")
+    expect(page.get_by_test_id("ban-panel").get_by_role("heading")).to_be_focused()
     assert page.js_errors == []
 
 
@@ -138,15 +138,15 @@ def test_lightbox_focus_and_keyboard(desktop_page, live, guests):
     toggle.focus()
     page.keyboard.press("Enter")
     expect(toggle).to_have_text("👁 Wieder zeigen")
+    expect(toggle).to_be_focused()
     assert live.core.repo.get_photo(newer).hidden
-    assert focused(page) == "toggle"
 
     page.keyboard.press("ArrowRight")  # the older photo
     expect(page.get_by_role("dialog", name="Foto 📷 Schnappschuss #1")).to_be_visible()
     page.keyboard.press("Escape")
     expect(page.get_by_test_id("lightbox")).to_have_count(0)
     # back on the thumbnail of the photo shown last
-    assert page.evaluate("() => document.activeElement.dataset.thumbFor") == older
+    expect(card(page, older).get_by_test_id("thumb")).to_be_focused()
     assert page.js_errors == []
 
 
@@ -168,9 +168,12 @@ def test_delete_from_lightbox_asks_on_top(desktop_page, live, guests):
     ok.click()
     expect(page.get_by_test_id("lightbox")).to_have_count(0)
     expect(card(page, doomed)).to_have_count(0)
+    # the API answer and the event both report the deletion: one step back, not two
+    page.wait_for_timeout(300)
+    assert page.url == live.url("/admin/manage")
     assert live.core.repo.get_photo(doomed) is None
     # focus goes to the photo that took its place, not to <body>
-    assert page.evaluate("() => document.activeElement.dataset.thumbFor") == first
+    expect(card(page, first).get_by_test_id("thumb")).to_be_focused()
     assert live.core.repo.get_photo(last) is not None
     assert page.js_errors == []
 
@@ -184,7 +187,7 @@ def test_deleting_a_tile_moves_focus_to_its_neighbour(desktop_page, live, guests
     page.keyboard.press("Enter")
     page.get_by_test_id("confirm-ok").click()
     expect(card(page, doomed)).to_have_count(0)
-    assert page.evaluate("() => document.activeElement.dataset.thumbFor") == first
+    expect(card(page, first).get_by_test_id("thumb")).to_be_focused()
     assert page.js_errors == []
 
 

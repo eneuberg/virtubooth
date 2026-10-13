@@ -493,6 +493,7 @@ export class Lightbox {
     this.opener = null;
     this.lastIndex = 0;
     this.lastFocus = null;
+    this.closing = false;
     this.release = () => {};
     this.onKey = (event) => this.key(event);
     this.onPop = () => this.teardown();
@@ -520,7 +521,7 @@ export class Lightbox {
 
   /** re-render if open (after an update of the photo or the list) */
   refresh() {
-    if (!this.el) return;
+    if (!this.el || this.closing) return;
     if (!this.list().some((p) => p.id === this.currentId)) {
       this.close(); // the photo is gone (deleted elsewhere)
       return;
@@ -529,9 +530,16 @@ export class Lightbox {
   }
 
   close() {
-    if (!this.el) return;
-    if (history.state && history.state.admLightbox) history.back(); // → popstate → teardown
-    else this.teardown();
+    if (!this.el || this.closing) return;
+    if (history.state && history.state.admLightbox) {
+      // → popstate → teardown. history.back() is async: a second close() before
+      // the popstate (a deletion reported by the API and by the event stream)
+      // must not go back once more, off the page
+      this.closing = true;
+      history.back();
+    } else {
+      this.teardown();
+    }
   }
 
   teardown() {
@@ -548,6 +556,7 @@ export class Lightbox {
     this.el = null;
     this.currentId = null;
     this.lastFocus = null;
+    this.closing = false;
     // back to the photo last shown, else the opener, else a neighbour
     focusFirst(() => thumbFor(lastId), this.opener, ...near.map((id) => () => thumbFor(id)));
     this.opener = null;

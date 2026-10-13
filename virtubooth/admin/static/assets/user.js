@@ -254,13 +254,21 @@ function focusPanel(testid) {
   focusFirst(root.querySelector(`[data-testid="${testid}"] h2`));
 }
 
+/** a selector that finds the focused control again after a re-render */
+function focusRef(el) {
+  if (el.id) return `#${CSS.escape(el.id)}`;
+  if (el.dataset.testid) return `[data-testid="${CSS.escape(el.dataset.testid)}"]`;
+  const panel = el.tagName === 'H2' && el.closest('[data-testid]');
+  return panel ? `[data-testid="${CSS.escape(panel.dataset.testid)}"] h2` : null;
+}
+
 /** what the admin is in the middle of: focused control, typed ban reason */
 function snapshot() {
   const active = document.activeElement;
   const reason = root.querySelector('#ban-reason');
   const fpBox = root.querySelector('#ban-fp');
   return {
-    focus: root.contains(active) ? active.id || active.dataset.testid || null : null,
+    focus: active && active !== root && root.contains(active) ? focusRef(active) : null,
     reason: reason ? reason.value : '',
     fp: Boolean(fpBox && fpBox.checked),
   };
@@ -271,9 +279,7 @@ function restore(snap) {
   if (reason && snap.reason) reason.value = snap.reason;
   const fpBox = root.querySelector('#ban-fp');
   if (fpBox && !fpBox.disabled && snap.fp) fpBox.checked = true;
-  if (snap.focus) {
-    focusFirst(() => root.querySelector(`#${CSS.escape(snap.focus)}`) || root.querySelector(`[data-testid="${CSS.escape(snap.focus)}"]`));
-  }
+  if (snap.focus) focusFirst(() => root.querySelector(snap.focus));
 }
 
 function render() {
