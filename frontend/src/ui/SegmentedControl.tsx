@@ -47,7 +47,8 @@ export interface SegmentedControlProps<K extends string> {
   size?: 'md' | 'sm';
   /**
    * Hide the option labels visually (they stay accessible). "narrow" hides them only
-   * below 380px, where Flasche/Becher plus the shutter would not fit in one row.
+   * below 420px, where Flasche/Becher, the 80px shutter and the camera switch do not
+   * fit in one row.
    */
   iconOnly?: boolean | 'narrow';
   isDisabled?: boolean;
@@ -69,7 +70,7 @@ export function SegmentedControl<K extends string>({
   ...rest
 }: SegmentedControlProps<K>) {
   const s = styles({ tone, size });
-  const hide = iconOnly === true ? 'sr-only' : iconOnly === 'narrow' ? 'max-[379px]:sr-only' : '';
+  const hide = iconOnly === true ? 'sr-only' : iconOnly === 'narrow' ? 'max-[419px]:sr-only' : '';
   return (
     <RadioGroup
       aria-label={label}

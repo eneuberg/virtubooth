@@ -149,3 +149,14 @@ export function formatRelative(
   if (s < 7 * 24 * 3600) return formatWeekdayTime(date, timeZone);
   return formatDate(date, timeZone);
 }
+
+/** Monogram of a pseudonym for the guest pass: "Verrückte Ente #2" → "VE". */
+export function monogram(name: string): string {
+  return name
+    .replace(/\s*#\d+$/, '')
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((w) => w.charAt(0).toLocaleUpperCase('de-DE'))
+    .join('');
+}
