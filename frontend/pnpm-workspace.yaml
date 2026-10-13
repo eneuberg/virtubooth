@@ -15,3 +15,7 @@ peerDependencyRules:
 # src/styles/app.css. Re-check on every react-aria update.
 patchedDependencies:
   react-aria@3.53.1: patches/react-aria@3.53.1.patch
+
+# pdfjs-dist's optional @napi-rs/canvas is for Node only (the admin renders in the browser).
+ignoredOptionalDependencies:
+  - '@napi-rs/canvas'
