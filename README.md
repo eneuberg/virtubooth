@@ -119,10 +119,10 @@ as they arrive, with the connection state ("verbunden"). A 44 px toggle per
 photo hides or unhides it ("Ausblenden", with "Rückgängig" in a toast). There
 is **no delete** here, so an accidental tap never deletes anything.
 
-**One-tap stops.** The Live header and the Verwaltung header (the sidebar on
-a laptop) have "Hochladen stoppen" (nobody can upload) and "Anmeldung
-stoppen" (nobody new can join; guests who joined carry on) side by side: one
-tap, no confirmation. While a stop is on, its button gives way to a red or
+**One-tap stops.** The Live header and the Verwaltung header have "Hochladen
+stoppen" (nobody can upload) and "Anmeldung stoppen" (nobody new can join;
+guests who joined carry on): side by side on Live, stacked in the sidebar on a
+laptop. One tap, no confirmation. While a stop is on, its button gives way to a red or
 amber status strip ("Hochladen gestoppt", "Anmeldung gestoppt") with the
 resume button, the same on every open admin screen.
 
