@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="de" class="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Mockup: Hochladen-Steuerung</title>
+<link rel="stylesheet" href="kb.css">
+<style>
+  body { overflow: hidden; }
+  .behind { padding: 16px; display: grid; grid-template-columns: 1fr 1fr; gap: 8px; filter: none; }
+  .behind img { width: 100%; aspect-ratio: 3/4; object-fit: cover; display: block; }
+  .rows { display: grid; gap: 12px; }
+  .emerg { display: flex; align-items: center; gap: 14px; padding: 14px 14px 14px 16px; border-radius: var(--r); border: 1.5px solid var(--fettstift-hell); }
+  .emerg.on { background: var(--fettstift); border-color: var(--fettstift); color: #fff; }
+  .emerg .txt { display: grid; gap: 2px; flex: 1; min-width: 0; }
+  .row { display: flex; align-items: center; gap: 14px; padding: 14px 14px 14px 16px; border-radius: var(--r); background: var(--sunk); }
+  .row .txt { display: grid; gap: 2px; flex: 1; min-width: 0; }
+  .help { display: inline-flex; align-items: center; gap: 6px; color: var(--papier-muted); font-size: 15px; height: 44px; background: none; border: 0; font-family: inherit; padding: 0; }
+  .lnk { display: flex; justify-content: space-between; align-items: center; height: 48px; padding: 0 4px 0 16px; color: var(--ink); text-decoration: none; font-size: 15px; font-weight: 600; border-radius: var(--r); border: 1px solid var(--line); }
+  @media (min-width: 900px) {
+    .sheet { left: 50%; top: 50%; bottom: auto; right: auto; translate: -50% -50%; width: 480px; border-radius: 14px; border: 1px solid var(--line); }
+    .sheet .grab { display: none; }
+    .behind { grid-template-columns: repeat(6, 1fr); }
+  }
+</style>
+</head>
+<body>
+<div class="behind" aria-hidden="true">
+  <img src="img/beer-1.jpg" alt=""><img src="img/booth-6.jpg" alt=""><img src="img/beer-2.jpg" alt=""><img src="img/booth-2.jpg" alt=""><img src="img/beer-3.jpg" alt=""><img src="img/booth-7.jpg" alt="">
+</div>
+<div class="scrim"></div>
+<section class="sheet" role="dialog" aria-labelledby="up-t">
+  <div class="grab"></div>
+  <div class="head"><h2 id="up-t" class="t21 w7">Hochladen</h2><button class="iconbtn" type="button" aria-label="Schließen"><i data-i="x" class="s24"></i></button></div>
+  <div class="body rows">
+    <div class="emerg on">
+      <i data-i="octagon-pause" class="s28"></i>
+      <span class="txt"><b class="t17 w6">Hochladen für alle stoppen</b><span class="t13">Gestoppt seit 22:41</span></span>
+      <span class="switch danger on"></span>
+    </div>
+    <div class="row">
+      <span class="txt"><b class="t17 w6">Neue Gäste pausieren</b><span class="t13 muted">Wer ab jetzt beitritt, kann erst nach Freigabe hochladen.</span></span>
+      <span class="switch"></span>
+    </div>
+    <button class="help" type="button"><i data-i="circle-question-mark"></i>Was passiert dabei?</button>
+    <a class="lnk" href="#">2 Gäste pausiert <span class="btn xs quiet">Ansehen <i data-i="chevron-right" class="s16"></i></span></a>
+  </div>
+</section>
+<script src="icons.js"></script>
+</body>
+</html>

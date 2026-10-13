@@ -1,4 +1,13 @@
-# virtubooth: decisions
+# virtubooth: pre-overhaul decisions
+
+> **Historical.** These are the decisions taken before the October 2026
+> overhaul. Most still hold (Docker hosting, the token gate, the join flow,
+> the Beer Cam framing, the admin split, the postponed Live Wall), but the
+> stack line does not: the frontend is now React + TypeScript + Vite, and the
+> backend is restructured under `backend/`. The overhaul's brief, plan,
+> contracts and design are in [overhaul/](overhaul/) (start with
+> [overhaul/PLAN.md](overhaul/PLAN.md)); the current state is described in
+> [ARCHITECTURE.md](ARCHITECTURE.md).
 
 The original spec is in [REQUIREMENTS.md](REQUIREMENTS.md). These decisions
 change or extend it (agreed 2026-10-12):
@@ -19,4 +28,5 @@ change or extend it (agreed 2026-10-12):
 - **Admin:** password from env. Live screen: hide only. Management screen:
   hide, delete, users, bans (user and, separately, fingerprint).
 - **Stack:** Python/FastAPI, SQLite, vanilla JS (no build, no CDN), WebGL
-  filters.
+  filters. *(Superseded by the overhaul: React 19 + TypeScript + Vite, still
+  no CDN and the same WebGL filters.)*

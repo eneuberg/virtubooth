@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="de" class="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Mockup: Fotobox Countdown</title>
+<link rel="stylesheet" href="kb.css">
+<link rel="stylesheet" href="cam.css">
+<style>
+  .count { position: absolute; inset: 0; display: grid; place-items: center; }
+  .count .ring { position: relative; width: 220px; height: 220px; display: grid; place-items: center; }
+  .count svg { position: absolute; inset: 0; transform: rotate(-90deg); }
+  .count .num { position: relative; color: var(--papier); }
+  .count .cancel { position: absolute; bottom: 16px; left: 50%; translate: -50% 0; }
+</style>
+</head>
+<body>
+<main class="cam">
+  <div class="bar">
+    <button class="iconbtn" type="button" aria-label="Zurück zum Start"><i data-i="chevron-left" class="s28"></i></button>
+    <button class="title" type="button">Fotobox <i data-i="chevron-down" class="s16"></i></button>
+    <button class="pass compact" type="button"><span class="mono">VE</span><span class="who"><b>Verrückte Ente</b></span></button>
+  </div>
+  <div class="stage">
+    <img src="img/booth-1.jpg" alt="">
+    <div class="count" role="timer" aria-live="assertive">
+      <div class="ring">
+        <svg viewBox="0 0 220 220" aria-hidden="true"><circle cx="110" cy="110" r="104" fill="rgb(0 0 0 / 0.55)" stroke="rgb(255 255 255 / 0.2)" stroke-width="6"/><circle cx="110" cy="110" r="104" fill="none" stroke="#ffa630" stroke-width="6" stroke-linecap="round" stroke-dasharray="653" stroke-dashoffset="218"/></svg>
+        <span class="dots d160 num">2</span>
+      </div>
+      <button class="btn s on-cam cancel" type="button">Abbrechen</button>
+    </div>
+  </div>
+  <div class="film">
+    <span class="holes" data-p="0"></span>
+    <div class="edge-row"><span class="label">Nächstes Foto <span class="dots d22 num">0019</span></span><span class="label">Normal</span></div>
+  </div>
+  <div class="lower">
+    <div class="carousel" role="listbox" aria-label="Filter">
+      <span class="sw"><img src="img/booth-2.jpg" alt=""></span>
+      <span class="sw"><img src="img/booth-5.jpg" alt=""></span>
+      <span class="sw"><img src="img/booth-3.jpg" alt=""></span>
+      <span class="sw on"><img src="img/booth-1.jpg" alt=""><b>Normal</b></span>
+      <span class="sw"><img src="img/booth-4.jpg" alt=""></span>
+      <span class="sw"><img src="img/booth-6.jpg" alt=""></span>
+      <span class="sw"><img src="img/booth-8.jpg" alt=""></span>
+    </div>
+    <div class="controls">
+      <button class="btn on-cam toggle" type="button" aria-pressed="true"><i data-i="timer" class="s20"></i>3&nbsp;s</button>
+      <button class="shutter" type="button" aria-label="Countdown abbrechen" style="border-color: rgb(255 255 255 / 0.3)"></button>
+      <button class="iconbtn cam" type="button" aria-label="Kamera wechseln"><i data-i="switch-camera" class="s24"></i></button>
+    </div>
+  </div>
+</main>
+<script src="icons.js"></script>
+<script src="film.js"></script>
+</body>
+</html>

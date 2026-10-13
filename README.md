@@ -1,445 +1,347 @@
 # virtubooth
 
 A self-hosted digital photo booth for parties. Guests scan a QR code with
-their phone and land on a small set of camera activities. No app, no
-registration, no accounts. Everything runs as one Docker container on your
-server, behind any HTTPS reverse proxy.
+their phone and land on a small set of camera activities: no app, no
+registration, no account. The host moderates from a laptop or phone. It all
+runs as one Docker container behind any HTTPS reverse proxy.
 
-- **Beer Cam** (`/x/beer/`): photograph your drink inside a bottle outline
-  (switchable to a cup), so every photo is framed the same way. Every photo
-  becomes a frame of a "1 million beers" timelapse; guests get a running beer
-  count ("Bier #127").
-- **Fotobox** (`/x/booth/`): live camera with real-time WebGL filters, a
-  countdown, and the result saved to the guest's phone and uploaded.
-- **Admin moderation** (`/admin`): a live screen that shows photos as they
-  arrive (hide only) and a management screen to hide or delete photos, see
-  guests, and ban devices.
-- **Guest identity without registration**: a consent banner on first visit,
-  a pseudonym per device (e.g. "Tanzender Waschbär #17"), an optional
-  Instagram handle so you can tag people, and a browser fingerprint that is
-  kept as a moderation hint.
-- **Extension platform**: every activity is a small package with its own
-  page and optional upload policy. Core handles access, identity, uploads,
-  storage, rate limits and moderation. A live wall for a TV can come back as
-  an extension.
+The UI is German, phone-first and built for iOS Safari, Android Chrome,
+Firefox and desktop browsers. It uses the "Kontaktbogen" design: a darkroom
+with a safelight for guests and a light table with grease-pencil marks for the
+host. A FastAPI backend serves a React frontend, and new activities plug in
+as extensions.
 
-The UI is German and mobile-first, built for recent iOS Safari and Android
-Chrome.
+<p>
+  <img src="docs/overhaul/design/shots/wave2-ac/beer-result-phone.png" width="210" alt="Beer Cam: the counted photo, Bier Nr. 1 gezählt">
+  <img src="docs/overhaul/design/shots/wave2-ac/booth-live-phone.png" width="210" alt="Fotobox: the live preview with the Party-Rahmen filter">
+  <img src="docs/overhaul/design/shots/wave2-ad/desktop-manage.png" width="520" alt="Admin: the photo contact sheet with grease-pencil marks">
+</p>
 
 **Contents:**
-[How it works](#how-it-works) ·
-[Quickstart](#quickstart) ·
-[Configuration](#configuration) ·
-[Running with Docker](#running-with-docker) ·
-[HTTPS and reverse proxy](#https-and-reverse-proxy) ·
-[Testing on a real phone](#testing-on-a-real-phone-before-party-night) ·
-[Automated tests](#automated-tests) ·
-[Admin](#admin) ·
-[QR codes](#printing-the-qr-codes) ·
-[After the party](#after-the-party) ·
-[Security and privacy](#security-and-privacy) ·
-[Adding an extension](#adding-an-extension) ·
-[Project layout](#project-layout) ·
-[Troubleshooting](#troubleshooting)
+[Features](#features) ·
+[Quick start (Docker)](#quick-start-docker) ·
+[Local development](#local-development) ·
+[Repository layout](#repository-layout) ·
+[Tech stack](#tech-stack) ·
+[Testing](#testing) ·
+[Security model](#security-model) ·
+[Extension platform](#extension-platform) ·
+[Documentation](#documentation)
 
-## How it works
+## Features
 
-1. **No token, no entry.** The printed QR codes point to
-   `https://your-host/<page>?t=<VB_PARTY_TOKEN>`. A valid token sets an
-   access cookie (`vb_access`, 30 days) and redirects to the same URL without
-   the token. Without that cookie every page shows "Scan den QR-Code!" (HTTP
-   404) and every API call returns 404.
-2. **Consent banner.** On the first visit the guest sees what happens with
-   their photos (stored, may be posted on Instagram, device recognition) and
-   can enter an Instagram handle. There is no "no" button: declining means
-   not using the booth. Accepting creates a pseudonymous user pinned to the
-   device by a signed cookie (plus a localStorage copy).
-3. **Uploads.** Photos are taken and resized in the browser, uploaded as
-   JPEG, then validated, re-encoded (EXIF and GPS stripped) and stored with a
-   thumbnail under the data directory, one folder per activity. Uploads are
-   rate limited per guest, per IP and globally.
-4. **Moderation.** Core serves a photo only to the guest who took it and to
-   the admin. The admin can hide, delete, and ban a device (or, separately, a
-   fingerprint).
+### For guests
 
-One process with **one uvicorn worker, on purpose**: rate limits and the live
-event bus live in memory. Never run several workers or replicas. SQLite and
-the photo files live in `VB_DATA_DIR` (`/data` in Docker).
+- **No token, no entry.** The printed QR codes carry the party token
+  (`https://<host>/?t=<token>`). Without it every page shows "Scan den
+  QR-Code" (HTTP 404) and the API answers 404.
+- **Join sheet.** On the first visit a sheet welcomes the guest ("Willkommen
+  bei Lenas 30.!", from `VB_PARTY_NAME`), explains what happens with the
+  photos (stored, maybe posted on Instagram, device recognition) and takes an
+  optional Instagram name. It has one button, "Alles klar, los geht’s!", and
+  no "no": declining means not using the booth. Each device gets a pseudonym
+  such as "Hüpfendes Alpaka #2".
+- **Start.** The party's name, one film-strip card per activity with a live
+  line (the Beer Cam counter, Fotobox sample frames), and **"Deine Bilder"**:
+  the guest's own visible photos, each opening large with "Speichern" (the
+  share sheet on iOS). "Was passiert mit meinen Fotos?" answers the privacy
+  questions.
+- **Guest pass.** The pseudonym and Instagram name ("Instagram hinzufügen")
+  sit in the top corner with a status dot. It opens the "Du" sheet: change
+  the Instagram name, see whether uploads are paused or photos are waiting.
+- **Beer Cam** (`/x/beer/`). The rear camera with a bottle outline, switchable
+  to a cup ("Flasche" / "Becher"). Every photo is exactly 1080×1440 and framed
+  the same way, so they make a timelapse. The guest gets a counter ("Bier
+  Nr. 127 gezählt", "Noch 999.873 bis zur Million") and "Noch ein Bier".
+- **Fotobox** (`/x/booth/`). The front camera with 10 real-time WebGL filters
+  (Normal, Schwarz-Weiß, Sepia, Color Pop, Party-Rahmen, Emoji-Props, Neon,
+  Vintage/VHS, Retro-Pixel, Comic), an optional 3-second countdown and a
+  result print with "Speichern" and "Neues Foto". The saved photo is exactly
+  what the preview showed.
+- **Activity switcher.** The title of a camera page switches activities
+  ("Aktivität wechseln").
+- **Never lose a shot.** Every photo goes into an on-device outbox (IndexedDB)
+  before its upload and leaves it only when the server has it. A failed upload
+  shows "Erneut senden", and the outbox retries by itself (back online, tab
+  visible again, every 30 s, next visit). When uploads are paused or stopped,
+  the shutter is locked and says why before anyone shoots.
+- **Resilient.** A boot check explains content blockers that break the page,
+  in-app browsers (Instagram, WhatsApp) get a hint to open Safari or Chrome,
+  and `?debug=1` shows an on-screen log on any page.
 
-Details: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md). Deploying to a server:
-[docs/DEPLOY.md](docs/DEPLOY.md).
+### For the host (`/admin`)
 
-## Quickstart
+- **Login** with `VB_ADMIN_PASSWORD`, rate limited, with the lockout said in
+  words ("Zu viele Fehlversuche"). The admin needs no party token. Logging out
+  ends the live screens of that login at once; one browser keeps at most 4
+  live tabs, and a fifth reconnects the oldest.
+- **Live** (`/admin/live`). A dense grid of photos as they arrive, a 44 px
+  hide toggle per photo ("Ausblenden", with "Rückgängig" in a toast), and the
+  connection state ("verbunden"). You can **only hide** here, so an accidental
+  tap during the party never deletes anything.
+- **Verwaltung** (`/admin/manage`), a sidebar on desktop:
+  - **Fotos**: a contact sheet with grease-pencil marks (X = hidden, circle =
+    selected), filters (Aktivität, Gast, Sichtbar/Ausgeblendet), multi-select
+    with keyboard shortcuts, an inspector panel, and "Löschen…" (removes the
+    files for good; numbers are never reused).
+  - **Gäste**: the guests with pseudonym, Instagram name, photo count and
+    status, filterable (for example "Hochladen pausiert").
+  - **Instagram**: every handle with its photos, a **ZIP per handle** to post
+    from, and an **"Erledigt"** mark once you have tagged them.
+  - **Sperren**: bans and **device bans** ("Gerätemerkmal"). A device ban
+    starts new identities with that device trait banned ("Automatisch
+    gesperrt"); lifting it releases them.
+  - **Protokoll**: the audit log of every moderation action.
+  - **Export**: archive (ZIP with photos, CSVs and optionally the database),
+    timelapse (MP4 via ffmpeg) and QR sheet, as background jobs with progress
+    and a download.
+- **Guest page** (`/admin/user?id=…`): a status line, their photos, the
+  per-guest "Hochladen pausieren", the ban in a sheet ("Gerätemerkmal auch
+  sperren"), technical details collapsed.
+- **Upload controls** (the "Hochladen" sheet behind the status pill):
+  "Hochladen für alle stoppen" for a short emergency stop, "Neue Gäste
+  pausieren" for whoever joins from now on (ending that pause asks whether to
+  free exactly those guests or keep them paused), and the list of paused
+  guests with "Hochladen für … erlauben".
+- **Deep links**: `?photo=<id>` opens a photo on the live screen, in Fotos and
+  on the guest page.
 
-### Local, with uv
+Everything the host does is audit-logged and pushed live to every open admin
+page over Server-Sent Events.
 
-Needs [uv](https://docs.astral.sh/uv/) (it installs Python 3.14 itself).
+## Quick start (Docker)
+
+Needs Docker Engine 25+ with the Compose plugin, and about 1 GB of free RAM
+for the image build (it builds the frontend too).
 
 ```bash
-uv sync
-uv run virtubooth gen-env > .env          # random token, admin password, secret key
-set -a && . ./.env && set +a              # the app reads the environment, not the file
-uv run virtubooth serve                   # http://127.0.0.1:8000 (add --reload while developing)
-```
-
-Open `http://localhost:8000/?t=<VB_PARTY_TOKEN from .env>`. On `localhost` the
-desktop browser allows the camera without HTTPS; phones need HTTPS (see
-[Testing on a real phone](#testing-on-a-real-phone-before-party-night)).
-
-### Docker
-
-Needs Docker Engine 25+ with the Compose plugin.
-
-```bash
-docker compose run --rm -T app virtubooth gen-env > .env   # builds the image on first run
+git clone <your repo url> virtubooth && cd virtubooth
+docker compose run --rm -T app virtubooth gen-env > .env   # builds the image, prints fresh secrets
 $EDITOR .env                                                # party name, public URL, ...
 docker compose up -d --build
 docker compose ps                                           # wait for "(healthy)"
 ```
 
-Open `http://localhost:8000/?t=<VB_PARTY_TOKEN>`. On the first run Compose
-prints "pull access denied for virtubooth" before it builds the image; that
-is expected. All settings are documented in [.env.example](.env.example).
+Open `http://localhost:8000/?t=<VB_PARTY_TOKEN from .env>` for the guest view
+and `http://localhost:8000/admin` for the host. On the first run Compose
+prints "pull access denied for virtubooth" before it builds the image; that is
+expected.
 
-### Coolify
+Phones only allow the camera over **HTTPS**, so a real party needs a domain
+and a TLS reverse proxy (Caddy, Traefik, nginx or Coolify).
+[docs/DEPLOY.md](docs/DEPLOY.md) covers the proxy, Coolify, every `VB_*`
+setting, backups, updates, the exports and troubleshooting. All settings are
+also listed in [.env.example](.env.example).
 
-`docker-compose.coolify.yaml` deploys on Coolify with the "Docker Compose"
-build pack: Coolify generates the secrets and serves the domain; no `.env`
-needed. Steps: [docs/DEPLOY.md → Coolify](docs/DEPLOY.md#54-coolify).
+## Local development
 
-## Configuration
-
-Settings come from environment variables (in Docker: the `.env` file).
-[.env.example](.env.example) lists every variable with comments. Empty means
-default.
-
-| Variable | Default | Purpose |
-|---|---|---|
-| `VB_PARTY_TOKEN` | *required* | Secret in every QR code URL (`?t=`). 16-128 chars of `A-Za-z0-9_-`. Changing it locks out all guests until they scan a new code. |
-| `VB_ADMIN_PASSWORD` | *required* | Admin password (min. 12 chars). Changing it ends all admin sessions. |
-| `VB_SECRET_KEY` | *required* | Signs cookies (min. 32 chars). Changing it forgets every guest device (new consent, new pseudonym). |
-| `VB_PARTY_NAME` | `Party` | Shown on the home page and in the consent banner. |
-| `VB_INSTAGRAM_ACCOUNT` | empty | Account you may post photos to, named in the consent banner. |
-| `VB_PUBLIC_BASE_URL` | empty | Public URL without trailing slash, e.g. `https://party.example.com`. Used for the QR codes. |
-| `VB_TIMEZONE` | `Europe/Berlin` | Timezone for the timestamps in photo file names. |
-| `VB_CONSENT_VERSION` | `1` | Stored with each consent. Bump it when the consent text changes (devices that already accepted are not asked again). |
-| `VB_EXTENSIONS` | all | Comma-separated extension ids to enable, in order, e.g. `beer,booth`. |
-| `VB_COOKIE_SECURE` | `auto` | `auto` (Secure when the request came in over https or `VB_PUBLIC_BASE_URL` is https), `true`, `false`. |
-| `VB_ALLOWED_ORIGINS` | empty | Extra origins for the CSRF check, e.g. `https://party.example.com`. Only needed when the proxy rewrites the `Host` header. |
-| `VB_DATA_DIR` | `./data` | SQLite database and photos. Docker pins it to `/data`. |
-| `VB_MAX_UPLOAD_BYTES` | `8000000` | Max size of one upload. |
-| `VB_UPLOADS_PER_USER_PER_MIN` | `10` | Uploads per guest per minute. |
-| `VB_UPLOADS_PER_IP_PER_MIN` | `180` | Valid uploads per IP per minute. |
-| `VB_UPLOADS_GLOBAL_PER_MIN` | `300` | Uploads per minute for the whole party. |
-| `VB_NEW_USERS_PER_IP_PER_10MIN` | `120` | New guest identities per IP per 10 minutes. |
-| `VB_API_REQUESTS_PER_GUEST_PER_MIN` | `300` | API requests per identified guest device per minute. |
-| `VB_API_REQUESTS_PER_IP_PER_MIN` | `1200` | API requests per IP per minute from devices without an identity yet. |
-| `VB_ADMIN_SESSION_HOURS` | `12` | Admin login lifetime. |
-| `VB_HOST` | `127.0.0.1` | Listen address of `virtubooth serve`. Docker pins `0.0.0.0`. |
-| `VB_PORT` | `8000` | Listen port. Docker pins `8000`. |
-| `VB_FORWARDED_ALLOW_IPS` | `127.0.0.1` | Proxies (IPs or CIDR ranges, comma-separated) whose `X-Forwarded-For`/`-Proto` are trusted. See [HTTPS and reverse proxy](#https-and-reverse-proxy). |
-| `VB_PUBLISH_PORT` | `127.0.0.1:8000` | Compose only: host address and port. `8000` alone publishes on all interfaces. |
-| `VB_IMAGE` | `virtubooth:local` | Compose only: image name the build produces and `up` runs. |
-| `VB_CPU_LIMIT` / `VB_MEM_LIMIT` | `1.0` / `1g` | Compose only: container limits. The CPU limit must not exceed the host's CPU count. |
-
-Guests on the same venue Wi-Fi (or behind carrier NAT) share one IP. So API
-requests of identified guests count per device
-(`VB_API_REQUESTS_PER_GUEST_PER_MIN`), only first visits count per IP, and
-admin sessions are never throttled. Uploads count per guest first; the
-per-IP and global upload budgets only count valid photos, so one guest
-spamming broken uploads can't block everyone else. For a big crowd on one
-network raise `VB_UPLOADS_PER_IP_PER_MIN` and `VB_NEW_USERS_PER_IP_PER_10MIN`.
-
-## Running with Docker
-
-| Task | Command |
-|---|---|
-| Start (build if needed) | `docker compose up -d --build` |
-| Status / health | `docker compose ps` |
-| Logs | `docker compose logs -f app` |
-| Stop (keeps data) | `docker compose stop` (or `down`, which also removes the container) |
-| Restart | `docker compose restart app` |
-| Apply `.env` changes | `docker compose up -d` (a plain `restart` does **not** re-read `.env`) |
-| Update to new code | `git pull && docker compose up -d --build` |
-| Shell inside the container | `docker compose exec app sh` |
-| Remove everything incl. photos | `docker compose down -v` (irreversible) |
-
-What the container does:
-
-- Runs as uid/gid `10001`, read-only root filesystem, no Linux capabilities,
-  `no-new-privileges`, CPU/memory/pids limits, a small init process.
-- Stores everything in the named volume `virtubooth_data` mounted at `/data`.
-  It survives `down`, rebuilds and updates; only `down -v` deletes it.
-- Has a health check on `GET /healthz` and rotates its logs (5 x 10 MB).
-- Ships ffmpeg for the timelapse tool.
-
-## HTTPS and reverse proxy
-
-Browsers only allow camera access on **HTTPS** pages (or `localhost`). The
-container speaks plain HTTP on port 8000, so put a TLS-terminating reverse
-proxy in front (Caddy, Traefik, nginx, Coolify, ...). Then set in `.env`:
-
-```dotenv
-VB_PUBLIC_BASE_URL=https://party.example.com
-VB_COOKIE_SECURE=true
-VB_FORWARDED_ALLOW_IPS=172.16.0.0/12   # the proxy's address as seen from the container
-VB_PUBLISH_PORT=127.0.0.1:8000         # if the proxy runs on the same host
-```
-
-- `VB_FORWARDED_ALLOW_IPS` matters: without it the app sees every guest as
-  the proxy's IP, so the per-IP rate limits apply to the whole party at once,
-  and logs show the proxy instead of guests. A proxy on the host or in
-  another container connects from a Docker network address
-  (`172.16.0.0/12` covers Docker's default networks; the exact address shows
-  up in `docker compose logs app` for proxied requests).
-- The proxy must pass the original `Host` header (Caddy and Traefik do;
-  nginx needs `proxy_set_header Host $host;`), else every POST fails the CSRF
-  check with `403 bad_origin`. Alternative: `VB_ALLOWED_ORIGINS`.
-- Live screens use Server-Sent Events: the proxy must not buffer them. The
-  app sends `X-Accel-Buffering: no`; Caddy and Traefik stream by default.
-- Uploads are up to `VB_MAX_UPLOAD_BYTES` (8 MB): raise the proxy's body
-  limit if it has one (nginx: `client_max_body_size 10m;`).
-- Docker's published ports bypass ufw/firewalld. Publish on `127.0.0.1` (or
-  not at all, with the proxy in the same Docker network) so nobody reaches
-  the app around the proxy.
-
-Copy-paste configs for Caddy, Traefik and nginx: [docs/DEPLOY.md](docs/DEPLOY.md).
-
-## Testing on a real phone before party night
-
-Do this a few days before the party, and once more on the real domain.
-
-1. **Get an HTTPS URL.** Either deploy to the real domain, or tunnel your
-   local instance with a [Cloudflare quick tunnel](https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/do-more-with-tunnels/trycloudflare/)
-   (no account needed; the URL changes every run, so it is for testing only):
-
-   ```bash
-   cloudflared tunnel --url http://localhost:8000
-   # prints https://<random-words>.trycloudflare.com
-   ```
-
-2. **Open the QR URL on the phone**: `https://<host>/?t=<VB_PARTY_TOKEN>`.
-   To avoid typing the token, show it as a QR code in the terminal and scan
-   it with the phone's camera app:
-
-   ```bash
-   uv run python -c "import segno, sys; segno.make(sys.argv[1]).terminal(compact=True)" \
-     "https://<host>/?t=<VB_PARTY_TOKEN>"
-   ```
-
-   Or print the real sheet with the [QR tool](#printing-the-qr-codes)
-   (`--base-url https://<host>`).
-
-3. **Walk through as a guest:** consent banner, Instagram handle, Beer Cam
-   (rear camera, outline, upload, beer count), Fotobox (front camera, filter
-   switching, countdown, save to phone, upload), camera switch, and what
-   happens when you deny the camera permission. Try both iOS Safari and
-   Android Chrome, and opening the link from inside Instagram or WhatsApp
-   (in-app browsers often block the camera; guests should open it in Safari
-   or Chrome).
-4. **Watch it in the admin** on a laptop: `https://<host>/admin`, new photos
-   appear on the live screen.
-
-**Debugging on the phone:**
-
-- **`?debug=1`**: append it to any page (e.g. `/?t=<token>&debug=1` or
-  `/x/beer/?debug=1`) to get an on-screen log panel. It stays on for that tab.
-- **Android:** enable *Developer options* → *USB debugging*, connect the
-  phone by USB, open `chrome://inspect#devices` in desktop Chrome and click
-  *inspect* under the tab. You get the full DevTools (console, network).
-- **iOS:** remote debugging needs a Mac: on the iPhone *Settings → Safari →
-  Advanced → Web Inspector*, connect by cable, then in Safari on the Mac
-  *Develop → <your iPhone> → <the tab>*. Without a Mac, use `?debug=1`.
-
-## Automated tests
+Needs [uv](https://docs.astral.sh/uv/) (it installs Python 3.14 itself),
+Node 22.22 (`frontend/.node-version`) and pnpm 11
+(`npm install -g pnpm@11.28.5`). `make help` lists every task.
 
 ```bash
-uv sync                              # includes the dev dependencies
-uv run pytest                        # unit and API tests (fast, default)
-uv run playwright install chromium   # once, for the browser tests (Linux: add --with-deps)
-uv run pytest -m e2e                 # browser tests: Chromium with a fake camera
-VB_FAKE_VIDEO=clip.y4m uv run pytest -m e2e   # use your own camera clip (.y4m/.mjpeg)
+make setup                  # uv sync + pnpm install
+make browsers               # once: Playwright's Chromium and Firefox for e2e
 ```
 
-The fixtures (`tests/conftest.py`, `tests/e2e/conftest.py`) give you a
-consented guest client, a logged-in admin, and a live server for Playwright.
-See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md#testing).
-
-## Admin
-
-Open `https://<host>/admin` and log in with `VB_ADMIN_PASSWORD`. The admin
-area does not need the party token.
-
-- **Live screen**: photos appear as they are uploaded. You can only *hide*
-  here, so nothing is deleted by an accidental tap during the party.
-- **Management screen**: hide/unhide and delete photos (delete removes the
-  files for good; the photo number is never reused), see guests with their
-  pseudonym, Instagram handle and photo count, and ban:
-  - **Ban a user** (one device): hides all their photos and blocks uploads.
-    Unbanning restores exactly those photos.
-  - **Ban a fingerprint** (with a warning): new identities that show this
-    fingerprint start out banned. Identical phone models often share a
-    fingerprint, so this can hit innocent guests. Use it for repeat offenders
-    who clear their cookies.
-
-Sessions last `VB_ADMIN_SESSION_HOURS` (12 h); log in before the guests
-arrive. Login is rate limited per IP (5 per minute, 20 per hour). After 50
-wrong passwords within an hour from anywhere, further wrong guesses get "Zu
-viele Fehlversuche"; the correct password always still works, so nobody can
-lock you out by guessing. Keep the password long and random (`gen-env` does).
-
-A fingerprint ban is a speed bump, not a wall: someone who forges their
-fingerprint with developer tools gets a fresh identity. Against the usual
-evasion (private tab, cleared cookies) it works, because the fingerprint
-stays the same.
-
-## Printing the QR codes
+Two ways to run it:
 
 ```bash
-docker compose exec app python -m virtubooth.tools.qr --base-url https://party.example.com
-docker compose cp app:/data/exports/qr ./qr        # then open qr/qr-sheet.html and print
+# 1) the built UI, as in production: one server on :8000
+make build-web
+make dev                    # creates .env with fresh secrets if missing, prints the guest URL
+
+# 2) hot reload while working on the UI: two terminals
+make dev                    # API on :8000 (placeholder pages if there is no build)
+make dev-web                # Vite on :5173, proxies /api, /media and ?t= to :8000
 ```
 
-The tool writes a printable `qr-sheet.html` (one A4 page per code: the home
-page plus each activity) and SVG/PNG files of the codes to `/data/exports/qr/`
-(`--out DIR` to change), with the party token baked into every URL but never
-printed as text. `--extensions beer,booth` picks the activities, `--base-url`
-overrides `VB_PUBLIC_BASE_URL`, and `--token` prints codes for a token you
-have not deployed yet. Locally (with the `.env` loaded): `uv run python -m
-virtubooth.tools.qr --out ./exports`.
+With `make dev-web`, open `http://localhost:5173/?t=<VB_PARTY_TOKEN>`; the
+dev-only UI gallery is at `http://localhost:5173/__ui`. Ports are overridable:
+`make dev PORT=8100` and `make dev-web PORT=8100 WEB_PORT=5200`. `make dev`
+keeps its data in `./data` (`DATA_DIR=` to change).
 
-Anyone holding a printed code is in, so treat the sheets like keys and
-reprint after [rotating the token](docs/DEPLOY.md#9-rotating-the-party-token).
+After changing an API route or schema, run `make openapi`: it exports
+`frontend/openapi.json` and regenerates the typed client
+(`frontend/src/api/schema.gen.ts`). Both are committed, and CI fails on drift.
 
-## After the party
+Testing on a real phone needs HTTPS: deploy, or tunnel the dev server (for
+example `cloudflared tunnel --url http://localhost:8000`), then open the token
+URL on the phone. Android: `chrome://inspect` over USB. iOS: Safari's Web
+Inspector on a Mac, or `?debug=1`.
 
-All tools run inside the container and write to `/data/exports/` by default.
-`docker compose exec app ...` uses the running app; with the app stopped, use
-`docker compose run --rm app ...` instead.
-
-**Beer timelapse** (ffmpeg, photos in upload order):
-
-```bash
-docker compose exec app python -m virtubooth.tools.timelapse --extension beer --fps 12 --crossfade
-docker compose exec app python -m virtubooth.tools.timelapse --dry-run   # show what it would do
-```
-
-Options: `--fps 12`, `--crossfade` (with `--fade 0.5`: share of each photo's
-time spent blending into the next, matters at low fps), `--size 1080x1440`,
-`--hold-last 2` (seconds on the last frame), `--crf 20` (quality, lower is
-better), `--preset medium`, `--include-hidden`, `--limit N` (quick preview
-with the first N photos), `--out FILE`, `--data-dir DIR`. Hidden and deleted
-photos are left out by default.
-
-**Export** the photos and their metadata as one `.tar.gz`:
-
-```bash
-docker compose exec app python -m virtubooth.tools.export                 # all photos
-docker compose exec app python -m virtubooth.tools.export --no-hidden     # skip hidden ones
-```
-
-Options: `--out FILE.tar.gz`, `--data-dir DIR`, `--no-db`. The archive holds
-one folder `virtubooth-export-<timestamp>/` with `photos/<extension>/`
-(hidden ones in `photos/<extension>/hidden/`), `photos.csv`, `users.csv`,
-`instagram.csv` (handle → photos to tag them on), a consistent copy of
-`virtubooth.db` (contains IPs and fingerprints; leave it out with `--no-db`)
-and a `README.txt`.
-
-**Copy results off the server:**
-
-```bash
-# on the server
-docker compose cp app:/data/exports ./exports
-# on your machine
-scp -r server:virtubooth/exports ./party-exports
-```
-
-For a raw copy of the whole data volume (database + all photos), stop the
-app first so the SQLite files are consistent:
-
-```bash
-docker compose stop
-docker run --rm -v virtubooth_data:/data:ro -v "$PWD":/backup alpine:3.22 \
-  tar czf /backup/virtubooth-data.tar.gz -C /data .
-docker compose start
-```
-
-Data layout inside `/data`: `virtubooth.db` (+ `-wal`/`-shm`),
-`<extension>/<YYYYmmdd-HHMMSS-mmm>_<rand>.jpg`, `<extension>/thumbs/`,
-`exports/`.
-
-## Security and privacy
-
-- **Party token.** Everything a guest sees requires the token from the QR
-  code. It is a shared secret: whoever has a code (or a photo of it) is in.
-  The token is removed from the URL right after the scan, pages send
-  `Referrer-Policy: no-referrer`, and the access log masks it (`?t=***`).
-- **Rotating the token** (a code leaked, or the party is over): change
-  `VB_PARTY_TOKEN` in `.env`, run `docker compose up -d`, reprint the codes.
-  Every guest must scan again; their pseudonym and photos stay theirs. Steps:
-  [docs/DEPLOY.md](docs/DEPLOY.md#9-rotating-the-party-token).
-- **Admin password.** At least 12 characters, generated by `gen-env`. Never
-  print it on anything. Changing it ends all admin sessions.
-- **Consent.** Guests agree to photos being stored and posted on Instagram
-  and to device recognition before they can take photos. The fingerprint is
-  a moderation hint, not an identity.
-- **Data minimisation.** Photos are re-encoded, so EXIF/GPS data from the
-  phone never reaches the disk. Core serves a photo only to the guest who
-  took it and to the admin. The database keeps per guest: pseudonym, optional
-  Instagram handle, fingerprint hashes and components, first/last IP, user
-  agent, and timestamps.
-- **Hardening.** Strict CSP (no inline scripts, no CDNs), CSRF origin check
-  on every state-changing request, upload validation and size caps, rate
-  limits, HttpOnly cookies (admin: `SameSite=Strict`), container without
-  root or capabilities.
-- **Retention: delete everything afterwards.** Hidden photos stay on disk
-  (only deleting removes the files), so once you have exported what you want
-  to keep and posted what you promised:
-  1. `docker compose down -v` deletes the container, its logs and the data
-     volume (database and every photo).
-  2. Delete exported archives, backups and copies you made, and the `.env`.
-
-## Adding an extension
-
-An activity is a package `virtubooth/extensions/<name>/` whose `__init__.py`
-exports `extension = Extension(...)`: id, title, emoji, a static directory
-with `index.html`, and optionally an `UploadPolicy`, an API router and an
-`on_upload` hook. Core discovers it automatically, serves its page at
-`/x/<name>/`, mounts its API at `/api/x/<name>/`, handles uploads, and lists
-it on the home page, in the QR sheet and in the admin. The frontend uses the
-SDK in `/static/core/vb.js` (`boot()`, `openCamera()`, `uploadJpeg()`, ...).
-
-Full contract, example and SDK reference:
-[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md#extension-interface).
-
-## Project layout
+## Repository layout
 
 ```
 virtubooth/
-├── app.py, config.py, ...   core: settings, access, identity, uploads, media, events
-├── static/core/             frontend SDK (vb.js, camera.js, device.js, loader.js, vb.css) + home page
-├── admin/                   admin API + admin UI
-├── extensions/              one package per activity: beer/, booth/, ...
-└── tools/                   CLI tools: timelapse, qr, export
-tests/                       pytest unit/API tests; tests/e2e/ Playwright browser tests
-docs/
-├── ARCHITECTURE.md          how the pieces fit, extension interface, SDK
-├── DEPLOY.md                server deployment, reverse proxy, backups, updates
-├── PLAN.md                  decisions
-└── REQUIREMENTS.md          original spec
-Dockerfile, compose.yaml     container image and deployment
-.env.example                 every setting, documented
+├── backend/                     Python package + tests (backend/README.md)
+│   ├── pyproject.toml  uv.lock  .python-version
+│   ├── src/virtubooth/
+│   │   ├── __main__.py          CLI: serve | gen-env | export-openapi
+│   │   ├── app.py               create_app(): the composition root
+│   │   ├── settings.py          VB_* settings (pydantic-settings)
+│   │   ├── core/  db/  domain/  repositories/  services/  api/  web/
+│   │   ├── extensions/          sdk.py + one package per activity: beer/, booth/
+│   │   └── tools/               qr, timelapse, export (python -m virtubooth.tools.<x>)
+│   └── tests/                   unit/, api/, e2e/ (Playwright), fixtures/
+├── frontend/                    React app (frontend/README.md)
+│   ├── index.html  admin.html  gate.html   the three entries (guest, admin, gate)
+│   ├── openapi.json             generated from the backend, committed
+│   ├── patches/                 react-aria CSP patch (pnpm patchedDependencies)
+│   ├── public/  scripts/
+│   └── src/
+│       ├── api/                 typed client generated from openapi.json, errors, events
+│       ├── ui/                  design system (React Aria + Tailwind, "Kontaktbogen")
+│       ├── styles/              app.css: tokens, fonts
+│       ├── sdk/                 guest runtime: session, camera, upload, outbox, components
+│       ├── guest/  admin/       the two apps
+│       ├── extensions/          registry.ts + one folder per activity: beer/, booth/
+│       └── lib/                 de-DE formatting, German copy
+├── docs/                        ARCHITECTURE.md, DEPLOY.md, REQUIREMENTS.md, overhaul/
+├── scripts/                     docker-smoke.sh, smoke.py
+├── .github/workflows/ci.yml
+├── Dockerfile  .dockerignore  compose.yaml  docker-compose.coolify.yaml
+└── Makefile  ruff.toml  .editorconfig  .env.example
 ```
 
-## Troubleshooting
+## Tech stack
 
-| Symptom | Cause / fix |
+| Area | What (pinned versions) |
 |---|---|
-| Every page says "Scan den QR-Code!" | No or outdated access cookie: open the QR URL with `?t=<current token>`. |
-| Camera does not start on the phone | Not on HTTPS, permission denied, or an in-app browser. Use the HTTPS URL in Safari/Chrome; check the site's camera permission. |
-| `403 bad_origin` on every upload/consent | The proxy rewrites the `Host` header. Pass it through or set `VB_ALLOWED_ORIGINS`. |
-| Lots of `429` during the party | Guests share an IP: set `VB_FORWARDED_ALLOW_IPS` for your proxy, and raise the per-IP limits for venue Wi-Fi. |
-| Cookies lack `Secure` behind HTTPS | Set `VB_PUBLIC_BASE_URL` to the https URL or `VB_COOKIE_SECURE=true`. |
-| Container exits on start | `docker compose logs app`: a missing or too short `VB_*` secret is reported by name. |
-| `.env` changes have no effect | Use `docker compose up -d`, not `restart`. |
-| Admin login says "Zu viele Fehlversuche" | Someone guessed wrong 50+ times this hour. The correct password still works; restarting the container resets the counter. |
+| Backend | Python 3.14 (3.12+ works), FastAPI 0.143, Pydantic 2.14 + pydantic-settings 2.15, uvicorn 0.54 (one worker), SQLite (stdlib `sqlite3`, WAL), Pillow 12.3, segno 1.6 (QR), ffmpeg (timelapse) |
+| Frontend | React 19.3 with the React Compiler, TypeScript 6.0 (strict), Vite 8.3 (multi-page, Rolldown), Tailwind CSS 4.3 + tailwind-variants, react-aria-components 1.22, TanStack Query 5, wouter 3, zustand 5, zod 4 (`zod/mini`), lucide-react, Bricolage Grotesque + Doto (self-hosted) |
+| API client | openapi-typescript 7.13 + openapi-fetch 0.17, generated from the backend's OpenAPI export |
+| Tooling | uv 0.12, pnpm 11.28 on Node 22.22, ruff 0.17, mypy 2.4 (strict), oxlint 1.87 (type-aware) + Prettier 3.9 |
+| Tests | pytest 9, Vitest 5 + Testing Library (happy-dom), Playwright 1.63 (Chromium, Firefox, WebKit) |
+| Runtime | Docker image: `python:3.14.8-slim-trixie` + ffmpeg, built with `node:22.22.1-trixie-slim`; Compose and Coolify files |
+
+## Testing
+
+```bash
+make lint                   # ruff (all Python, Markdown snippets), oxlint + prettier
+make typecheck              # mypy --strict, tsc -b
+make test                   # backend unit + API tests (pytest), frontend unit tests (Vitest)
+make e2e                    # builds frontend/dist, browser tests in Chromium
+make e2e-firefox            # the same in Firefox
+make e2e-webkit             # the same in WebKit, inside the Playwright Docker image
+make docker-smoke           # build the image, run it, check it end to end
+make check                  # everything CI runs
+```
+
+- **Unit and API tests** (`backend/tests/unit`, `backend/tests/api`): the
+  whole HTTP API through FastAPI's TestClient, the migrations, the tools, the
+  OpenAPI export, the web serving contract. **Vitest** (`frontend/src/**/*.test.ts(x)`):
+  the SDK (session state machine, outbox, upload, camera crop math), the API
+  error mapping, formatting, contrast of the colour tokens, key components.
+- **End to end** (`backend/tests/e2e`): pytest drives Playwright against a live
+  server that serves the **built** `frontend/dist`. Phones get fake front and
+  back cameras, desktops a webcam. Every test ends with zero console errors,
+  which also catches CSP violations. Pick the browser with
+  `VB_E2E_BROWSER=chromium|firefox`, or run WebKit (Safari's engine) with
+  `backend/tests/e2e/run_webkit.sh` in `mcr.microsoft.com/playwright/python:v1.63.0-noble`.
+  Extra pytest arguments: `make e2e E2E_ARGS="-k beer -x"`.
+- **Content-blocker audit.** uBlock, AdGuard, Brave and iOS blockers drop URLs
+  and hide elements that look like ads, tracking or cookie notices, which can
+  silently break a page. Names stay neutral everywhere, and three checks keep
+  them so: `pnpm build` fails on blocker-prone file names and CSS selectors
+  (`scripts/check-names.mjs`); `tests/unit/test_core_blockers.py` matches
+  every URL (and `frontend/public`, the HTML entries and the source paths)
+  against a vendored set of real filter rules; and the e2e suite scans the
+  rendered pages (every main screen of the guest app, the activities and the
+  admin). For the full lists (about 40 MB, downloaded once):
+  `cd backend && VB_BLOCKLISTS=.blocklists uv run pytest tests/unit/test_core_blockers.py`
+  (the same variable feeds the e2e scans).
+- **Docker smoke** (`scripts/docker-smoke.sh`): runs the image like
+  `compose.yaml` does (read-only, no capabilities, fresh volume and secrets)
+  and checks the image (USER 10001, no `VB_DEV`, no `.env`), the gate, the
+  token entry, hashed and precompressed assets, the root-file allow-list, the
+  CSP, a guest joining and uploading, the admin login and event stream, one
+  export job of each kind, the CLI tools and a clean stop.
+
+## Security model
+
+- **Party token.** Everything a guest sees needs the token from the QR code.
+  A valid `?t=` sets an HttpOnly access cookie (an HMAC of the token, 30 days)
+  and redirects to the same URL without the token. The access log masks it,
+  and pages send `Referrer-Policy: no-referrer`. Rotating `VB_PARTY_TOKEN`
+  locks every guest out until they scan a new code.
+- **Guest identity without accounts.** Joining creates a pseudonymous guest
+  pinned to the device by a signed cookie, plus a localStorage copy. Device
+  traits are stored as a moderation **hint**, never as an identity:
+  identical phones often look the same.
+- **Admin.** A password from the environment: at least 12 characters, and
+  use 16+ random ones (`gen-env` makes one; the log warns at startup when it
+  is shorter than 16 characters or very repetitive). The session is a random
+  token stored hashed, in a `SameSite=Strict` cookie that expires
+  (`VB_ADMIN_SESSION_HOURS`, 12 h; log in before the guests arrive).
+- **Admin login lock.** Login is rate limited per IP (5 per minute, 20 per
+  hour; IPv6 per /64). After 20 wrong passwords within 15 minutes from
+  anywhere, **every** login is refused for 5 minutes (429 with `Retry-After`,
+  "Zu viele Fehlversuche"), the correct password too, so spreading guesses
+  over many addresses gains nothing. Admins who are logged in keep working.
+  To get in during a lock, wait, or restart the container (`docker compose
+  restart app`; the counters live in memory). A login sent from the server
+  itself straight to the app's port (no proxy) is exempt. See
+  [DEPLOY.md](docs/DEPLOY.md#locked-out-of-the-admin-login).
+- **Every state-changing request** passes a CSRF check of the full origin
+  (scheme, host and port: `VB_PUBLIC_BASE_URL`, `VB_ALLOWED_ORIGINS` or the
+  request's own; `http://` origins are refused on https deployments), a body
+  size cap, and per-device, per-IP and global rate limits.
+- **Uploads** are validated (JPEG only, the activity's exact size, at most
+  100 scans, byte caps) and re-encoded, so all metadata is stripped
+  (EXIF/GPS, XMP, ICC, comments) and never reaches the disk. Photos are stored
+  outside the web root, and a photo is served only to its guest and the
+  admin.
+- **Pages.** Without the party cookie only the gate and a short allow-list of
+  root files (`boot-check.js`, icons, `robots.txt`) are served. HTML is
+  `private, no-cache`; the token redirect is `no-store`.
+- **Strict CSP**: `script-src 'self'; style-src 'self'`, no inline scripts or
+  styles, no external hosts, plus `X-Frame-Options: DENY`, COOP/CORP and a
+  Permissions-Policy that allows only the camera. A pnpm patch removes the
+  two runtime `<style>` injections of React Aria that the CSP would block.
+- **Container.** Runs as uid 10001 on a read-only root filesystem, without
+  Linux capabilities and with `no-new-privileges`, CPU/memory/PID limits and
+  a health check. Everything it writes is in the `/data` volume.
+- **Exports.** The database copy in the admin's archive and in the CLI
+  export holds guests with IPs, fingerprints and bans, all photo rows and the
+  audit log, but no admin sessions and no export jobs, and it is vacuumed so
+  nothing deleted earlier can be recovered.
+- **Retention.** Hidden photos stay on disk; only deleting removes files.
+  After the party, export what you keep and delete the volume
+  ([docs/DEPLOY.md](docs/DEPLOY.md#teardown)).
+- The full security review of the overhaul, with what was fixed and what was
+  accepted: [docs/overhaul/SECURITY_REVIEW.md](docs/overhaul/SECURITY_REVIEW.md).
+
+## Extension platform
+
+Each activity is an extension in two halves that share an id:
+
+- **Backend**: a package `backend/src/virtubooth/extensions/<id>/` that exports
+  `extension = Extension(...)`: title, tagline, an optional `UploadPolicy`
+  (exact size, allowed metadata, a validator), an optional API router mounted
+  at `/api/x/<id>/`, and an optional `on_upload` hook whose fields join the
+  upload answer.
+- **Frontend**: a folder `frontend/src/extensions/<id>/` whose `index.ts`
+  registers a lazily loaded page for `/x/<id>/`. The page builds on the guest
+  SDK: `useSession`/`canUpload`, the camera session (preview == photo), `useShot`
+  (outbox and upload with progress), and the `ActivityShell` page frame with
+  the guest pass, film edge and shutter.
+
+Core does the rest: discovery (`VB_EXTENSIONS` picks and orders them), the
+gate, the join flow, the upload pipeline and storage, rate limits,
+moderation, the start-screen card, the activity switcher, the admin views,
+the QR codes, the exports and the timelapse. The Live Wall from the original
+spec can come back the same way.
+[docs/ARCHITECTURE.md → Adding an activity](docs/ARCHITECTURE.md#adding-an-activity)
+walks through a complete, working example.
+
+## Documentation
+
+| File | What |
+|---|---|
+| [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | backend layers, request flow, events, web serving, frontend apps, SDK, design system, adding an activity |
+| [docs/DEPLOY.md](docs/DEPLOY.md) | Docker, Compose, Coolify, reverse proxy and HTTPS, every `VB_*` variable, backups, updates, exports, troubleshooting |
+| [backend/README.md](backend/README.md) | backend commands, package layout, rules of thumb |
+| [frontend/README.md](frontend/README.md) | frontend scripts, structure, conventions (CSP, neutral names, the React Aria patch, locale pin, tokens) |
+| [docs/overhaul/](docs/overhaul/) | the 2026 overhaul: brief, plan, contracts (API, web serving), design system "Kontaktbogen" |
+| [docs/REQUIREMENTS.md](docs/REQUIREMENTS.md) | the original request; [docs/PLAN.md](docs/PLAN.md) the decisions taken before the overhaul |

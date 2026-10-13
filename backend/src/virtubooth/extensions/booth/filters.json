@@ -1,0 +1,15 @@
+{
+  "_comment": "Filter catalogue: the ids the server accepts, the German names and the order of the filter strip. Each id needs a matching implementation in the frontend (frontend/src/extensions/booth/). Served at GET /api/x/booth/filters.",
+  "filters": [
+    { "id": "normal", "name": "Normal", "icon": "✨" },
+    { "id": "bw", "name": "Schwarz-Weiß", "icon": "🖤" },
+    { "id": "sepia", "name": "Sepia", "icon": "📜" },
+    { "id": "colorpop", "name": "Color Pop", "icon": "🌹" },
+    { "id": "party", "name": "Party-Rahmen", "icon": "🎉" },
+    { "id": "emoji", "name": "Emoji-Props", "icon": "🥳" },
+    { "id": "neon", "name": "Neon", "icon": "💜" },
+    { "id": "vhs", "name": "Vintage/VHS", "icon": "📼" },
+    { "id": "retro", "name": "Retro-Pixel", "icon": "👾" },
+    { "id": "comic", "name": "Comic", "icon": "💥" }
+  ]
+}

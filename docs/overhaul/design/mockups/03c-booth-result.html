@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="de" class="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Mockup: Fotobox Ergebnis</title>
+<link rel="stylesheet" href="kb.css">
+<link rel="stylesheet" href="cam.css">
+<style>
+  .print { display: grid; }
+  .film.done .edge-row .ok { display: inline-flex; gap: 6px; align-items: center; color: var(--gruen-hell); font-size: 15px; font-weight: 600; }
+  .actions { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; padding: 0 16px; }
+  .lower { gap: 16px; }
+  .msg { padding: 0 16px; font-size: 17px; }
+</style>
+</head>
+<body>
+<main class="cam">
+  <div class="bar">
+    <button class="iconbtn" type="button" aria-label="Zurück zum Start"><i data-i="chevron-left" class="s28"></i></button>
+    <button class="title" type="button">Fotobox <i data-i="chevron-down" class="s16"></i></button>
+    <button class="pass compact" type="button"><span class="mono">VE</span><span class="who"><b>Verrückte Ente</b></span></button>
+  </div>
+  <div class="stage"><img src="img/booth-3.jpg" alt="Dein Foto"></div>
+  <div class="film done">
+    <span class="holes" data-p="1"></span>
+    <div class="edge-row"><span class="label">Foto <span class="dots d22 num">0019</span></span><span class="ok"><i data-i="check" class="s16"></i>Hochgeladen</span></div>
+  </div>
+  <div class="lower">
+    <div class="actions">
+      <button class="btn l primary" type="button"><i data-i="download"></i>Speichern</button>
+      <button class="btn l secondary" type="button"><i data-i="camera"></i>Neues Foto</button>
+    </div>
+  </div>
+</main>
+<script src="icons.js"></script>
+<script src="film.js"></script>
+</body>
+</html>

@@ -1,0 +1,38 @@
+/* shared camera chrome for the Fotobox mockups */
+body { background: #000; overflow: hidden; }
+.cam { height: 100dvh; display: grid; grid-template-rows: auto auto auto 1fr; color: var(--papier); }
+.bar { height: 56px; display: flex; align-items: center; gap: 4px; padding: 0 8px; }
+.bar .title { display: inline-flex; align-items: center; gap: 4px; height: 44px; padding: 0 8px; font-size: 17px; font-weight: 600; background: none; border: 0; color: inherit; border-radius: var(--r); font-family: inherit; }
+.bar .pass { margin-left: auto; background: rgb(255 255 255 / 0.1); }
+.stage { position: relative; width: 100%; aspect-ratio: 3 / 4; overflow: hidden; background: #111; }
+.stage > img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.filtername { position: absolute; left: 12px; bottom: 12px; padding: 4px 10px; border-radius: 8px; background: rgb(0 0 0 / 0.55); font-size: 15px; font-weight: 600; }
+.lower { display: grid; align-content: center; gap: 10px; padding-bottom: calc(12px + env(safe-area-inset-bottom)); }
+.carousel { display: flex; gap: 10px; overflow: hidden; padding: 6px 0 0; justify-content: center; align-items: start; height: 96px; }
+.carousel .sw { flex: none; width: 48px; display: grid; justify-items: center; gap: 6px; }
+.carousel .sw img { width: 48px; height: 64px; object-fit: cover; display: block; opacity: 0.85; }
+.carousel .sw.on img { outline: 3px solid var(--safelight); outline-offset: 2px; opacity: 1; }
+.carousel .sw b { font-size: 15px; font-weight: 600; white-space: nowrap; }
+.controls { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; padding: 0 16px; gap: 12px; }
+.controls > :first-child { justify-self: start; }
+.controls > :last-child { justify-self: end; }
+.shutter { width: 80px; height: 80px; border-radius: 50%; border: 4px solid var(--safelight); display: grid; place-items: center; background: none; padding: 0; }
+.lower .controls { padding-bottom: 4px; }
+.shutter::after { content: ''; width: 62px; height: 62px; border-radius: 50%; background: var(--papier); }
+.toggle[aria-pressed='true'] { box-shadow: inset 0 0 0 2px var(--safelight); }
+.iconbtn.cam { display: grid; }
+@media (max-height: 700px) and (orientation: portrait) {
+  .cam { grid-template-rows: auto 1fr; position: relative; }
+  .bar { position: absolute; top: 0; left: 0; right: 0; z-index: 2; background: linear-gradient(rgb(0 0 0 / 0.6), transparent); }
+  .film { position: absolute; left: 0; right: 0; top: calc(100vw * 4 / 3 - 46px); background: rgb(0 0 0 / 0.72); z-index: 2; }
+  .filtername { bottom: 58px; }
+  .carousel { height: 84px; }
+  .carousel .sw img { width: 42px; height: 56px; }
+}
+@media (orientation: landscape) {
+  .cam { grid-template-columns: auto 1fr; grid-template-rows: auto auto 1fr; }
+  .stage { grid-column: 1; grid-row: 1 / -1; height: 100dvh; width: auto; }
+  .bar, .film, .lower { grid-column: 2; }
+  .lower { align-content: end; }
+  .carousel { padding-left: 16px; padding-right: 16px; }
+}

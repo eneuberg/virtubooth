@@ -1,0 +1,98 @@
+<!doctype html>
+<html lang="de" class="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Mockup: Start</title>
+<link rel="stylesheet" href="kb.css">
+<style>
+  .page { max-width: 560px; margin: 0 auto; padding: 12px 16px 40px; display: grid; gap: 28px; }
+  .top { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+  h1 { font-optical-sizing: auto; font-variation-settings: 'opsz' 96; }
+  .strip { display: block; text-decoration: none; color: var(--ink); background: var(--sunk); }
+  .strip .in { padding: 14px 16px 12px; display: grid; gap: 4px; }
+  .strip .title { display: flex; justify-content: space-between; align-items: center; }
+  .strip .count { display: flex; align-items: baseline; gap: 10px; padding: 4px 16px 12px; }
+  .swatches { display: flex; gap: 6px; padding: 4px 16px 14px; align-items: end; }
+  .swatches img { width: 42px; height: 56px; object-fit: cover; display: block; }
+  .acts { display: grid; gap: 12px; }
+  .mine { display: grid; gap: 10px; }
+  .mine .row { display: flex; gap: 8px; overflow: auto; }
+  .mine figure { margin: 0; display: grid; gap: 4px; flex: none; width: 84px; }
+  .mine img { width: 84px; height: 112px; object-fit: cover; display: block; }
+  .mine figcaption { font-size: 13px; color: var(--muted); }
+  .link { color: var(--ink); text-decoration: underline; text-decoration-color: var(--line-strong); text-underline-offset: 4px; font-size: 15px; }
+  @media (min-width: 900px) {
+    .page { max-width: 1200px; grid-template-columns: 5fr 7fr; column-gap: 64px; padding: 32px 40px; align-items: start; }
+    .top { grid-column: 1 / -1; }
+    .hero { grid-column: 1; grid-row: 2; }
+    .hero h1 { font-size: 44px; }
+    .acts { grid-column: 2; grid-row: 2 / span 3; }
+    .mine { grid-column: 1; grid-row: 3; }
+    .mine .row { flex-wrap: wrap; }
+    .page > p { grid-column: 1; grid-row: 4; }
+    .strip .in { padding: 20px 24px 14px; } .strip .count, .swatches { padding-left: 24px; }
+    .swatches img { width: 60px; height: 80px; }
+  }
+  @media (orientation: landscape) and (max-height: 500px) {
+    .page { max-width: none; grid-template-columns: 1fr 1fr; column-gap: 24px; gap: 16px; }
+    .top { grid-column: 1 / -1; }
+    .hero { grid-column: 1; } .acts { grid-column: 2; grid-row: 2 / span 3; } .mine, .page > p { grid-column: 1; }
+    .hero h1 { font-size: 34px; line-height: 38px; }
+  }
+</style>
+</head>
+<body>
+<main class="page">
+  <div class="top">
+    <button class="pass" type="button">
+      <span class="mono">VE</span>
+      <span class="who"><b>Verrückte Ente</b><span>@erik.n</span></span>
+    </button>
+    <button class="iconbtn" type="button" aria-label="Hilfe"><i data-i="circle-question-mark" class="s24"></i></button>
+  </div>
+
+  <header class="hero">
+    <h1 class="t44 w7 balance">Eriks Geburtstag</h1>
+  </header>
+
+  <nav class="acts" aria-label="Aktivitäten">
+    <a class="strip" href="#">
+      <span class="holes" data-p="0"></span>
+      <div class="in">
+        <div class="title"><span class="t27 w7">Beer Cam</span><i data-i="chevron-right" class="s24"></i></div>
+        <p class="muted">Fotografier dein Getränk im Umriss.</p>
+      </div>
+      <div class="count"><span class="dots d28" style="color: var(--safelight)">0030</span><span class="t13 muted">von 1&nbsp;Mio. Bieren</span></div>
+      <span class="holes" data-p="0"></span>
+    </a>
+    <a class="strip" href="#">
+      <span class="holes" data-p="0"></span>
+      <div class="in">
+        <div class="title"><span class="t27 w7">Fotobox</span><i data-i="chevron-right" class="s24"></i></div>
+        <p class="muted">Selfie mit Filter und Countdown.</p>
+      </div>
+      <div class="swatches">
+        <img src="img/booth-1.jpg" alt=""><img src="img/booth-2.jpg" alt=""><img src="img/booth-3.jpg" alt=""><img src="img/booth-5.jpg" alt=""><img src="img/booth-4.jpg" alt="">
+        <span class="t13 muted" style="margin-left: 6px">10 Filter</span>
+      </div>
+      <span class="holes" data-p="0"></span>
+    </a>
+  </nav>
+
+  <section class="mine" aria-labelledby="mine-h">
+    <h2 id="mine-h" class="t21 w7">Deine Bilder <span class="muted w6">4</span></h2>
+    <div class="row">
+      <figure><img src="img/beer-1.jpg" alt=""><figcaption>Bier 0012</figcaption></figure>
+      <figure><img src="img/booth-3.jpg" alt=""><figcaption>Foto 0007</figcaption></figure>
+      <figure><img src="img/beer-2.jpg" alt=""><figcaption>Bier 0021</figcaption></figure>
+      <figure><img src="img/booth-6.jpg" alt=""><figcaption>Foto 0015</figcaption></figure>
+    </div>
+  </section>
+
+  <p><a class="link" href="#">Was passiert mit meinen Fotos?</a></p>
+</main>
+<script src="icons.js"></script>
+<script src="film.js"></script>
+</body>
+</html>

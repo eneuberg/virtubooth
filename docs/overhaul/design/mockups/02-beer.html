@@ -1,0 +1,100 @@
+<!doctype html>
+<html lang="de" class="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Mockup: Beer Cam</title>
+<link rel="stylesheet" href="kb.css">
+<style>
+  body { background: #000; overflow: hidden; }
+  .cam { height: 100dvh; display: grid; grid-template-rows: auto auto auto 1fr; color: var(--papier); }
+  .lower { display: grid; align-content: center; gap: 16px; padding-bottom: env(safe-area-inset-bottom); }
+  @media (max-width: 379px) { .seg .vessel .lbl { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); } .seg > span { padding: 0 12px; } }
+  .bar { height: 56px; display: flex; align-items: center; gap: 4px; padding: 0 8px; }
+  .bar .title { display: inline-flex; align-items: center; gap: 4px; height: 44px; padding: 0 8px; font-size: 17px; font-weight: 600; background: none; border: 0; color: inherit; border-radius: var(--r); font-family: inherit; }
+  .bar .pass { margin-left: auto; background: rgb(255 255 255 / 0.1); }
+  .stage { position: relative; width: 100%; aspect-ratio: 3 / 4; overflow: hidden; background: #111; }
+  .stage img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .stage svg.guide { position: absolute; inset: 0; width: 100%; height: 100%; }
+  .guide .shade { fill: rgb(0 0 0 / 0.38); }
+  .guide .halo { fill: none; stroke: #000; stroke-width: 7; opacity: 0.55; }
+  .guide .line { fill: none; stroke: #fff; stroke-width: 3; }
+  .guide .detail { fill: none; stroke: rgb(255 255 255 / 0.55); stroke-width: 2; }
+  .hint { padding: 0 16px; font-size: 17px; line-height: 24px; text-align: center; }
+  .controls { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; padding: 0 16px 12px; gap: 12px; position: relative; }
+  .controls .seg { justify-self: start; }
+  .controls .iconbtn { justify-self: end; }
+  .shutter { width: 80px; height: 80px; border-radius: 50%; border: 4px solid var(--safelight); display: grid; place-items: center; background: none; padding: 0; }
+  .shutter::after { content: ''; width: 62px; height: 62px; border-radius: 50%; background: var(--papier); }
+  .toastslot { position: absolute; left: 16px; right: 16px; bottom: calc(100% + 8px); }
+  .seg .vessel { display: inline-flex; gap: 6px; align-items: center; }
+  .seg svg.v { width: 12px; height: 20px; }
+
+  /* short screens: bar and frame edge overlay the preview */
+  @media (max-height: 700px) and (orientation: portrait) {
+    .cam { grid-template-rows: auto auto 1fr; position: relative; }
+    .bar { position: absolute; top: 0; left: 0; right: 0; z-index: 2; background: linear-gradient(rgb(0 0 0 / 0.6), transparent); }
+    .film { position: absolute; left: 0; right: 0; top: calc(100vw * 4 / 3 - 46px); background: rgb(0 0 0 / 0.72); z-index: 2; }
+    .stage { grid-row: 1; }
+    .lower { grid-row: 2; }
+    .hint { font-size: 15px; }
+  }
+  @media (orientation: landscape) {
+    .cam { grid-template-columns: auto 1fr; grid-template-rows: auto auto 1fr auto; height: 100dvh; }
+    .stage { grid-column: 1; grid-row: 1 / -1; height: 100dvh; width: auto; }
+    .bar, .film, .lower { grid-column: 2; }
+    .lower { grid-row: 3 / -1; align-content: end; }
+    .hint { text-align: left; }
+  }
+  @media (min-width: 1100px) {
+    .cam { grid-template-columns: 1fr minmax(0, 600px) 1fr; grid-template-rows: auto 1fr auto auto auto; height: 100dvh; }
+    .bar { grid-column: 1 / -1; padding: 0 24px; }
+    .stage { grid-column: 2; grid-row: 2; height: auto; max-height: calc(100dvh - 56px - 170px); aspect-ratio: 3/4; width: auto; justify-self: center; }
+    .film { grid-column: 2; grid-row: 3; width: min(100%, calc((100dvh - 226px) * 3 / 4)); justify-self: center; }
+    .lower { grid-column: 2; grid-row: 4; width: min(100%, 480px); justify-self: center; padding-top: 12px; }
+    .kbd { display: block !important; }
+  }
+  .kbd { display: none; text-align: center; font-size: 13px; color: var(--papier-muted); padding-bottom: 12px; grid-column: 2; }
+  .kbd kbd { font: inherit; padding: 1px 6px; border: 1px solid rgb(255 255 255 / 0.3); border-radius: 4px; }
+</style>
+</head>
+<body>
+<main class="cam">
+  <div class="bar">
+    <button class="iconbtn" type="button" aria-label="Zurück zum Start"><i data-i="chevron-left" class="s28"></i></button>
+    <button class="title" type="button">Beer Cam <i data-i="chevron-down" class="s16"></i></button>
+    <button class="pass compact" type="button"><span class="mono">VE</span><span class="who"><b>Verrückte Ente</b></span></button>
+  </div>
+
+  <div class="stage">
+    <img src="img/beer-1.jpg" alt="">
+    <svg class="guide" viewBox="0 0 1080 1440" preserveAspectRatio="none" aria-hidden="true">
+      <path class="shade" fill-rule="evenodd" d="M0 0 H1080 V1440 H0 Z M540 1340 H679 Q707 1340 707 1312 V640 C707 506 608 470 608 362 V168 C608 160 616 158 616 150 V112 Q616 100 604 100 H476 Q464 100 464 112 V150 C464 158 472 160 472 168 V362 C472 470 373 506 373 640 V1312 Q373 1340 401 1340 Z"/>
+      <path class="halo" vector-effect="non-scaling-stroke" d="M540 1340 H679 Q707 1340 707 1312 V640 C707 506 608 470 608 362 V168 C608 160 616 158 616 150 V112 Q616 100 604 100 H476 Q464 100 464 112 V150 C464 158 472 160 472 168 V362 C472 470 373 506 373 640 V1312 Q373 1340 401 1340 Z"/>
+      <path class="detail" vector-effect="non-scaling-stroke" d="M464 138 H616 M373 820 Q540 852 707 820 M373 1150 Q540 1182 707 1150"/>
+      <path class="line" vector-effect="non-scaling-stroke" d="M540 1340 H679 Q707 1340 707 1312 V640 C707 506 608 470 608 362 V168 C608 160 616 158 616 150 V112 Q616 100 604 100 H476 Q464 100 464 112 V150 C464 158 472 160 472 168 V362 C472 470 373 506 373 640 V1312 Q373 1340 401 1340 Z"/>
+    </svg>
+  </div>
+
+  <div class="film">
+    <span class="holes" data-p="0"></span>
+    <div class="edge-row"><span class="label">Nächstes Bier <span class="dots d22 num" style="margin-left: 6px">0031</span></span><span class="label">Ziel 1&nbsp;Mio.</span></div>
+  </div>
+
+  <div class="lower">
+  <p class="hint">Halte die Flasche in den Umriss.</p>
+  <div class="controls">
+    <div class="seg" role="radiogroup" aria-label="Gefäß">
+      <span class="on vessel"><svg class="v" viewBox="364 100 352 1240" aria-hidden="true"><path fill="currentColor" d="M540 1340 H679 Q707 1340 707 1312 V640 C707 506 608 470 608 362 V168 C608 160 616 158 616 150 V112 Q616 100 604 100 H476 Q464 100 464 112 V150 C464 158 472 160 472 168 V362 C472 470 373 506 373 640 V1312 Q373 1340 401 1340 Z"/></svg><span class="lbl">Flasche</span></span>
+      <span class="vessel"><svg class="v" viewBox="214 220 652 1100" aria-hidden="true"><path fill="currentColor" d="M540 1320 H716 Q740 1320 742 1296 L834 266 H846 Q866 266 866 246 Q866 226 846 226 H234 Q214 226 214 246 Q214 266 234 266 H246 L338 1296 Q340 1320 364 1320 Z"/></svg><span class="lbl">Becher</span></span>
+    </div>
+    <button class="shutter" type="button" aria-label="Foto aufnehmen"></button>
+    <button class="iconbtn cam" type="button" aria-label="Kamera wechseln"><i data-i="switch-camera" class="s24"></i></button>
+  </div>
+  </div>
+  <p class="kbd"><kbd>Leertaste</kbd> löst aus</p>
+</main>
+<script src="icons.js"></script>
+<script src="film.js"></script>
+</body>
+</html>

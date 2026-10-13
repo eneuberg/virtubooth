@@ -4,6 +4,8 @@
 # Docker Compose Location: /docker-compose.coolify.yaml. Then set the domain
 # of service "app" to https://<your-domain>:8000 (":8000" is the container
 # port; guests just open https://<your-domain>). Step by step: docs/DEPLOY.md.
+# Coolify builds the image on the server from the root Dockerfile (Node stage
+# for the frontend, Python runtime): give the build about 1 GB of free RAM.
 #
 # Coolify generates the secrets below on the first deploy and shows them under
 # Environment Variables. No ports are published: only Coolify's proxy reaches
@@ -33,11 +35,15 @@ services:
       # Coolify's proxy reaches the app over Docker's private networks, and
       # nothing else can (no published port). Traefik replaces any
       # X-Forwarded-For a client sends, so the first entry is the real guest.
+      # Narrow it to the coolify network's subnet if other apps share it:
+      #   docker network inspect coolify --format '{{(index .IPAM.Config 0).Subnet}}'
+      # Never "*" (refused at startup).
       - VB_FORWARDED_ALLOW_IPS=${VB_FORWARDED_ALLOW_IPS:-10.0.0.0/8,172.16.0.0/12,192.168.0.0/16}
-      # fixed for the container
+      # fixed for the container (/app/web: the frontend build in the image)
       - VB_DATA_DIR=/data
       - VB_HOST=0.0.0.0
       - VB_PORT=8000
+      - VB_WEB_DIR=/app/web
     volumes:
       # SQLite + photos. Keep this volume: deleting it deletes the party.
       - virtubooth-data:/data

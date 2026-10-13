@@ -1,16 +1,44 @@
-# Allowlist: the image only needs the lockfile, the project metadata and the
-# package. Everything else (.git, .venv, .worktrees, data/, exports, tests/,
-# docs/, .env and other secrets, caches) stays out of the build context.
+# Allowlist: the image needs the backend's lockfile, project metadata and
+# package (backend/src), and the frontend sources its Node stage builds.
+# Everything else (.git, .venv, node_modules, local builds, .worktrees, data/,
+# exports, tests, docs/, .env and other secrets, caches) stays out of the build
+# context.
 *
-!pyproject.toml
-!uv.lock
-!README.md
-!virtubooth/
+!backend/pyproject.toml
+!backend/uv.lock
+!backend/README.md
+!backend/src/
+!frontend/
 
-# never ship caches or local runtime data that ended up inside the package
+# frontend: only what `pnpm install` + `pnpm build` read. Local installs and
+# builds, the dev-only UI gallery (ui.html, src/gallery: not a build input,
+# see vite.config.ts), unit tests and their helpers, lint/format configs and
+# the OpenAPI schema (src/api/schema.gen.ts is generated from it and committed).
+frontend/node_modules
+frontend/dist
+frontend/dist-gallery
+frontend/.vite
+frontend/**/*.tsbuildinfo
+frontend/ui.html
+frontend/src/gallery
+frontend/src/test
+frontend/**/*.test.*
+frontend/**/*.test-util.*
+frontend/vitest.config.ts
+frontend/scripts/browser-check.py
+frontend/scripts/serve-dist.mjs
+frontend/openapi.json
+frontend/README.md
+frontend/.oxlintrc.json
+frontend/.prettierrc.json
+frontend/.prettierignore
+
+# never ship caches or local runtime data that ended up inside a source tree
 **/__pycache__
 **/*.py[cod]
 **/.pytest_cache
+**/.mypy_cache
+**/.ruff_cache
 **/.DS_Store
 **/*.db
 **/*.db-wal
