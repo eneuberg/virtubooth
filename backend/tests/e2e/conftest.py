@@ -8,6 +8,10 @@ tests/fixtures/web, the stub, to check the harness itself).
 Browsers: Chromium (default), `VB_E2E_BROWSER=firefox`, or WebKit via
 tests/e2e/run_webkit.sh (inside the Playwright Docker image).
 
+Parallel: `-n 4` (pytest-xdist; `make e2e` does it) runs one browser per worker and
+gives every test its own server, data directory and port, so tests share nothing. The
+harness polls waits every 100 ms (fastpoll.py).
+
 Cameras: the fake devices of Chromium and Firefox are one camera (Firefox's
 claims to face the back), so phone contexts get PHONE_CAMERAS: a front and a
 back camera that report the side that was asked for (WebKit's mock has both).
@@ -43,6 +47,10 @@ from virtubooth.runtime import Core
 from virtubooth.settings import DEFAULT_WEB_DIR, Settings
 
 from ..conftest import ADMIN_PASSWORD, PARTY_TOKEN, SECRET_KEY
+from . import fastpoll
+
+# waits re-check every 100 ms instead of every 500 ms (fastpoll.py)
+fastpoll.install()
 
 BROWSER_NAME = os.environ.get("VB_E2E_BROWSER", "chromium")
 WEB_DIR = Path(os.environ.get("VB_E2E_WEB_DIR") or DEFAULT_WEB_DIR).resolve()
@@ -79,6 +87,28 @@ FIREFOX_PREFS = {
     "media.navigator.permission.disabled": True,
     "dom.events.testing.asyncClipboard": True,  # navigator.clipboard.readText() without the paste prompt
 }
+
+
+def _settle_new_pages_in_firefox() -> None:
+    """Firefox (Playwright 1.63): a new page sometimes loads its first URL without
+    Playwright seeing it (the page is fine, `location.href` is right), and page.goto()
+    waits 30 s for a load event that never comes. A page opened next to another page of
+    the same context did so about 1 in 20 times (serial or parallel), the first page of a
+    context rarely (3 times in 10 parallel runs of the suite). A first navigation
+    to about:blank, which Playwright does see, avoids it (0 in 500 tries, 4 clean runs
+    of the suite). The cost: an about:blank entry before the first page in history."""
+    new_page = BrowserContext.new_page
+
+    def settled_new_page(self: BrowserContext) -> Page:
+        page = new_page(self)
+        page.goto("about:blank")
+        return page
+
+    BrowserContext.new_page = settled_new_page  # type: ignore[method-assign]
+
+
+if BROWSER_NAME == "firefox":
+    _settle_new_pages_in_firefox()
 
 MOBILE = {
     "viewport": {"width": 390, "height": 844},
@@ -210,11 +240,13 @@ class LiveServer:
         return f"{self.base_url}{path}{sep}t={PARTY_TOKEN}"
 
 
-def _free_port() -> int:
-    with socket.socket() as s:
-        s.bind(("127.0.0.1", 0))
-        port: int = s.getsockname()[1]
-        return port
+def _listening_socket() -> socket.socket:
+    """A socket already bound to a free port, handed to uvicorn as it is: no window in
+    which another xdist worker's server could take the port between choosing and binding."""
+    sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    sock.bind(("127.0.0.1", 0))
+    sock.listen(128)
+    return sock
 
 
 @pytest.fixture
@@ -246,13 +278,14 @@ def live(
         },
     )
     app = create_app(settings, extensions=e2e_extensions)
-    port = _free_port()
+    sock = _listening_socket()
+    port: int = sock.getsockname()[1]
     # like `virtubooth serve`: open event streams don't hold the shutdown
     config = uvicorn.Config(
         app, host="127.0.0.1", port=port, log_level="warning", timeout_graceful_shutdown=1
     )
     server = uvicorn.Server(config)
-    thread = threading.Thread(target=server.run, daemon=True)
+    thread = threading.Thread(target=server.run, kwargs={"sockets": [sock]}, daemon=True)
     thread.start()
     deadline = time.monotonic() + 10
     while not server.started:
