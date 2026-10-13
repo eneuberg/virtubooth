@@ -1,7 +1,8 @@
 """In-process event bus plus a Server-Sent Events helper.
 
 Core publishes: photo.created, photo.hidden, photo.unhidden, photo.deleted,
-user.created, user.banned, user.unbanned. Payloads are small JSON dicts.
+user.created, user.banned, user.unbanned, user.uploads_changed,
+settings.upload_pause, settings.upload_stop. Payloads are small JSON dicts.
 publish() is safe to call from worker threads (sync endpoints).
 """
 

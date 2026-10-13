@@ -34,6 +34,11 @@ ROUTES = [
     ("GET", "/api/admin/audit", None),
     ("GET", "/api/admin/extensions", None),
     ("GET", "/api/admin/events", None),
+    ("GET", "/api/admin/upload-stop", None),
+    ("POST", "/api/admin/upload-stop", {"enabled": True}),
+    ("GET", "/api/admin/upload-pause", None),
+    ("POST", "/api/admin/upload-pause", {"enabled": False, "restore": True}),
+    ("POST", "/api/admin/users/1/uploads", {"paused": True}),
 ]
 
 
@@ -58,15 +63,24 @@ def req(client, method, path, json=None, headers=ORIGIN):
 # ------------------------------------------------------------------ access
 
 
+def _flat_routes(routes, prefix=""):
+    """(path, methods), also of routers included into the admin router."""
+    for route in routes:
+        if hasattr(route, "original_router"):
+            yield from _flat_routes(route.original_router.routes, route.include_context.prefix)
+        else:
+            yield prefix + route.path, route.methods
+
+
 def test_route_table_is_covered():
     covered = {(m, p) for m, p, _ in ROUTES}
-    for route in admin_router.routes:
-        for method in route.methods:
+    for path, methods in _flat_routes(admin_router.routes):
+        for method in methods:
             sample = {
                 (m, p) for m, p in covered
-                if m == method and _same_shape(route.path, p)
+                if m == method and _same_shape(path, p)
             }  # fmt: skip
-            assert sample, f"{method} {route.path} missing from ROUTES"
+            assert sample, f"{method} {path} missing from ROUTES"
 
 
 def _same_shape(template: str, path: str) -> bool:

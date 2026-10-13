@@ -34,6 +34,18 @@ def banned() -> ApiError:
     return ApiError(403, "banned", "Dieses Gerät wurde für Uploads gesperrt.")
 
 
+def uploads_paused() -> ApiError:
+    return ApiError(
+        403,
+        "uploads_paused",
+        "Uploads sind für dich gerade pausiert. Die Gastgeber schalten sie bald wieder frei.",
+    )
+
+
+def uploads_stopped() -> ApiError:
+    return ApiError(403, "uploads_stopped", "Uploads sind gerade kurz gestoppt – gleich geht's weiter.")
+
+
 def rate_limited(retry_after: int) -> ApiError:
     return ApiError(
         429,
