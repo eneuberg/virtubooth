@@ -33,7 +33,9 @@ Contents:
 [Web serving](#web-serving) ·
 [Frontend](#frontend) ·
 [Adding an activity](#adding-an-activity) ·
-[Testing](#testing)
+[Testing](#testing) ·
+[Security model](#security-model) ·
+[Stack](#stack)
 
 ## Backend
 
@@ -628,3 +630,105 @@ server: `.url()`, `.entry()` = the QR URL, `.core`), `page`, `admin_page`,
 `wait_until_ready` and `shot` (screenshots into `VB_SCREENSHOT_DIR`).
 Browser-specific skips are marked `chromium_only`, `firefox_only` and
 `needs_clipboard`. `VB_FAKE_VIDEO=clip.y4m` swaps in your own camera clip.
+
+What the suites cover:
+
+- **Unit and API tests** (`backend/tests/unit`, `backend/tests/api`): the
+  whole HTTP API through FastAPI's TestClient, the migrations, the tools, the
+  OpenAPI export, the web serving contract. **Vitest** (`frontend/src/**/*.test.ts(x)`):
+  the SDK (session state machine, outbox, upload, camera crop math), the API
+  error mapping, formatting, contrast of the colour tokens, key components.
+- **End to end** (`backend/tests/e2e`): pytest drives Playwright against a live
+  server that serves the **built** `frontend/dist`. Phones get fake front and
+  back cameras, desktops a webcam. Every test ends with zero console errors,
+  which also catches CSP violations. Pick the browser with
+  `VB_E2E_BROWSER=chromium|firefox`, or run WebKit (Safari's engine) with
+  `backend/tests/e2e/run_webkit.sh` in `mcr.microsoft.com/playwright/python:v1.63.0-noble`.
+  Extra pytest arguments: `make e2e E2E_ARGS="-k beer -x"`.
+- **Content-blocker audit.** uBlock, AdGuard, Brave and iOS blockers drop URLs
+  and hide elements that look like ads, tracking or cookie notices, which can
+  silently break a page. Names stay neutral everywhere, and three checks keep
+  them so: `pnpm build` fails on blocker-prone file names and CSS selectors
+  (`scripts/check-names.mjs`); `tests/unit/test_core_blockers.py` matches
+  every URL (and `frontend/public`, the HTML entries and the source paths)
+  against a vendored set of real filter rules; and the e2e suite scans the
+  rendered pages (every main screen of the guest app, the activities and the
+  admin). For the full lists (about 40 MB, downloaded once):
+  `cd backend && VB_BLOCKLISTS=.blocklists uv run pytest tests/unit/test_core_blockers.py`
+  (the same variable feeds the e2e scans).
+- **Docker smoke** (`scripts/docker-smoke.sh`): runs the image like
+  `compose.yaml` does (read-only, no capabilities, fresh volume and secrets)
+  and checks the image (USER 10001, no `VB_DEV`, no `.env`), the gate, the
+  token entry, hashed and precompressed assets, the root-file allow-list, the
+  CSP, a guest joining and uploading, the admin login and event stream, one
+  export job of each kind, the CLI tools and a clean stop.
+
+## Security model
+
+What protects a party, layer by layer.
+
+- **Party token.** Everything a guest sees needs the token from the QR code.
+  A valid `?t=` sets an HttpOnly access cookie (an HMAC of the token, 30 days)
+  and redirects to the same URL without the token. The access log masks it,
+  and pages send `Referrer-Policy: no-referrer`. Rotating `VB_PARTY_TOKEN`
+  locks every guest out until they scan a new code.
+- **Guest identity without accounts.** Joining creates a pseudonymous guest
+  pinned to the device by a signed cookie, plus a localStorage copy. Device
+  traits are stored as a moderation **hint**, never as an identity:
+  identical phones often look the same.
+- **Admin.** A password from the environment: at least 12 characters, and
+  use 16+ random ones (`gen-env` makes one; the log warns at startup when it
+  is shorter than 16 characters or very repetitive). The session is a random
+  token stored hashed, in a `SameSite=Strict` cookie that expires
+  (`VB_ADMIN_SESSION_HOURS`, 12 h; log in before the guests arrive).
+- **Admin login lock.** Login is rate limited per IP (5 per minute, 20 per
+  hour; IPv6 per /64). After 20 wrong passwords within 15 minutes from
+  anywhere, **every** login is refused for 5 minutes (429 with `Retry-After`,
+  "Zu viele Fehlversuche"), the correct password too, so spreading guesses
+  over many addresses gains nothing. Admins who are logged in keep working.
+  To get in during a lock, wait, or restart the container (`docker compose
+  restart app`; the counters live in memory). A login sent from the server
+  itself straight to the app's port (no proxy) is exempt. See
+  [DEPLOY.md](DEPLOY.md#locked-out-of-the-admin-login).
+- **Every state-changing request** passes a CSRF check of the full origin
+  (scheme, host and port: `VB_PUBLIC_BASE_URL`, `VB_ALLOWED_ORIGINS` or the
+  request's own; `http://` origins are refused on https deployments), a body
+  size cap, and per-device, per-IP and global rate limits.
+- **Uploads** are validated (JPEG only, the activity's exact size, at most
+  100 scans, byte caps) and re-encoded, so all metadata is stripped
+  (EXIF/GPS, XMP, ICC, comments) and never reaches the disk. Photos are stored
+  outside the web root, and a photo is served only to its guest and the
+  admin.
+- **Pages.** Without the party cookie only the gate and a short allow-list of
+  root files (`boot-check.js`, icons, `robots.txt`) are served. HTML is
+  `private, no-cache`; the token redirect is `no-store`.
+- **Strict CSP**: `script-src 'self'; style-src 'self'`, no inline scripts or
+  styles, no external hosts, plus `X-Frame-Options: DENY`, COOP/CORP and a
+  Permissions-Policy that allows only the camera. A pnpm patch removes the
+  two runtime `<style>` injections of React Aria that the CSP would block.
+- **Container.** Runs as uid 10001 on a read-only root filesystem, without
+  Linux capabilities and with `no-new-privileges`, CPU/memory/PID limits and
+  a health check. Everything it writes is in the `/data` volume.
+- **Exports.** The database copy in the admin's archive and in the CLI
+  export holds guests with IPs, fingerprints and bans, all photo rows and the
+  audit log, but no admin sessions and no export jobs, and it is vacuumed so
+  nothing deleted earlier can be recovered.
+- **Retention.** Hidden photos stay on disk; only deleting removes files.
+  After the party, export what you keep and delete the volume
+  ([DEPLOY.md → Teardown](DEPLOY.md#teardown)).
+- The full security review of the overhaul, with what was fixed and what was
+  accepted: [overhaul/SECURITY_REVIEW.md](overhaul/SECURITY_REVIEW.md).
+
+## Stack
+
+The versions the project pins. The lockfiles (`backend/uv.lock`,
+`frontend/pnpm-lock.yaml`) are the source of truth.
+
+| Area | What (pinned versions) |
+|---|---|
+| Backend | Python 3.14 (3.12+ works), FastAPI 0.143, Pydantic 2.14 + pydantic-settings 2.15, uvicorn 0.54 (one worker), SQLite (stdlib `sqlite3`, WAL), Pillow 12.3, segno 1.6 (QR), ffmpeg (timelapse) |
+| Frontend | React 19.3 with the React Compiler, TypeScript 6.0 (strict), Vite 8.3 (multi-page, Rolldown), Tailwind CSS 4.3 + tailwind-variants, react-aria-components 1.22, TanStack Query 5, wouter 3, zustand 5, zod 4 (`zod/mini`), lucide-react, Bricolage Grotesque + Doto (self-hosted) |
+| API client | openapi-typescript 7.13 + openapi-fetch 0.17, generated from the backend's OpenAPI export |
+| Tooling | uv 0.12, pnpm 11.28 on Node 22.22, ruff 0.17, mypy 2.4 (strict), oxlint 1.87 (type-aware) + Prettier 3.9 |
+| Tests | pytest 9, Vitest 5 + Testing Library (happy-dom), Playwright 1.63 (Chromium, Firefox, WebKit) |
+| Runtime | Docker image: `python:3.14.8-slim-trixie` + ffmpeg, built with `node:22.22.1-trixie-slim`; Compose and Coolify files |
