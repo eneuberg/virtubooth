@@ -91,17 +91,20 @@ export type AuditResponse = S['AuditOut'];
 export type SessionResponse = S['SessionOut'];
 export type OkResponse = S['OkOut'];
 
-// --------------------------------------------- exports (PLAN §3.2, pending)
-// TODO(wave 2 merge): replace with schema aliases once BE-features' endpoints
-// are in the OpenAPI export.
+// --------------------------------------------------- exports (PLAN §3.2)
 
-export type {
-  ExportKind,
-  ExportStatus,
-  ExportJob,
-  ArchiveOptions,
-  TimelapseOptions,
-  QrOptions,
-  ExportCreateResponse,
-  ExportsResponse,
-} from './types.pending';
+export type ExportJob = S['ExportJob'];
+export type ExportKind = S['ExportJob']['kind'];
+export type ExportStatus = S['ExportJob']['status'];
+export type ArchiveOptions = S['ArchiveOptions'];
+export type TimelapseOptions = S['TimelapseOptions'];
+export type QrOptions = S['QrOptions'];
+/** POST /api/admin/exports body (one variant per kind) */
+export type ExportRequest = S['ExportIn'];
+/** POST /api/admin/exports: 202 + created:true, or 200 + created:false (already queued/running) */
+export type ExportCreateResponse = S['ExportCreatedOut'];
+/** GET /api/admin/exports */
+export type ExportsResponse = S['ExportJobsOut'];
+export type ExportDeletedResponse = S['ExportDeletedOut'];
+/** POST /api/admin/instagram/{handle}/done */
+export type InstagramDoneResponse = S['InstagramDoneOut'];

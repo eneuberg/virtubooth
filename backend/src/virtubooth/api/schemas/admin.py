@@ -355,6 +355,7 @@ class InstagramHandleOut(BaseModel):
     hidden: int
     last_upload_at: str | None
     recent: list[AdminPhoto] = Field(description="Up to 8 visible photos, newest first.")
+    done: bool = Field(description="Marked „Erledigt“ (posted and tagged) on the board.")
 
 
 class InstagramOut(BaseModel):

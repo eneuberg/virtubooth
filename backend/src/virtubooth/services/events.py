@@ -11,8 +11,11 @@ from pydantic import BaseModel
 
 from ..api.schemas.admin import AdminPhoto, AdminUser, PauseState, StopState
 from ..api.schemas.events import (
+    ExportDeletedData,
+    ExportUpdatedData,
     FingerprintBannedData,
     FingerprintUnbannedData,
+    InstagramDoneData,
     PhotoDeletedData,
     PhotoEventData,
     UploadPauseData,
@@ -21,6 +24,7 @@ from ..api.schemas.events import (
     UserBanData,
     UserCreatedData,
 )
+from ..api.schemas.exports import ExportJob
 from ..core.events import EventBus
 from ..db.database import Database
 from ..domain.models import User
@@ -84,3 +88,12 @@ class AdminEvents:
             "settings.upload_pause",
             UploadPauseData(upload_pause=state, restored=restored, kept=kept),
         )
+
+    def export_updated(self, job: ExportJob) -> None:
+        self._emit("export.updated", ExportUpdatedData(job=job))
+
+    def export_deleted(self, job_id: str) -> None:
+        self._emit("export.deleted", ExportDeletedData(id=job_id))
+
+    def instagram_done(self, handle: str, done: bool) -> None:
+        self._emit("instagram.done", InstagramDoneData(handle=handle, done=done))

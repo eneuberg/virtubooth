@@ -29,6 +29,7 @@ import shutil
 import subprocess
 import tempfile
 import time
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from fractions import Fraction
 from pathlib import Path
@@ -238,8 +239,21 @@ def prepare_frames(frames: list[tuple[Path, bool]], tmp: Path, size: Size) -> st
 # ---------------------------------------------------------------- ffmpeg
 
 
-def run_ffmpeg(cmd: list[str], expected: int) -> int:
-    """Run ffmpeg, print progress now and then, return the number of frames written."""
+def _print(line: str) -> None:
+    print(line, flush=True)
+
+
+def run_ffmpeg(
+    cmd: list[str],
+    expected: int,
+    *,
+    on_frames: Callable[[int], None] | None = None,
+    log: Callable[[str], None] = _print,
+) -> int:
+    """Run ffmpeg, log progress now and then, return the number of frames written.
+
+    `on_frames(frames)` runs on every progress report (about twice a second);
+    whatever it raises kills ffmpeg and propagates (the export jobs cancel so)."""
     frames = 0
     last_pct, last_time = 0, time.monotonic()
     try:
@@ -247,7 +261,10 @@ def run_ffmpeg(cmd: list[str], expected: int) -> int:
             cmd, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, text=True, bufsize=1
         )
     except FileNotFoundError as exc:
-        raise ToolError(f"{cmd[0]} not found; install ffmpeg or pass --ffmpeg PATH") from exc
+        raise ToolError(
+            f"{cmd[0]} not found; install ffmpeg or pass --ffmpeg PATH",
+            user_message="ffmpeg ist auf dem Server nicht installiert.",
+        ) from exc
     try:
         assert proc.stdout is not None
         for line in proc.stdout:
@@ -255,10 +272,12 @@ def run_ffmpeg(cmd: list[str], expected: int) -> int:
             if key == "frame" and value.isdigit():
                 frames = int(value)
             elif key == "progress":
+                if on_frames is not None:
+                    on_frames(frames)
                 pct = min(100, frames * 100 // max(1, expected))
                 now = time.monotonic()
                 if value == "end" or pct >= last_pct + 10 or now - last_time >= 15:
-                    print(f"  encoding: {frames}/{expected} frames ({pct}%)", flush=True)
+                    log(f"  encoding: {frames}/{expected} frames ({pct}%)")
                     last_pct, last_time = pct, now
         rc = proc.wait()
     except BaseException:
@@ -266,7 +285,11 @@ def run_ffmpeg(cmd: list[str], expected: int) -> int:
         proc.wait()
         raise
     if rc != 0:
-        raise ToolError(f"ffmpeg failed (exit code {rc}), see its messages above")
+        raise ToolError(
+            f"ffmpeg failed (exit code {rc}), see its messages above",
+            user_message=f"ffmpeg ist fehlgeschlagen (Exit-Code {rc}). "
+            "Die Meldungen stehen im Server-Log.",
+        )
     return frames
 
 

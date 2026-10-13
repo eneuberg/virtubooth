@@ -78,6 +78,73 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/admin/exports": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Exports
+         * @description Every job, newest first, plus what the export form needs.
+         */
+        get: operations["list_exports_api_admin_exports_get"];
+        put?: never;
+        /**
+         * Create Export
+         * @description Queue a job (202). One job per kind at a time: while one is queued or
+         *     running, that one comes back (200, `created` false). Follow it through
+         *     `export.updated` events or by polling `GET /api/admin/exports`.
+         */
+        post: operations["create_export_api_admin_exports_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/exports/{job_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Delete Export
+         * @description Delete a job and its file; a queued job is cancelled. Not while it
+         *     runs (409 `export_running`).
+         */
+        delete: operations["delete_export_api_admin_exports__job_id__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/exports/{job_id}/download": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Download Export
+         * @description The finished file (409 `export_not_ready` while queued, running or failed).
+         */
+        get: operations["download_export_api_admin_exports__job_id__download_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/admin/extensions": {
         parameters: {
             query?: never;
@@ -107,9 +174,51 @@ export interface paths {
         };
         /**
          * Instagram
-         * @description All handles, most active first, each with its newest visible photos.
+         * @description All handles, most active first, each with its newest visible photos and
+         *     its „Erledigt“ mark.
          */
         get: operations["instagram_api_admin_instagram_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/instagram/{handle}/done": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Set Instagram Done
+         * @description Mark a handle „Erledigt“ (or not). 404 for a handle no guest gave.
+         */
+        post: operations["set_instagram_done_api_admin_instagram__handle__done_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/instagram/{handle}/photos.zip": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Instagram Photos Zip
+         * @description The handle's visible photos of guests who aren't banned, as a zip
+         *     attachment (streamed). 404 `not_found` when there are none.
+         */
+        get: operations["instagram_photos_zip_api_admin_instagram__handle__photos_zip_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -645,7 +754,7 @@ export interface components {
          * AdminEvent
          * @description One message of the admin event stream, discriminated by `type`.
          */
-        AdminEvent: components["schemas"]["PhotoCreatedEvent"] | components["schemas"]["PhotoHiddenEvent"] | components["schemas"]["PhotoUnhiddenEvent"] | components["schemas"]["PhotoDeletedEvent"] | components["schemas"]["UserCreatedEvent"] | components["schemas"]["UserBannedEvent"] | components["schemas"]["UserUnbannedEvent"] | components["schemas"]["FingerprintBannedEvent"] | components["schemas"]["FingerprintUnbannedEvent"] | components["schemas"]["UploadsChangedEvent"] | components["schemas"]["UploadStopEvent"] | components["schemas"]["UploadPauseEvent"] | components["schemas"]["StreamResyncEvent"];
+        AdminEvent: components["schemas"]["PhotoCreatedEvent"] | components["schemas"]["PhotoHiddenEvent"] | components["schemas"]["PhotoUnhiddenEvent"] | components["schemas"]["PhotoDeletedEvent"] | components["schemas"]["UserCreatedEvent"] | components["schemas"]["UserBannedEvent"] | components["schemas"]["UserUnbannedEvent"] | components["schemas"]["FingerprintBannedEvent"] | components["schemas"]["FingerprintUnbannedEvent"] | components["schemas"]["UploadsChangedEvent"] | components["schemas"]["UploadStopEvent"] | components["schemas"]["UploadPauseEvent"] | components["schemas"]["ExportUpdatedEvent"] | components["schemas"]["ExportDeletedEvent"] | components["schemas"]["InstagramDoneEvent"] | components["schemas"]["StreamResyncEvent"];
         /** AdminExtension */
         AdminExtension: {
             /** Emoji */
@@ -768,6 +877,33 @@ export interface components {
             uploads_paused_source: ("admin" | "new_guest_lock") | null;
             /** User Agent */
             user_agent: string;
+        };
+        /** ArchiveExportIn */
+        ArchiveExportIn: {
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            kind: "archive";
+            options?: components["schemas"]["ArchiveOptions"];
+        };
+        /**
+         * ArchiveOptions
+         * @description A zip of the photos, CSV lists, manifest.json and README.txt.
+         */
+        ArchiveOptions: {
+            /**
+             * Include Db
+             * @description Add a consistent copy of the database (IP addresses, fingerprints, audit log).
+             * @default false
+             */
+            include_db: boolean;
+            /**
+             * Include Hidden
+             * @description Also hidden photos (in photos/<activity>/hidden/).
+             * @default false
+             */
+            include_hidden: boolean;
         };
         /** AuditEntryOut */
         AuditEntryOut: {
@@ -957,12 +1093,150 @@ export interface components {
              * @description Machine-readable error code.
              * @enum {string}
              */
-            error: "scan_qr" | "needs_consent" | "banned" | "consent_outdated" | "invalid_instagram" | "uploads_paused" | "uploads_stopped" | "unsupported_type" | "too_large" | "invalid_meta" | "empty_upload" | "invalid_image" | "admin_required" | "wrong_password" | "login_locked" | "invalid_filter" | "invalid_cursor" | "no_fingerprint" | "restore_required" | "bad_origin" | "length_required" | "rate_limited" | "invalid_request" | "not_found" | "http_404" | "http_405";
+            error: "scan_qr" | "needs_consent" | "banned" | "consent_outdated" | "invalid_instagram" | "uploads_paused" | "uploads_stopped" | "unsupported_type" | "too_large" | "invalid_meta" | "empty_upload" | "invalid_image" | "admin_required" | "wrong_password" | "login_locked" | "invalid_filter" | "invalid_cursor" | "no_fingerprint" | "restore_required" | "export_not_ready" | "export_running" | "base_url_required" | "invalid_base_url" | "bad_origin" | "length_required" | "rate_limited" | "invalid_request" | "not_found" | "http_404" | "http_405";
             /**
              * Message
              * @description German text for the guest or admin, shown as-is.
              */
             message: string;
+        };
+        /**
+         * ExportCreatedOut
+         * @description 202 with the new job; 200 with the job of this kind that is already
+         *     queued or running (`created` false; its options may differ).
+         */
+        ExportCreatedOut: {
+            /** Created */
+            created: boolean;
+            job: components["schemas"]["ExportJob"];
+        };
+        /** ExportDeletedData */
+        ExportDeletedData: {
+            /** Id */
+            id: string;
+        };
+        /**
+         * ExportDeletedEvent
+         * @description A job and its file are gone (deleted by an admin, or pruned).
+         */
+        ExportDeletedEvent: {
+            data: components["schemas"]["ExportDeletedData"];
+            /**
+             * Id
+             * @description `<epoch>-<n>`: the SSE `id:` line.
+             */
+            id: string;
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            type: "export.deleted";
+        };
+        /** ExportDeletedOut */
+        ExportDeletedOut: {
+            /** Id */
+            id: string;
+            /**
+             * Ok
+             * @constant
+             */
+            ok: true;
+        };
+        /**
+         * ExportIn
+         * @description Start an export: `kind` plus its `options` (all optional).
+         */
+        ExportIn: components["schemas"]["ArchiveExportIn"] | components["schemas"]["TimelapseExportIn"] | components["schemas"]["QrExportIn"];
+        /** ExportJob */
+        ExportJob: {
+            /**
+             * Bytes
+             * @description File size, set when done.
+             */
+            bytes: number | null;
+            /** Created At */
+            created_at: string;
+            /**
+             * Download Url
+             * @description `GET` it for the file; set when done.
+             */
+            download_url: string | null;
+            /**
+             * Error
+             * @description Why it failed: German, shown as-is.
+             */
+            error: string | null;
+            /**
+             * File Name
+             * @description Set when done.
+             */
+            file_name: string | null;
+            /** Finished At */
+            finished_at: string | null;
+            /** Id */
+            id: string;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "archive" | "timelapse" | "qr";
+            /**
+             * Options
+             * @description The options it runs with (defaults filled in; qr: the URL used).
+             */
+            options: components["schemas"]["ArchiveOptions"] | components["schemas"]["TimelapseOptions"] | components["schemas"]["QrOptions"];
+            /**
+             * Progress
+             * @description 0..1 while running, 1 when done, null while queued; a failed job keeps the last value.
+             */
+            progress: number | null;
+            /** Started At */
+            started_at: string | null;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "queued" | "running" | "done" | "failed";
+        };
+        /** ExportJobsOut */
+        ExportJobsOut: {
+            /**
+             * Ffmpeg
+             * @description ffmpeg is installed: timelapse jobs can run.
+             */
+            ffmpeg: boolean;
+            /**
+             * Jobs
+             * @description Newest first.
+             */
+            jobs: components["schemas"]["ExportJob"][];
+            /**
+             * Public Base Url
+             * @description VB_PUBLIC_BASE_URL (the QR codes' default), null when unset.
+             */
+            public_base_url: string | null;
+        };
+        /** ExportUpdatedData */
+        ExportUpdatedData: {
+            job: components["schemas"]["ExportJob"];
+        };
+        /**
+         * ExportUpdatedEvent
+         * @description A job was created or changed status or progress (progress at most every
+         *     5 % or second).
+         */
+        ExportUpdatedEvent: {
+            data: components["schemas"]["ExportUpdatedData"];
+            /**
+             * Id
+             * @description `<epoch>-<n>`: the SSE `id:` line.
+             */
+            id: string;
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            type: "export.updated";
         };
         /** ExtensionCountOut */
         ExtensionCountOut: {
@@ -1121,8 +1395,51 @@ export interface components {
             /** Uid */
             uid?: string | null;
         };
+        /** InstagramDoneData */
+        InstagramDoneData: {
+            /** Done */
+            done: boolean;
+            /** Handle */
+            handle: string;
+        };
+        /** InstagramDoneEvent */
+        InstagramDoneEvent: {
+            data: components["schemas"]["InstagramDoneData"];
+            /**
+             * Id
+             * @description `<epoch>-<n>`: the SSE `id:` line.
+             */
+            id: string;
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            type: "instagram.done";
+        };
+        /** InstagramDoneIn */
+        InstagramDoneIn: {
+            /** Done */
+            done: boolean;
+        };
+        /** InstagramDoneOut */
+        InstagramDoneOut: {
+            /** Changed */
+            changed: boolean;
+            /** Done */
+            done: boolean;
+            /**
+             * Handle
+             * @description Normalized (lower case, no @).
+             */
+            handle: string;
+        };
         /** InstagramHandleOut */
         InstagramHandleOut: {
+            /**
+             * Done
+             * @description Marked „Erledigt“ (posted and tagged) on the board.
+             */
+            done: boolean;
             /** Handle */
             handle: string;
             /** Hidden */
@@ -1411,6 +1728,26 @@ export interface components {
             /** Url */
             url: string;
         };
+        /** QrExportIn */
+        QrExportIn: {
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            kind: "qr";
+            options?: components["schemas"]["QrOptions"];
+        };
+        /**
+         * QrOptions
+         * @description A zip of the party QR codes (SVG + PNG) and the printable qr-sheet.html.
+         */
+        QrOptions: {
+            /**
+             * Base Url
+             * @description Public URL guests open, e.g. https://party.example.com. Default: VB_PUBLIC_BASE_URL. In a job: the URL that was used.
+             */
+            base_url?: string | null;
+        };
         /** SessionOut */
         SessionOut: {
             /** Authenticated */
@@ -1496,6 +1833,45 @@ export interface components {
              * @enum {string}
              */
             type: "stream.resync";
+        };
+        /** TimelapseExportIn */
+        TimelapseExportIn: {
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            kind: "timelapse";
+            options?: components["schemas"]["TimelapseOptions"];
+        };
+        /**
+         * TimelapseOptions
+         * @description An H.264 .mp4 of one activity's photos in upload order (needs ffmpeg).
+         */
+        TimelapseOptions: {
+            /**
+             * Crossfade
+             * @description Blend smoothly from photo to photo.
+             * @default false
+             */
+            crossfade: boolean;
+            /**
+             * Extension
+             * @description Whose photos (activity id).
+             * @default beer
+             */
+            extension: string;
+            /**
+             * Fps
+             * @description Photos per second.
+             * @default 12
+             */
+            fps: number;
+            /**
+             * Include Hidden
+             * @description Also hidden photos.
+             * @default false
+             */
+            include_hidden: boolean;
         };
         /** UnbanIn */
         UnbanIn: {
@@ -2097,6 +2473,428 @@ export interface operations {
             };
         };
     };
+    list_exports_api_admin_exports_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ExportJobsOut"];
+                };
+            };
+            /** @description Invalid input (see `error`) */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Needs consent or an admin session */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Forbidden: banned, paused, stopped or a foreign Origin (CSRF) */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Not found, or no party access (`scan_qr`) */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Content-Length required */
+            411: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Request too large */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Request validation failed (`invalid_request`) */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Rate limited (`Retry-After` header) */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    create_export_api_admin_exports_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ExportIn"];
+            };
+        };
+        responses: {
+            /** @description Already queued or running. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ExportCreatedOut"];
+                };
+            };
+            /** @description Successful Response */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ExportCreatedOut"];
+                };
+            };
+            /** @description Invalid input (see `error`) */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Needs consent or an admin session */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Forbidden: banned, paused, stopped or a foreign Origin (CSRF) */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Not found, or no party access (`scan_qr`) */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Content-Length required */
+            411: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Request too large */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Request validation failed (`invalid_request`) */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Rate limited (`Retry-After` header) */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    delete_export_api_admin_exports__job_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                job_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ExportDeletedOut"];
+                };
+            };
+            /** @description Invalid input (see `error`) */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Needs consent or an admin session */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Forbidden: banned, paused, stopped or a foreign Origin (CSRF) */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Not found, or no party access (`scan_qr`) */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Content-Length required */
+            411: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Request too large */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Request validation failed (`invalid_request`) */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Rate limited (`Retry-After` header) */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    download_export_api_admin_exports__job_id__download_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                job_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The file as an attachment: archive and qr are a zip, timelapse an mp4. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/zip": string;
+                    "video/mp4": string;
+                };
+            };
+            /** @description Invalid input (see `error`) */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Needs consent or an admin session */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Forbidden: banned, paused, stopped or a foreign Origin (CSRF) */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Not found, or no party access (`scan_qr`) */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Content-Length required */
+            411: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Request too large */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Request validation failed (`invalid_request`) */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Rate limited (`Retry-After` header) */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
     extensions_api_admin_extensions_get: {
         parameters: {
             query?: never;
@@ -2205,6 +3003,198 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["InstagramOut"];
+                };
+            };
+            /** @description Invalid input (see `error`) */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Needs consent or an admin session */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Forbidden: banned, paused, stopped or a foreign Origin (CSRF) */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Not found, or no party access (`scan_qr`) */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Content-Length required */
+            411: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Request too large */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Request validation failed (`invalid_request`) */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Rate limited (`Retry-After` header) */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    set_instagram_done_api_admin_instagram__handle__done_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                handle: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["InstagramDoneIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InstagramDoneOut"];
+                };
+            };
+            /** @description Invalid input (see `error`) */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Needs consent or an admin session */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Forbidden: banned, paused, stopped or a foreign Origin (CSRF) */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Not found, or no party access (`scan_qr`) */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Content-Length required */
+            411: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Request too large */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Request validation failed (`invalid_request`) */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Rate limited (`Retry-After` header) */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    instagram_photos_zip_api_admin_instagram__handle__photos_zip_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                handle: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description A zip of the photos: 0001-<activity>-<photo id>.jpg, … in upload order. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/zip": string;
                 };
             };
             /** @description Invalid input (see `error`) */

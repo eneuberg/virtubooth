@@ -106,3 +106,11 @@ describe('openAdminEvents', () => {
     expect(statuses[0]).toBe('closed');
   });
 });
+
+describe('ADMIN_EVENT_TYPES', () => {
+  it('lists every event of the OpenAPI union', async () => {
+    const { default: spec } = await import('../../openapi.json');
+    const mapping = spec.components.schemas.AdminEvent.discriminator.mapping;
+    expect(ADMIN_EVENT_TYPES.toSorted()).toEqual(Object.keys(mapping).toSorted());
+  });
+});

@@ -1026,7 +1026,7 @@ Notation: `tid:` = `get_by_test_id` / `[data-testid=...]`. Where a test id comes
 
 ### What is scanned
 
-**`app_requests(app, token)`** builds about 80+ (asserted `> 80`) `Request(url, type, method, source)` on `BASE = https://party.fentreactor.de`:
+**`app_requests(app, token)`** builds about 80+ (asserted `> 80`) `Request(url, type, method, source)` on `BASE = https://party.example.com`:
 - **Static files:** every file (recursive, skipping `__pycache__`) of `pages.STATIC_DIR` → `/static/<rel>`; `ADMIN_STATIC/assets` → `/admin/assets/<rel>`; each loaded extension's `static_dir` → `/x/<id>/<rel>`. The type comes from the suffix (`.js`/`.mjs`=script, `.css`=stylesheet, `.html`=document, `.json`=xhr, `.svg`/`.png`/`.jpg`=image, `.woff2`=font, `.webmanifest`=other).
 - **Documents:**
   - `ADMIN_STATIC/*.html` → `/admin/<stem>`;

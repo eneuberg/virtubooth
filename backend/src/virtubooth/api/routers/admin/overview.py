@@ -33,8 +33,10 @@ def stats(core: CoreDep) -> StatsOut:
 
 @router.get("/instagram")
 def instagram(core: CoreDep) -> InstagramOut:
-    """All handles, most active first, each with its newest visible photos."""
+    """All handles, most active first, each with its newest visible photos and
+    its „Erledigt“ mark."""
     handles: list[InstagramHandleOut] = []
+    done = core.services.instagram.done_handles()
     for entry in core.repos.read_models.instagram_handles():
         recent: list[Photo] = []
         for user in entry.users:
@@ -52,6 +54,7 @@ def instagram(core: CoreDep) -> InstagramOut:
                 hidden=entry.hidden,
                 last_upload_at=entry.last_upload_at,
                 recent=[AdminPhoto.of(p) for p in recent[:INSTAGRAM_PREVIEW]],
+                done=entry.handle in done,
             )
         )
     return InstagramOut(handles=handles)

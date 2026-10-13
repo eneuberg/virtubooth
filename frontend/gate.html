@@ -17,12 +17,16 @@
     <title>Party</title>
     <link rel="icon" href="/icon.svg" type="image/svg+xml" />
     <link rel="stylesheet" href="/src/styles/app.css" />
+    <script src="/gate-hint.js" defer></script>
   </head>
   <body>
     <main
-      class="mx-auto grid min-h-dvh max-w-[35rem] content-center gap-6 px-6 py-8 lg:max-w-[65rem] lg:grid-cols-[22.5rem_1fr] lg:items-center lg:gap-16"
+      class="mx-auto grid min-h-dvh max-w-[35rem] content-center gap-6 px-6 py-8 lg:max-w-[65rem] lg:grid-cols-[22.5rem_1fr] lg:items-center lg:gap-16 landscape-phone:max-w-[48rem] landscape-phone:grid-cols-[9rem_1fr] landscape-phone:items-center landscape-phone:gap-8 landscape-phone:py-6"
     >
-      <div class="relative grid aspect-[3/4] w-50 place-items-center bg-film lg:w-full" aria-hidden="true">
+      <div
+        class="relative grid aspect-[3/4] w-50 place-items-center bg-film lg:w-full landscape-phone:w-full"
+        aria-hidden="true"
+      >
         <svg class="absolute inset-x-0 top-1.5 h-2 w-full text-film-hole">
           <defs>
             <pattern id="gate-holes" width="14" height="8" patternUnits="userSpaceOnUse">
@@ -33,7 +37,7 @@
         </svg>
         <span class="vb-mode-gate">
           <svg
-            class="size-24 text-accent lg:size-48"
+            class="size-24 text-accent lg:size-48 landscape-phone:size-16"
             viewBox="0 0 24 24"
             fill="none"
             stroke="currentColor"
@@ -53,7 +57,7 @@
         </span>
         <span class="vb-mode-notfound">
           <svg
-            class="size-24 text-accent lg:size-48"
+            class="size-24 text-accent lg:size-48 landscape-phone:size-16"
             viewBox="0 0 24 24"
             fill="none"
             stroke="currentColor"
@@ -83,14 +87,22 @@
             Diese Seite öffnet sich nur über einen der <span class="whitespace-nowrap">QR-Codes</span> auf der
             Party.
           </p>
-          <p class="text-ink-muted">Halte die Kamera deines Handys auf den Code und tippe auf den Link.</p>
+          <p class="text-ink-muted lg:text-md">
+            Halte die Kamera deines Handys auf den Code und tippe auf den Link.
+          </p>
+          <!-- gate-hint.js fills and shows this in the browsers of Instagram, WhatsApp & co. -->
+          <p
+            class="vb-gate-app mt-2 rounded-control border border-accent bg-accent-tint p-4 lg:text-md"
+            data-testid="gate-app-hint"
+            hidden
+          ></p>
         </section>
       </div>
 
       <div class="vb-mode-notfound">
         <section class="grid justify-items-start gap-3" data-testid="notfound">
           <h1 class="text-2xl font-bold lg:text-3xl">Hier ist nichts.</h1>
-          <p class="text-md lg:text-lg">Diese Seite gibt es nicht.</p>
+          <p class="text-md lg:text-lg">Diese Seite gibt es nicht. Zurück zur Party?</p>
           <a class="vb-btn vb-btn--primary mt-3" href="/">Zum Start</a>
         </section>
       </div>
