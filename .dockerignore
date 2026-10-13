@@ -28,6 +28,7 @@ frontend/vitest.config.ts
 frontend/scripts/browser-check.py
 frontend/scripts/serve-dist.mjs
 frontend/openapi.json
+frontend/README.md
 frontend/.oxlintrc.json
 frontend/.prettierrc.json
 frontend/.prettierignore
