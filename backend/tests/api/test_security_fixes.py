@@ -6,6 +6,7 @@ from __future__ import annotations
 import io
 import logging
 import socket
+import sqlite3
 import threading
 import time
 from collections.abc import Iterator
@@ -32,8 +33,10 @@ from virtubooth.core.ratelimit import (
     ip_bucket,
 )
 from virtubooth.core.security import is_direct_loopback, origin_allowed, sha256_hex
+from virtubooth.db.database import Database
 from virtubooth.services.images import MAX_SCANS, process_jpeg
 from virtubooth.settings import Settings, admin_password_warnings
+from virtubooth.tools.export import SCRUBBED_TABLES, snapshot_db, take_snapshot
 
 from ..conftest import ADMIN_PASSWORD, JPEG, ORIGIN, PARTY_TOKEN, SECRET_KEY
 from .test_admin_events import Live, Stream, admin_client
@@ -262,6 +265,53 @@ def test_the_header_size_is_checked_before_decoding(monkeypatch):
         process_jpeg(buf.getvalue(), max_side=2000, quality=88, thumb_side=480)
     assert exc.value.code == "invalid_image" and not loaded  # refused from the header
     assert Image.MAX_IMAGE_PIXELS == 25_000_000
+
+
+# ======================================== SEC-03 the archive's database copy
+
+
+def test_snapshot_drops_admin_secrets_and_free_pages(tmp_path):
+    data = tmp_path / "data"
+    db = Database(data / "virtubooth.db")
+    with db.tx() as c:
+        c.execute(
+            "INSERT INTO admin_sessions VALUES (?,?,?,?,?,?)",
+            ("TOKENHASH-MARKER", "2026", "2099", "PWTAG-MARKER", "203.0.113.9", "UA-MARKER"),
+        )
+        c.execute(
+            "INSERT INTO export_jobs (id, kind, status, created_at) "
+            "VALUES ('JOB-MARKER', 'qr', 'done', '2026')"
+        )
+        c.execute("INSERT INTO settings VALUES ('gone', ?, '2026')", ("DELETED-MARKER" * 300,))
+    # SQLite builds with SQLITE_SECURE_DELETE zero deleted rows; others leave
+    # them on free pages, which the backup API copies: simulate that
+    db.all("PRAGMA secure_delete=OFF")
+    with db.tx() as c:
+        c.execute("DELETE FROM settings WHERE key='gone'")
+    raw_copy = tmp_path / "raw.db"
+    snapshot_db(data / "virtubooth.db", raw_copy)
+    # precondition: the plain backup copy still holds the deleted row's bytes
+    assert b"DELETED-MARKER" in raw_copy.read_bytes()
+
+    scratch = tmp_path / "scratch"
+    scratch.mkdir()
+    snap = take_snapshot(data, scratch, include_hidden=True)
+    db.close()
+    content = snap.db_file.read_bytes()
+    for marker in (b"TOKENHASH", b"PWTAG", b"UA-MARKER", b"JOB-MARKER", b"DELETED-MARKER"):
+        assert marker not in content, marker
+    conn = sqlite3.connect(snap.db_file)
+    try:
+        for table in SCRUBBED_TABLES:
+            assert conn.execute(f"SELECT COUNT(*) FROM {table}").fetchone()[0] == 0
+        assert conn.execute("PRAGMA freelist_count").fetchone()[0] == 0
+        assert conn.execute("PRAGMA journal_mode").fetchone()[0] == "delete"
+        assert conn.execute("PRAGMA integrity_check").fetchone()[0] == "ok"
+    finally:
+        conn.close()
+    assert not list(scratch.glob("*-wal")) and not list(scratch.glob("*-shm"))
+    # the copy still opens as a virtubooth database (e.g. to restore a backup)
+    Database(snap.db_file).close()
 
 
 # ============================================================ SEC-04 CSRF
