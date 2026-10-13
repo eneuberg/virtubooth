@@ -49,6 +49,8 @@ from ..conftest import ADMIN_PASSWORD, PARTY_TOKEN, SECRET_KEY
 
 BROWSER_NAME = os.environ.get("VB_E2E_BROWSER", "chromium")
 WEB_DIR = Path(os.environ.get("VB_E2E_WEB_DIR") or DEFAULT_WEB_DIR).resolve()
+# read once at import: the root `clean_env` fixture removes every VB_* variable per test
+SCREENSHOT_DIR = os.environ.get("VB_SCREENSHOT_DIR")
 
 # for tests that need Chromium-only test tooling (CDP sessions)
 chromium_only = pytest.mark.skipif(
@@ -354,7 +356,7 @@ def page(context: BrowserContext) -> Iterator[Page]:
 
 def shot(page: Page, name: str, settle_ms: int = 300) -> None:
     """Screenshot into $VB_SCREENSHOT_DIR (nothing when unset)."""
-    out = os.environ.get("VB_SCREENSHOT_DIR")
+    out = SCREENSHOT_DIR
     if not out:
         return
     page.wait_for_timeout(settle_ms)

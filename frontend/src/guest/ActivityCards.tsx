@@ -19,7 +19,7 @@ import type { Activity } from '@/sdk/activities';
 import { cx } from '@/ui/cx';
 import { FilmEdge } from '@/ui/FilmEdge';
 import { Skeleton } from '@/ui/Skeleton';
-import { ACTIVITY_COPY, tidy } from './copy';
+import { tidy } from './copy';
 import sample1 from './img/sample-1.jpg';
 import sample2 from './img/sample-2.jpg';
 import sample3 from './img/sample-3.jpg';
@@ -76,7 +76,7 @@ const LIVE: Record<string, ComponentType> = { beer: BeerLine, booth: BoothLine }
 
 export function ActivityCard({ activity }: { activity: Activity }) {
   const Live = LIVE[activity.id];
-  const tagline = ACTIVITY_COPY[activity.id]?.tagline ?? tidy(activity.tagline);
+  const tagline = tidy(activity.tagline);
   return (
     <Link
       href={activity.href}
