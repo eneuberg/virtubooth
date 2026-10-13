@@ -140,7 +140,7 @@ class CodeStats:
     not_joined: int = 0
     photos: int = 0
     active_now: int = 0
-    online_seconds: int = 0
-    online_now: int = 0
     first_scan_at: str | None = None
     last_scan_at: str | None = None
+    online_seconds: int = 0
+    online_now: int = 0

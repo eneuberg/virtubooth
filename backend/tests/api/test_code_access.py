@@ -234,7 +234,7 @@ def test_statistics_per_code(make_client, codes, core):
     assert stats(core, 2)["active_now"] == 0
     assert stats(core, 3) == stats(core, 1) == {
         "scans": 0, "people": 0, "guests": 0, "not_joined": 0, "photos": 0, "active_now": 0,
-        "first_scan_at": None, "last_scan_at": None,
+        "online_seconds": 0, "online_now": 0, "first_scan_at": None, "last_scan_at": None,
     }  # fmt: skip
 
 
