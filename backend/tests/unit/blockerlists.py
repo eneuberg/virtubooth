@@ -24,7 +24,7 @@ from html.parser import HTMLParser
 from pathlib import Path
 from urllib.parse import parse_qsl, urlsplit
 
-HOST = "party.fentreactor.de"
+HOST = "party.example.com"
 BASE = f"https://{HOST}"
 
 # ---------------------------------------------------------------- requests
