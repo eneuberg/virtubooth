@@ -103,4 +103,5 @@ def test_the_end_of_the_session_leads_to_the_login(
     assert other.evaluate("async () => (await fetch('/api/admin/logout', {method: 'POST'})).status") == 200
     other.close()
     admin_page.wait_for_url(re.compile(r"/admin/login\?next=%2Fadmin%2Flive$"), timeout=20_000)
-    assert [e for e in errors(admin_page, 401) if "EventSource" not in e] == []
+    # the refused stream (401) is logged by the browser: expected here, nothing else
+    assert [e for e in errors(admin_page, 401) if "/api/admin/events" not in e] == []

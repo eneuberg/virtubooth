@@ -74,7 +74,7 @@ export function PhotoViewer({
       const target = e.target instanceof HTMLElement ? e.target : null;
       if (target?.closest('input, textarea, select, [role=slider]')) return;
       // a dialog on top of the viewer (delete question) owns the keys
-      if (document.querySelector('[role=alertdialog]')) return;
+      if (document.querySelector('.vb-sheet[role=alertdialog]')) return;
       if (e.key === 'ArrowLeft' && newer) onNavigate(newer.id);
       else if (e.key === 'ArrowRight' && older) onNavigate(older.id);
       else return;

@@ -51,6 +51,7 @@ export function UploadControlsSheet() {
   const [result, setResult] = useState<Result | null>(null);
   const endHeading = useRef<HTMLHeadingElement>(null);
   const mainHeading = useRef<HTMLHeadingElement>(null);
+  const pausedHeading = useRef<HTMLHeadingElement>(null);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -113,6 +114,8 @@ export function UploadControlsSheet() {
   const resume = (user: AdminUser) =>
     run(user.id, async () => {
       await setUserPaused(qc, user.id, false);
+      // the row and its button disappear: keep the focus inside the sheet
+      requestAnimationFrame(() => pausedHeading.current?.focus());
       return `${user.name} darf wieder hochladen.`;
     });
 
@@ -240,7 +243,12 @@ export function UploadControlsSheet() {
             </p>
           </HelpDisclosure>
           <section aria-labelledby="vb-paused-title" className="grid gap-1 border-t border-line pt-3">
-            <h3 id="vb-paused-title" className="flex items-baseline gap-2 text-md font-bold">
+            <h3
+              id="vb-paused-title"
+              ref={pausedHeading}
+              tabIndex={-1}
+              className="flex items-baseline gap-2 text-md font-bold outline-none"
+            >
               Pausierte Gäste
               <span className="text-sm font-normal text-ink-muted tabular">{pausedTotal}</span>
             </h3>
