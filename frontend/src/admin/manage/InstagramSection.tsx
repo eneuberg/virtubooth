@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { Link } from 'react-aria-components';
 import type { AdminPhoto, InstagramHandle } from '@/api/types';
 import { formatRelative, NBSP } from '@/lib/format';
+import { t } from '@/lib/messages.de';
 import { Button, LinkButton } from '@/ui/Button';
 import { Checkbox } from '@/ui/Checkbox';
 import { cx } from '@/ui/cx';
@@ -69,9 +70,20 @@ export function InstagramSection() {
     : [];
   const viewerPhoto = viewer ? (viewerList.find((p) => p.id === viewer.id) ?? null) : null;
 
-  const markDone = async (handle: string, done: boolean) => {
+  // the row leaves the "Offen"/"Erledigt" list at once: the toast says where it went and offers undo
+  const markDone = async (handle: string, done: boolean, isUndo = false) => {
     try {
       await setHandleDone(qc, handle, done);
+      const message = done ? `@${handle} erledigt` : `@${handle} wieder offen`;
+      showToast(
+        isUndo
+          ? { message, tone: 'info' }
+          : {
+              message,
+              tone: 'success',
+              action: { label: t.undo, onAction: () => void markDone(handle, !done, true) },
+            },
+      );
     } catch (err) {
       showError(err);
     }
