@@ -25,6 +25,7 @@ from .conftest import (
     READY,
     Admin,
     Network,
+    add_photos,
     again,
     errors_except,
     expect_uploaded,
@@ -57,6 +58,17 @@ def gray_error(img: Image.Image) -> float:
             total += abs(r - g) + abs(g - b)
             n += 1
     return total / n
+
+
+def colourful_share(img: Image.Image) -> float:
+    """Share of strongly coloured pixels (HSV saturation and value above half). Every
+    fake camera shows some: Chromium's pattern, WebKit's blue and red patches (the rest of
+    WebKit's mock picture is black, white and gray, so a sampled gray check depends on
+    when its cyan text blinks)."""
+    _h, sat, val = img.convert("HSV").split()
+    mask = ImageChops.multiply(sat.point(lambda v: 255 if v > 128 else 0),
+                               val.point(lambda v: 255 if v > 128 else 0))  # fmt: skip
+    return ImageStat.Stat(mask).mean[0] / 255
 
 
 def border_diff(a: Image.Image, b: Image.Image, width: int = 40) -> float:
@@ -245,6 +257,25 @@ def test_strip_centres_the_selected_filter(
     assert guest.js_errors == []
 
 
+# ----------------------------------------------------------------- the number
+
+
+def test_film_edge_shows_the_next_number_before_the_first_photo(guest: Page, live: LiveServer):
+    """GET /api/x/booth/stats: the film edge knows the next number before this visit's
+    first upload (other guests took 1 and 2), the print gets it, the edge moves on."""
+    page = guest
+    add_photos(live, "booth", 2)
+    open_booth(page, live)
+    edge = page.get_by_test_id("next-number")
+    expect(edge).to_have_attribute("data-next", "3")
+    expect(edge).to_contain_text("0003")
+    shoot(page)
+    expect(page.get_by_test_id("upload-status")).to_contain_text("0003")
+    again(page)
+    expect(page.get_by_test_id("next-number")).to_have_attribute("data-next", "4")
+    assert page.js_errors == []
+
+
 # ----------------------------------------------------------------- the photo
 
 
@@ -283,7 +314,8 @@ def test_party_frame_differs_at_the_border(guest: Page, live: LiveServer):
     shoot(page)
     (meta_plain, plain), (meta_party, party) = stored_images(live, "booth")
     assert meta_plain["filter"] == "normal" and meta_party["filter"] == "party"
-    assert gray_error(plain) > 10  # "Normal" keeps the colours
+    # "Normal" keeps the colours (a gray photo has none; the patches alone are ~0.7 %)
+    assert colourful_share(plain) > 0.002, colourful_share(plain)
     assert border_diff(plain, party) > 40
     assert warm_bottom(party)
     assert page.js_errors == []

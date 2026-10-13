@@ -43,6 +43,7 @@ import { Shutter, type ShutterState } from '@/ui/Shutter';
 import { clearToasts, showToast } from '@/ui/Toast';
 import { FilterStrip } from './FilterStrip';
 import { useCatalogue } from './useCatalogue';
+import { useNextNumber } from './useNextNumber';
 import { useSwatches } from './useSwatches';
 
 const TITLE = 'Fotobox';
@@ -109,6 +110,7 @@ function Fotobox({
   const [saved, setSaved] = useState(false);
   const [sendingOutbox, setSendingOutbox] = useState(false);
   const [lastNumber, setLastNumber] = useState<number | null>(null);
+  const nextNumber = useNextNumber(lastNumber);
 
   // ------------------------------------------------------------ filters
   const kind = cam.renderer ?? (renderer === 'canvas2d' ? 'canvas2d' : 'webgl');
@@ -396,11 +398,12 @@ function Fotobox({
   if (!shot) {
     film = (
       <FilmEdge
+        data-testid="next-number"
+        data-next={nextNumber ?? ''}
         label="Nächstes Foto"
-        {...(lastNumber === null ? {} : { frame: lastNumber + 1 })}
+        {...(nextNumber === null ? {} : { frame: nextNumber, advanceKey: nextNumber })}
         end={filter?.name ?? ''}
         state={outbox.pending > 0 ? 'waiting' : 'idle'}
-        {...(lastNumber === null ? {} : { advanceKey: lastNumber })}
       />
     );
   } else {
@@ -430,16 +433,17 @@ function Fotobox({
         <span className="font-semibold text-danger">Nicht hochgeladen</span>
       );
     film = (
-      <div data-testid="upload-status" data-state={shot.status}>
-        <FilmEdge
-          label="Foto"
-          {...(number === null ? {} : { frame: number, advanceKey: number })}
-          end={end}
-          state={filmState}
-          progress={shot.progress}
-          progressLabel={t.uploading}
-        />
-      </div>
+      // data-state: the shot's upload status (uploading, done, waiting, held, failed)
+      <FilmEdge
+        data-testid="upload-status"
+        data-state={shot.status}
+        label="Foto"
+        {...(number === null ? {} : { frame: number, advanceKey: number })}
+        end={end}
+        state={filmState}
+        progress={shot.progress}
+        progressLabel={t.uploading}
+      />
     );
   }
 
