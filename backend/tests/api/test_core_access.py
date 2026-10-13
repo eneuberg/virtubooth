@@ -91,8 +91,8 @@ def test_identify_consent_flow(client, core):
 
 
 def test_joined_guests_get_the_join_texts_again(client, core):
-    """"Was passiert mit meinen Fotos?" shows the join texts to a joined guest:
-    identify and join send them (the current version), also to a banned device."""
+    """The join texts for a joined guest ("Was passiert mit meinen Fotos?"): identify
+    and join send them (the current version), also to a banned device."""
     scan(client)
     texts = client.post("/api/identify", json={"fp": fp()}, headers=ORIGIN).json()["consent"]
     joined = accept_consent(client)

@@ -245,10 +245,15 @@ make check                  # everything CI runs
   silently break a page. Names stay neutral everywhere, and three checks keep
   them so: `pnpm build` fails on blocker-prone file names and CSS selectors
   (`scripts/check-names.mjs`); `tests/unit/test_core_blockers.py` matches
-  every URL against a vendored set of real filter rules; and
-  `tests/e2e/guest/test_blockers_e2e.py` scans the rendered pages. For the
-  full lists (about 40 MB, downloaded once):
-  `cd backend && VB_BLOCKLISTS=.blocklists uv run pytest tests/unit/test_core_blockers.py`.
+  every URL (and `frontend/public`, the HTML entries and the source paths)
+  against a vendored set of real filter rules; and the e2e suite scans the
+  rendered pages (every main screen of the guest app, the activities and the
+  admin). For the full lists (about 40 MB, downloaded once):
+  `cd backend && VB_BLOCKLISTS=.blocklists uv run pytest tests/unit/test_core_blockers.py`
+  (the same variable feeds the e2e scans).
+- **Accessibility.** `tests/e2e/*/test_audit_e2e.py` run axe-core (axe-playwright-python)
+  over those screens on a phone and a desktop: serious and critical findings
+  fail; `VB_AXE_REPORT=<file>` writes every finding as JSON lines.
 - **Docker smoke** (`scripts/docker-smoke.sh`): runs the image like
   `compose.yaml` does (read-only, no capabilities, fresh volume and secrets)
   and checks the image (USER 10001, no `VB_DEV`, no `.env`), the gate, the
