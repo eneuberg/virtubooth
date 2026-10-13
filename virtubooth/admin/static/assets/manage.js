@@ -4,8 +4,8 @@
 import {
   aapi, absTime, autoBanSource, banBadge, banMark, confirmAndDelete, connectEvents, copyText, debounce,
   describeUA, field, h, instagramUrl, Lightbox, loadExtensions, managementActions, mountHeader,
-  PhotoCollection, photoTile, photoTitle, qs, relTime, runToggle, segmented, showError, throttle, toast,
-  unbanToast, userLink, userUrl,
+  PhotoCollection, photoTile, photoTitle, qs, refocusAfterRemoval, relTime, runToggle, segmented, showError,
+  throttle, toast, unbanToast, userLink, userUrl,
 } from './admin.js';
 
 const TABS = ['fotos', 'gaeste', 'instagram', 'sperren', 'protokoll'];
@@ -87,9 +87,11 @@ function onToggle(photo, button) {
 
 async function deletePhotos(list) {
   const byId = new Map(list.map((p) => [p.id, p]));
+  const before = photosCol.photos.map((p) => p.id);
   const gone = await confirmAndDelete(list);
   for (const id of gone) dropPhoto(id, byId.get(id));
   if (gone.length) refreshStats();
+  refocusAfterRemoval(before, gone);
 }
 
 // ================================================================ FOTOS
@@ -107,8 +109,9 @@ const fotos = {
   userIds: new Set(),
 };
 
-const extSelect = h('select', { class: 'adm-select', 'data-testid': 'filter-ext' }, h('option', { value: '' }, 'Alle Aktivitäten'));
-const userSelect = h('select', { class: 'adm-select', 'data-testid': 'filter-user' }, h('option', { value: '' }, 'Alle Gäste'));
+// aria-label: on phones the visible field labels are hidden (the options say what they are)
+const extSelect = h('select', { class: 'adm-select', 'aria-label': 'Aktivität', 'data-testid': 'filter-ext' }, h('option', { value: '' }, 'Alle Aktivitäten'));
+const userSelect = h('select', { class: 'adm-select', 'aria-label': 'Gast', 'data-testid': 'filter-user' }, h('option', { value: '' }, 'Alle Gäste'));
 const statusSeg = segmented([['all', 'Alle'], ['visible', 'Sichtbar'], ['hidden', 'Versteckt']], state.status,
   (v) => { state.status = v; reloadPhotos(); }, { label: 'Status', testid: 'filter-status' });
 const totalEl = h('span', { class: 'adm-num', 'data-testid': 'photo-total' });
@@ -491,7 +494,7 @@ function renderInsta() {
       ),
       entry.recent.length
         ? h('div', { class: 'adm-strip' }, ...entry.recent.map((p) => h('button', {
-          class: 'adm-thumb', type: 'button', 'aria-label': `${photoTitle(p)} ansehen`, onclick: () => openLightbox(recent, p),
+          class: 'adm-thumb', type: 'button', 'aria-label': `${photoTitle(p)} ansehen`, 'data-thumb-for': p.id, onclick: () => openLightbox(recent, p),
         }, h('img', { src: p.thumb_url, alt: '', loading: 'lazy', decoding: 'async' }))))
         : null,
     );
@@ -719,10 +722,16 @@ const panels = {
   protokoll: { el: protokoll.el, load: () => loadProtokoll() },
 };
 
+const tabButtons = [...document.querySelectorAll('.adm-tab')];
+
 function showTab(tab) {
   state.tab = tab;
-  for (const btn of document.querySelectorAll('.adm-tab')) {
-    btn.setAttribute('aria-selected', String(btn.dataset.tab === tab));
+  for (const btn of tabButtons) {
+    const selected = btn.dataset.tab === tab;
+    btn.setAttribute('aria-selected', String(selected));
+    // roving tabindex: Tab reaches the selected tab only, arrows move between them
+    btn.tabIndex = selected ? 0 : -1;
+    if (selected) btn.scrollIntoView({ block: 'nearest', inline: 'nearest' });
   }
   for (const [name, panel] of Object.entries(panels)) panel.el.hidden = name !== tab;
   syncUrl();
@@ -733,6 +742,18 @@ function showTab(tab) {
     panel.dirty = false;
     panel.load();
   }
+}
+
+/** ←/→ (wrapping), Home, End move to a tab and show it */
+function onTabKey(event) {
+  const at = tabButtons.indexOf(document.activeElement);
+  if (at < 0 || event.altKey || event.ctrlKey || event.metaKey) return;
+  const n = tabButtons.length;
+  const to = { ArrowRight: (at + 1) % n, ArrowLeft: (at - 1 + n) % n, Home: 0, End: n - 1 }[event.key];
+  if (to === undefined) return;
+  event.preventDefault();
+  tabButtons[to].focus();
+  showTab(tabButtons[to].dataset.tab);
 }
 
 /** something changed on the server: reload this tab now if shown, else on next visit */
@@ -844,9 +865,10 @@ function onResync() {
 
 async function main() {
   mountHeader();
-  for (const btn of document.querySelectorAll('.adm-tab')) {
+  for (const btn of tabButtons) {
     btn.addEventListener('click', () => showTab(btn.dataset.tab));
   }
+  document.querySelector('.adm-tabs').addEventListener('keydown', onTabKey);
   buildFotos();
   buildGaeste();
   buildInsta();

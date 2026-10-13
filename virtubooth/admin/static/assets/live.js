@@ -27,7 +27,7 @@ function renderCard(photo) {
   return h('article', { class: `adm-card${photo.hidden ? ' is-hidden' : ''}`, 'data-testid': 'photo-card' },
     h('button', {
       class: 'adm-thumb', type: 'button', 'aria-label': `${photoTitle(photo)} groß anzeigen`,
-      'data-testid': 'thumb', onclick: () => lightbox.open(photo.id),
+      'data-testid': 'thumb', 'data-thumb-for': photo.id, onclick: () => lightbox.open(photo.id),
     },
       h('img', { src: photo.thumb_url, alt: '', loading: 'lazy', decoding: 'async' }),
       thumbFlag(photo),

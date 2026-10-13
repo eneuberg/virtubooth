@@ -215,11 +215,20 @@ export function toggleButton(photo, onToggle, { cls = '' } = {}) {
 
 /** Shared toggle handler: disables the button, calls the API, reports. */
 export async function runToggle(photo, button, onUpdated) {
+  const hadFocus = Boolean(button) && button === document.activeElement;
   if (button) button.disabled = true;
   const hide = !photo.hidden;
   try {
     const updated = await setHidden(photo.id, hide);
     onUpdated(updated);
+    // the button was rebuilt (and a disabled button may drop the focus): keep it on the toggle
+    if (hadFocus && focusLost()) {
+      const lightbox = document.querySelector('.adm-lightbox');
+      focusFirst(lightbox && lightbox.querySelector('[data-testid="toggle"]'), () => {
+        const item = [...document.querySelectorAll('[data-photo-id]')].find((el) => el.dataset.photoId === photo.id);
+        return item && item.querySelector('[data-testid="toggle"]');
+      });
+    }
     toast(hide ? `${photoTitle(updated)} runtergenommen` : `${photoTitle(updated)} ist wieder sichtbar`, { type: 'success' });
   } catch (err) {
     if (button) button.disabled = false;
@@ -263,8 +272,11 @@ export class PhotoCollection {
     const el = this.render(photo);
     el.dataset.photoId = photo.id;
     if (existing) {
+      const active = document.activeElement;
+      const key = existing.el.contains(active) ? focusKey(active) : null;
       existing.el.replaceWith(el);
       this.items.set(photo.id, { photo, el });
+      if (key !== null) focusFirst(focusables(el).find((x) => focusKey(x) === key));
       return 'updated';
     }
     this.items.set(photo.id, { photo, el });
@@ -324,44 +336,150 @@ export async function copyText(text, label) {
   return ok;
 }
 
+// ------------------------------------------------------------------ focus
+
+const FOCUSABLE = 'a[href], button, input, select, textarea, [tabindex]';
+
+/** Keyboard-reachable elements inside root, in DOM order. */
+function focusables(root) {
+  return [...root.querySelectorAll(FOCUSABLE)].filter((el) => !el.disabled
+    && el.getAttribute('tabindex') !== '-1' && el.getClientRects().length > 0);
+}
+
+/** Tab / Shift+Tab cycle inside root (the top layer: a dialog, the lightbox). */
+function keepTabInside(event, root) {
+  if (event.key !== 'Tab') return;
+  const list = focusables(root);
+  if (!list.length) {
+    event.preventDefault();
+    return;
+  }
+  const first = list[0];
+  const last = list[list.length - 1];
+  const active = document.activeElement;
+  if (event.shiftKey && (active === first || !root.contains(active))) {
+    event.preventDefault();
+    last.focus();
+  } else if (!event.shiftKey && (active === last || !root.contains(active))) {
+    event.preventDefault();
+    first.focus();
+  }
+}
+
+/**
+ * Hide everything but `layer` from assistive tech and the pointer while it is
+ * open (toasts stay: they announce results). Returns the undo function; it
+ * only touches what it changed, so layers can nest.
+ */
+function inertOthers(layer) {
+  const changed = [...document.body.children].filter((el) => el !== layer && !el.inert
+    && !el.classList.contains('vb-toast-host') && el.tagName !== 'SCRIPT');
+  for (const el of changed) el.inert = true;
+  return () => { for (const el of changed) el.inert = false; };
+}
+
+/** Focus the first candidate (element or () => element) that is shown. */
+export function focusFirst(...candidates) {
+  for (const c of candidates) {
+    const el = typeof c === 'function' ? c() : c;
+    if (el && el.isConnected && !el.disabled && !el.closest('[inert]') && el.getClientRects().length) {
+      el.focus();
+      return el;
+    }
+  }
+  return null;
+}
+
+/** The visible thumbnail button that opens this photo. */
+export function thumbFor(id) {
+  return [...document.querySelectorAll('[data-thumb-for]')]
+    .find((el) => el.dataset.thumbFor === id && el.getClientRects().length) || null;
+}
+
+function focusLost() {
+  const el = document.activeElement;
+  return !el || el === document.body || !el.isConnected;
+}
+
+/**
+ * Photos left a list (`before`: ids in order before). If that took the focus
+ * with it, move it to the next photo (or the previous one).
+ */
+export function refocusAfterRemoval(before, gone) {
+  if (!focusLost()) return;
+  const goneSet = new Set(gone);
+  const at = before.findIndex((id) => goneSet.has(id));
+  if (at < 0) return;
+  const next = before.slice(at).filter((id) => !goneSet.has(id));
+  const prev = before.slice(0, at).reverse();
+  focusFirst(...[...next, ...prev].map((id) => () => thumbFor(id)));
+}
+
 // ----------------------------------------------------------------- dialogs
 
-/** Promise<boolean>. Escape / backdrop / "Abbrechen" → false. */
+let dialogSeq = 0;
+
+/**
+ * Promise<boolean>. Escape / backdrop / "Abbrechen" → false. Focus moves into
+ * the dialog (onto "Abbrechen" when the action is destructive), Tab stays
+ * inside, and focus goes back to where it was when the dialog closes.
+ */
 export function confirmDialog({ title, text, confirm = 'OK', cancel = 'Abbrechen', danger = false, extra = null }) {
   return new Promise((resolve) => {
+    const opener = document.activeElement;
+    const id = `adm-dialog-${++dialogSeq}`;
+    let release = () => {};
     const done = (value) => {
       document.removeEventListener('keydown', onKey, true);
+      release();
       backdrop.remove();
+      focusFirst(opener);
       resolve(value);
     };
     const onKey = (event) => {
-      if (event.key === 'Escape') { event.stopPropagation(); done(false); }
+      if (event.key === 'Escape') {
+        event.stopPropagation();
+        done(false);
+      } else {
+        keepTabInside(event, dialog);
+      }
     };
     const okBtn = h('button', {
       class: `vb-btn ${danger ? 'vb-btn--danger' : 'vb-btn--primary'} vb-btn--block`, type: 'button',
       'data-testid': 'confirm-ok', onclick: () => done(true),
     }, confirm);
-    const dialog = h('div', { class: 'vb-sheet adm-dialog', role: 'alertdialog', 'aria-modal': 'true', 'aria-labelledby': 'adm-dialog-title' },
-      h('h2', { id: 'adm-dialog-title' }, title),
-      text ? h('p', { class: 'vb-muted' }, text) : null,
+    const cancelBtn = h('button', {
+      class: 'vb-btn vb-btn--ghost vb-btn--block', type: 'button', 'data-testid': 'confirm-cancel', onclick: () => done(false),
+    }, cancel);
+    const dialog = h('div', {
+      class: 'vb-sheet adm-dialog', role: 'alertdialog', 'aria-modal': 'true',
+      'aria-labelledby': `${id}-title`, 'aria-describedby': text ? `${id}-text` : null,
+    },
+      h('h2', { id: `${id}-title` }, title),
+      text ? h('p', { class: 'vb-muted', id: `${id}-text` }, text) : null,
       extra,
-      h('div', { class: 'vb-actions' },
-        okBtn,
-        h('button', { class: 'vb-btn vb-btn--ghost vb-btn--block', type: 'button', 'data-testid': 'confirm-cancel', onclick: () => done(false) }, cancel),
-      ),
+      h('div', { class: 'vb-actions' }, okBtn, cancelBtn),
     );
     const backdrop = h('div', { class: 'vb-scrim adm-dialog-scrim', 'data-testid': 'confirm' }, dialog);
     backdrop.addEventListener('click', (event) => { if (event.target === backdrop) done(false); });
     document.addEventListener('keydown', onKey, true);
     document.body.append(backdrop);
-    okBtn.focus();
+    release = inertOthers(backdrop);
+    // Enter on a destructive question must not destroy anything
+    (danger ? cancelBtn : okBtn).focus();
   });
 }
 
 // ---------------------------------------------------------------- lightbox
 
+/** what to refocus after a re-render: the "same" control in the new DOM */
+function focusKey(el) {
+  return el.dataset.testid || el.getAttribute('aria-label') || el.textContent;
+}
+
 /**
- * Fullscreen photo viewer.
+ * Fullscreen photo viewer (a modal dialog: focus moves in, Tab stays inside,
+ * focus returns to the photo's thumbnail on close).
  *   const lb = new Lightbox({ list: () => photos, actions: (photo, lb) => [nodes] });
  *   lb.open(id); lb.refresh(); lb.close();
  * The phone's back button closes it (history entry).
@@ -372,21 +490,30 @@ export class Lightbox {
     this.actions = actions;
     this.currentId = null;
     this.el = null;
+    this.opener = null;
+    this.lastIndex = 0;
+    this.lastFocus = null;
+    this.release = () => {};
     this.onKey = (event) => this.key(event);
     this.onPop = () => this.teardown();
   }
 
   open(id) {
     this.currentId = id;
-    if (!this.el) {
+    const first = !this.el;
+    if (first) {
+      this.opener = document.activeElement;
       this.el = h('div', { class: 'adm-lightbox', role: 'dialog', 'aria-modal': 'true', 'aria-label': 'Foto', 'data-testid': 'lightbox' });
+      this.el.addEventListener('focusin', (event) => { this.lastFocus = focusKey(event.target); });
       document.body.append(this.el);
       document.body.classList.add('adm-noscroll');
+      this.release = inertOthers(this.el);
       document.addEventListener('keydown', this.onKey);
       history.pushState({ admLightbox: true }, '');
       window.addEventListener('popstate', this.onPop);
     }
     this.render();
+    if (first) focusFirst(this.el.querySelector('[data-testid="lightbox-close"]'));
   }
 
   get isOpen() { return Boolean(this.el); }
@@ -411,9 +538,19 @@ export class Lightbox {
     window.removeEventListener('popstate', this.onPop);
     document.removeEventListener('keydown', this.onKey);
     document.body.classList.remove('adm-noscroll');
+    this.release();
+    this.release = () => {};
+    const lastId = this.currentId;
+    const ids = this.list().map((p) => p.id);
+    // the photo is gone (deleted): its neighbours in the list it was shown in
+    const near = ids.includes(lastId) ? [] : [ids[this.lastIndex], ids[this.lastIndex - 1]];
     if (this.el) this.el.remove();
     this.el = null;
     this.currentId = null;
+    this.lastFocus = null;
+    // back to the photo last shown, else the opener, else a neighbour
+    focusFirst(() => thumbFor(lastId), this.opener, ...near.map((id) => () => thumbFor(id)));
+    this.opener = null;
   }
 
   step(delta) {
@@ -427,8 +564,12 @@ export class Lightbox {
   }
 
   key(event) {
-    if (event.target && /^(INPUT|TEXTAREA|SELECT)$/.test(event.target.tagName)) return;
     if (document.querySelector('.adm-dialog-scrim')) return;
+    if (event.key === 'Tab') {
+      keepTabInside(event, this.el);
+      return;
+    }
+    if (event.target && /^(INPUT|TEXTAREA|SELECT)$/.test(event.target.tagName)) return;
     if (event.key === 'Escape') this.close();
     else if (event.key === 'ArrowLeft') this.step(-1);
     else if (event.key === 'ArrowRight') this.step(1);
@@ -439,6 +580,12 @@ export class Lightbox {
     const index = list.findIndex((p) => p.id === this.currentId);
     const photo = list[index];
     if (!photo) { this.close(); return; }
+    this.lastIndex = index;
+    // a control in here had the focus (a button that got disabled may have lost it)
+    const active = document.activeElement;
+    let refocus = null;
+    if (this.el.contains(active)) refocus = focusKey(active);
+    else if (focusLost()) refocus = this.lastFocus;
     const img = h('img', { src: photo.thumb_url, alt: photoTitle(photo), 'data-testid': 'lightbox-img' });
     // thumb first (instant), full size when loaded
     const full = new Image();
@@ -446,6 +593,7 @@ export class Lightbox {
     full.src = photo.url;
     const meta = metaText(photo);
     this.el.className = `adm-lightbox${photo.hidden ? ' is-hidden' : ''}`;
+    this.el.setAttribute('aria-label', `Foto ${photoTitle(photo)}`);
     this.el.replaceChildren(
       h('div', { class: 'adm-lb-top' },
         h('button', { class: 'vb-btn adm-btn-sm', type: 'button', 'data-testid': 'lightbox-close', onclick: () => this.close() }, '✕ Schließen'),
@@ -471,6 +619,11 @@ export class Lightbox {
         h('div', { class: 'adm-lb-actions' }, ...this.actions(photo, this)),
       ),
     );
+    if (refocus !== null) {
+      // the control that had the focus was rebuilt: focus its successor
+      const same = focusables(this.el).find((el) => focusKey(el) === refocus);
+      focusFirst(same, this.el.querySelector('[data-testid="lightbox-close"]'));
+    }
   }
 }
 
@@ -673,7 +826,7 @@ export function photoTile(photo, { selected = null, onSelect, onOpen, onToggle, 
     check,
     h('button', {
       class: 'adm-thumb', type: 'button', 'aria-label': `${photoTitle(photo)} groß anzeigen`,
-      'data-testid': 'thumb', onclick: () => onOpen(photo),
+      'data-testid': 'thumb', 'data-thumb-for': photo.id, onclick: () => onOpen(photo),
     },
       h('img', { src: photo.thumb_url, alt: '', loading: 'lazy', decoding: 'async' }),
       thumbFlag(photo),

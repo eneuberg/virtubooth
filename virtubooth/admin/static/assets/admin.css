@@ -146,7 +146,8 @@ body.adm-noscroll { overflow: hidden; }
   line-height: 1.3;
 }
 .adm-badge--ok { background: rgba(61, 220, 132, 0.15); color: #8dffbd; border: 1px solid rgba(61, 220, 132, 0.45); }
-.adm-badge--hidden { background: var(--vb-red); color: #fff; border: 1px solid var(--vb-red); }
+/* white on --vb-red is 3.3:1; this red keeps the loud look at 5.2:1 */
+.adm-badge--hidden { background: #d4144e; color: #fff; border: 1px solid #d4144e; }
 .adm-badge--ban { background: #19000a; color: #ff9a9a; border: 1px solid var(--vb-red); }
 .adm-badge--info { background: rgba(45, 226, 230, 0.14); color: #9ff7f9; border: 1px solid rgba(45, 226, 230, 0.4); }
 .adm-badge--xs { font-size: 0.65rem; padding: 1px 6px; margin-left: 6px; vertical-align: middle; }
@@ -216,6 +217,8 @@ body.adm-noscroll { overflow: hidden; }
   cursor: zoom-in;
 }
 .adm-thumb img { display: block; width: 100%; height: 100%; object-fit: cover; }
+.adm-thumb:focus-visible { outline: 4px solid var(--vb-cyan); outline-offset: -4px; }
+.adm-thumb:focus-visible img { opacity: 0.85; }
 .is-hidden .adm-thumb img { opacity: 0.42; filter: grayscale(1); }
 .adm-thumb-flag {
   position: absolute;
@@ -242,8 +245,9 @@ body.adm-noscroll { overflow: hidden; }
 .adm-tabs {
   display: flex;
   gap: 6px;
-  max-width: 1400px;
-  margin: 10px auto 0;
+  max-width: 1408px;
+  margin: 6px auto -4px;
+  padding: 4px; /* room for the focus ring: the scroller clips outlines */
   overflow-x: auto;
   scrollbar-width: none;
 }
@@ -262,7 +266,10 @@ body.adm-noscroll { overflow: hidden; }
   cursor: pointer;
 }
 .adm-tab[aria-selected="true"] { background: var(--vb-grad); border-color: transparent; color: #1a0526; }
+.adm-tab:focus-visible { outline: 3px solid var(--vb-cyan); outline-offset: 2px; }
+[role="tabpanel"]:focus-visible { outline: 3px solid var(--vb-cyan); outline-offset: 6px; border-radius: 12px; }
 .adm-tab .adm-count { opacity: 0.75; font-weight: 700; margin-left: 4px; }
+.adm-tab[aria-selected="true"] .adm-count { opacity: 1; } /* faded dark on pink is < 4.5:1 */
 
 /* ----------------------------------------------------------- filters */
 
@@ -311,6 +318,7 @@ body.adm-noscroll { overflow: hidden; }
 }
 .adm-seg button + button { border-left: 1px solid var(--vb-border); }
 .adm-seg button[aria-pressed="true"] { background: var(--vb-surface-strong); color: var(--vb-yellow); }
+.adm-seg button:focus-visible { outline: 3px solid var(--vb-cyan); outline-offset: -3px; }
 
 /* ------------------------------------------------------ photo grid */
 
@@ -538,6 +546,12 @@ a.adm-row:hover, a.adm-row:focus-visible { background: var(--vb-surface-strong);
   text-decoration: none;
   cursor: pointer;
 }
+.adm-chip-link:focus-visible,
+.adm-back:focus-visible,
+.adm-user:focus-visible,
+a.adm-row:focus-visible,
+.adm-table a:focus-visible,
+.adm-row-sub a:focus-visible { outline: 3px solid var(--vb-cyan); outline-offset: 2px; border-radius: 8px; }
 
 /* audit table */
 .adm-table-wrap { overflow-x: auto; border-radius: 16px; border: 1px solid var(--vb-border); }

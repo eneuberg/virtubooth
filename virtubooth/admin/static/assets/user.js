@@ -2,8 +2,8 @@
 
 import {
   aapi, absTime, ApiError, autoBanSource, banMark, confirmAndDelete, confirmDialog, connectEvents, copyText,
-  describeUA, field, h, instagramUrl, Lightbox, loadExtensions, managementActions, mountHeader,
-  PhotoCollection, photoTile, relTime, runToggle, showError, toast, unbanToast, userUrl,
+  describeUA, field, focusFirst, h, instagramUrl, Lightbox, loadExtensions, managementActions, mountHeader,
+  PhotoCollection, photoTile, refocusAfterRemoval, relTime, runToggle, showError, toast, unbanToast, userUrl,
 } from './admin.js';
 
 const root = document.getElementById('user-root');
@@ -35,10 +35,12 @@ function onToggle(photo, button) {
 }
 
 async function deletePhotos(list) {
+  const before = photosCol.photos.map((p) => p.id);
   const gone = await confirmAndDelete(list);
   for (const id of gone) photosCol.remove(id);
   lightbox.refresh();
   syncUploads();
+  refocusAfterRemoval(before, gone);
 }
 
 function syncUploads() {
@@ -114,13 +116,14 @@ function banPanel(u) {
       const res = await aapi(`/api/admin/users/${u.id}/ban`, { method: 'POST', json: { reason: reason.value.trim(), fingerprint: withFp } });
       toast(res.fingerprint_banned ? 'Gast und Fingerprint gesperrt' : 'Gast gesperrt', { type: 'success' });
       await load();
+      focusPanel('ban-panel');
     } catch (err) {
       btn.disabled = false;
       showError(err);
     }
   });
   return h('section', { class: 'adm-panel', 'data-testid': 'ban-panel' },
-    h('h2', {}, '🚫 Sperren'),
+    h('h2', { tabindex: '-1' }, '🚫 Sperren'),
     h('div', { class: 'adm-stack' },
       h('p', { class: 'adm-muted' }, 'Versteckt alle Fotos dieses Gastes und blockiert weitere Uploads. Lässt sich jederzeit rückgängig machen.'),
       field('Grund (optional, nur für euch)', reason),
@@ -151,6 +154,7 @@ function bannedPanel(u) {
       const res = await aapi(`/api/admin/users/${u.id}/unban`, { method: 'POST', json: { fingerprint: Boolean(fpBox && fpBox.checked) } });
       unbanToast(res.fingerprints_unbanned.length ? 'Gast und Fingerprint entsperrt' : 'Gast entsperrt', res.users_unbanned);
       await load();
+      focusPanel('ban-panel');
     } catch (err) {
       btn.disabled = false;
       showError(err);
@@ -163,7 +167,7 @@ function bannedPanel(u) {
       + 'Gleiche Handymodelle haben oft denselben Fingerprint: vielleicht ist das jemand anderes. Entsperren betrifft nur dieses Gerät.')
     : null;
   return h('section', { class: 'adm-panel adm-panel--ban', 'data-testid': 'ban-panel' },
-    h('h2', {}, u.auto_banned ? '🚫 Automatisch gesperrt' : '🚫 Gesperrt'),
+    h('h2', { tabindex: '-1' }, u.auto_banned ? '🚫 Automatisch gesperrt' : '🚫 Gesperrt'),
     h('div', { class: 'adm-stack' },
       auto,
       dl([
@@ -202,7 +206,7 @@ function devicePanel(u) {
 function fingerprintPanel() {
   const fps = data.fingerprints;
   return h('section', { class: 'adm-panel', 'data-testid': 'fingerprints' },
-    h('h2', {}, `🧬 Fingerprints (${fps.length})`),
+    h('h2', { tabindex: '-1' }, `🧬 Fingerprints (${fps.length})`),
     h('p', { class: 'adm-muted' }, 'Ein Hinweis, kein Beweis: gleiche Handymodelle haben oft denselben Fingerprint.'),
     fps.length ? null : h('p', {}, 'Kein Fingerprint bekannt.'),
     ...fps.map((f) => {
@@ -217,6 +221,7 @@ function fingerprintPanel() {
             const others = res.users_unbanned.filter((o) => o.id !== data.user.id);
             unbanToast(others.length < res.users_unbanned.length ? 'Fingerprint und Gast entsperrt' : 'Fingerprint entsperrt', others);
             await load();
+            focusPanel('fingerprints');
           } catch (err) {
             unban.disabled = false;
             showError(err);
@@ -244,8 +249,36 @@ function fingerprintPanel() {
 
 // ------------------------------------------------------------- render
 
+/** after a ban/unban rebuilt the page: focus that panel's heading */
+function focusPanel(testid) {
+  focusFirst(root.querySelector(`[data-testid="${testid}"] h2`));
+}
+
+/** what the admin is in the middle of: focused control, typed ban reason */
+function snapshot() {
+  const active = document.activeElement;
+  const reason = root.querySelector('#ban-reason');
+  const fpBox = root.querySelector('#ban-fp');
+  return {
+    focus: root.contains(active) ? active.id || active.dataset.testid || null : null,
+    reason: reason ? reason.value : '',
+    fp: Boolean(fpBox && fpBox.checked),
+  };
+}
+
+function restore(snap) {
+  const reason = root.querySelector('#ban-reason');
+  if (reason && snap.reason) reason.value = snap.reason;
+  const fpBox = root.querySelector('#ban-fp');
+  if (fpBox && !fpBox.disabled && snap.fp) fpBox.checked = true;
+  if (snap.focus) {
+    focusFirst(() => root.querySelector(`#${CSS.escape(snap.focus)}`) || root.querySelector(`[data-testid="${CSS.escape(snap.focus)}"]`));
+  }
+}
+
 function render() {
   const u = data.user;
+  const snap = snapshot();
   document.title = `${u.name} · Admin`;
   const lightboxOpen = lightbox.isOpen;
   photosCol.clear();
@@ -270,6 +303,7 @@ function render() {
     ),
   );
   if (lightboxOpen) lightbox.refresh();
+  else restore(snap);
 }
 
 async function load() {
