@@ -33,6 +33,7 @@ ErrorCode = Literal[
     "wrong_password",
     "login_locked",
     "invalid_filter",
+    "unknown_analyzer",
     "invalid_cursor",
     "no_fingerprint",
     "restore_required",

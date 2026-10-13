@@ -372,7 +372,7 @@ def test_an_old_database_gets_the_visitors_table(tmp_path):
     try:
         from virtubooth.repositories.overview import OverviewReadModel
 
-        assert db.one("PRAGMA user_version")[0] == 4
+        assert db.one("PRAGMA user_version")[0] >= 4
         assert db.one("SELECT COUNT(*) FROM visitors")[0] == 0
         indexes = {r[1] for r in db.all("SELECT * FROM sqlite_master WHERE type='index'")}
         assert {"visitors_user", "users_last_seen", "photos_created"} <= indexes

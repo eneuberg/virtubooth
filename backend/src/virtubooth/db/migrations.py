@@ -149,12 +149,42 @@ CREATE INDEX users_last_seen ON users(last_seen_at);
 CREATE INDEX photos_created ON photos(created_at);
 """
 
+# v9: the Live-Wall's photo analysis (extensions/wall/enrich). A separate worker
+# process fills it; `rev` lets the app poll for changes. Facts are plain numbers
+# per photo, so the wall's categories are cheap SQL. (5 = QR codes, 6 = tracking,
+# 7/8 reserved: gaps are fine.)
+SCHEMA_V9 = """
+-- v9: Live-Wall photo analysis. One row per analysed photo; facts are numbers per photo for cheap
+-- category queries. No face embeddings, nothing that identifies a person.
+CREATE TABLE wall_analysis (
+    photo_id    INTEGER PRIMARY KEY REFERENCES photos(id),
+    state       TEXT    NOT NULL,            -- pending | running | done | failed | skipped
+    attempts    INTEGER NOT NULL DEFAULT 0,
+    error       TEXT,
+    versions    TEXT    NOT NULL DEFAULT '{}',  -- {analyzer: version}
+    data        TEXT    NOT NULL DEFAULT '{}',  -- JSON: boxes, details (admin only)
+    rev         INTEGER NOT NULL DEFAULT 0,     -- global change counter (MAX(rev)+1 on every write)
+    started_at  TEXT,
+    finished_at TEXT
+);
+CREATE INDEX wall_analysis_state ON wall_analysis(state);
+CREATE INDEX wall_analysis_rev ON wall_analysis(rev);
+CREATE TABLE wall_facts (
+    photo_id INTEGER NOT NULL REFERENCES photos(id),
+    key      TEXT    NOT NULL,
+    value    REAL    NOT NULL,
+    PRIMARY KEY (photo_id, key)
+);
+CREATE INDEX wall_facts_key_value ON wall_facts(key, value);
+"""
+
 # (version, script): each step upgrades the database from the version before.
 MIGRATIONS: tuple[tuple[int, str], ...] = (
     (1, SCHEMA),
     (2, SCHEMA_V2),
     (3, SCHEMA_V3),
     (4, SCHEMA_V4),
+    (9, SCHEMA_V9),
 )
 SCHEMA_VERSION = MIGRATIONS[-1][0]
 
