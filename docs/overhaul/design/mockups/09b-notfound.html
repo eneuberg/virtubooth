@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="de" class="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Mockup: Nicht gefunden</title>
+<link rel="stylesheet" href="kb.css">
+<style>
+  .screen { min-height: 100dvh; display: grid; align-content: center; padding: 32px 24px; gap: 24px; max-width: 560px; }
+  .art { width: 200px; aspect-ratio: 3/4; background: var(--kamera); position: relative; display: grid; place-items: center; }
+  .art svg.qr { width: 96px; height: 96px; color: var(--safelight); }
+  .art .holes { position: absolute; left: 0; right: 0; }
+  .art .holes:first-child { top: 6px; } .art .holes:last-child { bottom: 6px; }
+  .txt { display: grid; gap: 12px; }
+  @media (min-width: 900px) {
+    .screen { max-width: 1040px; margin: 0 auto; grid-template-columns: 360px 1fr; align-items: center; gap: 64px; }
+    .art { width: 360px; }
+    .art svg.qr { width: 200px; height: 200px; }
+  }
+</style>
+</head>
+<body>
+<main class="screen" data-testid="notfound">
+  <div class="art" aria-hidden="true">
+    <span class="holes" data-p="0" data-h="8"></span>
+    <i data-i="film" class="qr" data-w="1.5"></i>
+    <span class="holes" data-p="0" data-h="8"></span>
+  </div>
+  <div class="txt">
+    <h1 class="t34 w7 balance">Hier ist nichts.</h1>
+    <p class="t17">Diese Seite gibt es nicht.</p>
+    <p><a class="btn primary" href="#">Zum Start</a></p>
+  </div>
+</main>
+<script src="icons.js"></script>
+<script src="film.js"></script>
+</body>
+</html>
