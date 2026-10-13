@@ -93,7 +93,10 @@ const VALUE_LABELS: Record<string, Record<string, string>> = {
 };
 
 /** Readable meta rows: "Gefäß: Flasche", "Kamera: Selfie" (labels from the extension). */
-export function metaRows(photo: AdminPhoto, ext: AdminExtension | undefined): Array<[string, string]> {
+export function metaRows(
+  photo: Pick<AdminPhoto, 'meta'>,
+  ext: AdminExtension | undefined,
+): Array<[string, string]> {
   const rows: Array<[string, string]> = [];
   for (const [key, value] of Object.entries(photo.meta)) {
     if (value === null || value === '') continue;

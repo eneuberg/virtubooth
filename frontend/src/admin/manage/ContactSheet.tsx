@@ -135,12 +135,7 @@ export function ContactSheet({
                           'fine:opacity-0 fine:group-hover/frame:opacity-100 fine:group-data-[focus-visible]/frame:opacity-100',
                       )}
                     >
-                      <Checkbox
-                        slot="selection"
-                        variant="tile"
-                        aria-label={`${label} auswählen`}
-                        data-testid="select"
-                      />
+                      <Checkbox slot="selection" variant="tile" aria-label="Auswählen" data-testid="select" />
                     </span>
                   </div>
                   {isSelected ? (
