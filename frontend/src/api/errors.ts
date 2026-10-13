@@ -20,6 +20,7 @@ export type ErrorCode =
   | 'too_large'
   | 'consent_outdated'
   | 'invalid_instagram'
+  | 'join_closed'
   | 'unsupported_type'
   | 'invalid_meta'
   | 'empty_upload'

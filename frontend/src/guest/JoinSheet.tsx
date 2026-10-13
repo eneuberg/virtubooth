@@ -7,13 +7,16 @@
  *
  * Names stay blocker-neutral: test id `join` on the scrim (`vb-scrim`), `vb-sheet` on
  * the dialog; nothing in here may be called consent, cookie, banner, modal, popup, …
+ *
+ * While the host stopped joining („Anmeldung stoppen“), the button gives way to a calm
+ * "try again soon" (JoinClosed); the session re-checks by itself and the button returns.
  */
 import { useId, useRef, useState, type FormEvent } from 'react';
 import { isApiError } from '@/api/errors';
 import { msg, quoted } from '@/lib/messages.de';
 import { HandleField } from '@/sdk/components/HandleField';
 import { shortName } from '@/sdk/identity';
-import { joinParty, sessionStore, type JoinInfo } from '@/sdk/session';
+import { joinParty, refreshSession, sessionStore, useJoinClosed, type JoinInfo } from '@/sdk/session';
 import { Button } from '@/ui/Button';
 import { HelpDisclosure } from '@/ui/HelpDisclosure';
 import { Sheet } from '@/ui/Sheet';
@@ -49,6 +52,7 @@ export function JoinSheet({ join, destination }: JoinSheetProps) {
   const [fieldError, setFieldError] = useState<string | null>(null);
   const [formError, setFormError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
+  const closed = useJoinClosed();
   const inputRef = useRef<HTMLInputElement>(null);
 
   const { lead, more } = splitParagraphs(join.paragraphs);
@@ -69,6 +73,8 @@ export function JoinSheet({ join, destination }: JoinSheetProps) {
         inputRef.current?.focus();
       } else if (isApiError(err) && err.code === 'consent_outdated') {
         setFormError(OUTDATED);
+      } else if (isApiError(err) && err.code === 'join_closed') {
+        // the session is "closed" now: JoinClosed says it calmly
       } else {
         setFormError(isApiError(err) ? err.message : msg.generic);
       }
@@ -85,7 +91,9 @@ export function JoinSheet({ join, destination }: JoinSheetProps) {
       data-testid="join"
       footer={
         <div className="grid gap-2">
-          {formError ? (
+          {closed ? (
+            <JoinClosed />
+          ) : formError ? (
             <p role="alert" className="text-sm font-semibold text-danger">
               {formError}
             </p>
@@ -94,9 +102,11 @@ export function JoinSheet({ join, destination }: JoinSheetProps) {
               Gleich geht’s zur <span translate="no">{destination}</span>.
             </p>
           ) : null}
-          <Button type="submit" form={formId} variant="primary" size="lg" block isPending={pending}>
-            {tidy(join.accept_label)}
-          </Button>
+          {closed ? null : (
+            <Button type="submit" form={formId} variant="primary" size="lg" block isPending={pending}>
+              {tidy(join.accept_label)}
+            </Button>
+          )}
         </div>
       }
     >
@@ -127,5 +137,39 @@ export function JoinSheet({ join, destination }: JoinSheetProps) {
         />
       </form>
     </Sheet>
+  );
+}
+
+/** Joining is stopped for a moment: say so calmly, offer a manual re-check. */
+function JoinClosed() {
+  const [checking, setChecking] = useState(false);
+  const recheck = async () => {
+    setChecking(true);
+    try {
+      await refreshSession();
+    } finally {
+      setChecking(false);
+    }
+  };
+  return (
+    <div className="grid gap-3">
+      <output data-testid="join-closed" className="grid gap-1 text-center">
+        <span className="text-md font-semibold">Gerade kann niemand neu beitreten.</span>
+        <span className="text-sm text-ink-muted">
+          Versuch es gleich noch mal. Sobald es wieder geht, erscheint der Knopf von selbst.
+        </span>
+      </output>
+      <Button
+        variant="secondary"
+        size="lg"
+        block
+        isPending={checking}
+        pendingLabel="Prüft…"
+        onPress={() => void recheck()}
+        data-testid="join-recheck"
+      >
+        Nochmal versuchen
+      </Button>
+    </div>
   );
 }

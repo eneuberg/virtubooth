@@ -14,6 +14,9 @@
  *   state) on focus / visibility, every 30 s while paused, stopped or banned, and
  *   after an upload answered 403. From `error` it retries in full.
  * - noteUploadAnswer() lets an upload answer update paused / stopped at once.
+ * - While the host stopped joining (`join_closed`), the join sheet says so instead of
+ *   offering the button, and the session re-checks quietly (focus, visibility, every
+ *   JOIN_RECHECK_MS) until joining is open again.
  * - Every identified answer carries the join texts (`join_text`, the current
  *   version): useJoinText() for "Was passiert mit meinen Fotos?".
  */
@@ -33,7 +36,7 @@ export type JoinInfo = ConsentInfo;
 
 export type SessionState =
   | { status: 'loading' }
-  | { status: 'needs_join'; join: JoinInfo }
+  | { status: 'needs_join'; join: JoinInfo; joinClosed: boolean }
   | { status: 'ready'; user: GuestUser; uploadsStopped: boolean }
   | { status: 'banned'; user: GuestUser }
   | { status: 'error'; error: ApiError };
@@ -57,6 +60,7 @@ export const UID_KEY = 'vb_uid';
 /** where wave 2 cached the accepted texts; the server sends them now (removed on sight) */
 const OLD_JOIN_TEXT_KEY = 'vb_join_text';
 export const RECHECK_MS = 30_000;
+export const JOIN_RECHECK_MS = 15_000;
 const QUIET_MS = 2_000;
 
 export const sessionStore = createStore<Store>(() => ({
@@ -110,7 +114,7 @@ function fromIdentified(res: KnownGuest): SessionState {
 /** The store update for an identify or join answer. */
 function applyIdentify(res: IdentifyResponse, outcome?: JoinOutcome): void {
   if (res.state === 'needs_consent') {
-    set({ status: 'needs_join', join: res.consent });
+    set({ status: 'needs_join', join: res.consent, joinClosed: res.join_closed });
     return;
   }
   removeStorage(OLD_JOIN_TEXT_KEY);
@@ -172,7 +176,7 @@ export function refreshSession(): Promise<void> {
   return run(async () => {
     const s = get();
     if (s.status === 'error') set({ status: 'loading' });
-    const quiet = s.status === 'ready' || s.status === 'banned';
+    const quiet = s.status === 'ready' || s.status === 'banned' || joinClosed(s);
     try {
       await identify(!quiet);
     } catch (err) {
@@ -193,6 +197,11 @@ export function useSession(): SessionState {
 /** The outcome of the last join in this tab (null before). */
 export function useJoinOutcome(): JoinOutcome | null {
   return useStore(sessionStore, (s) => s.outcome);
+}
+
+/** True while the host stopped joining and this device has not joined. */
+export function useJoinClosed(): boolean {
+  return useStore(sessionStore, (s) => joinClosed(s.session));
 }
 
 /** The join texts for a joined guest to read again (null until identified). */
@@ -230,6 +239,10 @@ export async function joinParty(input: { instagram: string | null }): Promise<vo
       } catch {
         // keep the old texts; the next try reports the problem
       }
+    }
+    const now = get();
+    if (isApiError(err) && err.code === 'join_closed' && now.status === 'needs_join') {
+      set({ ...now, joinClosed: true });
     }
     throw err;
   }
@@ -299,15 +312,22 @@ export function canUpload(
 
 // ------------------------------------------------------------------ rechecks
 
+function joinClosed(s: SessionState): boolean {
+  return s.status === 'needs_join' && s.joinClosed;
+}
+
 function blocked(s: SessionState): boolean {
   return s.status === 'banned' || (s.status === 'ready' && (s.user.uploads_paused || s.uploadsStopped));
 }
 
-/** Focus, visibility, back online: a quick re-identify (not while the join sheet is up). */
+/**
+ * Focus, visibility, back online: a quick re-identify (not while the join sheet is up,
+ * unless joining is closed: then it checks whether it opened again).
+ */
 function onWake(): void {
   if (document.visibilityState === 'hidden') return;
   const s = get();
-  if (s.status === 'needs_join' || s.status === 'loading') return;
+  if ((s.status === 'needs_join' && !s.joinClosed) || s.status === 'loading') return;
   if (s.status === 'error' && !isOnline()) return;
   const now = Date.now();
   if (now - lastQuiet < QUIET_MS) return;
@@ -326,6 +346,9 @@ function installRechecks(): void {
   setInterval(() => {
     if (document.visibilityState !== 'hidden' && blocked(get())) void refreshSession();
   }, RECHECK_MS);
+  setInterval(() => {
+    if (document.visibilityState !== 'hidden' && joinClosed(get())) void refreshSession();
+  }, JOIN_RECHECK_MS);
 }
 
 /** Back to the start (tests only). */
