@@ -1,243 +1,614 @@
 # virtubooth architecture
 
-A FastAPI app (one process, one uvicorn worker) serving plain HTML/JS pages.
-SQLite + files on disk under `VB_DATA_DIR`. Runs in Docker behind any
-TLS-terminating reverse proxy (HTTPS is required for camera access).
+One process serves everything: a FastAPI app (one uvicorn worker) with the
+JSON API, the photos, the admin event stream and the built React frontend.
+State lives in SQLite plus photo files under `VB_DATA_DIR`. In production it
+runs in Docker behind a TLS reverse proxy, because phones only open the
+camera over HTTPS.
 
-```
-virtubooth/
-├── app.py            create_app(settings, extensions=None): wires everything
-├── config.py         Settings (env VB_*)
-├── context.py        Core: settings, db, repo, bus, signer, limits, extensions
-├── db.py             SQLite schema, step-by-step migrations, locked connection
-├── repo.py           ALL data access: users, photos, bans, upload pauses, settings, sessions, audit
-├── deps.py           FastAPI dependencies: require_access / require_guest / require_admin
-├── security.py       cookies, signing, CSRF origin check, security headers
-├── middleware.py     ?t= token entry, CSRF guard, API rate limit, headers
-├── identity.py       /api/identify, /api/join, PATCH /api/me
-├── admin_auth.py     /api/admin/login|logout|session
-├── uploads.py        POST /api/x/<ext>/upload (generic pipeline)
-├── media.py          GET /media/<photo id> (owner or admin only)
-├── pages.py          /, /x/<ext>/…, /admin/…, gate + 404 pages
-├── events.py         EventBus + sse_response()
-├── images.py         JPEG validation + re-encode + thumbnail
-├── names.py          pseudonyms ("Durstige Giraffe #17")
-├── static/core/      frontend SDK: vb.js, camera.js, device.js, loader.js, vb.css, home
-├── admin/            admin API (api.py, upload_controls.py) + admin UI (static/)
-├── extensions/       one package per activity (beer, booth, …)
-└── tools/            CLI tools: timelapse, qr, export
+```mermaid
+flowchart LR
+  phone["Guest phone<br/>React guest app"] -- HTTPS --> proxy["Reverse proxy<br/>(TLS)"]
+  host["Host laptop / phone<br/>React admin app"] -- HTTPS --> proxy
+  proxy -- HTTP :8000 --> app
+  subgraph app["virtubooth container (one process, one worker)"]
+    mw["ASGI middleware<br/>headers, token entry, CSRF, limits"] --> routes["api/ routers<br/>web/ pages + assets"]
+    routes --> svc["services/"] --> repos["repositories/"]
+    svc -- "after commit" --> bus["EventBus<br/>(in memory)"]
+    bus -- SSE --> routes
+  end
+  repos --> db[("SQLite<br/>/data/virtubooth.db")]
+  svc --> files[("photos<br/>/data/&lt;activity&gt;/")]
+  routes --> web[("built frontend<br/>/app/web")]
 ```
 
-## Access model
+**One worker, on purpose.** Rate limits and the event bus live in process
+memory. Never run several workers or replicas.
 
-| Who | How | What |
+Contents:
+[Backend](#backend) ·
+[A request, end to end](#a-request-end-to-end) ·
+[Transactions, audit, events](#transactions-audit-events) ·
+[The admin event stream](#the-admin-event-stream) ·
+[Web serving](#web-serving) ·
+[Frontend](#frontend) ·
+[Adding an activity](#adding-an-activity) ·
+[Testing](#testing)
+
+## Backend
+
+`backend/src/virtubooth/`, layered. Imports point downwards: a router never
+touches SQL, and a repository never publishes an event.
+
+| Layer | Path | What it does |
 |---|---|---|
-| Party guest | scans QR `https://host/<path>?t=<VB_PARTY_TOKEN>` → middleware sets `vb_access` cookie (HMAC of the token, HttpOnly, SameSite=Lax) and 303-redirects to the same URL without `t` | pages, `/api/identify`, `/api/join` |
-| Identified guest | accepted the consent banner → `vb_uid` cookie (signed random public id) + localStorage copy | uploads, own photos, `PATCH /api/me` |
-| Admin | `POST /api/admin/login` with `VB_ADMIN_PASSWORD` → `vb_admin` cookie (random token, SHA-256 stored in DB, SameSite=Strict, expires, dies on logout or password change) | `/admin/*` pages, `/api/admin/*`, all media |
+| Entry | `__main__.py` | CLI: `virtubooth serve` (default), `gen-env`, `export-openapi` |
+| Composition | `app.py`, `runtime.py`, `settings.py` | `create_app(settings, extensions=None)` builds `Core` (settings, db, repos, services, bus, signer, limits, web, extensions), registers routers, error handlers and middleware. `Settings` is pydantic-settings over `VB_*`; secrets are `SecretStr`, and a bad value fails startup with the variable's name |
+| core | `core/` | `errors.py` (`ErrorCode`, `ErrorBody`, `ApiError`), `security.py` (signing, cookies, origin check, security headers, client IP), `events.py` (`EventBus`, replay history), `ratelimit.py`, `logs.py` (token-masking access log), `clock.py` |
+| db | `db/` | `Database`: one SQLite connection (WAL) behind a lock, nested transactions (savepoints), after-commit hooks. `migrations.py`: numbered steps, append only |
+| domain | `domain/` | dataclasses (`User`, `Photo`, …), constants (`PHOTO_WIDTH/HEIGHT` 1080×1440, id patterns, pause sources), pseudonyms |
+| repositories | `repositories/` | one per aggregate: users, photos, bans, app_settings, admin_sessions, audit, exports, instagram, plus `admin_read_models` for the admin lists. SQL only |
+| services | `services/` | the business logic and the only place that opens a write transaction: identity, uploads, moderation, upload_controls, admin_auth, exports (+ `export_runners.py`, one worker thread), instagram, images, views, `events.py` (typed admin events) |
+| api | `api/` | `deps.py` (the access dependencies), `schemas/` (Pydantic `*In`/`*Out` models, `AdminEvent` union), `routers/` (guest, uploads, media, health, `admin/*`) |
+| web | `web/` | serves the built frontend from `VB_WEB_DIR`: HTML entries, the gate/404 page, `/assets` (see [Web serving](#web-serving)) |
+| extensions | `extensions/` | `sdk.py` (`Extension`, `UploadPolicy`, `UploadContext`, discovery) and one package per activity: `beer/`, `booth/` |
+| tools | `tools/` | `qr`, `timelapse`, `export`: CLI tools (`python -m virtubooth.tools.<x>`) whose functions the admin's export jobs reuse |
 
-- No access cookie → every page shows the "Scan den QR-Code" page (HTTP 404),
-  every API call returns 404 `{"error":"scan_qr"}`.
-- Rotating `VB_PARTY_TOKEN` invalidates every guest's access.
-- **CSRF:** every POST/PUT/PATCH/DELETE must carry a same-origin `Origin` (or
-  `Referer`) header, else 403 `bad_origin`. Browsers do this automatically for
-  fetch/XHR. Extra allowed origins: `VB_ALLOWED_ORIGINS`.
-- **CSP:** `default-src 'self'`, `script-src 'self'`, `style-src 'self'`.
-  Pages must not use inline `<script>`, inline `<style>`, `style="..."`
-  attributes or `on*=""` handlers. Setting `el.style.foo = …` from JS is fine.
-  No CDNs, no external fonts: everything is served from the app.
+Access levels are FastAPI dependencies from `api/deps.py`, used on every
+route:
 
-## Guest identity ("fingerprinting")
-
-There is no registration. Every page calls `boot()` from the SDK:
-
-1. `POST /api/identify {fp, uid}`. Known device (cookie, or the localStorage
-   `uid` token) → `{state: "ok"|"banned", user}`. Unknown → `{state:
-   "needs_consent", consent}`.
-2. Unknown devices see the consent banner (store photos, post on Instagram,
-   device recognition; optional Instagram handle). There is no "no" button:
-   declining means not using the site. Accepting → `POST /api/join` creates
-   a pseudonymous user (`users` row, name like "Tanzender Waschbär #17").
-3. The browser fingerprint (`device.js`: canvas, WebGL renderer, screen,
-   timezone, UA, …) is stored per user, history in `user_fingerprints`.
-   **It is a moderation hint, not an identity:** identical phone models often
-   share a fingerprint. Admins can ban a user (by device id) and, separately
-   and with a warning, ban a fingerprint: new identities showing a banned
-   fingerprint are created already banned.
-4. Banning a user hides all their photos (`hidden_reason='ban'`); unbanning
-   restores only those.
-
-## Upload pauses
-
-Lighter than a ban: photos stay visible, the guest can browse and edit the
-Instagram handle, only uploads are refused (with a German message the pages
-show). Three independent levels, all persisted in the DB, audit-logged and
-published as events (`admin/upload_controls.py`, under `/api/admin`):
-
-| Level | API | Guest gets |
+| Dependency | Needs | Fails with |
 |---|---|---|
-| one guest (`users.uploads_paused_*`, source `admin`) | `POST /users/{id}/uploads {paused}` | 403 `uploads_paused` |
-| new guests: whoever joins while it is on starts paused (source `new_guest_lock`, tagged with the lock period). Lifting it needs a choice: `restore` exactly that period's still-paused guests, or keep them paused | `GET/POST /upload-pause {enabled, restore}` | 403 `uploads_paused` |
-| stop all uploads for a while; pauses and the lock stay as they are | `GET/POST /upload-stop {enabled}` | 403 `uploads_stopped` |
+| `AccessDep` (`require_access`) | the `vb_access` cookie (an HMAC of the party token) | 404 `scan_qr` |
+| `MeDep` | access + a joined guest (`vb_uid`, signed) that is not banned | 401 `needs_consent`, 403 `banned` |
+| `GuestDep` | the same, for uploads | the same, with the upload wording |
+| `AdminDep` | a live admin session (`vb_admin`, hashed in the DB) | 401 `admin_required` |
 
-A banned guest gets `banned` first, a paused one `uploads_paused` before
-`uploads_stopped`. The switches live in the key/value `settings` table.
-`guest_view()` exposes only `uploads_paused`; `/api/identify` and `/api/join`
-add `uploads_stopped`. The SDK shows the state as a hint on every page.
+Errors are always `ErrorBody {error: ErrorCode, message}` with a German
+`message` the UI shows as-is. Every route declares a response model and its
+error statuses, so `virtubooth export-openapi` writes a complete schema.
+`frontend/openapi.json` is generated from it, and CI fails when it drifts.
+The full contract is in [overhaul/contracts/api.md](overhaul/contracts/api.md).
 
-**Schema changes:** append a step to `db.MIGRATIONS` (never edit a released
-one); each step runs in its own transaction, so existing databases upgrade in
-place (`tests/test_core_db_migration.py` opens a v1 database with data).
+The database tables are `users`, `user_fingerprints`, `fingerprint_bans`,
+`photos`, `admin_sessions`, `audit_log`, `settings` (a small key/value store
+for the upload switches and Instagram marks) and `export_jobs`. A schema
+change is a new step appended to `db/migrations.py`; never edit a released one.
 
-## Extension interface
+## A request, end to end
 
-An extension is a package `virtubooth/extensions/<name>/` whose `__init__.py`
-exports `extension = Extension(...)` (see `virtubooth/extension.py`). It's
-discovered automatically; `VB_EXTENSIONS=beer,booth` restricts and orders.
+A Beer Cam upload, `POST /api/x/beer/upload`, from the phone to the admin's
+screen:
+
+```mermaid
+sequenceDiagram
+  participant P as Phone (useShot)
+  participant M as Middleware
+  participant R as uploads router
+  participant S as UploadService
+  participant DB as SQLite + files
+  participant B as EventBus
+  participant A as Admin (SSE)
+  P->>P: capture 1080×1440 JPEG, put it in the outbox
+  P->>M: POST raw JPEG, X-VB-Meta, Origin
+  M->>M: security headers, CSRF origin, API budget
+  M->>R: route
+  R->>R: GuestDep: access cookie, joined, not banned
+  R->>S: upload(ext, user, request)
+  S->>S: paused? stopped? JPEG? per-guest limit, IP/global limits, size cap
+  S->>S: meta keys + validate_meta, decode, exact size, re-encode (no EXIF), thumbnail
+  S->>DB: write files, then in one transaction: photos row (seq), on_upload
+  S-->>B: photo.created (after commit)
+  B-->>A: event: photo.created
+  R-->>P: 201 {photo, beer_number, total}
+  P->>P: remove from the outbox, show "Bier Nr. … gezählt"
+```
+
+1. **`SecurityHeadersMiddleware`** (outermost) adds the CSP and the other
+   security headers to every answer.
+2. **`GuardMiddleware`** (pure ASGI, `middleware.py`):
+   - a `GET` with `?t=` is the token entry: valid → 303 to the same URL
+     without `t` plus the access cookie, invalid → the gate page;
+   - every `POST/PUT/PATCH/DELETE` must carry a same-origin `Origin` (or
+     `Referer`), else 403 `bad_origin`;
+   - JSON bodies need a `Content-Length` of at most 64 KiB;
+   - `/api/*` counts against a request budget: per device for joined guests,
+     per IP otherwise, none for a logged-in admin.
+3. **The router** parses the request and resolves the access dependency, calls
+   **one service** method and builds the response model. Routers stay thin.
+4. **The service** owns the work and the transaction (next section).
+5. Errors anywhere become `ApiError` → `ErrorBody` JSON. A 404 outside `/api`
+   becomes the gate or not-found page.
+
+## Transactions, audit, events
+
+Services follow one pattern: the change, its audit entry and its event
+commit together or not at all.
 
 ```python
-from pathlib import Path
-from fastapi import APIRouter, Depends
-from virtubooth.extension import Extension, UploadContext, UploadPolicy
-from virtubooth.deps import get_core, require_access
+def hide_photo(self, public_id: str, *, actor: str, reason: str = HIDDEN_BY_ADMIN) -> PhotoChange:
+    with self.db.tx():  # BEGIN IMMEDIATE (a savepoint when nested)
+        changed = self.repos.photos.hide(public_id, at=now_iso(), reason=reason)
+        photo = self.repos.photos.get(public_id)
+        if changed:
+            self.repos.audit.log(actor, "photo.hide", f"photo:{public_id}", at=now_iso())
+            if photo is not None:
+                self.events.photo_hidden(AdminPhoto.of(photo))  # queued until COMMIT
+    return PhotoChange(changed, photo)
+```
 
-router = APIRouter()
+- `Database.tx()` holds the connection lock, opens `BEGIN IMMEDIATE` (nested
+  calls use savepoints), and rolls back on any exception.
+- `AdminEvents._emit()` (`services/events.py`) does not publish right away. It
+  registers `db.on_commit(...)`, so an event goes out only once the change is
+  durable, and never for a rolled-back change.
+- Files follow the same rule: a deleted photo's files are unlinked after the
+  commit, so a failed transaction never loses a file the database still
+  points to.
+- The audit vocabulary (`photo.hide`, `user.ban`, `export.create`,
+  `instagram.done`, …) is listed in [overhaul/contracts/api.md](overhaul/contracts/api.md).
+  "Protokoll" in the admin shows it.
 
-@router.get("/stats", dependencies=[Depends(require_access)])   # → /api/x/beer/stats
-def stats(core=Depends(get_core)):
-    return {"total": core.repo.count_photos("beer")}
+## The admin event stream
 
-def on_upload(ctx: UploadContext) -> dict:
-    return {"beer_number": ctx.photo.seq}
+`GET /api/admin/events` is Server-Sent Events. Each event has a type (for
+example `photo.created`, `user.banned`, `settings.upload_pause`,
+`export.updated`), a JSON payload and an id `<epoch>-<n>`. The epoch changes
+with every server start.
 
-def validate_meta(meta: dict) -> dict:
-    if meta.get("vessel") not in ("bottle", "cup"):
-        raise ValueError("Unbekanntes Gefäß.")      # → 400 with this message
-    return meta
+```mermaid
+sequenceDiagram
+  participant UI as Admin page
+  participant API as /api/admin/*
+  participant ES as /api/admin/events
+  UI->>API: first fetch (photos, stats, …)
+  API-->>UI: data + X-VB-Event-Id: e-41
+  UI->>ES: EventSource(?since=e-41)
+  ES-->>UI: retry: 3000, then events 42, 43, … (replayed, then live)
+  Note over UI,ES: network drop: the browser reconnects with Last-Event-ID
+  ES-->>UI: missed events replayed (the server keeps the last 1024)
+  Note over UI,ES: too old, or the server restarted
+  ES-->>UI: stream.resync {reason: "gap" | "restart"}: refetch everything
+```
+
+- Every admin answer carries `X-VB-Event-Id`: the stream position before the
+  request read anything. Opening the stream with `?since=` that id means
+  nothing that happened in between is lost.
+- A client that falls 256 events behind is disconnected. Its reconnect
+  replays the rest. The stream also ends when the admin session is gone
+  (checked every 30 s); the reconnect then gets 401 and the page goes to the
+  login.
+- A `: ping` comment goes out after 15 s without events, and the stream sends
+  `X-Accel-Buffering: no` so proxies don't buffer it.
+- Client side (`frontend/src/admin/store/`): `stream.ts` runs that life cycle,
+  polls every 5 s while the stream is down, and resyncs when the tab becomes
+  visible again. `applyEvent.ts` patches exact changes into the React Query
+  cache and throttles refetches for everything else.
+
+## Web serving
+
+The backend serves the built frontend from `VB_WEB_DIR`: `/app/web` in the
+image, `frontend/dist` of the checkout locally. Without it the server refuses
+to start, unless `VB_DEV=1`, which serves placeholder pages for working with
+`vite dev`. The contract is
+[overhaul/contracts/web-serving.md](overhaul/contracts/web-serving.md).
+
+| Path | Answer |
+|---|---|
+| `/`, `/x/<id>/…` | `index.html` with access, else the gate (404). Unknown activity → not found (404). `/x/<id>` → 308 to `/x/<id>/` |
+| `/admin/login` | `admin.html`, public |
+| `/admin/…` | `admin.html` with a session, else 303 to `/admin/login?next=…` |
+| `/assets/*` | hashed files, `Cache-Control: public, max-age=31536000, immutable`; the `.br`/`.gz` sibling when the client accepts it |
+| `/<file>` | other build files (`boot-check.js`, `icon.svg`), `max-age=300` |
+| anything else | the not-found page (404), or the gate without access |
+
+- **One static file for both 404 pages.** `gate.html` contains both messages
+  and `data-vb-mode="gate"` on `<html>`. For "not found" the server rewrites it
+  to `notfound` and CSS shows the other block. It works without JavaScript.
+- HTML is `no-cache` with an ETag. Paths are resolved inside the web dir only,
+  and any dot segment is refused, so `.vite/manifest.json` is never served.
+- **Strict CSP on every answer**: `default-src 'self'; script-src 'self';
+  style-src 'self'; img-src 'self' blob: data:; media-src 'self' blob:;
+  connect-src 'self'; font-src 'self'; object-src 'none'; base-uri 'none';
+  form-action 'self'; frame-ancestors 'none'`.
+
+## Frontend
+
+`frontend/`, React 19 + TypeScript + Vite, built as a multi-page app with
+three entries. Details and conventions are in
+[frontend/README.md](../frontend/README.md).
+
+| Entry | App | Routes |
+|---|---|---|
+| `index.html` → `src/guest/main.tsx` | guest | `/` (Start), `/x/<id>/*` (an activity, loaded lazily) |
+| `admin.html` → `src/admin/main.tsx` | admin | `/admin/login`, `/admin/live`, `/admin/manage?tab=…`, `/admin/user?id=…` |
+| `gate.html` | none | static: "Scan den QR-Code" / "Hier ist nichts"; an optional script adds the in-app browser hint |
+
+Every entry loads `/boot-check.js` (a classic script) before its module. If
+the app never sets `window.__vbReady`, typically because a content blocker
+dropped a chunk, it shows a German hint to turn the blocker off.
+
+```mermaid
+flowchart TB
+  guest["src/guest<br/>Start, JoinSheet, Deine Bilder"] --> sdk
+  ext["src/extensions/&lt;id&gt;<br/>beer, booth"] --> sdk
+  admin["src/admin<br/>login, live, manage, user, uploads"] --> api
+  sdk["src/sdk<br/>session, camera, upload, outbox, components"] --> api["src/api<br/>client (openapi-fetch), errors, events"]
+  guest --> ui
+  ext --> ui
+  admin --> ui
+  sdk --> ui["src/ui<br/>design system (React Aria + Tailwind)"]
+  api --> lib["src/lib<br/>format (de-DE), messages.de"]
+  ui --> styles["src/styles/app.css<br/>Kontaktbogen tokens"]
+```
+
+### The guest SDK (`src/sdk/`)
+
+What every activity page builds on:
+
+| Module | Gives you |
+|---|---|
+| `session.ts` | `useSession()`: `loading → needs_join → ready ⇄ banned` (or `error`), a zustand store. `canUpload(state)` says whether this guest may upload right now and why not ("Hochladen pausiert", "Hochladen ist kurz angehalten", "Gesperrt"). It re-identifies on focus, every 30 s while blocked, and after a refused upload |
+| `camera/` | `useCameraSession()` wraps a `CameraSession`: getUserMedia with the iOS quirks handled, a WebGL1 renderer with a Canvas2D fallback, `capture()` that renders the 3:4 preview at exactly 1080×1440 (preview == photo), `switchFacing()`, mirroring only for the front camera. `CameraStage` (the `<video>` + canvas mount), `CameraErrorScreen` (German texts per camera error), `filters.ts` (the Fotobox shaders), `overlays.ts` (the Beer Cam outlines), `keys.ts` (Space = shutter, Esc) |
+| `upload.ts` | `uploadPhoto(ext, blob, {meta, onProgress})`: XHR with progress, `X-VB-Meta`, German errors, `Retry-After` |
+| `outbox.ts` | the shared IndexedDB outbox (`vb-booth`, store `outbox`): `addToOutbox`, `flushOutbox`, `useOutbox()`. Photos wait on the device until the server has them |
+| `camera/useShot.ts` | `useShot(ext)`: one photo's life, from capture → outbox → upload with progress → result (`uploading`, `done`, `waiting`, `held`, `failed`), with `take`, `retry`, `dismiss` |
+| `components/` | `ActivityShell` (the camera page frame: title, guest pass, 3:4 stage, film edge, hint, controls, the toast slot), `ActivityMenu` (the switcher), `GuestPass` + `GuestSheet` (the "Du" sheet), `StatusSlot` |
+| `feedback.ts`, `share.ts`, `platform.ts`, `debug.ts`, `device.ts` | vibrate/flash, `saveImage()` (the iOS share sheet, a download elsewhere), `isIOS`/`isInAppBrowser`, the `?debug=1` panel, the device traits |
+
+### The design system (`src/ui/`, `src/styles/app.css`)
+
+"Kontaktbogen" ([overhaul/design/DESIGN.md](overhaul/design/DESIGN.md)):
+every photo is a frame on the party's film roll. Guests and the live screen
+work in a darkroom (Rotlicht `#2b0f0c` with the Safelight amber `#ffa630`).
+Verwaltung and the guest page are a light table (Leuchttisch) with grease-pencil
+marks: X = hidden, circle = selected. The signature element is the film edge
+(`FilmEdge`), whose sprocket holes double as the upload progress bar. Fonts
+are Bricolage Grotesque and Doto (numerals only).
+
+- Tokens live in `app.css` as Tailwind 4 `@theme` variables: the palette,
+  semantic colours per surface (`data-surface="dark|light"`), the type scale,
+  radii, z-layers and motion durations. `contrast.test.ts` checks 34 colour
+  pairs against WCAG AA.
+- `src/ui/` holds presentational components only (no API calls): React Aria
+  Components styled with Tailwind and `tailwind-variants`, for example
+  `Button`, `Sheet`, `ConfirmDialog`, `Toast` (one slot), `Switch`,
+  `SegmentedControl`, `DataTable`, `PhotoTile`, `FilmEdge`, `Shutter` and
+  `Countdown`. A dev-only gallery shows them all (`pnpm dev`, then `/__ui`).
+  It never ships.
+
+### The API client (`src/api/`)
+
+`schema.gen.ts` is generated from `frontend/openapi.json` (`pnpm gen:api`),
+which is exported from the backend (`make openapi` does both). `client.ts`
+wraps openapi-fetch: paths, bodies and answers are typed, and `unwrap()` turns
+every failure into an `ApiError` (`status`, `code`, German `message`,
+`retryAfter`, `offline`). `scan_qr` reloads the page, so the gate shows.
+`types.ts` gives the generated shapes friendly names (`GuestUser`,
+`AdminPhoto`, …); import types from there. `events.ts` types the admin event
+stream.
+
+## Adding an activity
+
+An activity, such as the Beer Cam or the Fotobox, is an **extension**: a
+backend package and a frontend folder with the same id. Core already does
+everything else:
+
+| You write | Core gives you |
+|---|---|
+| `Extension(...)` in `backend/src/virtubooth/extensions/<id>/__init__.py` | discovery and `VB_EXTENSIONS`; `POST /api/x/<id>/upload` with access, join, ban and pause checks, rate limits, JPEG validation, re-encoding, thumbnails, storage under `data/<id>/`, sequence numbers and the `photo.created` event; your router at `/api/x/<id>/`; the card on Start; the QR code on the QR sheet; the activity in the admin (filters, meta labels, Instagram ZIP, archive, timelapse) |
+| a page in `frontend/src/extensions/<id>/` | the route `/x/<id>/` behind the gate and the join sheet, a lazily loaded chunk, the activity switcher, "Deine Bilder", the guest pass, the outbox, the film edge and every design-system component |
+
+```mermaid
+flowchart LR
+  subgraph backend["backend/src/virtubooth/extensions/snap/"]
+    py["__init__.py<br/>extension = Extension(id='snap', …)"]
+  end
+  subgraph frontend["frontend/src/extensions/snap/"]
+    idx["index.ts<br/>defineExtension({id: 'snap', load})"]
+    page["SnapPage.tsx"]
+  end
+  py -- "discover_extensions()" --> api["/api/extensions<br/>(id, title, tagline, uploads)"]
+  idx -- "import.meta.glob at build time" --> reg["extensions/registry.ts"]
+  api --> start["Start cards + switcher:<br/>the server's list ∩ the registry"]
+  reg --> start
+  idx -. "lazy chunk" .-> page
+```
+
+The guest app shows an activity when **both** halves exist: the server lists
+it (`GET /api/extensions`, filtered and ordered by `VB_EXTENSIONS`) and the
+build has a page for it (`registry.ts`). A unit test
+(`test_frontend_contract.py::test_extension_folders_match_the_backend`) fails
+when one half is missing.
+
+### A complete example: "Schnappschuss"
+
+The smallest useful camera activity: one photo, no frills. This exact code
+was built and tested (Chromium, fake camera: the photo uploads, 1080×1440,
+zero console errors).
+
+**1. Choose an id.** It must match `^[a-z][a-z0-9-]{1,30}$`, and it is the
+package name, the frontend folder, the URL (`/x/snap/`) and the photo folder
+(`data/snap/`). Keep it neutral for content blockers: no `ad`, `ads`,
+`track`, `banner`, `pixel` or similar.
+
+**2. The backend: `backend/src/virtubooth/extensions/snap/__init__.py`.**
+
+```python
+"""Schnappschuss: one photo, nothing else. The smallest camera activity."""
+
+from typing import Any
+
+from virtubooth.domain.constants import FACINGS, PHOTO_HEIGHT, PHOTO_WIDTH
+from virtubooth.extensions.sdk import Extension, UploadPolicy
+
+
+def validate_meta(meta: dict[str, Any]) -> dict[str, Any]:
+    if meta.get("facing") not in FACINGS:
+        raise ValueError("Unbekannte Kamera.")  # → 400 invalid_meta, shown to the guest
+    return {"facing": meta["facing"]}
+
 
 extension = Extension(
-    id="beer", title="Beer Cam", emoji="🍺", tagline="…",
-    static_dir=Path(__file__).parent / "static",     # must contain index.html
-    upload=UploadPolicy(max_side=1440, meta_keys=frozenset({"vessel"}), validate_meta=validate_meta),
-    router=router, on_upload=on_upload, order=10,
-    meta_labels={"vessel": "Gefäß"},
+    id="snap",
+    title="Schnappschuss",
+    emoji="📷",
+    tagline="Ein Foto, sonst nichts.",
+    upload=UploadPolicy(
+        max_side=PHOTO_HEIGHT,
+        min_side=480,
+        exact_size=(PHOTO_WIDTH, PHOTO_HEIGHT),  # 1080×1440, like Beer Cam and Fotobox
+        meta_keys=frozenset({"facing"}),
+        validate_meta=validate_meta,
+    ),
+    order=30,
+    meta_labels={"facing": "Kamera"},
 )
 ```
 
-What core does for an extension:
+- `upload` makes it a photo activity. Without it the activity takes no
+  uploads (`uploads: false` in `/api/extensions`).
+- `UploadPolicy`: `exact_size` (every photo must have it), `max_side`,
+  `min_side`, `quality` (re-encode, default 85), `thumb_side` (400),
+  `max_bytes` (default `VB_MAX_UPLOAD_BYTES`), `meta_keys` (the only keys the
+  client may send in `X-VB-Meta`) and `validate_meta` (raise
+  `ValueError("<German message>")` to refuse with 400 `invalid_meta`).
+- `order` sorts the activities when `VB_EXTENSIONS` is empty. `meta_labels`
+  names the meta keys in the admin inspector. `show_on_home=False` hides the
+  card and the QR code.
+- The `emoji` appears only on the QR sheet; the UI uses Lucide icons.
 
-- `GET /x/<id>/…` serves `static_dir` (party guests only, traversal-safe).
-- `POST /api/x/<id>/upload`: guest + consent + not banned → content type
-  `image/jpeg` → rate limits (user/IP/global) → size cap → `X-VB-Meta` header
-  (`encodeURIComponent(JSON)`, keys must be in `meta_keys`, values
-  str ≤100/number/bool/null, then `validate_meta`) → Pillow decode, size
-  checks, re-encode (EXIF stripped) + thumbnail → files
-  `data/<id>/<YYYYmmdd-HHMMSS-mmm>_<rand>.jpg` + `thumbs/` → `photos` row with
-  per-extension `seq` (never reused) → `on_upload(ctx)` → event
-  `photo.created` → `201 {"photo": {id, seq, url, thumb_url, …}, **on_upload_result}`.
-- `router` is mounted at `/api/x/<id>`; protect every route with a
-  dependency from `virtubooth.deps`.
-- Home page tile (`show_on_home`), `/api/extensions`, QR codes (tools/qr).
-- Admin UI shows the extension's photos; `meta_labels` names the meta keys.
+**3. The frontend registration: `frontend/src/extensions/snap/index.ts`.**
 
-Data access goes through `core.repo` (`virtubooth/repo.py`). Events:
-`core.bus.publish(type, data)`; stream them with `events.sse_response()`.
-Core publishes `photo.created` (`{"photo": photo.admin_view()}`) and
-`user.created`; the admin API publishes `photo.hidden|unhidden|deleted`,
-`user.banned|unbanned`, `user.uploads_changed` (`{"users": [...], "paused"}`)
-and `settings.upload_pause|upload_stop`. Admin feature modules listen to the
-page's stream with `onAdminEvent(fn)` from `admin.js`.
+```ts
+import { defineExtension } from '@/sdk/extension';
 
-## Frontend SDK (`/static/core/vb.js`)
+/** Schnappschuss: one photo, nothing else. */
+export default defineExtension({ id: 'snap', load: () => import('./SnapPage') });
+```
 
-Every page links `/static/core/vb.css`, includes
-`<script src="/static/core/loader.js" defer></script>` (shows a hint if the
-page's modules never start) and loads its own ES module.
+`registry.ts` collects every `src/extensions/*/index.ts` at build time
+(`import.meta.glob`) and checks that the folder name equals the `id`. `load`
+keeps the page in its own chunk, which loads only on `/x/snap/`.
 
-**Content blockers:** uBlock, AdGuard, Brave and iOS content blockers drop
-URLs that look like tracking, and their cookie-notice lists (on by default in
-Brave) hide elements that look like consent banners. One failed static import
-stops every module on the page, silently; a hidden join dialog leaves a page
-that never starts. So: neutral file and API path names (no "fingerprint",
-"track", "analytics", "beacon", "pixel", "ads", "consent", "cookie", "gdpr",
-...), neutral class/id/test-id names on UI a guest must use (the join dialog is
-a `.vb-sheet` in a `.vb-scrim`, `data-testid="join"`, posting to `/api/join`),
-and load optional modules with a dynamic `import()` inside `try/catch`.
-`tests/test_core_blockers.py` matches every URL the app serves or requests and
-every element its pages build against real filter rules: a vendored subset
-(`tests/fixtures/blocker_rules.txt`) always, the full lists with
-`VB_BLOCKLISTS=<dir>`.
+**4. The page: `frontend/src/extensions/snap/SnapPage.tsx`.**
 
-Main API:
+```tsx
+import { t } from '@/lib/messages.de';
+import { STREAM_SIZE } from '@/sdk/camera/capture';
+import { CameraErrorScreen } from '@/sdk/camera/CameraScreens';
+import { CameraStage, PREVIEW_CANVAS_CLASS } from '@/sdk/camera/CameraStage';
+import { useCameraSession } from '@/sdk/camera/useCameraSession';
+import { useShot } from '@/sdk/camera/useShot';
+import { ActivityMenu } from '@/sdk/components/ActivityMenu';
+import { ActivityShell } from '@/sdk/components/ActivityShell';
+import { GuestPass } from '@/sdk/components/GuestPass';
+import type { ExtensionPageProps } from '@/sdk/extension';
+import { canUpload, useSession } from '@/sdk/session';
+import { Button } from '@/ui/Button';
+import { FilmEdge } from '@/ui/FilmEdge';
+import { Shutter } from '@/ui/Shutter';
 
-| Export | Purpose |
-|---|---|
-| `boot()` | identify device, show the join dialog if needed → `{user, banned}`. Call first. Also shows the "uploads paused/stopped" hint (fixed below the top bar, or in `#vb-uploads-slot` if the page has one). |
-| `fatal(err, {title, actions})` | end every page with `main().catch(fatal)`: full-screen notice with "Neu laden"; shows `ApiError`/`CameraError` messages, a neutral text for network failures (offline and blocked look alike), a generic one for anything else |
-| `api(path, {method, json})` | JSON fetch, throws `ApiError` (`.status .code .message`, German message; `.retryAfter` seconds on 429, already in the message; `.offline` for code `network` when the device says so) |
-| `uploadJpeg(extId, blob, {meta, onProgress})` | upload with progress → server JSON |
-| `openCamera(video, {facing})` | camera controller: `.facing .mirrored .canSwitch .switchFacing() .stop() .width .height`. `facing` is a wish: a PC's only webcam is used either way and counts as `'user'` (mirrored); hide the switch button when `!canSwitch` |
-| `captureFrame(video, w, h, {mirror})` | centre-cropped (cover) frame into a canvas |
-| `canvasToJpeg(canvas, q)` | canvas → JPEG Blob |
-| `saveImage(blob, name)` | iOS: share sheet ("Bild sichern"); else download. Call in a tap handler. |
-| `toast(msg, {type})`, `confetti()`, `flash()`, `vibrate()`, `showNotice(emoji, title, text, ...nodes)` | feedback |
-| `h(tag, attrs, ...children)` | safe DOM builder (use instead of innerHTML) |
-| `mountUserChip(el)`, `editInstagram()`, `getUser()` | guest pseudonym + Instagram handle |
-| `isIOS()`, `isInAppBrowser()`, `cameraErrorMessage(err)` | platform helpers |
-| `sheetOpen()` | true while a dialog (`.vb-scrim`) is open: ignore keyboard shortcuts then |
-| `debug(...)` | on-screen log when the page was opened with `?debug=1` (top of the screen, lets taps through, 🐞 folds it) |
+const TITLE = 'Schnappschuss';
 
-CSS: tokens `--vb-*`; components `.vb-btn(--primary|--big|--block|--ghost|--danger|--cool)`,
-`.vb-icon-btn`, `.vb-shutter`, `.vb-card`, `.vb-chip`, `.vb-input`, `.vb-stage`
-(fullscreen camera) with `.vb-topbar`/`.vb-bottombar`, `.vb-sheet` (dialog) in a `.vb-scrim`
-(long dialogs: `.vb-sheet--split > form.vb-sheet-form > .vb-sheet-body` (scrolls) `+ .vb-sheet-foot` (buttons, always on screen)),
-`.vb-progress > span`, `.vb-spinner`, `.vb-hidden`.
+export default function SnapPage({ id }: ExtensionPageProps) {
+  const session = useSession();
+  const gate = canUpload(session); // paused, stopped or banned: say so before the shot
+  const {
+    videoRef,
+    mountRef,
+    session: camera,
+    camera: cam,
+  } = useCameraSession({
+    enabled: session.status === 'ready', // the camera prompt never comes before joining
+    facing: 'user',
+    ...STREAM_SIZE.booth,
+    canvasClassName: PREVIEW_CANVAS_CLASS,
+  });
+  const { shot, take, dismiss } = useShot(id); // outbox first, then the upload
+  const live = cam.status === 'live' && cam.ready;
 
-UI language: German. Mobile-first, big touch targets, party look (dark,
-pink→orange→yellow gradient). Must work on recent iOS Safari and Android
-Chrome: `<video playsinline muted>`, no `ctx.filter`, no CSS filters on
-captured output, iOS stops camera streams in background tabs.
+  const shoot = async () => {
+    if (!camera || !live || !gate.ok) return;
+    const blob = await camera.capture(); // exactly the 1080×1440 preview
+    await take(blob, { facing: cam.facing }); // the X-VB-Meta the backend validates
+  };
+  const again = async () => {
+    dismiss();
+    await camera?.resume();
+  };
+
+  return (
+    <ActivityShell
+      heading={TITLE}
+      title={<ActivityMenu currentId={id} title={TITLE} />}
+      topRight={<GuestPass compact />}
+      stage={
+        <CameraStage videoRef={videoRef} mountRef={mountRef} ready={live || !!shot}>
+          {shot ? (
+            <img
+              src={shot.url}
+              width={1080}
+              height={1440}
+              alt="Dein Foto"
+              className="absolute inset-0 size-full object-cover"
+            />
+          ) : null}
+        </CameraStage>
+      }
+      filmEdge={
+        <FilmEdge
+          label="Foto"
+          {...(shot?.result ? { frame: shot.result.photo.seq } : {})}
+          state={shot?.status === 'uploading' ? 'uploading' : shot?.status === 'done' ? 'done' : 'idle'}
+          progress={shot?.progress ?? 0}
+          progressLabel={t.uploading}
+        />
+      }
+      hint={<p>{gate.ok ? 'Lächeln!' : gate.message}</p>}
+      controls={
+        shot ? (
+          <Button variant="primary" size="lg" block onPress={() => void again()}>
+            {t.newPhoto}
+          </Button>
+        ) : (
+          <>
+            <span aria-hidden="true" className="size-12" />
+            <Shutter
+              state={!live ? 'not-ready' : gate.ok ? 'ready' : 'blocked'}
+              onPress={() => void shoot()}
+            />
+            <span aria-hidden="true" className="size-12" />
+          </>
+        )
+      }
+      controlsLayout={shot ? 'actions' : 'camera'}
+      holdLayout={!!shot}
+    >
+      {cam.status === 'error' && cam.error ? <CameraErrorScreen error={cam.error} /> : null}
+    </ActivityShell>
+  );
+}
+```
+
+What the page gets without writing it:
+
+- It renders inside the guest app's session gate: the guest has joined, and
+  banned guests never get here. The join sheet, the gate and errors are
+  handled before the page mounts.
+- `useShot` puts the photo into the outbox **before** uploading. A dead
+  network, a reload or a closed tab never loses it: the outbox sends it later
+  by itself (the guest pass shows that photos wait). Add
+  `useOutboxToasts(shot?.id ?? null)` for a toast when a waiting photo gets
+  through, and `retry` from `useShot` for an "Erneut senden" button, like the
+  Beer Cam.
+- `ActivityShell` gives the camera layout for phones, short screens,
+  landscape and desktop, keeps the stage 3:4 (the stage is the photo), and
+  places the single toast slot above the controls. The camera control row has
+  three slots, `[left] [shutter] [right]`; the spacers keep the shutter
+  centred.
+- `CameraErrorScreen` explains a denied permission, a missing camera or an
+  in-app browser in German.
+
+**5. Update the two tests that list the activities.** They pin the set on
+purpose: `frontend/src/extensions/registry.test.ts` (`['beer', 'booth',
+'snap']`) and `backend/tests/api/test_core_access.py::test_discover_respects_explicit_order`.
+
+**6. Run it.**
+
+```bash
+make build-web && make dev        # or: make dev + make dev-web for hot reload
+make lint typecheck test          # the contract test checks that both halves exist
+```
+
+Open `/?t=<token>`: Start shows a "Schnappschuss" card with its tagline, and
+the switcher lists it. The activity is on by default; with `VB_EXTENSIONS`
+set, add its id there (`VB_EXTENSIONS=beer,booth,snap`), which also sets the
+order. The admin shows its photos with an "Aktivität" filter, the QR sheet
+gets a `qr-snap` code, and the archive export puts its photos under
+`photos/snap/`. Its OpenAPI schema does not change, because uploads go
+through the shared route.
+
+### Going further
+
+All of these are optional. Beer Cam (`extensions/beer/`) and Fotobox
+(`extensions/booth/`) are the complete references.
+
+- **Your own API.** Pass `router=APIRouter()` and protect every route with a
+  dependency from `virtubooth.api.deps`. It is mounted at `/api/x/<id>/`.
+  Beer Cam's counter:
+
+  ```python
+  @router.get("/stats", dependencies=[Depends(require_access)])
+  def stats(core: CoreDep) -> BeerStats:
+      """The counter. Party access is enough (no join needed)."""
+      return BeerStats(total=total_beers(core), goal=GOAL)
+  ```
+
+  Read through repositories (`core.repos.photos.count(EXT_ID, hidden=False)`).
+  Anything that writes belongs in a service, inside `db.tx()`, with an audit
+  entry.
+- **Extra fields in the upload answer.** `on_upload(ctx: UploadContext)`
+  runs after the photo is stored (`ctx.core`, `ctx.user`, `ctx.photo`), and
+  its dict is merged into the 201 answer. Declare the fields with
+  `upload_result=<a Pydantic model>` so the schema's `UploadOut` has them
+  (Beer Cam: `beer_number`, `total`). Then run `make openapi` and commit
+  `frontend/openapi.json` and `src/api/schema.gen.ts`.
+- **A server-side catalogue.** Fotobox keeps its filter list in
+  `extensions/booth/filters.json`, serves it at `GET /api/x/booth/filters`,
+  and `validate_meta` accepts only ids listed there. Filters themselves are
+  WebGL1 shaders in `frontend/src/sdk/camera/filters.ts`, with a Canvas2D
+  fallback. Never use CSS filters or `ctx.filter`: the saved photo must be
+  the shader's output.
+- **Overlays** in photo coordinates: an SVG with `viewBox="0 0 1080 1440"`
+  over the stage, like the Beer Cam outline (`sdk/camera/overlays.ts`). It is a
+  guide, not part of the photo.
+- **A nicer presence in the guest app:** a live line on the Start card (the
+  `LIVE` map in `src/guest/ActivityCards.tsx`, like the beer counter), an icon
+  in the switcher (`ICONS` in `src/sdk/components/ActivityMenu.tsx`; the
+  default is a camera), and a frame word (`FRAME_WORD` in `src/lib/format.ts`:
+  "Bier 0032", "Foto 0018"; otherwise the capitalised id, "Snap 0001").
+- **e2e tests** go in `backend/tests/e2e/activities/`. The harness gives you a
+  phone with fake front and back cameras, `join_via_api(page, live)` for a
+  joined guest, and fails on any console error. Port the patterns of
+  `test_beer_e2e.py` and `test_booth_e2e.py`.
+- **An activity without uploads**, such as a Live Wall for a TV, leaves out
+  `upload` and brings its own router. The admin event stream is admin-only,
+  so a wall would add its own read-only endpoint.
+
+### Rules for activity code
+
+- **CSP:** no inline `<style>` or `<script>`, no `eval`, no
+  `dangerouslySetInnerHTML`, no `setAttribute('style', …)`. React's
+  `style={{…}}` is fine (it goes through the CSSOM), but classes and tokens
+  are better. New npm packages must pass the browser check against a built
+  `dist` (`frontend/scripts/browser-check.py`).
+- **Neutral names** in files, CSS classes, ids, test ids and storage keys
+  (`pnpm build` fails otherwise).
+- **German copy** from `src/lib/messages.de.ts` (the glossary: "Hochladen",
+  "Erneut senden", "Neues Foto", …) and numbers through `src/lib/format.ts`
+  (de-DE, NBSP before units).
+- **Design tokens only**: no new colours, sizes or radii. Photos have square
+  corners and real `width`/`height`.
+- **Camera rules:** capture exactly what the preview shows, at 1080×1440;
+  mirror only the front camera; ask for the camera only after joining.
 
 ## Testing
 
-```bash
-uv sync                      # deps incl. dev
-uv run pytest                # unit/API tests (fast)
-uv run pytest -m e2e         # browser tests: Playwright Chromium + fake camera
-VB_E2E_BROWSER=firefox uv run pytest -m e2e   # the same in Firefox
-tests/e2e/run_webkit.sh      # the same in WebKit (Docker)
-VB_BLOCKLISTS=.blocklists uv run pytest tests/test_core_blockers.py  # + full filter lists (~60 MB, downloaded once)
-uv run virtubooth gen-env > .env && set -a && . ./.env && set +a && uv run virtubooth serve --reload
-```
+| Suite | Where | Run |
+|---|---|---|
+| unit + API | `backend/tests/unit`, `backend/tests/api` (TestClient, stub web dir in `tests/fixtures/web`) | `make test` or `cd backend && uv run pytest -q` |
+| frontend unit | `frontend/src/**/*.test.ts(x)`, Vitest + Testing Library on happy-dom | `make test` or `cd frontend && pnpm test` |
+| e2e | `backend/tests/e2e/{guest,activities,admin}`, Playwright against a live server serving `frontend/dist` | `make e2e`, `make e2e-firefox`, `make e2e-webkit` |
+| content blockers | `scripts/check-names.mjs` (build), `tests/unit/test_core_blockers.py`, `tests/e2e/guest/test_blockers_e2e.py` | `make build-web`, `make test`, `VB_BLOCKLISTS=.blocklists` for the full lists |
+| container | `scripts/docker-smoke.sh` + `scripts/smoke.py` | `make docker-smoke` |
 
-Fixtures (`tests/conftest.py`): `settings`, `app`, `core`, `client`,
-`make_client`, `guest(instagram=, fp_n=)` (consented guest client), `admin`
-(logged-in client); helpers `jpeg()`, `scan()`, `accept_consent()`, headers
-`JPEG`/`ORIGIN` (TestClient requests need `Origin: http://testserver` for
-POST). Override the `extensions` fixture in a test module to load real
-extensions, e.g. `return discover_extensions(["beer"])`.
-
-E2E (`tests/e2e/conftest.py`): `live` (real server, `.url()`, `.entry()` =
-QR URL, `.core`), `page`, `guest_page` (consent accepted), `admin_page`,
-`accept_consent_in_browser()`, `settle_dialogs(page)` (dialog animations done),
-`shot(page, name)` (screenshot into `$VB_SCREENSHOT_DIR`); override `e2e_extensions` or
-`e2e_settings` (Settings fields, e.g. `{"instagram_account": "@x"}`). `page.js_errors`
-collects console errors (`track_errors(page)` for pages you make yourself).
-`new_context(browser)` is a phone with a front and a back camera,
-`new_context(browser, "desktop")` a 1280x800 PC with one 16:9 webcam showing a
-test card (`window.__cameraRequests` lists the constraints asked for). Skip
-markers for test tooling a browser lacks: `chromium_only` (CDP),
-`needs_clipboard`, `firefox_only`. The CSP blocks string `wait_for_function`; use
-`expect(locator)` instead. Chromium's fake camera shows a moving test
-pattern; `VB_FAKE_VIDEO=file.y4m` swaps in your own clip.
-
-## Ownership (parallel work, merge without conflicts)
-
-| Area | Owns (may create/edit) |
-|---|---|
-| core | `virtubooth/*.py`, `virtubooth/static/core/`, `virtubooth/extensions/__init__.py`, `tests/conftest.py`, `tests/e2e/conftest.py`, `tests/*core*`, `pyproject.toml`, `uv.lock`, `docs/ARCHITECTURE.md` |
-| beer | `virtubooth/extensions/beer/`, `tests/test_beer*.py`, `tests/e2e/test_beer*.py` |
-| booth | `virtubooth/extensions/booth/`, `tests/test_booth*.py`, `tests/e2e/test_booth*.py` |
-| admin | `virtubooth/admin/` (api.py, any new modules, static/), `tests/test_admin*.py`, `tests/e2e/test_admin*.py` |
-| tools | `virtubooth/tools/`, `tests/test_tools*.py` |
-| ops | `Dockerfile`, `.dockerignore`, `compose.yaml`, `.env.example`, `README.md`, `docs/DEPLOY.md` |
+Backend fixtures (`backend/tests/conftest.py`): `settings` (never from the
+shell's `VB_*`), `app`, `core`, `client`, `guest(instagram=…)` (a joined guest
+client), `admin` (a logged-in client); override `extensions` in a module to
+load real ones. The e2e fixtures (`backend/tests/e2e/conftest.py`): `live` (the
+server: `.url()`, `.entry()` = the QR URL, `.core`), `page`, `admin_page`,
+`new_context(browser, "phone" | "desktop")`, `join_via_api`, `track_errors`,
+`wait_until_ready` and `shot` (screenshots into `VB_SCREENSHOT_DIR`).
+Browser-specific skips are marked `chromium_only`, `firefox_only` and
+`needs_clipboard`. `VB_FAKE_VIDEO=clip.y4m` swaps in your own camera clip.
