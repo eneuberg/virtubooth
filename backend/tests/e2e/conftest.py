@@ -413,31 +413,50 @@ def join_via_api(
     return answer
 
 
-# ------------------------------------------------- LEGACY (old markup)
-# TODO(wave 2, GP): port to the new join sheet; kept so ported tests have a start.
+# ------------------------------------------------- the join sheet (GP, wave 2)
+# Ported from the old markup; the names stay so every area's tests can use them.
+
+# the join sheet's one action (a submit button; "Mehr dazu" is a disclosure, not an action)
+JOIN_ACCEPT = "[data-testid=join] button[type=submit]"
 
 
 def settle_dialogs(page: Page) -> None:
-    """LEGACY: wait until the open dialogs' entry animations are done (old `.vb-scrim`)."""
+    """Wait until the open sheets' entry animations are done (`.vb-scrim` and
+    everything in it), so clicks and screenshots see the final position. The
+    animation class lands a frame after the sheet mounts, so wait two frames
+    first, then while anything in a scrim is entering or animating (max ~2 s)."""
     page.evaluate(
-        """() => Promise.all(document.getAnimations()
-            .filter((a) => a.effect && a.effect.target && a.effect.target.closest && a.effect.target.closest('.vb-scrim'))
-            .map((a) => a.finished.catch(() => null)))"""
+        """async () => {
+            const inScrim = (a) => a.effect && a.effect.target && a.effect.target.closest
+                && a.effect.target.closest('.vb-scrim');
+            const busy = () => !!document.querySelector('.vb-scrim[data-entering], .vb-scrim [data-entering]')
+                || document.getAnimations().some((a) => inScrim(a) && a.playState === 'running');
+            const frame = () => new Promise((resolve) => requestAnimationFrame(() => resolve(null)));
+            await frame();
+            await frame();
+            for (let i = 0; i < 120 && busy(); i++) await frame();
+            await Promise.all(document.getAnimations().filter(inScrim).map((a) => a.finished.catch(() => null)));
+        }"""
     )
 
 
 def accept_consent_in_browser(page: Page, instagram: str = "") -> None:
-    """LEGACY selectors: `join` test id, `#vb-join-insta`, the "Alles klar" button."""
-    page.get_by_test_id("join").wait_for()
+    """Accept the join sheet (test id `join`) the way a guest does: optionally type
+    an Instagram name into its one text field, press its one button, wait until it
+    is gone."""
+    sheet = page.get_by_test_id("join")
+    sheet.wait_for()
+    settle_dialogs(page)
     if instagram:
-        page.fill("#vb-join-insta", instagram)
-    page.get_by_role("button", name="Alles klar").click()
-    page.get_by_test_id("join").wait_for(state="detached")
+        sheet.get_by_role("textbox").fill(instagram)
+    page.locator(JOIN_ACCEPT).click()
+    sheet.wait_for(state="detached")
 
 
 @pytest.fixture
 def guest_page(page: Page, live: LiveServer) -> Page:
-    """A page that scanned the QR code and accepted the join dialog on /."""
+    """A page that scanned the QR code and accepted the join sheet on /."""
     page.goto(live.entry("/"))
     accept_consent_in_browser(page)
+    page.get_by_test_id("start").wait_for()
     return page

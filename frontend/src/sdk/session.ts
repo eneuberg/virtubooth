@@ -1,13 +1,32 @@
 /**
- * Guest session: identify → join → ready/banned, plus the upload gate.
- * OWNER: wave 2 "GP" (guest platform). Interface fixed by PLAN §4; bodies are TODO.
- * Port of vb.js boot()/identify/join/setInstagram (architecture.md §3.2–§3.4).
+ * Guest session: identify → join → ready / banned, plus the upload gate.
+ * Port of vb.js boot() / askConsent() / setInstagram() / the pause recheck
+ * (architecture.md §3.2–§3.4), as a small state machine in a zustand store.
+ *
+ *   loading ──identify──▶ needs_join ──joinParty──▶ ready ⇄ banned
+ *      │                     ▲   │ consent_outdated: identify again, new texts
+ *      └──fails──▶ error ────┘   └─ invalid_instagram etc.: stays, the sheet shows it
+ *
+ * - identify sends the device traits and the localStorage copy of `uid_token`
+ *   (key `vb_uid`): when the cookie is gone (cleared, ITP), the server still knows
+ *   the guest. Every answer with a `uid_token` refreshes that copy.
+ * - refreshSession() re-identifies quietly (no loading state, errors keep the old
+ *   state) on focus / visibility, every 30 s while paused, stopped or banned, and
+ *   after an upload answered 403. From `error` it retries in full.
+ * - noteUploadAnswer() lets an upload answer update paused / stopped at once.
  */
-import type { ApiError } from '@/api/errors';
-import type { ConsentInfo, GuestUser } from '@/api/types';
+import { useEffect } from 'react';
+import { useStore } from 'zustand';
+import { createStore } from 'zustand/vanilla';
+import { api, unwrap } from '@/api/client';
+import { ApiError, isApiError, type ApiErrorCode } from '@/api/errors';
+import type { ConsentInfo, GuestUser, IdentifyResponse, JoinResponse } from '@/api/types';
 import { msg } from '@/lib/messages.de';
+import { debugLog } from './debug';
+import { getDeviceTraits } from './device';
+import { isOnline } from './platform';
 
-/** What the join sheet shows (the server's consent texts). */
+/** What the join sheet shows (the server's join texts). */
 export type JoinInfo = ConsentInfo;
 
 export type SessionState =
@@ -17,35 +36,253 @@ export type SessionState =
   | { status: 'banned'; user: GuestUser }
   | { status: 'error'; error: ApiError };
 
-const TODO = (what: string) => new Error(`TODO(wave 2, GP): sdk/session ${what}`);
-
-/** The current session (useSyncExternalStore over a module store). */
-export function useSession(): SessionState {
-  // TODO(wave 2, GP): identify on first use (POST /api/identify with device traits + stored uid)
-  return { status: 'loading' };
+/** How the last join went (the sheet says "Du bist schon dabei als …" for a second tab). */
+export interface JoinOutcome {
+  alreadyJoined: boolean;
+  /** the server kept the handle it had and ignored the one typed in this tab */
+  instagramKept: boolean;
+  user: GuestUser;
 }
 
-/** Re-identify (after visibility change, every 30 s while paused/stopped, after upload answers). */
+interface Store {
+  session: SessionState;
+  outcome: JoinOutcome | null;
+}
+
+export const UID_KEY = 'vb_uid';
+/** the join texts the guest accepted, for "Was passiert mit meinen Fotos?" */
+export const JOIN_TEXT_KEY = 'vb_join_text';
+export const RECHECK_MS = 30_000;
+const QUIET_MS = 2_000;
+
+export const sessionStore = createStore<Store>(() => ({ session: { status: 'loading' }, outcome: null }));
+
+// ------------------------------------------------------------------ storage
+
+function readStorage(key: string): string | null {
+  try {
+    return localStorage.getItem(key);
+  } catch {
+    return null; // private mode, blocked storage
+  }
+}
+
+function writeStorage(key: string, value: string): void {
+  try {
+    localStorage.setItem(key, value);
+  } catch {
+    // private mode: the cookie still works
+  }
+}
+
+/** The join texts accepted on this device, if any (shown read-only later). */
+export function acceptedJoinText(): JoinInfo | null {
+  const raw = readStorage(JOIN_TEXT_KEY);
+  if (!raw) return null;
+  try {
+    const value: unknown = JSON.parse(raw);
+    if (
+      value &&
+      typeof value === 'object' &&
+      'paragraphs' in value &&
+      Array.isArray(value.paragraphs) &&
+      'title' in value &&
+      typeof value.title === 'string'
+    ) {
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- our own JSON, shape checked above
+      return value as JoinInfo;
+    }
+  } catch {
+    // a broken entry: as if there was none
+  }
+  return null;
+}
+
+// ------------------------------------------------------------------ state
+
+function set(session: SessionState, outcome?: JoinOutcome | null): void {
+  sessionStore.setState(outcome === undefined ? { session } : { session, outcome });
+}
+
+function get(): SessionState {
+  return sessionStore.getState().session;
+}
+
+function fromIdentified(res: {
+  state: 'ok' | 'banned';
+  user: GuestUser;
+  uploads_stopped: boolean;
+  uid_token: string;
+}): SessionState {
+  writeStorage(UID_KEY, res.uid_token);
+  if (res.state === 'banned' || res.user.banned) return { status: 'banned', user: res.user };
+  return { status: 'ready', user: res.user, uploadsStopped: res.uploads_stopped };
+}
+
+function fromIdentify(res: IdentifyResponse): SessionState {
+  if (res.state === 'needs_consent') return { status: 'needs_join', join: res.consent };
+  return fromIdentified(res);
+}
+
+function asApiError(err: unknown): ApiError {
+  if (isApiError(err)) return err;
+  const wrapped = new ApiError(0, 'client', msg.generic);
+  wrapped.cause = err;
+  return wrapped;
+}
+
+// ---------------------------------------------------------------- identify
+
+let inflight: Promise<void> | null = null;
+let started = false;
+let lastQuiet = 0;
+
+async function identify(full: boolean): Promise<void> {
+  const uid = readStorage(UID_KEY);
+  const fp = full ? await getDeviceTraits() : undefined;
+  debugLog('identify', full ? 'full' : 'quiet', fp ? fp.hash.slice(0, 12) : '');
+  const res = await unwrap(api.POST('/api/identify', { body: { ...(fp ? { fp } : {}), uid } }));
+  set(fromIdentify(res));
+}
+
+function run(task: () => Promise<void>): Promise<void> {
+  inflight ??= task().finally(() => {
+    inflight = null;
+  });
+  return inflight;
+}
+
+/** Starts the session once per page (main.tsx calls it before the first render). */
+export function startSession(): Promise<void> {
+  if (started) return inflight ?? Promise.resolve();
+  started = true;
+  installRechecks();
+  return run(async () => {
+    try {
+      await identify(true);
+    } catch (err) {
+      set({ status: 'error', error: asApiError(err) });
+    }
+  });
+}
+
+/**
+ * Re-identify. Ready / banned: quietly (the state stays on errors, e.g. offline).
+ * Error: a full retry through `loading`. Needs-join: fetches the join texts again.
+ */
 export function refreshSession(): Promise<void> {
-  return Promise.reject(TODO('refreshSession'));
+  if (!started) return startSession();
+  return run(async () => {
+    const s = get();
+    if (s.status === 'error') set({ status: 'loading' });
+    const quiet = s.status === 'ready' || s.status === 'banned';
+    try {
+      await identify(!quiet);
+    } catch (err) {
+      if (!quiet) set({ status: 'error', error: asApiError(err) });
+      else debugLog('recheck failed', String(err));
+    }
+  });
 }
 
-/** POST /api/join with the consent version and the optional Instagram name. */
-export function joinParty(input: { instagram: string | null }): Promise<void> {
-  void input;
-  return Promise.reject(TODO('joinParty'));
+/** The current session (useSyncExternalStore over the store); starts it on first use. */
+export function useSession(): SessionState {
+  useEffect(() => {
+    void startSession();
+  }, []);
+  return useStore(sessionStore, (s) => s.session);
 }
 
-/** PATCH /api/me; null or blank clears the name. */
-export function setInstagram(handle: string | null): Promise<GuestUser> {
-  void handle;
-  return Promise.reject(TODO('setInstagram'));
+/** The outcome of the last join in this tab (null before). */
+export function useJoinOutcome(): JoinOutcome | null {
+  return useStore(sessionStore, (s) => s.outcome);
+}
+
+/** The current state outside React. */
+export function getSession(): SessionState {
+  return get();
+}
+
+// ------------------------------------------------------------------ actions
+
+/**
+ * POST /api/join with the version of the texts the guest saw and the optional
+ * Instagram name. Rejects with the ApiError (the sheet shows its message).
+ * `consent_outdated`: the texts changed meanwhile; the session identifies again, so
+ * the sheet shows the new texts (or closes when another tab joined), then rejects.
+ */
+export async function joinParty(input: { instagram: string | null }): Promise<void> {
+  const s = get();
+  if (s.status !== 'needs_join') return;
+  const fp = await getDeviceTraits();
+  const instagram = input.instagram?.trim() || null;
+  let res: JoinResponse;
+  try {
+    res = await unwrap(
+      api.POST('/api/join', { body: { accept: true, version: s.join.version, instagram, fp } }),
+    );
+  } catch (err) {
+    if (isApiError(err) && err.code === 'consent_outdated') {
+      try {
+        await identify(true);
+      } catch {
+        // keep the old texts; the next try reports the problem
+      }
+    }
+    throw err;
+  }
+  writeStorage(JOIN_TEXT_KEY, JSON.stringify(s.join));
+  set(fromIdentified(res), {
+    alreadyJoined: res.already_joined,
+    instagramKept: res.instagram_kept,
+    user: res.user,
+  });
+}
+
+/** PATCH /api/me; null or blank clears the name. Rejects with the ApiError. */
+export async function setInstagram(handle: string | null): Promise<GuestUser> {
+  const instagram = handle?.trim().replace(/^@+/, '') || null;
+  try {
+    const { user } = await unwrap(api.PATCH('/api/me', { body: { instagram } }));
+    const s = get();
+    if (s.status === 'ready') set({ ...s, user });
+    else if (s.status === 'banned') set({ ...s, user });
+    return user;
+  } catch (err) {
+    if (isApiError(err) && (err.code === 'banned' || err.code === 'needs_consent')) void refreshSession();
+    throw err;
+  }
+}
+
+/**
+ * What an upload answer says about the gate (call it for every answer, AC's
+ * upload.ts does): 'ok' clears paused and stopped; `uploads_paused` /
+ * `uploads_stopped` set them at once and the session re-checks; `banned` and
+ * `needs_consent` re-identify.
+ */
+export function noteUploadAnswer(code: 'ok' | ApiErrorCode): void {
+  const s = get();
+  if (code === 'banned' || code === 'needs_consent') {
+    void refreshSession();
+    return;
+  }
+  if (s.status !== 'ready') return;
+  if (code === 'ok') {
+    if (s.user.uploads_paused || s.uploadsStopped) {
+      set({ ...s, user: { ...s.user, uploads_paused: false }, uploadsStopped: false });
+    }
+  } else if (code === 'uploads_paused') {
+    set({ ...s, user: { ...s.user, uploads_paused: true } });
+    void refreshSession();
+  } else if (code === 'uploads_stopped') {
+    set({ ...s, user: { ...s.user, uploads_paused: false }, uploadsStopped: true });
+    void refreshSession();
+  }
 }
 
 /**
  * Whether the guest may upload right now, and why not. Precedence as on the server
  * (architecture.md §5): banned > paused (this guest) > stopped (everyone).
- * Implemented already: pure, and the camera pages need it from day one.
  */
 export function canUpload(
   s: SessionState,
@@ -57,4 +294,43 @@ export function canUpload(
   if (s.user.uploads_paused) return { ok: false, reason: 'paused', message: msg.pausedText };
   if (s.uploadsStopped) return { ok: false, reason: 'stopped', message: msg.stoppedText };
   return { ok: true };
+}
+
+// ------------------------------------------------------------------ rechecks
+
+function blocked(s: SessionState): boolean {
+  return s.status === 'banned' || (s.status === 'ready' && (s.user.uploads_paused || s.uploadsStopped));
+}
+
+/** Focus, visibility, back online: a quick re-identify (not while the join sheet is up). */
+function onWake(): void {
+  if (document.visibilityState === 'hidden') return;
+  const s = get();
+  if (s.status === 'needs_join' || s.status === 'loading') return;
+  if (s.status === 'error' && !isOnline()) return;
+  const now = Date.now();
+  if (now - lastQuiet < QUIET_MS) return;
+  lastQuiet = now;
+  void refreshSession();
+}
+
+let installed = false;
+
+function installRechecks(): void {
+  if (installed || typeof window === 'undefined') return;
+  installed = true;
+  document.addEventListener('visibilitychange', onWake);
+  window.addEventListener('focus', onWake);
+  window.addEventListener('online', onWake);
+  setInterval(() => {
+    if (document.visibilityState !== 'hidden' && blocked(get())) void refreshSession();
+  }, RECHECK_MS);
+}
+
+/** Back to the start (tests only). */
+export function resetSession(): void {
+  started = false;
+  inflight = null;
+  lastQuiet = 0;
+  sessionStore.setState({ session: { status: 'loading' }, outcome: null });
 }
