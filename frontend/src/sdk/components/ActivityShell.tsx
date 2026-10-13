@@ -165,8 +165,10 @@ export function ActivityShell({
         >
           <ChevronLeft aria-hidden="true" className="size-7" strokeWidth={2} />
         </Link>
-        <div className="min-w-0 flex-1">{title}</div>
-        {topRight ? <div className="flex min-w-0 shrink justify-end">{topRight}</div> : null}
+        {/* the title (the activity switcher) keeps its width; the guest pass takes
+            what is left and shortens a long pseudonym ("Schickes Erdmännchen") */}
+        <div className="min-w-0 flex-[0_1_auto]">{title}</div>
+        {topRight ? <div className="flex min-w-11 flex-1 justify-end">{topRight}</div> : null}
       </header>
 
       <div

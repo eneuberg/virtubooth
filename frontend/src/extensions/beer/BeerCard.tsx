@@ -7,10 +7,11 @@ import { api, unwrap } from '@/api/client';
 import { formatCount, formatFrame } from '@/lib/format';
 import type { ExtensionCardProps } from '@/sdk/extension';
 import { Skeleton } from '@/ui/Skeleton';
+import { BEER_STATS_KEY } from './useBeerStats';
 
 export default function BeerCard(_props: ExtensionCardProps) {
   const { data } = useQuery({
-    queryKey: ['beer', 'stats'],
+    queryKey: BEER_STATS_KEY,
     queryFn: () => unwrap(api.GET('/api/x/beer/stats')),
     refetchInterval: 30_000,
   });

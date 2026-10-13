@@ -649,6 +649,11 @@
             "title": "Goal",
             "type": "integer"
           },
+          "next_number": {
+            "description": "The number the next beer gets (its seq), unless another guest is faster.",
+            "title": "Next Number",
+            "type": "integer"
+          },
           "total": {
             "description": "Beers on the board: visible, not deleted.",
             "title": "Total",
@@ -657,7 +662,8 @@
         },
         "required": [
           "total",
-          "goal"
+          "goal",
+          "next_number"
         ],
         "title": "BeerStats",
         "type": "object"

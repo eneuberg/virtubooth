@@ -110,11 +110,11 @@ function Outline({ vessel }: { vessel: Vessel }) {
   );
 }
 
-/** The board number of a sent beer (the board count, not the photo's seq). */
+/** A sent beer's number: its photo's seq, as "Deine Bilder" shows it (not the board count). */
 function beerNumber(shot: Shot): number | null {
   const r = shot.result;
   if (!r) return null;
-  return r.total ?? r.beer_number ?? r.photo.seq;
+  return r.beer_number ?? r.photo.seq;
 }
 
 /** Rendered inside GP's session gate: the guest has joined (banned/error never get here). */
@@ -196,8 +196,7 @@ export default function BeerPage({ id }: ExtensionPageProps) {
     setBusy(false);
     const result = await take(blob, { vessel, facing: cam.facing });
     if (result) {
-      const board = result.total ?? result.beer_number ?? result.photo.seq;
-      stats.note(board);
+      stats.note(result);
       vibrate([30, 60, 30]);
     }
   };
@@ -235,8 +234,10 @@ export default function BeerPage({ id }: ExtensionPageProps) {
   const shutterState: ShutterState =
     !live || !joined ? 'not-ready' : busy ? 'capturing' : blocked ? 'blocked' : 'ready';
   const number = shot ? beerNumber(shot) : null;
-  const next = stats.total === null ? undefined : stats.total + 1;
-  const togo = number === null ? null : Math.max(0, stats.goal - number);
+  const next = stats.next ?? undefined;
+  // towards the million counts the board (hidden and deleted beers don't)
+  const board = shot?.result?.total ?? stats.total;
+  const togo = board === null ? null : Math.max(0, stats.goal - board);
   const waitSeconds = shot ? Math.max(0, Math.ceil((shot.waitUntil - now) / 1000)) : 0;
 
   // ------------------------------------------------------------ film edge
@@ -246,11 +247,12 @@ export default function BeerPage({ id }: ExtensionPageProps) {
       <FilmEdge
         data-testid="counter"
         data-total={stats.total ?? ''}
+        data-next={next ?? ''}
         label="Nächstes Bier"
         {...(next === undefined ? {} : { frame: next })}
         end={<>Ziel {formatCount(stats.goal)}</>}
         state={outbox.pending > 0 ? 'waiting' : 'idle'}
-        advanceKey={stats.total ?? 0}
+        advanceKey={next ?? 0}
       />
     );
   } else {
@@ -304,7 +306,11 @@ export default function BeerPage({ id }: ExtensionPageProps) {
               Bier Nr.&nbsp;{formatNumber(number)} gezählt
             </h2>
             <p className="text-sm text-papier-muted">
-              {togo && togo > 0 ? `Noch ${formatNumber(togo)} bis zur Million. ` : 'Die Million ist voll! '}
+              {togo === null
+                ? ''
+                : togo > 0
+                  ? `Noch ${formatNumber(togo)} bis zur Million. `
+                  : 'Die Million ist voll! '}
               {number % 100 === 0 ? 'Jubiläumsbier!' : cheer}
             </p>
           </>

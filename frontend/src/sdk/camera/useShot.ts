@@ -8,6 +8,7 @@
 import { useEffect, useState } from 'react';
 import { ApiError } from '@/api/errors';
 import { formatFrame } from '@/lib/format';
+import { msg } from '@/lib/messages.de';
 import { showToast } from '@/ui/Toast';
 import {
   addToOutbox,
@@ -191,6 +192,13 @@ export function shotErrorText(error: ApiError | null, waitSeconds: number): stri
       return error.offline ? 'Keine Verbindung.' : 'Keine Verbindung zum Server.';
     case 'timeout':
       return 'Das Hochladen hat zu lange gedauert.';
+    // the guest's words for the gate (the status slot says the same), not the server's
+    case 'uploads_paused':
+      return msg.pausedText;
+    case 'uploads_stopped':
+      return msg.stoppedText;
+    case 'banned':
+      return msg.bannedShort;
     default:
       return error.message;
   }

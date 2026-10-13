@@ -12,6 +12,8 @@ import re
 import pytest
 from playwright.sync_api import Page, expect
 
+from virtubooth.domain.models import PhotoQuery
+
 from ..conftest import LiveServer, accept_consent_in_browser, join_via_api, shot
 from .conftest import errors_besides, no_horizontal_scroll, only_user, reload, upload
 
@@ -78,6 +80,25 @@ def test_deine_bilder_shows_only_own_visible_photos(guest_page: Page, live: Live
     expect(viewer.get_by_role("img")).to_have_attribute("src", a["url"])
     page.keyboard.press("Escape")
     expect(viewer.get_by_role("dialog")).to_have_count(0)
+    assert page.js_errors == []  # type: ignore[attr-defined]
+
+
+def test_a_new_shot_shows_in_deine_bilder_on_the_way_back(guest_page: Page, live: LiveServer):
+    """Start -> Beer Cam -> shot -> back, all inside the app (no reload): the photo is
+    in "Deine Bilder" right away, not "Noch keine Bilder" from before the shot."""
+    page = guest_page
+    expect(page.get_by_test_id("my-photos-empty")).to_be_visible()
+    page.get_by_test_id("tile-beer").click()
+    expect(page.get_by_test_id("beer-app")).to_have_attribute("data-ready", "1", timeout=20_000)
+    page.get_by_test_id("shutter").click()
+    expect(page.get_by_test_id("upload-status")).to_have_attribute(
+        "data-state", "done", timeout=20_000
+    )
+    page.get_by_test_id("back").click()
+    expect(page.get_by_test_id("start")).to_be_visible()
+    (photo,) = live.core.repos.photos.list(PhotoQuery(user_id=only_user(live).id))
+    expect(page.get_by_test_id(f"photo-{photo.public_id}")).to_be_visible()
+    expect(page.get_by_test_id("my-photos-empty")).to_have_count(0)
     assert page.js_errors == []  # type: ignore[attr-defined]
 
 
