@@ -178,3 +178,14 @@ class UploadOutBase(BaseModel):
 
 class HealthOut(BaseModel):
     ok: Literal[True]
+
+
+class HereIn(BaseModel):
+    """The guest page's heartbeat: every minute while it is visible, and once
+    with `visible: false` when it is hidden or closed."""
+
+    visible: bool = True
+
+
+class HereOut(BaseModel):
+    ok: Literal[True]

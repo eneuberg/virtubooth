@@ -126,6 +126,9 @@ class IdentityService:
                 "Damit wir Missbrauch verhindern können, erkennt die Seite dein Gerät "
                 "wieder: eine anonyme Geräte-ID, kein Name. Bei Ärger können wir einzelne "
                 "Geräte sperren.",
+                "Die Gastgeber sehen zu jedem Gast eine kleine Statistik: wie viele Fotos du "
+                "gemacht hast, wie lange die Seite bei dir offen war und über welchen QR-Code "
+                "du gekommen bist.",
                 "Wenn du das nicht möchtest, mach hier bitte keine Fotos.",
             ],
             instagram_prompt="Instagram-Name (freiwillig). Dann können wir dich markieren.",

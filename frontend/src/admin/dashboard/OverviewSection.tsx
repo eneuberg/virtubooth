@@ -136,8 +136,8 @@ export function OverviewSection() {
       <HelpDisclosure summary="Wie wird gezählt?" variant="section">
         <p>
           <strong className="text-ink">Aktiv:</strong> Gäste (nicht gesperrt), deren Seite in den letzten{' '}
-          {minutes(5)} mit dem Server gesprochen hat. <strong className="text-ink">Laden gerade hoch:</strong>{' '}
-          Gäste mit einem Upload in dieser Zeit.
+          {minutes(5)} offen war. Die Seite meldet sich jede Minute, solange sie sichtbar ist.{' '}
+          <strong className="text-ink">Laden gerade hoch:</strong> Gäste mit einem Upload in dieser Zeit.
         </p>
         <p>
           <strong className="text-ink">Gescannt:</strong> Browser, die einen gültigen QR-Code geöffnet haben.

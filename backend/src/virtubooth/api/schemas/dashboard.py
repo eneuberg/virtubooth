@@ -13,7 +13,8 @@ class OverviewGuests(BaseModel):
 
     total: int = Field(description="Every guest (device) that joined.")
     active_now: int = Field(
-        description="Guests, not banned, whose page talked to the server in the last 5 minutes."
+        description="Guests, not banned, whose page was open in the last 5 minutes "
+        "(it reports every minute while it is visible)."
     )
     uploading_now: int = Field(description="Distinct guests with an upload in the last 5 minutes.")
     instagram: int = Field(description="Guests that gave an Instagram handle.")

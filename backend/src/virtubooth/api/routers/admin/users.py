@@ -17,6 +17,7 @@ from ...schemas.admin import (
     UserDetailOut,
     UserListOut,
     UserRef,
+    UserStatsOut,
     UserUploadsIn,
     UserUploadsOut,
 )
@@ -50,7 +51,8 @@ def list_users(
 
 @router.get("/users/{user_id}")
 def get_user(user_id: UserId, core: CoreDep) -> UserDetailOut:
-    """A guest with their fingerprints (and who else showed them) and photos."""
+    """A guest with their fingerprints (and who else showed them), photos and
+    photo statistics."""
     repos, views = core.repos, core.services.views
     user = repos.users.get(user_id)
     if user is None:
@@ -72,6 +74,7 @@ def get_user(user_id: UserId, core: CoreDep) -> UserDetailOut:
         ],
         sharing=[UserRef.of(u) for u in repos.users.sharing_fingerprint(user_id)],
         photos=views.user_photos(user_id),
+        stats=UserStatsOut.model_validate(repos.read_models.user_stats(user_id)),
     )
 
 

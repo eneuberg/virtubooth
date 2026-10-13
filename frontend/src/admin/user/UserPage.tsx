@@ -1,7 +1,8 @@
 /**
  * /admin/user?id=: one guest on the light table. First screen: who it is, one status
- * line, two actions (pause uploading, ban / unban in a sheet). Then the guest's photos,
- * then the technical details, collapsed.
+ * line, two actions (pause uploading, ban / unban in a sheet). Then the statistics
+ * (online time, photos per activity), the guest's photos, then the technical details,
+ * collapsed.
  */
 import { useQueryClient } from '@tanstack/react-query';
 import { Ban, ChevronLeft, Copy, ExternalLink, Images, ShieldCheck, UserRoundX } from 'lucide-react';
@@ -37,6 +38,7 @@ import { pauseSource } from '../uploads/uploadState';
 import { BanSheet } from './BanSheet';
 import { TechDetails } from './TechDetails';
 import { UnbanSheet } from './UnbanSheet';
+import { UserStats } from './UserStats';
 
 const ID_RE = /^[1-9]\d{0,15}$/;
 const LINK =
@@ -284,6 +286,8 @@ function Guest({ detail }: { detail: UserDetail }) {
           )}
         </div>
       </header>
+
+      <UserStats detail={detail} extensions={extensions} />
 
       <section aria-labelledby="user-photos-title" className="grid gap-3">
         <h2 id="user-photos-title" className="flex items-baseline gap-2 text-lg font-bold">

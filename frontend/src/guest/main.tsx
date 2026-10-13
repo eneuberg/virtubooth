@@ -13,12 +13,14 @@ import '@/styles/app.css';
 import { isApiError } from '@/api/errors';
 import { installPreloadRecovery } from '@/lib/boot';
 import { installDebug } from '@/sdk/debug';
+import { startPresence } from '@/sdk/presence';
 import { startSession } from '@/sdk/session';
 import { GuestApp } from './routes';
 
 installDebug();
 installPreloadRecovery();
 void startSession();
+startPresence();
 
 const queryClient = new QueryClient({
   defaultOptions: {

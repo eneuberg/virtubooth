@@ -56,6 +56,7 @@ export function fallbackJoinText(instagramAccount: string): string[] {
   return [
     `Deine Fotos speichert die Party-Seite, die Gastgeber sehen sie und dürfen sie${where} posten.`,
     'Damit sie Missbrauch verhindern können, erkennt die Seite dein Gerät wieder: eine anonyme Geräte-ID, kein Name.',
+    'Die Gastgeber sehen zu jedem Gast eine kleine Statistik: wie viele Fotos du gemacht hast, wie lange die Seite bei dir offen war und über welchen QR-Code du gekommen bist.',
     'Wenn du das nicht möchtest, mach hier bitte keine Fotos.',
   ];
 }

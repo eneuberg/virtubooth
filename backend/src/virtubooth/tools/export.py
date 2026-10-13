@@ -57,7 +57,10 @@ PHOTO_COLUMNS = [
     "id", "extension", "seq", "created_at", "user", "instagram", "hidden", "hidden_reason",
     "width", "height", "meta", "file",
 ]  # fmt: skip
-USER_COLUMNS = ["user", "instagram", "consent_at", "photo_count", "banned", "ban_reason"]
+USER_COLUMNS = [
+    "user", "instagram", "consent_at", "photo_count", "banned", "ban_reason",
+    "online_seconds", "online_sessions",
+]  # fmt: skip
 INSTAGRAM_COLUMNS = ["instagram", "user", "photo_count", "files"]
 USERS_PAGE = 500  # UsersRepo.list caps a page at 500
 
@@ -207,7 +210,16 @@ def photos_csv(entries: list[Entry]) -> bytes:
 
 def users_csv(users: list[User]) -> bytes:
     rows: list[list[object]] = [
-        [u.name, u.instagram or "", u.consent_at, u.photo_count, int(u.banned), u.ban_reason or ""]
+        [
+            u.name,
+            u.instagram or "",
+            u.consent_at,
+            u.photo_count,
+            int(u.banned),
+            u.ban_reason or "",
+            u.online_seconds,
+            u.online_sessions,
+        ]
         for u in users
     ]
     return _csv(USER_COLUMNS, rows)

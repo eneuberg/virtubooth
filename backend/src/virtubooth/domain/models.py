@@ -47,6 +47,11 @@ class User:
     uploads_paused_at: str | None = None
     uploads_paused_source: str | None = None  # PAUSE_ADMIN | PAUSE_NEW_GUEST_LOCK
     uploads_lock_period: int | None = None  # the new-guest lock period that paused them
+    # online time (POST /api/here, see services/presence.py): the visible time
+    # added up, the visits, and the last beat of the visit open right now
+    online_seconds: int = 0
+    online_sessions: int = 0
+    online_at: str | None = None
 
     @property
     def banned(self) -> bool:
@@ -257,3 +262,23 @@ class InstagramHandle:
     visible: int = 0
     hidden: int = 0
     last_upload_at: str | None = None
+
+
+@dataclass(frozen=True)
+class ActivityCount:
+    id: str
+    photos: int
+
+
+@dataclass(frozen=True)
+class UserStats:
+    """One guest's photos for the admin's user page. `photos` and `by_activity`
+    count the ones not deleted; first/last include deleted ones (uploads)."""
+
+    photos: int
+    visible: int
+    hidden: int
+    deleted: int
+    by_activity: list[ActivityCount]
+    first_photo_at: str | None
+    last_photo_at: str | None

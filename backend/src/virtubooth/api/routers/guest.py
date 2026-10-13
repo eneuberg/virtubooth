@@ -15,6 +15,8 @@ from ..schemas.guest import (
     ExtensionsOut,
     GuestPhoto,
     GuestUser,
+    HereIn,
+    HereOut,
     IdentifiedOut,
     IdentifyIn,
     IdentifyOut,
@@ -119,6 +121,15 @@ def my_photos(user: MeDep, core: CoreDep) -> MyPhotosOut:
     newest first, at most 60."""
     photos = core.services.identity.my_photos(user)
     return MyPhotosOut(photos=[GuestPhoto.of(p) for p in photos])
+
+
+@router.post("/here", dependencies=[AccessDep])
+def here(body: HereIn, request: Request, core: CoreDep) -> HereOut:
+    """The page's heartbeat: every minute while it is visible, once with
+    `visible: false` when it is hidden. Joined guests: online time and last
+    seen (one write); not joined yet: the visitor's last seen (throttled)."""
+    core.services.presence.here(request, visible=body.visible)
+    return HereOut(ok=True)
 
 
 @router.get("/extensions", dependencies=[AccessDep])

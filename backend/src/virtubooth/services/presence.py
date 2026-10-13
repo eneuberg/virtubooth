@@ -8,6 +8,12 @@ host's dashboard (see domain/overview.py for what is counted).
 - Guest API requests refresh `users.last_seen_at` (joined guests) or the
   visitor's `last_seen_at` (not joined yet), at most once per device and
   THROTTLE_SECONDS, so a busy party does not turn into a write per request.
+- The heartbeat (`POST /api/here`, `here()`): the guest page reports every
+  minute while it is visible and once when it is hidden. For a joined guest
+  each beat is one small UPDATE that adds up the online time and the visits
+  (domain/overview.py) and refreshes `last_seen_at`, so an idle open page stays
+  "active now". A browser that has not joined yet only refreshes its visitor
+  (throttled). 300 guests are about 5 writes a second.
 """
 
 from __future__ import annotations
@@ -16,6 +22,7 @@ import secrets
 import threading
 import time
 from collections.abc import Callable
+from datetime import UTC, datetime
 from typing import TYPE_CHECKING
 
 from starlette.requests import Request
@@ -84,6 +91,8 @@ class PresenceService:
 
     def note(self, request: Request) -> None:
         """A guest API request: refresh the device's last-seen time (throttled)."""
+        if request.url.path == "/api/here":
+            return  # the heartbeat writes it itself, in its one UPDATE: here()
         public_id = self.core.signer.unsign("uid", request.cookies.get(UID_COOKIE))
         if public_id:
             if self._due(f"u:{public_id}"):
@@ -107,3 +116,23 @@ class PresenceService:
     def _remember(self, key: str) -> None:
         with self._lock:
             self._last[key] = self.clock()
+
+    # ------------------------------------------------------------ online time
+
+    def now(self) -> datetime:
+        """The wall-clock time of a beat (tests replace it on the instance)."""
+        return datetime.now(UTC)
+
+    def here(self, request: Request, *, visible: bool) -> None:
+        """The guest page's heartbeat. A joined guest (signed `vb_uid` cookie):
+        online time, visits and last seen in one write (repositories/presence.py
+        `beat()`); then `note()` leaves the device alone for THROTTLE_SECONDS.
+        Not joined yet: the visitor's last seen, throttled like `note()`."""
+        public_id = self.core.signer.unsign("uid", request.cookies.get(UID_COOKIE))
+        if public_id:
+            self.repos.presence.beat(public_id, visible=visible, now=self.now())
+            self._remember(f"u:{public_id}")
+            return
+        vid = self.visitor_id(request)
+        if vid and self._due(f"v:{vid}"):
+            self.repos.presence.touch_visitor(vid, at=now_iso())

@@ -587,7 +587,8 @@ export interface paths {
         };
         /**
          * Get User
-         * @description A guest with their fingerprints (and who else showed them) and photos.
+         * @description A guest with their fingerprints (and who else showed them), photos and
+         *     photo statistics.
          */
         get: operations["get_user_api_admin_users__user_id__get"];
         put?: never;
@@ -674,6 +675,28 @@ export interface paths {
         get: operations["list_extensions_api_extensions_get"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/here": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Here
+         * @description The page's heartbeat: every minute while it is visible, once with
+         *     `visible: false` when it is hidden. Joined guests: online time and last
+         *     seen (one write); not joined yet: the visitor's last seen (throttled).
+         */
+        post: operations["here_api_here_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -890,6 +913,19 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        /** ActivityCountOut */
+        ActivityCountOut: {
+            /**
+             * Id
+             * @description The activity (extension) id.
+             */
+            id: string;
+            /**
+             * Photos
+             * @description Non-deleted photos.
+             */
+            photos: number;
+        };
         /**
          * AdminCode
          * @description One QR code, also when revoked („gelöscht“: `active` false).
@@ -1052,6 +1088,21 @@ export interface components {
             last_seen_at: string;
             /** Name */
             name: string;
+            /**
+             * Online Now
+             * @description The page is open and visible right now (a beat within 150 s).
+             */
+            online_now: boolean;
+            /**
+             * Online Seconds
+             * @description Visible time added up, seconds.
+             */
+            online_seconds: number;
+            /**
+             * Online Sessions
+             * @description Visits: a new one starts after 150 s without a beat.
+             */
+            online_sessions: number;
             /**
              * Photo Count
              * @description Non-deleted photos.
@@ -1708,6 +1759,26 @@ export interface components {
             ok: true;
         };
         /**
+         * HereIn
+         * @description The guest page's heartbeat: every minute while it is visible, and once
+         *     with `visible: false` when it is hidden or closed.
+         */
+        HereIn: {
+            /**
+             * Visible
+             * @default true
+             */
+            visible: boolean;
+        };
+        /** HereOut */
+        HereOut: {
+            /**
+             * Ok
+             * @constant
+             */
+            ok: true;
+        };
+        /**
          * IdentifiedOut
          * @description A known device. `uid_token` is also set as the `vb_uid` cookie.
          *     `join_text`: the join texts of the current version, so a joined guest can read
@@ -1944,7 +2015,7 @@ export interface components {
         OverviewGuests: {
             /**
              * Active Now
-             * @description Guests, not banned, whose page talked to the server in the last 5 minutes.
+             * @description Guests, not banned, whose page was open in the last 5 minutes (it reports every minute while it is visible).
              */
             active_now: number;
             /** Banned */
@@ -2520,6 +2591,7 @@ export interface components {
              * @description Guests that showed any of these fingerprints.
              */
             sharing: components["schemas"]["UserRef"][];
+            stats: components["schemas"]["UserStatsOut"];
             user: components["schemas"]["AdminUser"];
         };
         /**
@@ -2547,6 +2619,38 @@ export interface components {
             instagram: string | null;
             /** Name */
             name: string;
+        };
+        /**
+         * UserStatsOut
+         * @description A guest's photos at a glance (the user page's „Statistik“).
+         */
+        UserStatsOut: {
+            /**
+             * By Activity
+             * @description Non-deleted photos, most first.
+             */
+            by_activity: components["schemas"]["ActivityCountOut"][];
+            /** Deleted */
+            deleted: number;
+            /**
+             * First Photo At
+             * @description First upload (deleted ones included).
+             */
+            first_photo_at: string | null;
+            /** Hidden */
+            hidden: number;
+            /**
+             * Last Photo At
+             * @description Last upload (deleted ones included).
+             */
+            last_photo_at: string | null;
+            /**
+             * Photos
+             * @description Non-deleted photos.
+             */
+            photos: number;
+            /** Visible */
+            visible: number;
         };
         /** UserUnbannedEvent */
         UserUnbannedEvent: {
@@ -6420,6 +6524,84 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ExtensionsOut"];
+                };
+            };
+            /** @description Forbidden: banned, paused, stopped, joining closed or a foreign Origin (CSRF) */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Not found, or no party access (`scan_qr`) */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Content-Length required */
+            411: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Request too large */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Request validation failed (`invalid_request`) */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Rate limited (`Retry-After` header) */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    here_api_here_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["HereIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HereOut"];
                 };
             };
             /** @description Forbidden: banned, paused, stopped, joining closed or a foreign Origin (CSRF) */

@@ -160,3 +160,16 @@ export function monogram(name: string): string {
     .map((w) => w.charAt(0).toLocaleUpperCase('de-DE'))
     .join('');
 }
+
+/**
+ * Online time: 0 → "–", 40 → "unter 1 min", 754 → "12 min", 3900 → "1 h 05 min"
+ * (whole minutes, cut off).
+ */
+export function formatDuration(seconds: number): string {
+  if (!(seconds > 0)) return '–';
+  if (seconds < 60) return `unter 1${NBSP}min`;
+  const total = Math.floor(seconds / 60);
+  if (total < 60) return `${total}${NBSP}min`;
+  const mins = String(total % 60).padStart(2, '0');
+  return `${formatNumber(Math.floor(total / 60))}${NBSP}h ${mins}${NBSP}min`;
+}
