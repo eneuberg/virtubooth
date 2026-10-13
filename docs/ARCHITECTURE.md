@@ -97,8 +97,9 @@ sequenceDiagram
   R->>S: upload(ext, user, request)
   S->>S: paused? stopped? JPEG? per-guest limit, IP/global limits, size cap
   S->>S: meta keys + validate_meta, decode, exact size, re-encode (no EXIF), thumbnail
-  S->>DB: write files, then in one transaction: photos row (seq), on_upload
-  S-->>B: photo.created (after commit)
+  S->>DB: write photo + thumbnail atomically, then insert the photos row (seq)
+  S->>S: the extension's on_upload(ctx): extra answer fields
+  S-->>B: photo.created
   B-->>A: event: photo.created
   R-->>P: 201 {photo, beer_number, total}
   P->>P: remove from the outbox, show "Bier Nr. … gezählt"

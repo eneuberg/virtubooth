@@ -82,7 +82,7 @@ as extensions.
     with keyboard shortcuts, an inspector panel, and "Löschen…" (removes the
     files for good; numbers are never reused).
   - **Gäste**: the guests with pseudonym, Instagram name, photo count and
-    status, and a per-guest upload pause.
+    status, filterable (for example "Hochladen pausiert").
   - **Instagram**: every handle with its photos, a **ZIP per handle** to post
     from, and an **"Erledigt"** mark once you have tagged them.
   - **Sperren**: bans and **device bans** ("Gerätemerkmal"). A device ban
@@ -92,12 +92,14 @@ as extensions.
   - **Export**: archive (ZIP with photos, CSVs and optionally the database),
     timelapse (MP4 via ffmpeg) and QR sheet, as background jobs with progress
     and a download.
-- **Guest page** (`/admin/user?id=…`): a status line, two main actions, the
-  ban in a sheet ("Gerätemerkmal auch sperren"), technical details collapsed.
+- **Guest page** (`/admin/user?id=…`): a status line, their photos, the
+  per-guest "Hochladen pausieren", the ban in a sheet ("Gerätemerkmal auch
+  sperren"), technical details collapsed.
 - **Upload controls** (the "Hochladen" sheet behind the status pill):
   "Hochladen für alle stoppen" for a short emergency stop, "Neue Gäste
   pausieren" for whoever joins from now on (ending that pause asks whether to
-  free exactly those guests or keep them paused), and the per-guest pause.
+  free exactly those guests or keep them paused), and the list of paused
+  guests with "Hochladen für … erlauben".
 - **Deep links**: `?photo=<id>` opens a photo on the live screen, in Fotos and
   on the guest page.
 
