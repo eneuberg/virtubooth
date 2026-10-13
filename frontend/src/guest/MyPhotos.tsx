@@ -4,6 +4,7 @@
  * the rest behind "Alle … zeigen". A tap opens the viewer (Speichern / Teilen).
  * Empty: blank frames and an invitation.
  */
+import { ImagePlus } from 'lucide-react';
 import { useId, useState } from 'react';
 import type { GuestPhoto } from '@/api/types';
 import { formatNumber, formatTime, frameLabel } from '@/lib/format';
@@ -24,9 +25,11 @@ function EmptyFrames({ activities }: { activities: string }) {
     <div className="grid gap-3" data-testid="my-photos-empty">
       <div aria-hidden="true" className={GRID}>
         {Array.from({ length: 4 }, (_, i) => (
-          <span key={i} className="grid gap-1.5">
-            <span className="block aspect-[3/4] border border-dashed border-line-strong" />
-            <span className="h-3 w-2/3 rounded-small bg-surface-sunk" />
+          <span
+            key={i}
+            className="grid aspect-[3/4] place-items-center border border-dashed border-line-strong text-accent-ink"
+          >
+            {i === 0 ? <ImagePlus className="size-6" strokeWidth={1.75} /> : null}
           </span>
         ))}
       </div>

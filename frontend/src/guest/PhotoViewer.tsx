@@ -122,7 +122,7 @@ export function PhotoViewer({ photos, index, onIndexChange }: PhotoViewerProps) 
           ) : (
             <span />
           )}
-          <figure className="mx-auto grid w-full max-w-[calc(min(60dvh,36rem)*0.75)]">
+          <figure className="mx-auto grid w-full max-w-[calc(min(60dvh,36rem)*0.75)] landscape-phone:max-w-[calc(38dvh*0.75)]">
             <div className="aspect-[3/4] overflow-hidden bg-surface-sunk">
               <img
                 key={photo.id}

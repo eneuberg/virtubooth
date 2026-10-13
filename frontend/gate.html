@@ -21,9 +21,12 @@
   </head>
   <body>
     <main
-      class="mx-auto grid min-h-dvh max-w-[35rem] content-center gap-6 px-6 py-8 lg:max-w-[65rem] lg:grid-cols-[22.5rem_1fr] lg:items-center lg:gap-16"
+      class="mx-auto grid min-h-dvh max-w-[35rem] content-center gap-6 px-6 py-8 lg:max-w-[65rem] lg:grid-cols-[22.5rem_1fr] lg:items-center lg:gap-16 landscape-phone:max-w-[48rem] landscape-phone:grid-cols-[9rem_1fr] landscape-phone:items-center landscape-phone:gap-8 landscape-phone:py-6"
     >
-      <div class="relative grid aspect-[3/4] w-50 place-items-center bg-film lg:w-full" aria-hidden="true">
+      <div
+        class="relative grid aspect-[3/4] w-50 place-items-center bg-film lg:w-full landscape-phone:w-full"
+        aria-hidden="true"
+      >
         <svg class="absolute inset-x-0 top-1.5 h-2 w-full text-film-hole">
           <defs>
             <pattern id="gate-holes" width="14" height="8" patternUnits="userSpaceOnUse">
@@ -34,7 +37,7 @@
         </svg>
         <span class="vb-mode-gate">
           <svg
-            class="size-24 text-accent lg:size-48"
+            class="size-24 text-accent lg:size-48 landscape-phone:size-16"
             viewBox="0 0 24 24"
             fill="none"
             stroke="currentColor"
@@ -54,7 +57,7 @@
         </span>
         <span class="vb-mode-notfound">
           <svg
-            class="size-24 text-accent lg:size-48"
+            class="size-24 text-accent lg:size-48 landscape-phone:size-16"
             viewBox="0 0 24 24"
             fill="none"
             stroke="currentColor"
