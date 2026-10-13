@@ -8,9 +8,20 @@ match every URL the app serves or requests (tests/unit/blockerlists.py) against
 real filter rules: the API routes, pages, media URLs and the files of the built
 frontend (the stub build, plus frontend/dist when it exists).
 
-The element checks (cosmetic rules, the join dialog's names) need the rendered
-DOM of the new frontend; they are kept in tests/e2e_legacy/ until the e2e suite
-scans the rendered pages (wave 3).
+The frontend's own files, by how they reach a browser:
+
+- `frontend/public/*` and the HTML entries ship under their names: they must pass
+  the rules and the name heuristic (FILE_NAME_RE), with or without a build.
+- `frontend/src/**` never ships under its name: Vite bundles and hashes it into
+  neutral `a-`/`c-`/`e-` names (scripts/check-names.mjs fails the build otherwise),
+  and those are checked above with the heuristic. Only `vite dev` serves sources by
+  path (`/src/sdk/upload.ts`), so a source path matters only when a real rule would
+  drop it there; the heuristic does not apply. (`upload.ts` trips the heuristic,
+  "ad." at the end of "upload", but matches no rule in any list: it keeps its name.)
+
+The element checks (cosmetic rules, the join dialog's names) run on the rendered
+DOM in the e2e suite (tests/e2e/guest/blockers.py: every main screen of the guest
+app, the activities and the admin).
 
 Rule sources:
 
@@ -32,7 +43,7 @@ from urllib.parse import urlsplit
 import pytest
 
 from virtubooth.extensions.sdk import Extension, discover_extensions
-from virtubooth.settings import DEFAULT_WEB_DIR
+from virtubooth.settings import DEFAULT_WEB_DIR, REPO_ROOT
 
 from ..conftest import FIXTURES, PARTY_TOKEN
 from . import blockerlists as bl
@@ -40,6 +51,9 @@ from . import blockerlists as bl
 VENDORED = FIXTURES / "blocker_rules.txt"
 # the real build, when there is one: its file names must pass too
 BUILT = [DEFAULT_WEB_DIR] if DEFAULT_WEB_DIR.is_dir() else []
+FRONTEND = REPO_ROOT / "frontend"
+# the HTML entries (vite.config.ts); served under their routes, but their names ship
+ENTRIES = ("index.html", "admin.html", "gate.html")
 # what a served file may not be called (hashes included: "…ad.js" fails)
 FILE_NAME_RE = re.compile(
     r"fingerprint|track|analytic|telemetry|beacon|pixel|advert|banner|consent|cookie|gdpr|ads?[-_./]",
@@ -223,3 +237,58 @@ def test_served_file_names_avoid_blocker_keywords(app):
     assert names, "no served files found"
     bad = [n for n in names if FILE_NAME_RE.search(n.rsplit("/", 1)[-1])]
     assert bad == []
+
+
+# ------------------------------------------- the frontend's own files
+
+
+def frontend_public() -> list[bl.Request]:
+    """frontend/public/* as served from the site root (they keep their names)."""
+    folder = FRONTEND / "public"
+    if not folder.is_dir():
+        pytest.skip("no frontend/ next to the backend")
+    return [
+        bl.Request(
+            f"{bl.BASE}/{f.relative_to(folder).as_posix()}", bl.ASSET_TYPES.get(f.suffix, "other")
+        )
+        for f in sorted(folder.rglob("*"))
+        if f.is_file()
+    ]
+
+
+def frontend_sources() -> list[bl.Request]:
+    """frontend/src/** as `vite dev` serves it (by path; modules load as scripts)."""
+    folder = FRONTEND / "src"
+    if not folder.is_dir():
+        pytest.skip("no frontend/ next to the backend")
+    out = []
+    for f in sorted(folder.rglob("*")):
+        if not f.is_file():
+            continue
+        typ = "script" if f.suffix in (".ts", ".tsx") else bl.ASSET_TYPES.get(f.suffix, "other")
+        out.append(bl.Request(f"{bl.BASE}/{f.relative_to(FRONTEND).as_posix()}", typ))
+    assert len(out) > 100
+    return out
+
+
+def test_public_files_and_entries_avoid_blocker_keywords():
+    """They ship under their names: rules and the name heuristic, no build needed."""
+    public = frontend_public()
+    names = [r.url.rsplit("/", 1)[-1] for r in public] + list(ENTRIES)
+    assert "boot-check.js" in names
+    for entry in ENTRIES:
+        assert (FRONTEND / entry).is_file(), entry
+    assert [n for n in names if FILE_NAME_RE.search(n)] == []
+    words = TRACKING_WORDS + COOKIE_NOTICE_WORDS
+    assert [n for n in names if any(w in f"/{n.lower()}" for w in words)] == []
+    assert network_hits(public, vendored_lists()) == []
+
+
+def test_source_paths_survive_vendored_rules():
+    """Sources ship hashed; only the dev server serves them by path. No rule may drop one
+    there (the name heuristic is for shipped names, see the module docstring)."""
+    assert network_hits(frontend_sources(), vendored_lists()) == []
+
+
+def test_public_files_and_sources_survive_full_lists(full_lists):
+    assert network_hits(frontend_public() + frontend_sources(), full_lists) == []
