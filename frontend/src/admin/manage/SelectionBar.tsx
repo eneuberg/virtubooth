@@ -2,6 +2,7 @@ import { Eye, EyeOff, Trash2, X } from 'lucide-react';
 import { t } from '@/lib/messages.de';
 import { Button } from '@/ui/Button';
 import { formatNumber } from '@/lib/format';
+import { toastAvoid } from '@/ui/toastPlacement';
 
 /**
  * The sticky bar while photos are selected: bulk Ausblenden / Einblenden / Löschen….
@@ -29,6 +30,7 @@ export function SelectionBar({
       aria-label="Auswahl"
       data-testid="bulkbar"
       data-surface="dark"
+      {...toastAvoid}
       className="fixed inset-x-0 bottom-[calc(4rem+env(safe-area-inset-bottom))] z-(--z-bar) flex items-center gap-2 bg-negativ px-3 py-2 text-leuchttisch lg:bottom-0 lg:left-62 lg:px-6 lg:py-3"
     >
       <strong data-testid="bulk-count" className="mr-1 shrink-0 text-sm tabular">

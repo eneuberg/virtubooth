@@ -19,6 +19,7 @@ import { Link } from 'react-aria-components';
 import { cx } from '@/ui/cx';
 import { iconButtonStyles } from '@/ui/IconButton';
 import { ToastSlot } from '@/ui/Toast';
+import { toastAvoid } from '@/ui/toastPlacement';
 
 export interface ActivityShellProps {
   /** the title area, normally <ActivityMenu currentId title /> */
@@ -150,6 +151,7 @@ export function ActivityShell({
       </h1>
       <header
         ref={header}
+        {...toastAvoid}
         className={cx(
           'z-(--z-sticky) box-content flex h-14 min-w-0 items-center gap-1 px-2 pt-[env(safe-area-inset-top)]',
           'short:absolute short:inset-x-0 short:top-0 short:bg-linear-to-b short:from-black/70 short:to-transparent',
@@ -207,9 +209,16 @@ export function ActivityShell({
         )}
       >
         <div ref={lowerInner} className="grid min-w-0 gap-3 short:gap-2">
-          {strip ? <div className="min-w-0">{strip}</div> : null}
+          {/* strip, hint and controls are action areas: a toast moves above them (and
+              stays under the header) */}
+          {strip ? (
+            <div className="min-w-0" {...toastAvoid}>
+              {strip}
+            </div>
+          ) : null}
           {hint ? (
             <div
+              {...toastAvoid}
               className="px-4 text-center text-md empty:hidden landscape-phone:text-left"
               data-testid="hint-row"
             >
@@ -217,6 +226,7 @@ export function ActivityShell({
             </div>
           ) : null}
           <div
+            {...toastAvoid}
             className={cx(
               'px-4',
               controlsLayout === 'camera'
