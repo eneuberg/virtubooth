@@ -771,7 +771,7 @@ function invalidate(tab, ms = 800) {
 
 // ================================================================ stats
 
-const refreshStats = throttle(async () => {
+async function loadStats() {
   try {
     const s = await aapi('/api/admin/stats');
     document.getElementById('count-fotos').textContent = String(s.photos);
@@ -781,7 +781,8 @@ const refreshStats = throttle(async () => {
     instaTab.title = handleCount(s.instagram_handles, s.instagram);
     document.getElementById('count-sperren').textContent = String(s.banned + s.fingerprint_bans);
   } catch (_) { /* try again on the next event */ }
-}, 400);
+}
+const refreshStats = throttle(loadStats, 400);
 
 // =============================================================== events
 
@@ -878,7 +879,7 @@ async function main() {
   fillExtSelect(extensions);
   await fillUserSelect();
   showTab(state.tab);
-  refreshStats();
+  loadStats(); // right away: the throttled refresh leaves the tab counts empty for a moment
   connectEvents({ onEvent, onResync });
 }
 
