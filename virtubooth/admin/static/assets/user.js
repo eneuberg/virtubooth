@@ -5,6 +5,7 @@ import {
   instagramUrl, Lightbox, loadExtensions, managementActions, mountHeader, PhotoCollection, photoTile,
   relTime, runToggle, showError, toast, userUrl,
 } from './admin.js';
+import { guestUploadsPanel } from './uploadcontrols.js';
 
 const root = document.getElementById('user-root');
 const rawId = new URLSearchParams(location.search).get('id') || '';
@@ -237,6 +238,7 @@ function render() {
   root.replaceChildren(
     h('div', { class: 'adm-userpage' },
       area(profilePanel(u), 'profile'),
+      area(guestUploadsPanel(u, { onChanged: load }), 'pause'),
       area(u.banned ? bannedPanel(u) : banPanel(u), 'ban'),
       h('section', { class: 'adm-section adm-area-uploads', 'data-testid': 'uploads' },
         h('h2', {}, '📸 Uploads', uploadsCount),
@@ -266,7 +268,7 @@ async function load() {
 /** what the side panels show; photos are synced in place */
 function panelKey(d) {
   return JSON.stringify([
-    d.user.banned, d.user.ban_reason, d.user.instagram, d.user.fp_hash,
+    d.user.banned, d.user.ban_reason, d.user.instagram, d.user.fp_hash, d.user.uploads_paused, d.user.uploads_paused_source,
     d.fingerprints.map((f) => [f.fp_hash, f.banned, f.users.map((o) => [o.id, o.banned])]),
   ]);
 }
@@ -311,6 +313,8 @@ function onEvent(type, payload) {
     if (payload.user.id === data.user.id) load();
   } else if (type.startsWith('fingerprint.')) {
     refresh();
+  } else if (type === 'user.uploads_changed') {
+    if (payload.users.some((x) => x.id === data.user.id)) refresh();
   }
 }
 

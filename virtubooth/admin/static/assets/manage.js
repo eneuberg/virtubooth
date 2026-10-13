@@ -6,6 +6,7 @@ import {
   instagramUrl, Lightbox, loadExtensions, managementActions, mountHeader, PhotoCollection, photoTile,
   photoTitle, qs, relTime, runToggle, segmented, showError, throttle, toast, userLink, userUrl,
 } from './admin.js';
+import { mountUploadControls, pausedBadge, UPLOAD_AUDIT_LABELS } from './uploadcontrols.js';
 
 const TABS = ['fotos', 'gaeste', 'instagram', 'sperren', 'protokoll'];
 const PAGE = 48;
@@ -365,7 +366,10 @@ async function bulk(action) {
 
 // ================================================================ GÄSTE
 
-const gaeste = { el: document.getElementById('panel-gaeste'), search: '', banned: 'all', next: null, reqId: 0 };
+const gaeste = {
+  el: document.getElementById('panel-gaeste'), search: '', next: null, reqId: 0,
+  banned: params.get('show') === 'paused' ? 'paused' : 'all', // "Zeigen" filter
+};
 const guestSearch = h('input', {
   class: 'adm-search', type: 'search', placeholder: 'Name, @instagram oder #Nummer', 'aria-label': 'Gäste suchen',
   autocomplete: 'off', autocapitalize: 'none', spellcheck: 'false', maxlength: '100', 'data-testid': 'guest-search',
@@ -380,7 +384,7 @@ function buildGaeste() {
   gaeste.el.append(
     h('div', { class: 'adm-toolbar' },
       field('Suche', guestSearch),
-      field('Zeigen', segmented([['all', 'Alle'], ['banned', 'Gesperrte'], ['ok', 'Nicht gesperrt']], gaeste.banned,
+      field('Zeigen', segmented([['all', 'Alle'], ['banned', 'Gesperrte'], ['ok', 'Nicht gesperrt'], ['paused', '⏸ Pausiert']], gaeste.banned,
         (v) => { gaeste.banned = v; loadGaeste(); }, { label: 'Filter' }), 'div'),
       h('div', { class: 'adm-toolbar-end' }, guestCount),
     ),
@@ -396,7 +400,7 @@ function guestRow(u) {
   ].join(' · ');
   return h('a', { class: `adm-row${u.banned ? ' is-banned' : ''}`, href: userUrl(u.id), 'data-testid': 'guest-row' },
     h('div', { class: 'adm-row-main' },
-      h('div', { class: 'adm-row-title' }, `🙂 ${u.name}`, u.banned ? h('span', { class: 'adm-badge adm-badge--ban adm-badge--xs' }, 'GESPERRT') : null),
+      h('div', { class: 'adm-row-title' }, `🙂 ${u.name}`, u.banned ? h('span', { class: 'adm-badge adm-badge--ban adm-badge--xs' }, 'GESPERRT') : null, pausedBadge(u)),
       h('div', { class: 'adm-row-sub' }, sub),
     ),
     h('div', { class: 'adm-row-side' }, h('span', { class: 'adm-num', title: 'Fotos' }, `📸 ${u.photo_count}`), h('span', { 'aria-hidden': 'true' }, '›')),
@@ -405,11 +409,12 @@ function guestRow(u) {
 
 async function loadGaeste({ more = false } = {}) {
   const req = ++gaeste.reqId;
-  const banned = { all: '', banned: 'true', ok: 'false' }[gaeste.banned];
+  const banned = { all: '', banned: 'true', ok: 'false', paused: '' }[gaeste.banned];
+  const paused = gaeste.banned === 'paused' ? 'true' : '';
   const offset = more ? gaeste.next || 0 : 0;
   if (!more && !guestList.children.length) guestList.replaceChildren(spinner());
   try {
-    const data = await aapi(`/api/admin/users${qs({ search: gaeste.search, banned, limit: 100, offset })}`);
+    const data = await aapi(`/api/admin/users${qs({ search: gaeste.search, banned, paused, limit: 100, offset })}`);
     if (req !== gaeste.reqId) return;
     if (!more) guestList.replaceChildren();
     guestList.append(...data.users.map(guestRow));
@@ -418,7 +423,7 @@ async function loadGaeste({ more = false } = {}) {
     }
     gaeste.next = data.next_offset;
     guestMore.classList.toggle('vb-hidden', data.next_offset === null);
-    guestCount.textContent = gaeste.search || banned ? `${guestList.querySelectorAll('.adm-row').length}${data.next_offset !== null ? '+' : ''} Treffer` : '';
+    guestCount.textContent = gaeste.search || banned || paused ? `${guestList.querySelectorAll('.adm-row').length}${data.next_offset !== null ? '+' : ''} Treffer` : '';
   } catch (err) {
     if (req === gaeste.reqId) showError(err);
   }
@@ -625,6 +630,7 @@ const ACTIONS = {
   'admin.login': '🔐 Admin angemeldet',
   'admin.logout': '🚪 Admin abgemeldet',
   'admin.login_failed': '⚠️ Falsches Admin-Passwort',
+  ...UPLOAD_AUDIT_LABELS,
 };
 
 function buildProtokoll() {
@@ -777,6 +783,10 @@ function onEvent(type, data) {
     case 'fingerprint.unbanned':
       invalidate('sperren');
       break;
+    case 'user.uploads_changed':
+    case 'settings.upload_pause':
+      invalidate('gaeste');
+      break;
     default:
       break;
   }
@@ -822,6 +832,7 @@ function onResync() {
 
 async function main() {
   mountHeader();
+  mountUploadControls(document.getElementById('upload-controls'));
   for (const btn of document.querySelectorAll('.adm-tab')) {
     btn.addEventListener('click', () => showTab(btn.dataset.tab));
   }

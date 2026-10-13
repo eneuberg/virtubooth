@@ -127,7 +127,8 @@ export function userUrl(id) {
 export function userLink(user, { cls = '' } = {}) {
   if (!user) return h('span', { class: 'adm-muted' }, 'unbekannt');
   return h('a', { class: `adm-user ${cls}`.trim(), href: userUrl(user.id), 'data-testid': 'user-link' },
-    h('span', { class: 'adm-user-name' }, `🙂 ${user.name}`, user.banned ? h('span', { class: 'adm-badge adm-badge--ban adm-badge--xs' }, 'GESPERRT') : null),
+    h('span', { class: 'adm-user-name' }, `🙂 ${user.name}`, user.banned ? h('span', { class: 'adm-badge adm-badge--ban adm-badge--xs' }, 'GESPERRT') : null,
+      user.uploads_paused ? h('span', { class: 'adm-badge adm-badge--pause adm-badge--xs', 'data-testid': 'paused-mark', title: 'Uploads pausiert' }, '⏸') : null),
     user.instagram
       ? h('span', { class: 'adm-user-insta' }, `@${user.instagram}`)
       : h('span', { class: 'adm-user-insta adm-user-insta--none' }, 'kein Instagram'),
@@ -447,7 +448,21 @@ export class Lightbox {
 const EVENT_TYPES = [
   'photo.created', 'photo.hidden', 'photo.unhidden', 'photo.deleted',
   'user.created', 'user.banned', 'user.unbanned', 'fingerprint.banned', 'fingerprint.unbanned',
+  'user.uploads_changed', 'settings.upload_pause', 'settings.upload_stop',
 ];
+
+// Feature modules (uploadcontrols.js) listen to the page's event stream too:
+// fn(type, data) for every event, fn('resync', why) when events may have been missed.
+const eventHooks = new Set();
+export function onAdminEvent(fn) {
+  eventHooks.add(fn);
+  return () => eventHooks.delete(fn);
+}
+function runHooks(type, data) {
+  for (const fn of [...eventHooks]) {
+    try { fn(type, data); } catch (err) { console.warn('event hook failed', type, err); }
+  }
+}
 
 const CONN_TEXT = {
   connecting: 'Verbinde…',
@@ -472,7 +487,11 @@ export function connBadge(state) {
  * stream is down the page polls (onResync('poll')) every pollMs; after a
  * reconnect onResync('reconnect') fills the gap.
  */
-export function connectEvents({ onEvent, onResync = () => {}, onStatus = connBadge, pollMs = 5000, retryMs = 4000 }) {
+export function connectEvents({ onEvent, onResync: pageResync = () => {}, onStatus = connBadge, pollMs = 5000, retryMs = 4000 }) {
+  const onResync = (why) => {
+    pageResync(why);
+    runHooks('resync', why);
+  };
   let es = null;
   let pollTimer = null;
   let retryTimer = null;
@@ -528,6 +547,7 @@ export function connectEvents({ onEvent, onResync = () => {}, onStatus = connBad
         let data;
         try { data = JSON.parse(event.data); } catch (_) { return; }
         try { onEvent(type, data); } catch (err) { console.warn('event handler failed', type, err); }
+        runHooks(type, data);
       });
     }
   }

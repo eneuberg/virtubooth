@@ -5,6 +5,7 @@ import {
   aapi, connectEvents, h, Lightbox, loadExtensions, mountHeader, PhotoCollection,
   photoTitle, qs, runToggle, showError, statusBadge, thumbFlag, throttle, timeEl, toggleButton, userLink,
 } from './admin.js';
+import { mountUploadControls } from './uploadcontrols.js';
 
 const PAGE = 30;
 const feed = document.getElementById('feed');
@@ -157,6 +158,7 @@ function onEvent(type, data) {
 
 async function main() {
   mountHeader();
+  mountUploadControls(document.getElementById('upload-controls'));
   await loadExtensions();
   const data = await aapi(`/api/admin/photos${qs({ limit: PAGE })}`);
   for (const p of data.photos) photos.upsert(p, { append: true });

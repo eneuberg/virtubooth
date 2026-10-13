@@ -1,0 +1,147 @@
+/* Upload controls (uploadcontrols.js): header chip, the sheet with the two
+   switches, the user page panel, the ⏸ badges. Builds on vb.css + admin.css. */
+
+/* --------------------------------------------------------- header chip */
+
+.adm-uploads-slot { max-width: 1400px; margin: 8px auto 0; }
+.adm-uploads-slot:empty { display: none; }
+.adm-uploads-chip {
+  appearance: none;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  min-height: 44px;
+  padding: 6px 14px;
+  border: 2px solid var(--vb-border);
+  border-radius: 14px;
+  background: var(--vb-surface);
+  color: var(--vb-fg);
+  font: inherit;
+  font-size: 0.95rem;
+  font-weight: 800;
+  text-align: left;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+.adm-uploads-chip:focus-visible { outline: 3px solid var(--vb-cyan); outline-offset: 2px; }
+.adm-uploads-chip-text { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.adm-uploads-chip-more { font-size: 1.3rem; line-height: 1; opacity: 0.8; }
+/* all good: small, out of the way */
+.adm-uploads-chip[data-state="ok"],
+.adm-uploads-chip[data-state="loading"] {
+  display: inline-flex;
+  width: auto;
+  max-width: 100%;
+  min-height: 40px;
+  padding: 4px 14px;
+  border-radius: 999px;
+  border-width: 1px;
+  font-size: 0.9rem;
+  color: var(--vb-muted);
+}
+/* something is on: say all of it, on two lines if need be */
+.adm-uploads-chip[data-state="paused"] .adm-uploads-chip-text,
+.adm-uploads-chip[data-state="stopped"] .adm-uploads-chip-text { white-space: normal; line-height: 1.25; }
+.adm-uploads-chip[data-state="paused"] { border-color: var(--vb-yellow); background: rgba(255, 210, 63, 0.16); color: #ffe9a6; }
+.adm-uploads-chip[data-state="stopped"] {
+  border-color: var(--vb-red);
+  background: rgba(212, 20, 78, 0.35);
+  color: #fff;
+  box-shadow: 0 0 0 3px rgba(255, 77, 77, 0.18);
+}
+
+/* -------------------------------------------------------------- sheet */
+
+.adm-uploads-sheet { max-width: 520px; }
+.adm-uploads-head { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+.adm-uploads-head h2 { flex: 1; margin: 0; }
+.adm-uploads-status {
+  margin: 0 0 12px;
+  padding: 10px 14px;
+  border-radius: 14px;
+  border: 1px solid rgba(61, 220, 132, 0.45);
+  background: rgba(61, 220, 132, 0.12);
+  font-weight: 900;
+}
+.adm-uploads-status[data-state="paused"] { border-color: var(--vb-yellow); background: rgba(255, 210, 63, 0.14); color: #ffe9a6; }
+.adm-uploads-status[data-state="stopped"] { border-color: var(--vb-red); background: rgba(212, 20, 78, 0.3); }
+
+.adm-uploads-opt {
+  margin-top: 10px;
+  padding: 12px 14px;
+  border-radius: 18px;
+  border: 1px solid var(--vb-border);
+  background: rgba(0, 0, 0, 0.25);
+}
+.adm-uploads-opt.is-on { border: 2px solid var(--vb-yellow); }
+.adm-uploads-opt--stop.is-on { border-color: var(--vb-red); background: rgba(120, 0, 20, 0.3); }
+.adm-uploads-opt-row { display: flex; align-items: center; gap: 12px; }
+.adm-uploads-opt-title { display: grid; flex: 1; gap: 2px; min-width: 0; }
+.adm-uploads-opt-title strong { font-size: 1.05rem; }
+.adm-uploads-opt-state { color: var(--vb-muted); font-size: 0.9rem; font-weight: 800; }
+.adm-uploads-opt.is-on .adm-uploads-opt-state { color: #ffe9a6; }
+.adm-uploads-opt--stop.is-on .adm-uploads-opt-state { color: #ffc4c4; }
+.adm-uploads-opt p { margin: 8px 0 0; font-size: 0.9rem; }
+.adm-uploads-link {
+  display: flex;
+  align-items: center;
+  min-height: 44px;
+  margin-top: 10px;
+  font-weight: 800;
+  color: var(--vb-yellow);
+}
+.adm-uploads-foot { margin: 10px 0 0; font-size: 0.85rem; }
+.adm-uploads-choice { height: auto; min-height: 56px; padding-top: 10px; padding-bottom: 10px; white-space: normal; text-align: center; }
+
+/* on/off switch: a 68×42 target */
+.adm-switch {
+  appearance: none;
+  position: relative;
+  flex: none;
+  width: 68px;
+  height: 42px;
+  padding: 0;
+  border: 2px solid var(--vb-border);
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.45);
+  cursor: pointer;
+  touch-action: manipulation;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+.adm-switch-knob {
+  position: absolute;
+  top: 4px;
+  left: 4px;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.4);
+  transition: transform 0.15s ease;
+}
+.adm-switch[aria-checked="true"] { border-color: transparent; background: var(--vb-orange); }
+.adm-switch[aria-checked="true"] .adm-switch-knob { transform: translateX(26px); }
+.adm-uploads-opt--stop .adm-switch[aria-checked="true"] { background: var(--vb-red); }
+.adm-switch:focus-visible { outline: 3px solid var(--vb-cyan); outline-offset: 3px; }
+.adm-switch:disabled { opacity: 0.5; cursor: default; }
+
+/* ------------------------------------------------------- badges, panel */
+
+.adm-badge--pause { background: rgba(255, 210, 63, 0.16); color: #ffe9a6; border: 1px solid rgba(255, 210, 63, 0.6); }
+
+.adm-uploads-guest.is-paused { border: 2px solid var(--vb-yellow); background: rgba(255, 210, 63, 0.07); }
+.adm-uploads-guest-status { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; }
+.adm-uploads-source { font-weight: 700; }
+.adm-uploads-guest .adm-muted { margin: 0; font-size: 0.9rem; }
+.adm-uploads-guest .adm-warn { margin: 0; }
+.adm-uploads-pausebtn { border-color: var(--vb-yellow); background: rgba(255, 210, 63, 0.16); color: #ffe9a6; }
+
+/* user page, wide screens: the uploads panel sits under the profile */
+@media (min-width: 1000px) {
+  .adm-userpage {
+    grid-template-rows: auto auto auto auto 1fr;
+    grid-template-areas: "profile uploads" "pause uploads" "ban uploads" "fps uploads" "device uploads";
+  }
+  .adm-area-pause { grid-area: pause; }
+}
