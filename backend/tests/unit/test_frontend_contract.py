@@ -116,4 +116,5 @@ def test_extension_folders_match_the_backend():
     if not folder.is_dir():
         pytest.skip("frontend/src/extensions does not exist yet")
     frontend_ids = {p.name for p in folder.iterdir() if p.is_dir() and not p.name.startswith("_")}
-    assert frontend_ids == {e.id for e in discover_extensions()}
+    # extensions with their own page (web_router, e.g. the Live Wall) are no guest activity
+    assert frontend_ids == {e.id for e in discover_extensions() if e.web_router is None}

@@ -13,13 +13,21 @@ Each test module loads the wall with
 
 from __future__ import annotations
 
+import json
+import queue
+import socket
+import threading
 import time
-from collections.abc import Callable, Collection, Mapping, Sequence
+from collections.abc import Callable, Collection, Iterator, Mapping, Sequence
+from contextlib import contextmanager
 from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
+import httpx2 as httpx
+import uvicorn
+from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
 from virtubooth.core.clock import iso
@@ -27,7 +35,7 @@ from virtubooth.domain.models import User
 from virtubooth.extensions.wall.enrichment import PhotoFilter
 from virtubooth.runtime import Core
 
-from ..conftest import JPEG, ORIGIN, jpeg
+from ..conftest import ADMIN_PASSWORD, JPEG, ORIGIN, PARTY_TOKEN, fp, jpeg
 
 WALL_HTML = (
     '<!doctype html>\n<html lang="de"><head><meta charset="utf-8"><title>Live-Wall</title>'
@@ -192,3 +200,134 @@ def wait_until(check: Callable[[], Any], timeout: float = 5.0) -> Any:
         if time.monotonic() > deadline:
             raise AssertionError("condition not met in time")
         time.sleep(0.02)
+
+
+# --------------------------------------------- a real server (SSE streams)
+
+
+@dataclass
+class Live:
+    base_url: str
+    core: Core
+
+    @property
+    def origin(self) -> dict[str, str]:
+        return {"Origin": self.base_url}
+
+
+def _free_port() -> int:
+    with socket.socket() as s:
+        s.bind(("127.0.0.1", 0))
+        port: int = s.getsockname()[1]
+        return port
+
+
+@contextmanager
+def live_server(app: FastAPI) -> Iterator[Live]:
+    """uvicorn in a thread (TestClient can't stream SSE)."""
+    port = _free_port()
+    config = uvicorn.Config(
+        app, host="127.0.0.1", port=port, log_level="warning", timeout_graceful_shutdown=1
+    )
+    server = uvicorn.Server(config)
+    thread = threading.Thread(target=server.run, daemon=True)
+    thread.start()
+    deadline = time.monotonic() + 10
+    while not server.started:
+        if time.monotonic() > deadline:
+            raise RuntimeError("uvicorn did not start")
+        time.sleep(0.02)
+    try:
+        yield Live(f"http://127.0.0.1:{port}", app.state.core)
+    finally:
+        server.should_exit = True
+        thread.join(5)
+
+
+class Stream:
+    """Reads an SSE response line by line in a thread."""
+
+    def __init__(self, client: httpx.Client, url: str, headers: dict[str, str] | None = None):
+        self._cm = client.stream("GET", url, headers=headers or {})
+        self.response = self._cm.__enter__()
+        self.lines: queue.Queue[str | None] = queue.Queue()
+        self._thread = threading.Thread(target=self._read, daemon=True)
+        self._thread.start()
+
+    def _read(self) -> None:
+        try:
+            for line in self.response.iter_lines():
+                self.lines.put(line)
+        except httpx.HTTPError:
+            pass
+        self.lines.put(None)  # stream ended
+
+    def next(self, timeout: float = 5.0) -> dict[str, Any] | None:
+        """The next message ({event, data (parsed), id?, retry?}); None when the
+        stream ended. Comments (`: ping`) are skipped."""
+        current: dict[str, Any] = {}
+        while True:
+            line = self.lines.get(timeout=timeout)
+            if line is None:
+                return None
+            if line == "":
+                if current:
+                    if "data" in current:
+                        current["data"] = json.loads(current["data"])
+                    return current
+                continue
+            if line.startswith(":"):
+                continue
+            key, _, value = line.partition(": ")
+            current[key] = value
+
+    def until(self, event: str, timeout: float = 5.0) -> dict[str, Any]:
+        """Skip messages up to the next `event`."""
+        deadline = time.monotonic() + timeout
+        while True:
+            try:
+                msg = self.next(max(0.1, deadline - time.monotonic()))
+            except queue.Empty:
+                raise AssertionError(f"no {event} within {timeout} s") from None
+            assert msg is not None, f"stream ended before {event}"
+            if msg.get("event") == event:
+                return msg
+
+    def ended(self, timeout: float = 5.0) -> bool:
+        deadline = time.monotonic() + timeout
+        while time.monotonic() < deadline:
+            if self.next(max(0.1, deadline - time.monotonic())) is None:
+                return True
+        return False
+
+    def close(self) -> None:
+        self._cm.__exit__(None, None, None)
+
+
+def live_admin(live: Live) -> httpx.Client:
+    c = httpx.Client(base_url=live.base_url, timeout=10)
+    r = c.post("/api/admin/login", json={"password": ADMIN_PASSWORD}, headers=live.origin)
+    assert r.status_code == 200, r.text
+    return c
+
+
+def live_wall(live: Live, password: str = WALL_PASSWORD) -> httpx.Client:
+    c = httpx.Client(base_url=live.base_url, timeout=10)
+    r = c.post("/livewall/api/session", json={"password": password}, headers=live.origin)
+    assert r.status_code == 200, r.text
+    return c
+
+
+def live_guest(live: Live, n: int = 5) -> httpx.Client:
+    g = httpx.Client(base_url=live.base_url, timeout=10)
+    g.get(f"/?t={PARTY_TOKEN}")
+    r = g.post("/api/join", json={"accept": True, "version": "1", "fp": fp(n)}, headers=live.origin)
+    assert r.status_code == 201, r.text
+    return g
+
+
+def live_upload(live: Live, guest: httpx.Client) -> str:
+    r = guest.post("/api/x/demo/upload", content=jpeg(400, 300), headers=JPEG | live.origin)
+    assert r.status_code == 201, r.text
+    photo_id: str = r.json()["photo"]["id"]
+    return photo_id

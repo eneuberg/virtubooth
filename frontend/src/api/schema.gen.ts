@@ -751,6 +751,95 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/x/wall/admin/categories": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Categories
+         * @description Every category (disabled ones too) with what would win right now.
+         */
+        get: operations["categories_api_x_wall_admin_categories_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/x/wall/admin/config": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Config
+         * @description The wall's settings, password state, sources, categories, open walls.
+         */
+        get: operations["get_config_api_x_wall_admin_config_get"];
+        /**
+         * Put Config
+         * @description Save the settings (body: WallConfig; `rev`, `updated_at`, `by` are
+         *     ignored). Open walls get a `config` event.
+         */
+        put: operations["put_config_api_x_wall_admin_config_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/x/wall/admin/logout": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Logout Walls
+         * @description Log every wall out (the password stays).
+         */
+        post: operations["logout_walls_api_x_wall_admin_logout_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/x/wall/admin/password": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Set Password
+         * @description Set or change the wall password: every wall is logged out.
+         */
+        put: operations["set_password_api_x_wall_admin_password_put"];
+        post?: never;
+        /**
+         * Clear Password
+         * @description Remove the wall password: every wall is logged out, none can log in.
+         */
+        delete: operations["clear_password_api_x_wall_admin_password_delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/x/{ext_id}/upload": {
         parameters: {
             query?: never;
@@ -782,6 +871,95 @@ export interface paths {
         };
         /** Healthz */
         get: operations["healthz_healthz_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/livewall/api/categories": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Categories
+         * @description The enabled categories that have winners, in catalogue order.
+         */
+        get: operations["categories_livewall_api_categories_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/livewall/api/feed": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Feed
+         * @description The config and the newest visible photos. `cursor` resumes the stream
+         *     right after this answer (`?since=`).
+         */
+        get: operations["feed_livewall_api_feed_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/livewall/api/session": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Session
+         * @description Whether this screen may watch: 401 log in, 409 no wall password yet.
+         */
+        get: operations["session_livewall_api_session_get"];
+        put?: never;
+        /**
+         * Login
+         * @description Log this screen in with the wall password (sets the `vb_wall` cookie).
+         */
+        post: operations["login_livewall_api_session_post"];
+        /**
+         * Logout
+         * @description Log this screen out (only this one).
+         */
+        delete: operations["logout_livewall_api_session_delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/livewall/api/stream": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Stream
+         * @description The wall's live events (resume with `Last-Event-ID` or `?since=<feed cursor>`).
+         */
+        get: operations["stream_livewall_api_stream_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -1171,7 +1349,7 @@ export interface components {
              * @description Machine-readable error code.
              * @enum {string}
              */
-            error: "scan_qr" | "needs_consent" | "banned" | "consent_outdated" | "invalid_instagram" | "join_closed" | "uploads_paused" | "uploads_stopped" | "unsupported_type" | "too_large" | "invalid_meta" | "empty_upload" | "invalid_image" | "admin_required" | "wrong_password" | "login_locked" | "invalid_filter" | "invalid_cursor" | "no_fingerprint" | "restore_required" | "export_not_ready" | "export_running" | "base_url_required" | "invalid_base_url" | "bad_origin" | "length_required" | "rate_limited" | "invalid_request" | "not_found" | "http_404" | "http_405";
+            error: "scan_qr" | "needs_consent" | "banned" | "consent_outdated" | "invalid_instagram" | "join_closed" | "wall_login_required" | "wall_no_password" | "wall_password_too_short" | "invalid_wall_config" | "uploads_paused" | "uploads_stopped" | "unsupported_type" | "too_large" | "invalid_meta" | "empty_upload" | "invalid_image" | "admin_required" | "wrong_password" | "login_locked" | "invalid_filter" | "invalid_cursor" | "no_fingerprint" | "restore_required" | "export_not_ready" | "export_running" | "base_url_required" | "invalid_base_url" | "bad_origin" | "length_required" | "rate_limited" | "invalid_request" | "not_found" | "http_404" | "http_405";
             /**
              * Message
              * @description German text for the guest or admin, shown as-is.
@@ -2316,6 +2494,607 @@ export interface components {
             /** Changed */
             changed: boolean;
             user: components["schemas"]["AdminUser"];
+        };
+        /** WallAdminCategoriesOut */
+        WallAdminCategoriesOut: {
+            /** Categories */
+            categories: components["schemas"]["WallAdminCategory"][];
+        };
+        /** WallAdminCategory */
+        WallAdminCategory: {
+            /** Available */
+            available: boolean;
+            /** Emoji */
+            emoji: string;
+            /** Enabled */
+            enabled: boolean;
+            /** Id */
+            id: string;
+            /** Line */
+            line: string;
+            /**
+             * Reason
+             * @description Why it can't win anything (German), or null.
+             */
+            reason: string | null;
+            /** Title */
+            title: string;
+            /** Winners */
+            winners: components["schemas"]["WallAdminWinner"][];
+        };
+        /** WallAdminOut */
+        WallAdminOut: {
+            /** Categories */
+            categories: components["schemas"]["WallCategoryInfo"][];
+            config: components["schemas"]["WallConfig"];
+            defaults: components["schemas"]["WallConfig"];
+            /** Event Name */
+            event_name: string;
+            /**
+             * Open Walls
+             * @description Wall screens connected right now.
+             */
+            open_walls: number;
+            password: components["schemas"]["WallPasswordState"];
+            /**
+             * Sources
+             * @description The upload extensions a wall can show.
+             */
+            sources: components["schemas"]["WallSource"][];
+            /**
+             * Wall Path
+             * @constant
+             */
+            wall_path: "/livewall";
+        };
+        /** WallAdminWinner */
+        WallAdminWinner: {
+            /** Label */
+            label: string;
+            /** Photo Id */
+            photo_id: string;
+            /** Thumb Url */
+            thumb_url: string;
+            /** Value */
+            value: number;
+        };
+        /** WallByeData */
+        WallByeData: {
+            /**
+             * Reason
+             * @enum {string}
+             */
+            reason: "password" | "logout";
+        };
+        /**
+         * WallByeEvent
+         * @description This wall was logged out; the stream ends.
+         */
+        WallByeEvent: {
+            data: components["schemas"]["WallByeData"];
+            /**
+             * Id
+             * @description `<epoch>-<n>`: the SSE `id:` line.
+             */
+            id: string;
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            type: "bye";
+        };
+        /**
+         * WallCategoriesChangedEvent
+         * @description Refetch /livewall/api/categories.
+         */
+        WallCategoriesChangedEvent: {
+            data: components["schemas"]["WallEmptyData"];
+            /**
+             * Id
+             * @description `<epoch>-<n>`: the SSE `id:` line.
+             */
+            id: string;
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            type: "categories.changed";
+        };
+        /** WallCategoriesConfig */
+        WallCategoriesConfig: {
+            /**
+             * Disabled
+             * @description Category ids switched off (unknown ids are kept and ignored).
+             */
+            disabled?: string[];
+            /**
+             * Per Category S
+             * @default 10
+             */
+            per_category_s: number;
+        };
+        /** WallCategoriesOut */
+        WallCategoriesOut: {
+            /**
+             * Categories
+             * @description Enabled ones with winners, in order.
+             */
+            categories: components["schemas"]["WallCategory"][];
+        };
+        /** WallCategory */
+        WallCategory: {
+            /** Emoji */
+            emoji: string;
+            /** Id */
+            id: string;
+            /** Line */
+            line: string;
+            /** Title */
+            title: string;
+            /**
+             * Winners
+             * @description 1–3, best first.
+             */
+            winners: components["schemas"]["WallWinner"][];
+        };
+        /** WallCategoryInfo */
+        WallCategoryInfo: {
+            /** Available */
+            available: boolean;
+            /** Emoji */
+            emoji: string;
+            /** Enabled */
+            enabled: boolean;
+            /** Id */
+            id: string;
+            /** Line */
+            line: string;
+            /**
+             * Reason
+             * @description Why it can't win anything (German), or null.
+             */
+            reason: string | null;
+            /** Title */
+            title: string;
+        };
+        /**
+         * WallConfig
+         * @description The wall's settings as stored and sent.
+         */
+        WallConfig: {
+            /**
+             * By
+             * @description Who saved last (server-set).
+             */
+            by?: string | null;
+            categories?: components["schemas"]["WallCategoriesConfig"];
+            /**
+             * Delay S
+             * @description New photos appear after this delay.
+             * @default 20
+             */
+            delay_s: number;
+            gallery?: components["schemas"]["WallGallery"];
+            look?: components["schemas"]["WallLook"];
+            overlay?: components["schemas"]["WallOverlay"];
+            /**
+             * Playlist
+             * @description Every mode exactly once, in playing order; at least one enabled.
+             */
+            playlist?: components["schemas"]["WallPlaylistEntry"][];
+            /**
+             * Rev
+             * @description Counts saves (server-set).
+             * @default 0
+             */
+            rev: number;
+            /**
+             * Show Instagram
+             * @default false
+             */
+            show_instagram: boolean;
+            /**
+             * Sources
+             * @description Upload extensions shown on the wall; empty = all of them.
+             */
+            sources?: string[];
+            spotlight?: components["schemas"]["WallSpotlight"];
+            /**
+             * Updated At
+             * @description Server-set.
+             */
+            updated_at?: string | null;
+        };
+        /** WallConfigData */
+        WallConfigData: {
+            config: components["schemas"]["WallConfig"];
+            /** Event Name */
+            event_name: string;
+        };
+        /** WallConfigEvent */
+        WallConfigEvent: {
+            data: components["schemas"]["WallConfigData"];
+            /**
+             * Id
+             * @description `<epoch>-<n>`: the SSE `id:` line.
+             */
+            id: string;
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            type: "config";
+        };
+        /** WallEmptyData */
+        WallEmptyData: Record<string, never>;
+        /**
+         * WallEvent
+         * @description One message of the wall's event stream, discriminated by `type`.
+         */
+        WallEvent: components["schemas"]["WallHelloEvent"] | components["schemas"]["WallPhotoAddEvent"] | components["schemas"]["WallPhotoUpdateEvent"] | components["schemas"]["WallPhotoRemoveEvent"] | components["schemas"]["WallConfigEvent"] | components["schemas"]["WallCategoriesChangedEvent"] | components["schemas"]["WallByeEvent"] | components["schemas"]["WallResyncEvent"];
+        /** WallFeed */
+        WallFeed: {
+            config: components["schemas"]["WallConfig"];
+            /**
+             * Cursor
+             * @description Pass as `?since=` to the stream: nothing is missed.
+             */
+            cursor: string;
+            /** Event Name */
+            event_name: string;
+            /**
+             * Photos
+             * @description Newest first, at most `limit`.
+             */
+            photos: components["schemas"]["WallPhoto"][];
+            /** Server Time */
+            server_time: string;
+            /**
+             * Total
+             * @description Every photo visible on the wall.
+             */
+            total: number;
+        };
+        /** WallGallery */
+        WallGallery: {
+            /**
+             * Rows
+             * @default 3
+             */
+            rows: number;
+            /**
+             * Speed
+             * @default medium
+             * @enum {string}
+             */
+            speed: "slow" | "medium" | "fast";
+        };
+        /** WallHelloData */
+        WallHelloData: {
+            /** Config Rev */
+            config_rev: number;
+            /** Server Time */
+            server_time: string;
+        };
+        /**
+         * WallHelloEvent
+         * @description Sent first on every connect (no id).
+         */
+        WallHelloEvent: {
+            data: components["schemas"]["WallHelloData"];
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            type: "hello";
+        };
+        /** WallLoginIn */
+        WallLoginIn: {
+            /** Password */
+            password: string;
+        };
+        /** WallLook */
+        WallLook: {
+            /**
+             * Background
+             * @default #2b2b31
+             */
+            background: string;
+            /**
+             * Calm
+             * @default false
+             */
+            calm: boolean;
+            /**
+             * Fps
+             * @default 30
+             * @enum {integer}
+             */
+            fps: 30 | 60;
+            /**
+             * Preset
+             * @default blobs
+             * @enum {string}
+             */
+            preset: "blobs" | "aurora" | "disco" | "confetti" | "plain";
+            /**
+             * Primary
+             * @default #a855f7
+             */
+            primary: string;
+            /**
+             * Secondary
+             * @default #ff4fa3
+             */
+            secondary: string;
+        };
+        /** WallOk */
+        WallOk: {
+            /**
+             * Ok
+             * @constant
+             */
+            ok: true;
+        };
+        /** WallOverlay */
+        WallOverlay: {
+            /**
+             * Corner
+             * @default bottom-right
+             * @enum {string}
+             */
+            corner: "bottom-right" | "bottom-left" | "top-right" | "top-left";
+            /**
+             * Counter
+             * @default true
+             */
+            counter: boolean;
+            /**
+             * Event Name
+             * @default true
+             */
+            event_name: boolean;
+            /**
+             * Qr
+             * @default false
+             */
+            qr: boolean;
+        };
+        /** WallPasswordIn */
+        WallPasswordIn: {
+            /**
+             * Password
+             * @description 6–256 characters.
+             */
+            password: string;
+        };
+        /** WallPasswordState */
+        WallPasswordState: {
+            /** Changed At */
+            changed_at: string | null;
+            /** Set */
+            set: boolean;
+        };
+        /** WallPhoto */
+        WallPhoto: {
+            /**
+             * Analysis
+             * @enum {string}
+             */
+            analysis: "pending" | "running" | "done" | "failed" | "skipped" | "off";
+            /**
+             * Author
+             * @description The guest's pseudonym.
+             */
+            author: string;
+            /**
+             * Author Key
+             * @description Stable per guest, not reversible (12 chars).
+             */
+            author_key: string;
+            /**
+             * Facts
+             * @description people, faces, hands, smiles when analysed.
+             */
+            facts: {
+                [key: string]: number;
+            };
+            /** Height */
+            height: number;
+            /**
+             * Id
+             * @description Public photo id.
+             */
+            id: string;
+            /**
+             * Instagram
+             * @description Only when the wall shows Instagram handles.
+             */
+            instagram: string | null;
+            /** Seq */
+            seq: number;
+            /**
+             * Source
+             * @description Extension id.
+             */
+            source: string;
+            /** Taken At */
+            taken_at: string;
+            urls: components["schemas"]["WallPhotoUrls"];
+            /** Width */
+            width: number;
+        };
+        /**
+         * WallPhotoAddEvent
+         * @description A photo became visible (after the delay, unhidden, unbanned).
+         */
+        WallPhotoAddEvent: {
+            data: components["schemas"]["WallPhotoData"];
+            /**
+             * Id
+             * @description `<epoch>-<n>`: the SSE `id:` line.
+             */
+            id: string;
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            type: "photo.add";
+        };
+        /** WallPhotoData */
+        WallPhotoData: {
+            photo: components["schemas"]["WallPhoto"];
+        };
+        /**
+         * WallPhotoRemoveEvent
+         * @description Photos to take down at once (hidden, deleted, banned).
+         */
+        WallPhotoRemoveEvent: {
+            data: components["schemas"]["WallRemoveData"];
+            /**
+             * Id
+             * @description `<epoch>-<n>`: the SSE `id:` line.
+             */
+            id: string;
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            type: "photo.remove";
+        };
+        /**
+         * WallPhotoUpdateEvent
+         * @description A visible photo changed (e.g. its analysis finished).
+         */
+        WallPhotoUpdateEvent: {
+            data: components["schemas"]["WallPhotoData"];
+            /**
+             * Id
+             * @description `<epoch>-<n>`: the SSE `id:` line.
+             */
+            id: string;
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            type: "photo.update";
+        };
+        /** WallPhotoUrls */
+        WallPhotoUrls: {
+            /**
+             * L
+             * @description The stored photo (≤ 2400 px).
+             */
+            l: string;
+            /**
+             * M
+             * @description 1280 px (cached derivative).
+             */
+            m: string;
+            /**
+             * S
+             * @description 400 px thumbnail.
+             */
+            s: string;
+        };
+        /** WallPlaylistEntry */
+        WallPlaylistEntry: {
+            /**
+             * Duration S
+             * @default 60
+             */
+            duration_s: number;
+            /**
+             * Enabled
+             * @default true
+             */
+            enabled: boolean;
+            /**
+             * Mode
+             * @enum {string}
+             */
+            mode: "spotlight" | "gallery" | "categories";
+        };
+        /** WallRemoveData */
+        WallRemoveData: {
+            /** Ids */
+            ids: string[];
+        };
+        /**
+         * WallResyncEvent
+         * @description The missed events are gone: refetch /livewall/api/feed.
+         */
+        WallResyncEvent: {
+            data: components["schemas"]["WallEmptyData"];
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            type: "stream.resync";
+        };
+        /** WallSessionOut */
+        WallSessionOut: {
+            /**
+             * Ok
+             * @constant
+             */
+            ok: true;
+            /**
+             * Via
+             * @enum {string}
+             */
+            via: "password" | "admin";
+        };
+        /** WallSource */
+        WallSource: {
+            /** Emoji */
+            emoji: string;
+            /** Id */
+            id: string;
+            /** Title */
+            title: string;
+        };
+        /** WallSpotlight */
+        WallSpotlight: {
+            /**
+             * Algorithm
+             * @default fresh_first
+             * @enum {string}
+             */
+            algorithm: "newest" | "random" | "shuffle" | "fair" | "least_shown" | "fresh_first" | "highlights";
+            /**
+             * Interval S
+             * @default 8
+             */
+            interval_s: number;
+            /**
+             * N
+             * @description How many photos one round shows.
+             * @default 12
+             */
+            n: number;
+            /**
+             * Transition
+             * @default random
+             * @enum {string}
+             */
+            transition: "crossfade" | "kenburns" | "spring" | "dither" | "pixelate" | "glitch" | "polaroid" | "slot" | "jelly" | "stamp" | "confetti" | "random";
+            /**
+             * Transition Ms
+             * @default 1200
+             */
+            transition_ms: number;
+        };
+        /** WallWinner */
+        WallWinner: {
+            /**
+             * Label
+             * @description German, e.g. „7 Personen“.
+             */
+            label: string;
+            photo: components["schemas"]["WallPhoto"];
+            /** Value */
+            value: number;
         };
     };
     responses: never;
@@ -6099,6 +6878,458 @@ export interface operations {
             };
         };
     };
+    categories_api_x_wall_admin_categories_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WallAdminCategoriesOut"];
+                };
+            };
+            /** @description Invalid input (see `error`) */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Needs consent or an admin session */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Forbidden: banned, paused, stopped, joining closed or a foreign Origin (CSRF) */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Not found, or no party access (`scan_qr`) */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Request validation failed (`invalid_request`) */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Rate limited (`Retry-After` header) */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    get_config_api_x_wall_admin_config_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WallAdminOut"];
+                };
+            };
+            /** @description Invalid input (see `error`) */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Needs consent or an admin session */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Forbidden: banned, paused, stopped, joining closed or a foreign Origin (CSRF) */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Not found, or no party access (`scan_qr`) */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Request validation failed (`invalid_request`) */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Rate limited (`Retry-After` header) */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    put_config_api_x_wall_admin_config_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["WallConfig"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WallAdminOut"];
+                };
+            };
+            /** @description Invalid input (see `error`) */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Needs consent or an admin session */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Forbidden: banned, paused, stopped, joining closed or a foreign Origin (CSRF) */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Not found, or no party access (`scan_qr`) */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Request validation failed (`invalid_request`) */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Rate limited (`Retry-After` header) */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    logout_walls_api_x_wall_admin_logout_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WallOk"];
+                };
+            };
+            /** @description Invalid input (see `error`) */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Needs consent or an admin session */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Forbidden: banned, paused, stopped, joining closed or a foreign Origin (CSRF) */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Not found, or no party access (`scan_qr`) */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Request validation failed (`invalid_request`) */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Rate limited (`Retry-After` header) */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    set_password_api_x_wall_admin_password_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["WallPasswordIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WallPasswordState"];
+                };
+            };
+            /** @description Invalid input (see `error`) */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Needs consent or an admin session */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Forbidden: banned, paused, stopped, joining closed or a foreign Origin (CSRF) */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Not found, or no party access (`scan_qr`) */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Request validation failed (`invalid_request`) */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Rate limited (`Retry-After` header) */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    clear_password_api_x_wall_admin_password_delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WallPasswordState"];
+                };
+            };
+            /** @description Invalid input (see `error`) */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Needs consent or an admin session */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Forbidden: banned, paused, stopped, joining closed or a foreign Origin (CSRF) */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Not found, or no party access (`scan_qr`) */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Request validation failed (`invalid_request`) */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Rate limited (`Retry-After` header) */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
     upload_api_x__ext_id__upload_post: {
         parameters: {
             query?: never;
@@ -6216,6 +7447,245 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HealthOut"];
+                };
+            };
+        };
+    };
+    categories_livewall_api_categories_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WallCategoriesOut"];
+                };
+            };
+            /** @description Needs consent or an admin session */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    feed_livewall_api_feed_get: {
+        parameters: {
+            query?: {
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WallFeed"];
+                };
+            };
+            /** @description Needs consent or an admin session */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Request validation failed (`invalid_request`) */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    session_livewall_api_session_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WallSessionOut"];
+                };
+            };
+            /** @description Needs consent or an admin session */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    login_livewall_api_session_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["WallLoginIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WallSessionOut"];
+                };
+            };
+            /** @description Forbidden: banned, paused, stopped, joining closed or a foreign Origin (CSRF) */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Request validation failed (`invalid_request`) */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Rate limited (`Retry-After` header) */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    logout_livewall_api_session_delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WallOk"];
+                };
+            };
+            /** @description Forbidden: banned, paused, stopped, joining closed or a foreign Origin (CSRF) */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    stream_livewall_api_stream_get: {
+        parameters: {
+            query?: {
+                /** @description Resume after this event id. */
+                since?: string | null;
+            };
+            header?: {
+                "last-event-id"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Server-Sent Events; each message's `data` is the event's `data`. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/event-stream": unknown;
+                };
+            };
+            /** @description Needs consent or an admin session */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Request validation failed (`invalid_request`) */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
                 };
             };
         };
