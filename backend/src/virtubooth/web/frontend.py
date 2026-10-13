@@ -108,8 +108,8 @@ _PLACEHOLDERS = {
         f'<html lang="de" {GATE_PLACEHOLDER}><head><meta charset="utf-8">'
         '<meta name="viewport" content="width=device-width, initial-scale=1">'
         "<title>virtubooth</title></head><body>"
-        '<main data-testid="gate"><h1 class="gate-only">Scan den QR-Code</h1>'
-        '<h1 class="notfound-only">Hier ist nichts</h1></main></body></html>\n'
+        '<main data-testid="gate"><h1 class="when-gate">Scan den QR-Code</h1>'
+        '<h1 class="when-notfound">Hier ist nichts</h1></main></body></html>\n'
     ),
 }
 
