@@ -48,8 +48,10 @@ def test_empty_password_is_said_inline(page: Page, live: LiveServer) -> None:
 
 
 def test_lockout_says_the_wait_in_words(page: Page, live: LiveServer) -> None:
-    # the global budget of wrong guesses is used up (normally 50 per hour)
+    # the global budget of wrong guesses is used up (normally 20 per 15 minutes)
     live.core.limits.login_failures_global = RateLimiter(1, 3600)
+    # through a proxy: requests straight from loopback are exempt from the lock
+    page.set_extra_http_headers({"X-Forwarded-For": "198.51.100.7"})
     page.goto(live.url("/admin/login"))
     wait_until_ready(page)
     submit(page, "wrong-1")

@@ -30,6 +30,23 @@ def gen_env() -> str:
     )
 
 
+def check_forwarded_allow_ips(raw: str) -> str:
+    """VB_FORWARDED_ALLOW_IPS / --forwarded-allow-ips, refusing `*`."""
+    from .settings import ConfigError
+
+    if any(entry.strip() == "*" for entry in raw.split(",")):
+        raise ConfigError(
+            "VB_FORWARDED_ALLOW_IPS must not be '*': the app would trust X-Forwarded-For "
+            "from anyone who reaches its port, so every client could pick its own IP and "
+            "get past the per-IP rate limits (the admin login's included). List the "
+            "reverse proxy's address instead: its IP or subnet as the app sees it, e.g. "
+            "127.0.0.1 for a proxy on this machine, the Docker network's gateway or "
+            "subnet (172.16.0.0/12 covers Docker's default networks) for a proxy on the "
+            "Docker host or in another container."
+        )
+    return raw
+
+
 def main(argv: list[str] | None = None) -> None:
     parser = argparse.ArgumentParser(prog="virtubooth")
     sub = parser.add_subparsers(dest="cmd")
@@ -39,7 +56,7 @@ def main(argv: list[str] | None = None) -> None:
     serve.add_argument(
         "--forwarded-allow-ips",
         default=os.environ.get("VB_FORWARDED_ALLOW_IPS") or "127.0.0.1",
-        help="proxies whose X-Forwarded-For/-Proto are trusted (exact proxy IPs; never '*')",
+        help="proxies whose X-Forwarded-For/-Proto are trusted (proxy IPs or subnets; '*' is refused)",
     )
     serve.add_argument("--reload", action="store_true", help="auto-reload on code changes (dev)")
     sub.add_parser("gen-env", help="print a fresh .env with random secrets")
@@ -60,6 +77,13 @@ def main(argv: list[str] | None = None) -> None:
     if args.cmd is None:
         args = parser.parse_args(["serve", *(argv or sys.argv[1:])])
 
+    from .settings import ConfigError
+
+    try:
+        forwarded_allow_ips = check_forwarded_allow_ips(args.forwarded_allow_ips)
+    except ConfigError as exc:
+        parser.exit(2, f"virtubooth: {exc}\n")
+
     import uvicorn
 
     # one worker on purpose: rate limits and the event bus live in process memory
@@ -69,7 +93,7 @@ def main(argv: list[str] | None = None) -> None:
         host=args.host,
         port=args.port,
         proxy_headers=True,
-        forwarded_allow_ips=args.forwarded_allow_ips,
+        forwarded_allow_ips=forwarded_allow_ips,
         reload=args.reload,
         server_header=False,
         # open SSE streams would otherwise hold `docker stop` until the kill timeout

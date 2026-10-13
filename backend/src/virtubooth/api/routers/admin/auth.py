@@ -5,7 +5,7 @@ from __future__ import annotations
 from fastapi import APIRouter, Request, Response
 
 from ....core.errors import error_responses
-from ....core.security import ADMIN_COOKIE, client_ip, set_cookie
+from ....core.security import ADMIN_COOKIE, client_ip, is_direct_loopback, set_cookie
 from ...deps import CoreDep, admin_from_cookie
 from ...schemas.admin import LoginIn, OkOut, SessionOut
 
@@ -19,7 +19,10 @@ def login(body: LoginIn, request: Request, response: Response, core: CoreDep) ->
     """Sets the `vb_admin` session cookie (HttpOnly, SameSite=Strict).
     401 `wrong_password`; 429 `rate_limited` or `login_locked` with Retry-After."""
     token = core.services.admin_auth.login(
-        body.password, ip=client_ip(request), user_agent=request.headers.get("user-agent", "")
+        body.password,
+        ip=client_ip(request),
+        user_agent=request.headers.get("user-agent", ""),
+        local=is_direct_loopback(request),
     )
     set_cookie(
         response,

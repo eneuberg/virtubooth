@@ -274,5 +274,6 @@ def test_login_locked_says_when_to_retry(make_client, core):
     assert r.json()["error"] == "login_locked"
     assert int(r.headers["retry-after"]) >= 1
     core.limits.login_ip.reset()
+    core.limits.login_lock.reset()  # SEC-01: the lock binds the right password too
     ok = make_client().post("/api/admin/login", json={"password": ADMIN_PASSWORD}, headers=ORIGIN)
     assert ok.status_code == 200

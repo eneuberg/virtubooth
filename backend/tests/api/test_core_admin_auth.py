@@ -50,8 +50,12 @@ def test_global_lockout(make_client, core):
         core.limits.login_ip_hourly.reset()
         codes.append(login(make_client(), f"wrong-{i}-password").status_code)
     assert codes == [401, 401, 429, 429]
-    # the lock only ever refuses wrong passwords: nobody can lock the real admin out
+    # SEC-01: while locked, the right password waits too (a lucky guess must
+    # not get through); logged-in admins are not affected
     core.limits.login_ip.reset()
+    r = login(make_client())
+    assert r.status_code == 429 and r.json()["error"] == "login_locked"
+    core.limits.login_lock.reset()  # the window is over (or the server restarted)
     assert login(make_client()).status_code == 200
 
 
