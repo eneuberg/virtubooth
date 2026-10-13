@@ -65,9 +65,22 @@ function user(over: Partial<AdminUser> = {}): AdminUser {
     uploads_lock_period: null,
     auto_banned: false,
     auto_ban: null,
+    online_seconds: 0,
+    online_sessions: 0,
+    online_now: false,
     ...over,
   };
 }
+
+const noStats: UserDetail['stats'] = {
+  photos: 0,
+  visible: 0,
+  hidden: 0,
+  deleted: 0,
+  by_activity: [],
+  first_photo_at: null,
+  last_photo_at: null,
+};
 
 function pages(photos: AdminPhoto[], total = photos.length, next: string | null = null): PhotoPages {
   return { pages: [{ photos, next, total }], pageParams: [null] };
@@ -116,7 +129,7 @@ describe('applyAdminEvent', () => {
 
   it('photo.created lands on the user page of its guest', () => {
     const { qc, apply } = setup();
-    const detail: UserDetail = { user: user(), fingerprints: [], sharing: [], photos: [] };
+    const detail: UserDetail = { user: user(), fingerprints: [], sharing: [], photos: [], stats: noStats };
     qc.setQueryData(qk.user(1), detail);
     const fresh = photo();
     apply({ type: 'photo.created', data: { photo: fresh } });
@@ -128,7 +141,7 @@ describe('applyAdminEvent', () => {
     const p = photo();
     qc.setQueryData(LIVE, pages([p]));
     qc.setQueryData(qk.photo(p.id), p);
-    qc.setQueryData(qk.user(1), { user: user(), fingerprints: [], sharing: [], photos: [p] });
+    qc.setQueryData(qk.user(1), { user: user(), fingerprints: [], sharing: [], photos: [p], stats: noStats });
     const hidden = { ...p, hidden: true, hidden_reason: 'admin' as const };
     apply({ type: 'photo.hidden', data: { photo: hidden } });
     expect(listedPhotos(qc.getQueryData(LIVE))[0]?.hidden).toBe(true);
@@ -181,7 +194,7 @@ describe('applyAdminEvent', () => {
       pageParams: [0],
     };
     qc.setQueryData(qk.users({ search: '', status: 'all' }), list);
-    qc.setQueryData(qk.user(1), { user: user(), fingerprints: [], sharing: [], photos: [p] });
+    qc.setQueryData(qk.user(1), { user: user(), fingerprints: [], sharing: [], photos: [p], stats: noStats });
     const banned = user({ banned: true, ban_reason: 'Spam' });
     const hidden = { ...p, hidden: true, hidden_reason: 'ban' as const, user: { ...p.user, banned: true } };
     apply({ type: 'user.banned', data: { user: banned, photos: [hidden] } });
@@ -220,7 +233,7 @@ describe('applyAdminEvent', () => {
     const { qc, apply, invalidated } = setup();
     const p = photo();
     qc.setQueryData(LIVE, pages([p]));
-    qc.setQueryData(qk.user(1), { user: user(), fingerprints: [], sharing: [], photos: [p] });
+    qc.setQueryData(qk.user(1), { user: user(), fingerprints: [], sharing: [], photos: [p], stats: noStats });
     const paused = user({ uploads_paused: true, uploads_paused_source: 'admin' });
     apply({ type: 'user.uploads_changed', data: { users: [paused], paused: true } });
     expect(listedPhotos(qc.getQueryData(LIVE))[0]?.user.uploads_paused).toBe(true);

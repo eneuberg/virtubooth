@@ -3,7 +3,7 @@ import { useEffect, useState } from 'react';
 import type { SortDescriptor } from 'react-aria-components';
 import { useLocation, useSearchParams } from 'wouter';
 import type { AdminUser } from '@/api/types';
-import { formatDateTime, formatNumber, formatRelative } from '@/lib/format';
+import { formatDateTime, formatDuration, formatNumber, formatRelative } from '@/lib/format';
 import { Button } from '@/ui/Button';
 import { DataTable, type DataColumn } from '@/ui/DataTable';
 import { EmptyState } from '@/ui/EmptyState';
@@ -23,6 +23,23 @@ const STATUS_OPTIONS: ReadonlyArray<{ id: GuestStatus; label: string }> = [
   { id: 'ok', label: 'Nicht gesperrt' },
   { id: 'paused', label: 'Hochladen pausiert' },
 ];
+
+/** The visible time added up; a green dot while the page is open right now. */
+function OnlineTime({ user }: { user: AdminUser }) {
+  return (
+    <span className="inline-flex items-center gap-1.5" data-testid="guest-online">
+      {user.online_now ? (
+        <span title="Seite gerade offen" className="inline-flex">
+          <span aria-hidden="true" className="size-2 rounded-full bg-ok" />
+          <span className="sr-only">gerade online</span>
+        </span>
+      ) : null}
+      <span className={user.online_seconds > 0 ? undefined : 'text-ink-muted'}>
+        {formatDuration(user.online_seconds)}
+      </span>
+    </span>
+  );
+}
 
 const COLUMNS: ReadonlyArray<DataColumn<AdminUser>> = [
   {
@@ -68,6 +85,14 @@ const COLUMNS: ReadonlyArray<DataColumn<AdminUser>> = [
     render: (u) => formatNumber(u.photo_count),
   },
   {
+    id: 'online',
+    label: 'Online',
+    align: 'end',
+    allowsSorting: true,
+    hideBelow: 'md',
+    render: (u) => <OnlineTime user={u} />,
+  },
+  {
     id: 'seen',
     label: 'Zuletzt',
     allowsSorting: true,
@@ -97,6 +122,8 @@ function compare(column: string, a: AdminUser, b: AdminUser): number {
       return a.name.localeCompare(b.name, 'de');
     case 'photos':
       return a.photo_count - b.photo_count;
+    case 'online':
+      return a.online_seconds - b.online_seconds || Number(a.online_now) - Number(b.online_now);
     case 'seen':
       return a.last_seen_at < b.last_seen_at ? -1 : a.last_seen_at > b.last_seen_at ? 1 : 0;
     default:

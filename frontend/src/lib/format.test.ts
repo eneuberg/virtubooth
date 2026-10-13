@@ -5,6 +5,7 @@ import {
   formatCount,
   formatDate,
   formatDateTime,
+  formatDuration,
   formatFrame,
   formatNumber,
   formatPercent,
@@ -116,5 +117,19 @@ describe('formatRelative', () => {
     expect(formatRelative(ago(7 * 3600), NOW, TZ)).toBe('Di., 15:41');
     expect(formatRelative(ago(2 * 24 * 3600), NOW, TZ)).toBe('So., 22:41');
     expect(formatRelative(ago(10 * 24 * 3600), NOW, TZ)).toBe('03.10.2026');
+  });
+});
+
+describe('formatDuration', () => {
+  it('says the online time in minutes and hours', () => {
+    expect(formatDuration(0)).toBe('–');
+    expect(formatDuration(1)).toBe(`unter 1${NBSP}min`);
+    expect(formatDuration(59)).toBe(`unter 1${NBSP}min`);
+    expect(formatDuration(60)).toBe(`1${NBSP}min`);
+    expect(formatDuration(12 * 60 + 59)).toBe(`12${NBSP}min`);
+    expect(formatDuration(59 * 60 + 59)).toBe(`59${NBSP}min`);
+    expect(formatDuration(3600)).toBe(`1${NBSP}h 00${NBSP}min`);
+    expect(formatDuration(3600 + 5 * 60)).toBe(`1${NBSP}h 05${NBSP}min`);
+    expect(formatDuration(12 * 3600 + 34 * 60)).toBe(`12${NBSP}h 34${NBSP}min`);
   });
 });
