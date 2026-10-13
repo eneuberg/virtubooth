@@ -2,9 +2,10 @@
 // handles, bans, audit log. Everything heavier than "take it down" lives here.
 
 import {
-  aapi, absTime, confirmAndDelete, connectEvents, copyText, debounce, describeUA, field, h,
-  instagramUrl, Lightbox, loadExtensions, managementActions, mountHeader, PhotoCollection, photoTile,
-  photoTitle, qs, relTime, runToggle, segmented, showError, throttle, toast, userLink, userUrl,
+  aapi, absTime, autoBanSource, banBadge, banMark, confirmAndDelete, connectEvents, copyText, debounce,
+  describeUA, field, h, instagramUrl, Lightbox, loadExtensions, managementActions, mountHeader,
+  PhotoCollection, photoTile, photoTitle, qs, refocusAfterRemoval, relTime, runToggle, segmented, showError,
+  throttle, toast, unbanToast, userLink, userUrl,
 } from './admin.js';
 import { mountUploadControls, pausedBadge, UPLOAD_AUDIT_LABELS } from './uploadcontrols.js';
 
@@ -87,9 +88,11 @@ function onToggle(photo, button) {
 
 async function deletePhotos(list) {
   const byId = new Map(list.map((p) => [p.id, p]));
+  const before = photosCol.photos.map((p) => p.id);
   const gone = await confirmAndDelete(list);
   for (const id of gone) dropPhoto(id, byId.get(id));
   if (gone.length) refreshStats();
+  refocusAfterRemoval(before, gone);
 }
 
 // ================================================================ FOTOS
@@ -107,8 +110,9 @@ const fotos = {
   userIds: new Set(),
 };
 
-const extSelect = h('select', { class: 'adm-select', 'data-testid': 'filter-ext' }, h('option', { value: '' }, 'Alle Aktivitäten'));
-const userSelect = h('select', { class: 'adm-select', 'data-testid': 'filter-user' }, h('option', { value: '' }, 'Alle Gäste'));
+// aria-label: on phones the visible field labels are hidden (the options say what they are)
+const extSelect = h('select', { class: 'adm-select', 'aria-label': 'Aktivität', 'data-testid': 'filter-ext' }, h('option', { value: '' }, 'Alle Aktivitäten'));
+const userSelect = h('select', { class: 'adm-select', 'aria-label': 'Gast', 'data-testid': 'filter-user' }, h('option', { value: '' }, 'Alle Gäste'));
 const statusSeg = segmented([['all', 'Alle'], ['visible', 'Sichtbar'], ['hidden', 'Versteckt']], state.status,
   (v) => { state.status = v; reloadPhotos(); }, { label: 'Status', testid: 'filter-status' });
 const totalEl = h('span', { class: 'adm-num', 'data-testid': 'photo-total' });
@@ -400,7 +404,7 @@ function guestRow(u) {
   ].join(' · ');
   return h('a', { class: `adm-row${u.banned ? ' is-banned' : ''}`, href: userUrl(u.id), 'data-testid': 'guest-row' },
     h('div', { class: 'adm-row-main' },
-      h('div', { class: 'adm-row-title' }, `🙂 ${u.name}`, u.banned ? h('span', { class: 'adm-badge adm-badge--ban adm-badge--xs' }, 'GESPERRT') : null, pausedBadge(u)),
+      h('div', { class: 'adm-row-title' }, `🙂 ${u.name}`, banBadge(u), pausedBadge(u)),
       h('div', { class: 'adm-row-sub' }, sub),
     ),
     h('div', { class: 'adm-row-side' }, h('span', { class: 'adm-num', title: 'Fotos' }, `📸 ${u.photo_count}`), h('span', { 'aria-hidden': 'true' }, '›')),
@@ -434,7 +438,7 @@ async function loadGaeste({ more = false } = {}) {
 const insta = { el: document.getElementById('panel-instagram'), data: [], loaded: false };
 const instaBody = h('div', { class: 'adm-list' });
 const instaCopyAll = h('button', { class: 'vb-btn vb-btn--primary adm-btn-sm', type: 'button', 'data-testid': 'copy-all-handles' }, '📋 Alle Handles kopieren');
-const instaCount = h('span', { class: 'adm-num' });
+const instaCount = h('span', { class: 'adm-muted', 'data-testid': 'insta-count' });
 
 function buildInsta() {
   instaCopyAll.addEventListener('click', () => {
@@ -459,8 +463,13 @@ function taggableHandles() {
   return insta.data.filter((e) => e.users.some((u) => !u.banned)).map((e) => e.handle);
 }
 
+/** "4 Handles · 9 Gäste": one person may give the same handle on two phones */
+function handleCount(handles, guests) {
+  return `${handles} ${handles === 1 ? 'Handle' : 'Handles'} · ${guests} ${guests === 1 ? 'Gast' : 'Gäste'}`;
+}
+
 function renderInsta() {
-  instaCount.textContent = `(${insta.data.length})`;
+  instaCount.textContent = handleCount(insta.data.length, insta.data.reduce((n, e) => n + e.users.length, 0));
   instaCopyAll.textContent = `📋 Alle ${taggableHandles().length} Handles kopieren`;
   if (!insta.data.length) {
     instaBody.replaceChildren(h('div', { class: 'adm-empty' }, h('strong', {}, 'Noch keine Handles.'), 'Gäste können ihren Instagram-Namen beim Start oder über den Namens-Chip angeben.'));
@@ -483,14 +492,14 @@ function renderInsta() {
         ),
       ),
       h('div', { class: 'adm-chips' },
-        ...entry.users.map((u) => h('a', { class: 'adm-chip-link', href: userUrl(u.id) }, `🙂 ${u.name}`, u.banned ? ' 🚫' : '')),
+        ...entry.users.map((u) => h('a', { class: 'adm-chip-link', href: userUrl(u.id) }, `🙂 ${u.name}`, banMark(u))),
         ...entry.users.filter((u) => u.photos > 0).map((u) => h('button', {
           class: 'adm-chip-link', type: 'button', onclick: () => showUserPhotos(u.id),
         }, entry.users.length > 1 ? `📸 Alle ${u.photos} Fotos von #${u.id}` : `📸 Alle ${u.photos} Fotos`)),
       ),
       entry.recent.length
         ? h('div', { class: 'adm-strip' }, ...entry.recent.map((p) => h('button', {
-          class: 'adm-thumb', type: 'button', 'aria-label': `${photoTitle(p)} ansehen`, onclick: () => openLightbox(recent, p),
+          class: 'adm-thumb', type: 'button', 'aria-label': `${photoTitle(p)} ansehen`, 'data-thumb-for': p.id, onclick: () => openLightbox(recent, p),
         }, h('img', { src: p.thumb_url, alt: '', loading: 'lazy', decoding: 'async' }))))
         : null,
     );
@@ -536,12 +545,14 @@ function buildSperren() {
   sperren.el.append(
     h('div', { class: 'adm-section' },
       h('h2', {}, '🚫 Gesperrte Gäste', bannedUsersCount),
-      h('p', { class: 'adm-muted' }, 'Gesperrte Gäste können nichts mehr hochladen; ihre Fotos sind versteckt. Entsperren holt nur die Fotos zurück, die durch die Sperre versteckt wurden.'),
+      h('p', { class: 'adm-muted' }, 'Gesperrte Gäste können nichts mehr hochladen; ihre Fotos sind versteckt. Entsperren holt nur die Fotos zurück, die durch die Sperre versteckt wurden. '
+        + '„AUTO-GESPERRT“ heißt: neues Gerät mit einem gesperrten Fingerprint, vielleicht nur dasselbe Handymodell.'),
       bannedUsersBody,
     ),
     h('div', { class: 'adm-section' },
       h('h2', {}, '🧬 Gesperrte Fingerprints', fpBansCount),
-      h('p', { class: 'adm-warn' }, '⚠️ Neue Geräte mit einem gesperrten Fingerprint starten direkt gesperrt. Gleiche Handymodelle (z. B. zwei gleiche iPhones) können denselben Fingerprint haben, dann trifft es auch Unbeteiligte. Bereits bekannte Gäste sind davon nicht betroffen.'),
+      h('p', { class: 'adm-warn' }, '⚠️ Neue Geräte mit einem gesperrten Fingerprint starten direkt gesperrt. Gleiche Handymodelle (z. B. zwei gleiche iPhones) können denselben Fingerprint haben, dann trifft es auch Unbeteiligte. Bereits bekannte Gäste sind davon nicht betroffen. '
+        + 'Entsperren hebt auch die automatischen Sperren auf, die nur an diesem Fingerprint hängen.'),
       fpBansBody,
     ),
   );
@@ -563,7 +574,9 @@ async function loadSperren() {
 }
 
 function bannedUserRow(u) {
-  const btn = h('button', { class: 'vb-btn adm-toggle--show adm-btn-sm', type: 'button', 'data-testid': 'unban-user' }, '✅ Entsperren');
+  const btn = h('button', {
+    class: 'vb-btn adm-toggle--show adm-btn-sm', type: 'button', 'data-testid': 'unban-user', 'aria-label': `${u.name} entsperren`,
+  }, '✅ Entsperren');
   btn.addEventListener('click', async () => {
     btn.disabled = true;
     try {
@@ -576,22 +589,28 @@ function bannedUserRow(u) {
       showError(err);
     }
   });
-  return h('div', { class: 'adm-row is-banned', 'data-testid': 'banned-user-row' },
+  const sub = u.auto_banned
+    ? `Automatisch gesperrt ${relTime(u.banned_at)}: neues Gerät mit ${autoBanSource(u)}. Vielleicht nur dasselbe Handymodell.`
+    : `Grund: ${u.ban_reason || '–'} · gesperrt ${relTime(u.banned_at)} · ${u.photo_count} Fotos`;
+  return h('div', { class: `adm-row adm-row--stack is-banned${u.auto_banned ? ' is-auto' : ''}`, 'data-testid': 'banned-user-row' },
     h('div', { class: 'adm-row-main' },
       userLink(u),
-      h('div', { class: 'adm-row-sub' }, `Grund: ${u.ban_reason || '–'} · gesperrt ${relTime(u.banned_at)} · ${u.photo_count} Fotos`),
+      h('div', { class: 'adm-row-sub' }, sub),
     ),
     h('div', { class: 'adm-row-side' }, btn),
   );
 }
 
 function fpBanRow(b) {
-  const btn = h('button', { class: 'vb-btn adm-toggle--show adm-btn-sm', type: 'button', 'data-testid': 'unban-fp' }, '✅ Entsperren');
+  const auto = b.users.filter((u) => u.auto_banned);
+  const btn = h('button', {
+    class: 'vb-btn adm-toggle--show adm-btn-sm', type: 'button', 'data-testid': 'unban-fp', 'aria-label': `Fingerprint ${b.fp_hash.slice(0, 16)} entsperren`,
+  }, '✅ Entsperren');
   btn.addEventListener('click', async () => {
     btn.disabled = true;
     try {
-      await aapi(`/api/admin/device-bans/${encodeURIComponent(b.fp_hash)}`, { method: 'DELETE' });
-      toast('Fingerprint entsperrt', { type: 'success' });
+      const res = await aapi(`/api/admin/device-bans/${encodeURIComponent(b.fp_hash)}`, { method: 'DELETE' });
+      unbanToast('Fingerprint entsperrt', res.users_unbanned);
       loadSperren();
       refreshStats();
     } catch (err) {
@@ -599,14 +618,18 @@ function fpBanRow(b) {
       showError(err);
     }
   });
-  return h('div', { class: 'adm-row is-banned', 'data-testid': 'fp-ban-row' },
+  return h('div', { class: 'adm-row adm-row--stack is-banned', 'data-testid': 'fp-ban-row' },
     h('div', { class: 'adm-row-main' },
       h('div', { class: 'adm-row-title adm-mono', title: b.fp_hash }, `🧬 ${b.fp_hash.slice(0, 16)}…`),
       h('div', { class: 'adm-row-sub' }, `Grund: ${b.reason || '–'} · seit ${relTime(b.created_at)}`,
         b.source_user_id ? [' · gesperrt über ', h('a', { href: userUrl(b.source_user_id) }, b.source_user_name || `#${b.source_user_id}`)] : null),
       b.users.length
         ? h('div', { class: 'adm-chips' }, h('span', { class: 'adm-muted' }, `${b.users.length} ${b.users.length === 1 ? 'Gerät' : 'Geräte'}:`),
-          ...b.users.map((u) => h('a', { class: 'adm-chip-link', href: userUrl(u.id) }, `🙂 ${u.name}`, u.banned ? ' 🚫' : '')))
+          ...b.users.map((u) => h('a', { class: 'adm-chip-link', href: userUrl(u.id) }, `🙂 ${u.name}`, banMark(u))))
+        : null,
+      auto.length
+        ? h('div', { class: 'adm-row-sub', 'data-testid': 'fp-auto-note' },
+          `${auto.length} ${auto.length === 1 ? 'Gerät ist' : 'Geräte sind'} nur wegen dieses Fingerprints gesperrt (🚫 auto) und ${auto.length === 1 ? 'wird' : 'werden'} beim Entsperren mit entsperrt.`)
         : null,
     ),
     h('div', { class: 'adm-row-side' }, btn),
@@ -705,11 +728,23 @@ const panels = {
   protokoll: { el: protokoll.el, load: () => loadProtokoll() },
 };
 
+const tabButtons = [...document.querySelectorAll('.adm-tab')];
+
+/** phones: the tab row scrolls sideways; keep the selected tab in view */
+function scrollToSelectedTab() {
+  const btn = tabButtons.find((b) => b.dataset.tab === state.tab);
+  if (btn) btn.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+}
+
 function showTab(tab) {
   state.tab = tab;
-  for (const btn of document.querySelectorAll('.adm-tab')) {
-    btn.setAttribute('aria-selected', String(btn.dataset.tab === tab));
+  for (const btn of tabButtons) {
+    const selected = btn.dataset.tab === tab;
+    btn.setAttribute('aria-selected', String(selected));
+    // roving tabindex: Tab reaches the selected tab only, arrows move between them
+    btn.tabIndex = selected ? 0 : -1;
   }
+  scrollToSelectedTab();
   for (const [name, panel] of Object.entries(panels)) panel.el.hidden = name !== tab;
   syncUrl();
   syncPill();
@@ -719,6 +754,18 @@ function showTab(tab) {
     panel.dirty = false;
     panel.load();
   }
+}
+
+/** ←/→ (wrapping), Home, End move to a tab and show it */
+function onTabKey(event) {
+  const at = tabButtons.indexOf(document.activeElement);
+  if (at < 0 || event.altKey || event.ctrlKey || event.metaKey) return;
+  const n = tabButtons.length;
+  const to = { ArrowRight: (at + 1) % n, ArrowLeft: (at - 1 + n) % n, Home: 0, End: n - 1 }[event.key];
+  if (to === undefined) return;
+  event.preventDefault();
+  tabButtons[to].focus();
+  showTab(tabButtons[to].dataset.tab);
 }
 
 /** something changed on the server: reload this tab now if shown, else on next visit */
@@ -736,15 +783,18 @@ function invalidate(tab, ms = 800) {
 
 // ================================================================ stats
 
-const refreshStats = throttle(async () => {
+async function loadStats() {
   try {
     const s = await aapi('/api/admin/stats');
     document.getElementById('count-fotos').textContent = String(s.photos);
     document.getElementById('count-gaeste').textContent = String(s.guests);
-    document.getElementById('count-instagram').textContent = String(s.instagram);
+    const instaTab = document.getElementById('count-instagram');
+    instaTab.textContent = String(s.instagram_handles);
+    instaTab.title = handleCount(s.instagram_handles, s.instagram);
     document.getElementById('count-sperren').textContent = String(s.banned + s.fingerprint_bans);
   } catch (_) { /* try again on the next event */ }
-}, 400);
+}
+const refreshStats = throttle(loadStats, 400);
 
 // =============================================================== events
 
@@ -833,9 +883,10 @@ function onResync() {
 async function main() {
   mountHeader();
   mountUploadControls(document.getElementById('upload-controls'));
-  for (const btn of document.querySelectorAll('.adm-tab')) {
+  for (const btn of tabButtons) {
     btn.addEventListener('click', () => showTab(btn.dataset.tab));
   }
+  document.querySelector('.adm-tabs').addEventListener('keydown', onTabKey);
   buildFotos();
   buildGaeste();
   buildInsta();
@@ -845,7 +896,9 @@ async function main() {
   fillExtSelect(extensions);
   await fillUserSelect();
   showTab(state.tab);
-  refreshStats();
+  // right away: the throttled refresh leaves the tab counts empty for a moment;
+  // the counts widen the tabs, so bring the selected one into view again
+  loadStats().then(scrollToSelectedTab);
   connectEvents({ onEvent, onResync });
 }
 

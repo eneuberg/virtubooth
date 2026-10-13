@@ -11,6 +11,9 @@ publishes an event so every open admin screen stays in sync:
   user.banned / user.unbanned     {"user": admin_view, "photos": [admin_view, ...]}
   fingerprint.banned / .unbanned  {"fp_hash": ...}
 
+Lifting a fingerprint ban also unbans the identities that started banned only
+because they joined showing it ("auto-banned"): one user.unbanned each.
+
 Core itself publishes photo.created ({"photo": admin_view}) and user.created.
 Upload pauses and the stop switch live in upload_controls.py (mounted below).
 """
@@ -116,7 +119,45 @@ def _user_photos(core: Core, user_id: int) -> list[dict[str, Any]]:
 
 
 def _user_ref(user: User) -> dict[str, Any]:
-    return {"id": user.id, "name": user.name, "instagram": user.instagram, "banned": user.banned}
+    return {
+        "id": user.id,
+        "name": user.name,
+        "instagram": user.instagram,
+        "banned": user.banned,
+        "auto_banned": queries.is_auto_banned(user.banned, user.ban_reason),
+    }
+
+
+def _user_views(core: Core, users: list[User]) -> list[dict[str, Any]]:
+    """admin_view() plus whether the ban came from a fingerprint ban at join
+    time (`auto_banned`) and, if that fingerprint ban still exists, which one
+    (`auto_ban`: fp_hash, source_user_id, source_user_name)."""
+    auto = {u.id for u in users if queries.is_auto_banned(u.banned, u.ban_reason)}
+    sources = queries.auto_ban_sources(core.db, auto)
+    return [
+        u.admin_view() | {"auto_banned": u.id in auto, "auto_ban": sources.get(u.id)}
+        for u in users
+    ]
+
+
+def _user_view(core: Core, user: User) -> dict[str, Any]:
+    return _user_views(core, [user])[0]
+
+
+def _release_auto_banned(core: Core, admin: Admin, fp_hashes: list[str]) -> list[dict[str, Any]]:
+    """After fingerprint bans were lifted: unban the identities that were only
+    banned because they joined showing one of them (same phone model, maybe
+    not the same person). Returns refs of the users unbanned."""
+    released: list[dict[str, Any]] = []
+    for uid in queries.auto_banned_users(core.db, fp_hashes):
+        if not core.repo.unban_user(uid, admin.actor):
+            continue
+        user = _user_or_404(core, uid)
+        core.bus.publish(
+            "user.unbanned", {"user": _user_view(core, user), "photos": _user_photos(core, uid)}
+        )
+        released.append(_user_ref(user))
+    return released
 
 
 # ------------------------------------------------------------------- photos
@@ -273,7 +314,7 @@ def list_users(
         paused=_parse_bool_filter(paused),
     )  # fmt: skip
     return {
-        "users": [u.admin_view() for u in users],
+        "users": _user_views(core, users),
         "next_offset": offset + len(users) if len(users) == limit else None,
     }
 
@@ -287,7 +328,7 @@ def get_user(user_id: UserId, core: Core = Depends(get_core)) -> dict[str, Any]:
         for f in core.repo.user_fingerprints(user_id)
     ]
     return {
-        "user": user.admin_view(),
+        "user": _user_view(core, user),
         "fingerprints": fingerprints,
         "sharing": [_user_ref(u) for u in core.repo.users_sharing_fingerprint(user_id)],
         "photos": _user_photos(core, user_id),
@@ -301,7 +342,8 @@ class BanIn(BaseModel):
 
 
 class UnbanIn(BaseModel):
-    # also lift the bans on every fingerprint this guest showed
+    # also lift the bans on every fingerprint this guest showed (and with them
+    # the bans of other identities that only started banned because of them)
     fingerprint: bool = False
 
 
@@ -324,12 +366,12 @@ def ban_user(
         )
         if fp_banned:
             core.bus.publish("fingerprint.banned", {"fp_hash": user.fp_hash, "user_id": user_id})
-    updated = _user_or_404(core, user_id)
+    updated = _user_view(core, _user_or_404(core, user_id))
     photos = _user_photos(core, user_id)
     if changed:
-        core.bus.publish("user.banned", {"user": updated.admin_view(), "photos": photos})
+        core.bus.publish("user.banned", {"user": updated, "photos": photos})
     return {
-        "user": updated.admin_view(),
+        "user": updated,
         "changed": changed,
         "fingerprint_banned": fp_banned,
         "photos": photos,
@@ -351,14 +393,16 @@ def unban_user(
             if f["banned"] and core.repo.unban_fingerprint(f["fp_hash"], admin.actor):
                 lifted.append(f["fp_hash"])
                 core.bus.publish("fingerprint.unbanned", {"fp_hash": f["fp_hash"]})
-    updated = _user_or_404(core, user_id)
+    updated = _user_view(core, _user_or_404(core, user_id))
     photos = _user_photos(core, user_id)
     if changed:
-        core.bus.publish("user.unbanned", {"user": updated.admin_view(), "photos": photos})
+        core.bus.publish("user.unbanned", {"user": updated, "photos": photos})
+    released = _release_auto_banned(core, admin, lifted)
     return {
-        "user": updated.admin_view(),
+        "user": updated,
         "changed": changed,
         "fingerprints_unbanned": lifted,
+        "users_unbanned": released,
         "photos": photos,
     }
 
@@ -378,7 +422,8 @@ def unban_fingerprint(
     if not core.repo.unban_fingerprint(fp_hash, admin.actor):
         raise errors.not_found("Diese Fingerprint-Sperre gibt es nicht.")
     core.bus.publish("fingerprint.unbanned", {"fp_hash": fp_hash})
-    return {"ok": True, "fp_hash": fp_hash}
+    released = _release_auto_banned(core, admin, [fp_hash])
+    return {"ok": True, "fp_hash": fp_hash, "users_unbanned": released}
 
 
 # ------------------------------------------------------------ overview data

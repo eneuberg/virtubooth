@@ -28,7 +28,7 @@ function renderCard(photo) {
   return h('article', { class: `adm-card${photo.hidden ? ' is-hidden' : ''}`, 'data-testid': 'photo-card' },
     h('button', {
       class: 'adm-thumb', type: 'button', 'aria-label': `${photoTitle(photo)} groß anzeigen`,
-      'data-testid': 'thumb', onclick: () => lightbox.open(photo.id),
+      'data-testid': 'thumb', 'data-thumb-for': photo.id, onclick: () => lightbox.open(photo.id),
     },
       h('img', { src: photo.thumb_url, alt: '', loading: 'lazy', decoding: 'async' }),
       thumbFlag(photo),
@@ -137,14 +137,15 @@ function setStat(id, value) {
   document.getElementById(id).textContent = String(value);
 }
 
-const refreshStats = throttle(async () => {
+async function loadStats() {
   try {
     const s = await aapi('/api/admin/stats');
     setStat('stat-photos', s.photos);
     setStat('stat-guests', s.guests);
     setStat('stat-hidden', s.hidden);
   } catch (_) { /* next event or poll tries again */ }
-}, 800);
+}
+const refreshStats = throttle(loadStats, 800);
 
 function onEvent(type, data) {
   if (type === 'photo.created') add(data.photo);
@@ -165,7 +166,7 @@ async function main() {
   nextCursor = data.next;
   loadingEl.remove();
   syncEmpty();
-  refreshStats();
+  loadStats(); // right away: the throttled refresh would show "–" for a moment
   connectEvents({ onEvent, onResync: resync });
   moreBtn.addEventListener('click', loadMore);
   new IntersectionObserver((entries) => {

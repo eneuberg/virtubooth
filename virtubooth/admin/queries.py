@@ -7,13 +7,23 @@ aggregates: counters, Instagram handles, fingerprint peers, paged audit log.
 from __future__ import annotations
 
 import json
+from collections.abc import Iterable
 from typing import Any
 
 from ..db import Database
 
+# The ban reason core (identity.join) gives an identity that joined showing a
+# banned fingerprint. Such guests may just own the same phone model.
+AUTO_BAN_REASON = "Gerät gesperrt (Fingerprint)"
+
 
 def _int(value: Any) -> int:
     return int(value or 0)
+
+
+def is_auto_banned(banned: bool, ban_reason: str | None) -> bool:
+    """Banned only because the identity started on a banned fingerprint."""
+    return bool(banned) and ban_reason == AUTO_BAN_REASON
 
 
 def stats(db: Database) -> dict[str, Any]:
@@ -24,7 +34,8 @@ def stats(db: Database) -> dict[str, Any]:
     deleted = db.one("SELECT COUNT(*) FROM photos WHERE deleted_at IS NOT NULL")
     users = db.one(
         "SELECT COUNT(*) AS total, SUM(banned_at IS NOT NULL) AS banned, "
-        "SUM(instagram IS NOT NULL) AS instagram FROM users"
+        "SUM(instagram IS NOT NULL) AS instagram, "
+        "COUNT(DISTINCT instagram) AS instagram_handles FROM users"
     )
     uploaders = db.one("SELECT COUNT(DISTINCT user_id) FROM photos WHERE deleted_at IS NULL")
     fp_bans = db.one("SELECT COUNT(*) FROM fingerprint_bans")
@@ -42,7 +53,10 @@ def stats(db: Database) -> dict[str, Any]:
         "last_upload_at": photos["last_upload_at"],
         "guests": _int(users["total"]),
         "banned": _int(users["banned"]),
+        # guests (devices) that gave a handle, and the distinct handles: one
+        # person with two phones is two guests but one handle
         "instagram": _int(users["instagram"]),
+        "instagram_handles": _int(users["instagram_handles"]),
         "uploaders": _int(uploaders[0]) if uploaders else 0,
         "fingerprint_bans": _int(fp_bans[0]) if fp_bans else 0,
         "extensions": {
@@ -85,13 +99,17 @@ def _user_ref(row: Any) -> dict[str, Any]:
         "name": row["name"],
         "instagram": row["instagram"],
         "banned": bool(row["banned"]),
+        "auto_banned": is_auto_banned(row["banned"], row["ban_reason"]),
     }
+
+
+_REF_COLS = "u.id, u.name, u.instagram, u.banned_at IS NOT NULL AS banned, u.ban_reason"
 
 
 def fingerprint_peers(db: Database, user_id: int) -> dict[str, list[dict[str, Any]]]:
     """For each fingerprint `user_id` showed: the other users that showed it too."""
     rows = db.all(
-        "SELECT f.fp_hash, u.id, u.name, u.instagram, u.banned_at IS NOT NULL AS banned "
+        f"SELECT f.fp_hash, {_REF_COLS} "
         "FROM user_fingerprints f JOIN users u ON u.id=f.user_id "
         "WHERE f.fp_hash IN (SELECT fp_hash FROM user_fingerprints WHERE user_id=?) "
         "AND f.user_id<>? ORDER BY u.id",
@@ -110,7 +128,7 @@ def fingerprint_bans(db: Database) -> list[dict[str, Any]]:
         "LEFT JOIN users s ON s.id=b.source_user_id ORDER BY b.created_at DESC"
     )
     users = db.all(
-        "SELECT f.fp_hash, u.id, u.name, u.instagram, u.banned_at IS NOT NULL AS banned "
+        f"SELECT f.fp_hash, {_REF_COLS} "
         "FROM user_fingerprints f JOIN users u ON u.id=f.user_id "
         "WHERE f.fp_hash IN (SELECT fp_hash FROM fingerprint_bans) ORDER BY u.id"
     )
@@ -118,6 +136,51 @@ def fingerprint_bans(db: Database) -> list[dict[str, Any]]:
     for r in users:
         by_fp.setdefault(r["fp_hash"], []).append(_user_ref(r))
     return [dict(b) | {"users": by_fp.get(b["fp_hash"], [])} for b in bans]
+
+
+def auto_banned_users(db: Database, fp_hashes: Iterable[str]) -> list[int]:
+    """Identities that started banned because they showed one of `fp_hashes`
+    (now unbanned) and show no fingerprint that is still banned: lifting the
+    fingerprint ban should let them in too."""
+    hashes = list(dict.fromkeys(fp_hashes))
+    if not hashes:
+        return []
+    marks = ",".join("?" * len(hashes))
+    rows = db.all(
+        "SELECT u.id FROM users u WHERE u.banned_at IS NOT NULL AND u.ban_reason=? "
+        "AND EXISTS (SELECT 1 FROM user_fingerprints f "
+        f"WHERE f.user_id=u.id AND f.fp_hash IN ({marks})) "
+        "AND NOT EXISTS (SELECT 1 FROM user_fingerprints f JOIN fingerprint_bans b "
+        "ON b.fp_hash=f.fp_hash WHERE f.user_id=u.id) ORDER BY u.id",
+        (AUTO_BAN_REASON, *hashes),
+    )
+    return [r["id"] for r in rows]
+
+
+def auto_ban_sources(db: Database, user_ids: Iterable[int]) -> dict[int, dict[str, Any]]:
+    """For auto-banned identities: the fingerprint ban that hit them (if it
+    still exists) and the guest that ban was made over."""
+    ids = list(dict.fromkeys(user_ids))
+    if not ids:
+        return {}
+    rows = db.all(
+        "SELECT f.user_id, b.fp_hash, b.source_user_id, s.name AS source_user_name "
+        "FROM user_fingerprints f JOIN fingerprint_bans b ON b.fp_hash=f.fp_hash "
+        "LEFT JOIN users s ON s.id=b.source_user_id "
+        f"WHERE f.user_id IN ({','.join('?' * len(ids))}) ORDER BY f.first_seen, b.created_at",
+        ids,
+    )
+    sources: dict[int, dict[str, Any]] = {}
+    for r in rows:
+        sources.setdefault(
+            r["user_id"],
+            {
+                "fp_hash": r["fp_hash"],
+                "source_user_id": r["source_user_id"],
+                "source_user_name": r["source_user_name"],
+            },
+        )
+    return sources
 
 
 def instagram_handles(db: Database) -> list[dict[str, Any]]:

@@ -146,10 +146,13 @@ body.adm-noscroll { overflow: hidden; }
   line-height: 1.3;
 }
 .adm-badge--ok { background: rgba(61, 220, 132, 0.15); color: #8dffbd; border: 1px solid rgba(61, 220, 132, 0.45); }
-.adm-badge--hidden { background: var(--vb-red); color: #fff; border: 1px solid var(--vb-red); }
+/* white on --vb-red is 3.3:1; this red keeps the loud look at 5.2:1 */
+.adm-badge--hidden { background: #d4144e; color: #fff; border: 1px solid #d4144e; }
 .adm-badge--ban { background: #19000a; color: #ff9a9a; border: 1px solid var(--vb-red); }
 .adm-badge--info { background: rgba(45, 226, 230, 0.14); color: #9ff7f9; border: 1px solid rgba(45, 226, 230, 0.4); }
 .adm-badge--xs { font-size: 0.65rem; padding: 1px 6px; margin-left: 6px; vertical-align: middle; }
+/* banned only because a new device showed a banned fingerprint: maybe a bystander */
+.adm-badge--auto { background: #241200; color: #ffc27a; border: 1px dashed var(--vb-orange); }
 
 /* ------------------------------------------------------------ user link */
 
@@ -214,6 +217,8 @@ body.adm-noscroll { overflow: hidden; }
   cursor: zoom-in;
 }
 .adm-thumb img { display: block; width: 100%; height: 100%; object-fit: cover; }
+.adm-thumb:focus-visible { outline: 4px solid var(--vb-cyan); outline-offset: -4px; }
+.adm-thumb:focus-visible img { opacity: 0.85; }
 .is-hidden .adm-thumb img { opacity: 0.42; filter: grayscale(1); }
 .adm-thumb-flag {
   position: absolute;
@@ -240,8 +245,9 @@ body.adm-noscroll { overflow: hidden; }
 .adm-tabs {
   display: flex;
   gap: 6px;
-  max-width: 1400px;
-  margin: 10px auto 0;
+  max-width: 1408px;
+  margin: 6px auto -4px;
+  padding: 4px; /* room for the focus ring: the scroller clips outlines */
   overflow-x: auto;
   scrollbar-width: none;
 }
@@ -260,7 +266,10 @@ body.adm-noscroll { overflow: hidden; }
   cursor: pointer;
 }
 .adm-tab[aria-selected="true"] { background: var(--vb-grad); border-color: transparent; color: #1a0526; }
+.adm-tab:focus-visible { outline: 3px solid var(--vb-cyan); outline-offset: 2px; }
+[role="tabpanel"]:focus-visible { outline: 3px solid var(--vb-cyan); outline-offset: 6px; border-radius: 12px; }
 .adm-tab .adm-count { opacity: 0.75; font-weight: 700; margin-left: 4px; }
+.adm-tab[aria-selected="true"] .adm-count { opacity: 1; } /* faded dark on pink is < 4.5:1 */
 
 /* ----------------------------------------------------------- filters */
 
@@ -309,6 +318,7 @@ body.adm-noscroll { overflow: hidden; }
 }
 .adm-seg button + button { border-left: 1px solid var(--vb-border); }
 .adm-seg button[aria-pressed="true"] { background: var(--vb-surface-strong); color: var(--vb-yellow); }
+.adm-seg button:focus-visible { outline: 3px solid var(--vb-cyan); outline-offset: -3px; }
 
 /* ------------------------------------------------------ photo grid */
 
@@ -467,6 +477,8 @@ body.adm-noscroll { overflow: hidden; }
 /* ------------------------------------------------------------ dialogs */
 
 .adm-dialog h2 { font-size: 1.5rem; }
+/* above the lightbox (1500): "Löschen" in the lightbox asks in a dialog; below toasts */
+.adm-dialog-scrim { z-index: 1600; }
 
 /* -------------------------------------------------------- lists/rows */
 
@@ -485,11 +497,18 @@ body.adm-noscroll { overflow: hidden; }
 }
 a.adm-row:hover, a.adm-row:focus-visible { background: var(--vb-surface-strong); }
 .adm-row.is-banned { border-color: rgba(255, 77, 77, 0.55); }
+.adm-row.is-auto { border-style: dashed; border-color: rgba(255, 138, 0, 0.7); }
 .adm-row-main { display: grid; gap: 2px; min-width: 0; }
 .adm-row-title { font-weight: 800; overflow-wrap: anywhere; }
 .adm-row-sub { color: var(--vb-muted); font-size: 0.9rem; overflow-wrap: anywhere; }
 .adm-row-side { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
 .adm-num { font-weight: 900; font-size: 1.1rem; white-space: nowrap; }
+@media (max-width: 520px) {
+  /* phones: rows with a long explanation put their button below it */
+  .adm-row--stack { grid-template-columns: minmax(0, 1fr); }
+  .adm-row--stack .adm-row-side { justify-content: stretch; }
+  .adm-row--stack .adm-row-side .vb-btn { flex: 1; }
+}
 
 .adm-section { margin: 0 0 26px; }
 .adm-section > h2 { font-size: 1.25rem; margin: 0 0 10px; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
@@ -527,6 +546,12 @@ a.adm-row:hover, a.adm-row:focus-visible { background: var(--vb-surface-strong);
   text-decoration: none;
   cursor: pointer;
 }
+.adm-chip-link:focus-visible,
+.adm-back:focus-visible,
+.adm-user:focus-visible,
+a.adm-row:focus-visible,
+.adm-table a:focus-visible,
+.adm-row-sub a:focus-visible { outline: 3px solid var(--vb-cyan); outline-offset: 2px; border-radius: 8px; }
 
 /* audit table */
 .adm-table-wrap { overflow-x: auto; border-radius: 16px; border: 1px solid var(--vb-border); }
@@ -574,6 +599,8 @@ a.adm-row:hover, a.adm-row:focus-visible { background: var(--vb-surface-strong);
   background: rgba(255, 138, 0, 0.12);
   font-size: 0.9rem;
 }
+.adm-warn--auto { border-style: dashed; }
+.adm-check-hint { display: block; font-weight: 600; font-size: 0.9rem; }
 .adm-check { display: flex; align-items: flex-start; gap: 10px; min-height: 44px; padding: 8px 0; font-weight: 800; cursor: pointer; }
 .adm-check input { flex: none; width: 24px; height: 24px; margin: 1px 0 0; accent-color: var(--vb-pink); }
 .adm-stack { display: grid; gap: 10px; }
