@@ -7,6 +7,7 @@ from typing import Annotated
 from fastapi import APIRouter, Body, Query
 
 from ....core import errors
+from ....domain.constants import MAX_ID
 from ...deps import AdminDep, CoreDep
 from ...schemas.admin import (
     BanIn,
@@ -34,6 +35,9 @@ def list_users(
     limit: Annotated[int, Query(ge=1, le=500)] = 100,
     offset: Annotated[int, Query(ge=0, le=1_000_000)] = 0,
     paused: Annotated[str | None, Query(max_length=10, description="all | true | false")] = None,
+    code: Annotated[
+        int | None, Query(ge=1, lt=MAX_ID, description="only guests who joined via this QR code")
+    ] = None,
 ) -> UserListOut:
     users = core.repos.users.list(
         banned=parse_bool_filter(banned),
@@ -41,6 +45,7 @@ def list_users(
         limit=limit + 1,  # one more: is there a next page?
         offset=offset,
         paused=parse_bool_filter(paused),
+        code_id=code,
     )
     page = users[:limit]
     return UserListOut(

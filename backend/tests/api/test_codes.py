@@ -86,7 +86,7 @@ def test_code_1_is_listed(admin):
     assert code["created_by"] == "system" and code["target"] == "" == code["note"]
     assert code["stats"] == {
         "scans": 0, "people": 0, "guests": 0, "not_joined": 0, "photos": 0, "active_now": 0,
-        "first_scan_at": None, "last_scan_at": None,
+        "online_seconds": 0, "online_now": 0, "first_scan_at": None, "last_scan_at": None,
     }  # fmt: skip
     one = admin.get("/api/admin/codes/1").json()
     assert one == {"code": code, "changed": False}
@@ -392,14 +392,40 @@ def test_qr_job_uses_the_lowest_active_code(admin, core):
     )
 
 
-def test_qr_job_without_an_active_code_fails(admin, core):
-    from .test_admin_exports import run
+def qr_job(admin, **options: Any):
+    return admin.post("/api/admin/exports", json={"kind": "qr", "options": options}, headers=ORIGIN)
 
+
+def test_qr_job_without_an_active_code_is_refused(admin, core):
     core.settings = core.settings.replace(public_base_url="https://party.example")
     revoke(admin, 1)
-    job = run(admin, core, "qr")
-    assert job["status"] == "failed"
-    assert job["error"] == "Kein aktiver QR-Code. Leg im Tab „QR-Codes“ einen an."
+    r = qr_job(admin)
+    assert r.status_code == 409 and r.json() == {
+        "error": "code_revoked",
+        "message": "Kein aktiver QR-Code. Leg im Tab „QR-Codes“ einen an.",
+    }
+    r = qr_job(admin, code_id=1)
+    assert r.status_code == 409 and r.json()["error"] == "code_revoked"
+
+
+def test_qr_job_with_a_chosen_code(admin, core):
+    from .test_admin_exports import download, run, strip_root, unzip
+
+    core.settings = core.settings.replace(public_base_url="https://party.example")
+    second = create(admin, token="second-code-token-777")["code"]
+    done = run(admin, core, "qr", code_id=second["id"])
+    assert done["status"] == "done" and done["options"]["code_id"] == second["id"]
+    sheet = strip_root(unzip(download(admin, done).content), done["file_name"][:-4])
+    expected = qr_tool.make_qr(qr_tool.home_url("https://party.example", "second-code-token-777"))
+    assert expected.svg_inline(scale=1, border=4, dark="#000", light="#fff", omitsize=True) in (
+        sheet["qr-sheet.html"].decode()
+    )
+    r = qr_job(admin, code_id=99)
+    assert r.status_code == 404 and r.json()["message"] == "QR-Code nicht gefunden."
+    revoke(admin, second["id"])
+    r = qr_job(admin, code_id=second["id"])
+    assert r.status_code == 409 and r.json()["error"] == "code_revoked"
+    assert r.json()["message"].startswith(second["name"])
 
 
 def test_qr_cli_takes_the_token_from_the_database(admin, core, tmp_path, monkeypatch, capsys):

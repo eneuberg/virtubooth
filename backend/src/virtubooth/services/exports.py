@@ -38,7 +38,15 @@ from ..repositories.container import Repositories
 from ..tools import qr as qr_tool
 from ..tools._common import EXPORTS_DIR, ToolError
 from .events import AdminEvents
-from .export_runners import RUNNERS, JobCancelled, JobContext, JobFailed, Runner, user_message
+from .export_runners import (
+    NO_ACTIVE_CODE,
+    RUNNERS,
+    JobCancelled,
+    JobContext,
+    JobFailed,
+    Runner,
+    user_message,
+)
 
 if TYPE_CHECKING:
     from ..runtime import Core
@@ -113,7 +121,10 @@ class ExportService:
         """Queue a job; (job, True). When one of this kind is already queued or
         running: (that job, False), nothing new."""
         if isinstance(options, QrOptions):
-            options = QrOptions(base_url=self._qr_base_url(options.base_url))
+            options = QrOptions(
+                base_url=self._qr_base_url(options.base_url),
+                code_id=self._qr_code_id(options.code_id),
+            )
         values = options.model_dump(mode="json")
         with self.db.tx():
             existing = self.repos.exports.active(kind)
@@ -146,6 +157,23 @@ class ExportService:
                 "kein # enthalten, z. B. https://party.example.com.",
                 "invalid_base_url",
             ) from None
+
+    def _qr_code_id(self, code_id: int | None) -> int:
+        """The QR code the sheet carries: the chosen one (must be active), else
+        the active code with the lowest number."""
+        if code_id is None:
+            lowest = self.repos.codes.lowest_active()
+            if lowest is None:
+                raise errors.ApiError(409, "code_revoked", NO_ACTIVE_CODE)
+            return lowest.id
+        code = self.repos.codes.get(code_id)
+        if code is None:
+            raise errors.not_found("QR-Code nicht gefunden.")
+        if not code.active:
+            raise errors.ApiError(
+                409, "code_revoked", f"{code.name} ist gelöscht. Wähl einen aktiven QR-Code."
+            )
+        return code.id
 
     def delete(self, job_id: str, *, actor: str) -> None:
         """Remove a job and its file. A queued job is cancelled this way; a

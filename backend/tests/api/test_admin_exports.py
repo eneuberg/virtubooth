@@ -242,7 +242,7 @@ def test_archive_of_an_empty_party(admin, core):
 def test_qr_job_zip_has_sheet_and_codes(admin, core, base_url):
     done = run(admin, core, "qr")
     assert done["status"] == "done"
-    assert done["options"] == {"base_url": BASE}  # the default, recorded
+    assert done["options"] == {"base_url": BASE, "code_id": 1}  # the defaults, recorded
     assert re.fullmatch(r"qr-codes-\d{8}-\d{4}-[\w-]{8}\.zip", done["file_name"])
     r = download(admin, done)
     assert r.headers["content-type"] == "application/zip"
@@ -273,7 +273,8 @@ def test_qr_base_url_option_and_errors(admin, core):
         assert r.status_code == 400 and r.json()["error"] == "invalid_base_url", bad
     assert core.repos.exports.list() == []
     done = run(admin, core, "qr", base_url=" https://other.example/ ")
-    assert done["status"] == "done" and done["options"] == {"base_url": "https://other.example"}
+    assert done["status"] == "done"
+    assert done["options"] == {"base_url": "https://other.example", "code_id": 1}
 
 
 def test_list_tells_the_form_its_defaults(admin, base_url, monkeypatch):
@@ -564,7 +565,10 @@ def test_create_and_delete_are_audited(admin, core, base_url):
     delete, create = entries[0], entries[1]
     assert create["action"] == "export.create" and create["target"] == f"export:{created['id']}"
     assert create["actor"].startswith("admin:")
-    assert create["details"] == {"kind": "qr", "options": {"base_url": "https://x.example"}}
+    assert create["details"] == {
+        "kind": "qr",
+        "options": {"base_url": "https://x.example", "code_id": 1},
+    }
     assert delete["action"] == "export.delete" and delete["target"] == create["target"]
     assert delete["details"]["kind"] == "qr" and delete["details"]["status"] == "done"
     # a refused delete (or a repeated create) leaves no entry

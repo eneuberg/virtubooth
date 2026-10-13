@@ -164,6 +164,14 @@ class AutoBan(BaseModel):
     source_user_name: str | None
 
 
+class CodeRef(BaseModel):
+    """The QR code a guest joined through (see /api/admin/codes)."""
+
+    id: int = Field(description="The code's number.")
+    name: str = Field(description="„<animal> <id>“, e.g. „Gorilla 2“.")
+    active: bool = Field(description="False: the code was deleted (revoked) since.")
+
+
 class AdminUser(BaseModel):
     """Everything about a guest. The same shape in every response and event."""
 
@@ -194,9 +202,12 @@ class AdminUser(BaseModel):
     online_now: bool = Field(
         description="The page is open and visible right now (a beat within 150 s)."
     )
+    code: CodeRef | None = Field(description="The QR code it joined through; null: unknown.")
 
     @classmethod
-    def of(cls, u: m.User, auto_ban: m.AutoBanSource | None) -> AdminUser:
+    def of(
+        cls, u: m.User, auto_ban: m.AutoBanSource | None, code: CodeRef | None = None
+    ) -> AdminUser:
         return cls(
             id=u.id,
             name=u.name,
@@ -223,6 +234,7 @@ class AdminUser(BaseModel):
             online_seconds=u.online_seconds,
             online_sessions=u.online_sessions,
             online_now=is_online(u.online_at),
+            code=code,
         )
 
 

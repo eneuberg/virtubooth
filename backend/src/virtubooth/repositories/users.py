@@ -127,9 +127,13 @@ class UsersRepo:
         limit: int = 100,
         offset: int = 0,
         paused: bool | None = None,
+        code_id: int | None = None,
     ) -> builtins.list[User]:
         where: list[str] = []
         params: list[Any] = []
+        if code_id is not None:
+            where.append("u.code_id = ?")
+            params.append(code_id)
         if banned is not None:
             where.append("u.banned_at IS NOT NULL" if banned else "u.banned_at IS NULL")
         if paused is not None:

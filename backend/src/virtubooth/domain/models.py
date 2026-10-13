@@ -52,6 +52,8 @@ class User:
     online_seconds: int = 0
     online_sessions: int = 0
     online_at: str | None = None
+    # the QR code it joined through (party_codes.id; None: unknown)
+    code_id: int | None = None
 
     @property
     def banned(self) -> bool:

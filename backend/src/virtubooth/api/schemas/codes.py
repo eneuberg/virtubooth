@@ -20,6 +20,8 @@ class CodeStats(BaseModel):
     not_joined: int = Field(description="Its browsers that never joined.")
     photos: int = Field(description="Its guests' photos that aren't deleted.")
     active_now: int = Field(description="Its guests not banned and seen in the last 5 minutes.")
+    online_seconds: int = Field(description="Its guests' online time added up (seconds).")
+    online_now: int = Field(description="Its guests whose page is open and visible right now.")
     first_scan_at: str | None
     last_scan_at: str | None
 
@@ -32,6 +34,8 @@ class CodeStats(BaseModel):
             not_joined=stats.not_joined,
             photos=stats.photos,
             active_now=stats.active_now,
+            online_seconds=stats.online_seconds,
+            online_now=stats.online_now,
             first_scan_at=stats.first_scan_at,
             last_scan_at=stats.last_scan_at,
         )

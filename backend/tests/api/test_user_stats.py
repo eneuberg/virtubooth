@@ -103,10 +103,11 @@ def test_users_csv_has_the_online_time(guest, core, tmp_path):
             "UPDATE users SET online_seconds=4321, online_sessions=3 WHERE id=?",
             (user_id_of(core, g),),
         )
-    assert USER_COLUMNS[-2:] == ["online_seconds", "online_sessions"]
+    assert USER_COLUMNS[-3:] == ["online_seconds", "online_sessions", "code"]
     scratch = tmp_path / "scratch"
     scratch.mkdir()
     snap = take_snapshot(core.settings.data_dir, scratch, include_hidden=True)
-    [row] = read_csv(users_csv(snap.users))
+    [row] = read_csv(users_csv(snap.users, snap.code_names))
     assert list(row) == USER_COLUMNS
     assert (row["online_seconds"], row["online_sessions"]) == ("4321", "3")
+    assert row["code"] == snap.code_names[1] and row["code"].endswith(" 1")  # joined via code 1

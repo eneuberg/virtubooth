@@ -15,7 +15,7 @@ from datetime import UTC, datetime, timedelta
 from ..core.clock import iso
 from ..db.database import Database
 from ..domain.codes import CodeStats, PartyCode, token_hash
-from ..domain.overview import ACTIVE_MINUTES
+from ..domain.overview import ACTIVE_MINUTES, ONLINE_GAP_SECONDS
 from ._rows import as_int
 
 _COLS = (
@@ -98,6 +98,7 @@ class PartyCodesRepo:
         """Statistics of every code (codes are few: one query for all)."""
         now = now or datetime.now(UTC)
         active_since = iso(now - timedelta(minutes=ACTIVE_MINUTES))
+        online_since = iso(now - timedelta(seconds=ONLINE_GAP_SECONDS))  # overview.is_online
         rows = self.db.all(
             "WITH v AS (SELECT code_id, SUM(scans) AS scans, COUNT(*) AS people, "
             "  MIN(first_seen_at) AS first_scan_at, MAX(last_seen_at) AS last_scan_at "
@@ -106,16 +107,17 @@ class PartyCodesRepo:
             "  JOIN visitors vi ON vi.id=cv.visitor_id WHERE vi.user_id IS NULL "
             "  GROUP BY cv.code_id), "
             "g AS (SELECT code_id, COUNT(*) AS guests, "
-            "  SUM(banned_at IS NULL AND last_seen_at>=?) AS active_now "
+            "  SUM(banned_at IS NULL AND last_seen_at>=?) AS active_now, "
+            "  SUM(online_seconds) AS online_seconds, SUM(online_at>=?) AS online_now "
             "  FROM users WHERE code_id IS NOT NULL GROUP BY code_id), "
             "p AS (SELECT u.code_id, COUNT(*) AS photos FROM photos ph "
             "  JOIN users u ON u.id=ph.user_id "
             "  WHERE u.code_id IS NOT NULL AND ph.deleted_at IS NULL GROUP BY u.code_id) "
             "SELECT c.id, v.scans, v.people, v.first_scan_at, v.last_scan_at, nj.n AS not_joined, "
-            "  g.guests, g.active_now, p.photos "
+            "  g.guests, g.active_now, g.online_seconds, g.online_now, p.photos "
             "FROM party_codes c LEFT JOIN v ON v.code_id=c.id LEFT JOIN nj ON nj.code_id=c.id "
             "LEFT JOIN g ON g.code_id=c.id LEFT JOIN p ON p.code_id=c.id",
-            (active_since,),
+            (active_since, online_since),
         )
         return {
             r["id"]: CodeStats(
@@ -125,6 +127,8 @@ class PartyCodesRepo:
                 not_joined=as_int(r["not_joined"]),
                 photos=as_int(r["photos"]),
                 active_now=as_int(r["active_now"]),
+                online_seconds=as_int(r["online_seconds"]),
+                online_now=as_int(r["online_now"]),
                 first_scan_at=r["first_scan_at"],
                 last_scan_at=r["last_scan_at"],
             )

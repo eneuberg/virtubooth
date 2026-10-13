@@ -85,6 +85,7 @@ dev: $(ENV_FILE) ## backend on :PORT with reload; serves frontend/dist, or place
 	@set -a && . $(abspath $(ENV_FILE)) && set +a && \
 	  token="$$VB_PARTY_TOKEN" && \
 	  echo "open http://localhost:$(PORT)/?t=$$token (admin: http://localhost:$(PORT)/admin)" && \
+	  echo "  (VB_PARTY_TOKEN is QR code 1's token from the first start; after a token change in the admin, take the link from Admin -> QR-Codes)" && \
 	  export VB_DATA_DIR="$${VB_DATA_DIR:-$(DATA_DIR)}" && \
 	  case "$$VB_DATA_DIR" in /*) ;; *) VB_DATA_DIR="$(CURDIR)/$$VB_DATA_DIR" ;; esac && \
 	  case "$${VB_WEB_DIR:-/}" in /*) ;; *) export VB_WEB_DIR="$(CURDIR)/$$VB_WEB_DIR" ;; esac && \

@@ -1,14 +1,14 @@
 """Admin views of domain objects: the shapes the admin API and the events send.
 
-`AdminUser` needs a lookup (which fingerprint ban auto-banned a guest), so it
-is built here and not on the schema alone.
+`AdminUser` needs lookups (which fingerprint ban auto-banned a guest, the QR
+code it joined through), so it is built here and not on the schema alone.
 """
 
 from __future__ import annotations
 
 from collections.abc import Sequence
 
-from ..api.schemas.admin import AdminPhoto, AdminUser
+from ..api.schemas.admin import AdminPhoto, AdminUser, CodeRef
 from ..domain.models import Photo, PhotoQuery, User
 from ..repositories.container import Repositories
 
@@ -22,7 +22,17 @@ class AdminViews:
     def users(self, users: Sequence[User]) -> list[AdminUser]:
         auto = [u.id for u in users if u.auto_banned]
         sources = self.repos.read_models.auto_ban_sources(auto)
-        return [AdminUser.of(u, sources.get(u.id)) for u in users]
+        codes = self.code_refs() if any(u.code_id is not None for u in users) else {}
+        return [
+            AdminUser.of(u, sources.get(u.id), codes.get(u.code_id) if u.code_id else None)
+            for u in users
+        ]
+
+    def code_refs(self) -> dict[int, CodeRef]:
+        """Every QR code by number (codes are few: one query)."""
+        return {
+            c.id: CodeRef(id=c.id, name=c.name, active=c.active) for c in self.repos.codes.list()
+        }
 
     def user(self, user: User) -> AdminUser:
         return self.users([user])[0]

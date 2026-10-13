@@ -12,6 +12,7 @@ from ...deps import AdminDep, CoreDep
 from ...schemas.admin import StopIn, StopOut, StopState
 from ...schemas.dashboard import (
     OverviewActivity,
+    OverviewCode,
     OverviewGuests,
     OverviewOut,
     OverviewPhotos,
@@ -24,7 +25,8 @@ router = APIRouter()
 @router.get("/overview")
 def overview(core: CoreDep) -> OverviewOut:
     """Live counters: guests active and uploading now, scans and joins, photos
-    in the last 15/60 minutes, per activity. Cheap; poll it every ~10 s."""
+    in the last 15/60 minutes, per activity and per QR code. Cheap; poll it
+    every ~10 s."""
     data = core.repos.overview.overview()
     counts = {a.id: a for a in data.activities}
     activities = [
@@ -43,6 +45,21 @@ def overview(core: CoreDep) -> OverviewOut:
         for a in data.activities
         if a.id not in core.extensions
     ]
+    stats = core.repos.codes.stats()
+    codes = [
+        OverviewCode(
+            id=c.id,
+            name=c.name,
+            active=c.active,
+            scans=st.scans,
+            people=st.people,
+            guests=st.guests,
+            photos=st.photos,
+            active_now=st.active_now,
+        )
+        for c in core.repos.codes.list()
+        if (st := stats.get(c.id)) is not None and (c.active or st.scans > 0)
+    ]
     return OverviewOut(
         at=data.at,
         active_minutes=ACTIVE_MINUTES,
@@ -50,6 +67,7 @@ def overview(core: CoreDep) -> OverviewOut:
         scans=OverviewScans.model_validate(data.scans),
         photos=OverviewPhotos.model_validate(data.photos),
         activities=activities,
+        codes=codes,
     )
 
 

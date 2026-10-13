@@ -469,6 +469,17 @@
             ],
             "title": "Banned At"
           },
+          "code": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CodeRef"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The QR code it joined through; null: unknown."
+          },
           "consent_at": {
             "title": "Consent At",
             "type": "string"
@@ -619,7 +630,8 @@
           "auto_ban",
           "online_seconds",
           "online_sessions",
-          "online_now"
+          "online_now",
+          "code"
         ],
         "title": "AdminUser",
         "type": "object"
@@ -1161,6 +1173,33 @@
         "title": "CodeOut",
         "type": "object"
       },
+      "CodeRef": {
+        "description": "The QR code a guest joined through (see /api/admin/codes).",
+        "properties": {
+          "active": {
+            "description": "False: the code was deleted (revoked) since.",
+            "title": "Active",
+            "type": "boolean"
+          },
+          "id": {
+            "description": "The code's number.",
+            "title": "Id",
+            "type": "integer"
+          },
+          "name": {
+            "description": "„<animal> <id>“, e.g. „Gorilla 2“.",
+            "title": "Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "active"
+        ],
+        "title": "CodeRef",
+        "type": "object"
+      },
       "CodeStats": {
         "description": "What happened through one code. Party scale, counted live.",
         "properties": {
@@ -1201,6 +1240,16 @@
             "title": "Not Joined",
             "type": "integer"
           },
+          "online_now": {
+            "description": "Its guests whose page is open and visible right now.",
+            "title": "Online Now",
+            "type": "integer"
+          },
+          "online_seconds": {
+            "description": "Its guests' online time added up (seconds).",
+            "title": "Online Seconds",
+            "type": "integer"
+          },
           "people": {
             "description": "Browsers that opened it.",
             "title": "People",
@@ -1224,6 +1273,8 @@
           "not_joined",
           "photos",
           "active_now",
+          "online_seconds",
+          "online_now",
           "first_scan_at",
           "last_scan_at"
         ],
@@ -2834,6 +2885,57 @@
         "title": "OverviewActivity",
         "type": "object"
       },
+      "OverviewCode": {
+        "description": "One QR code's numbers (see `CodeStats` of /api/admin/codes).",
+        "properties": {
+          "active": {
+            "description": "False: deleted (revoked).",
+            "title": "Active",
+            "type": "boolean"
+          },
+          "active_now": {
+            "title": "Active Now",
+            "type": "integer"
+          },
+          "guests": {
+            "title": "Guests",
+            "type": "integer"
+          },
+          "id": {
+            "description": "The code's number.",
+            "title": "Id",
+            "type": "integer"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "people": {
+            "title": "People",
+            "type": "integer"
+          },
+          "photos": {
+            "title": "Photos",
+            "type": "integer"
+          },
+          "scans": {
+            "title": "Scans",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "active",
+          "scans",
+          "people",
+          "guests",
+          "photos",
+          "active_now"
+        ],
+        "title": "OverviewCode",
+        "type": "object"
+      },
       "OverviewGuests": {
         "properties": {
           "active_now": {
@@ -2898,6 +3000,14 @@
             "title": "At",
             "type": "string"
           },
+          "codes": {
+            "description": "The active QR codes plus deleted ones that were scanned, by number.",
+            "items": {
+              "$ref": "#/components/schemas/OverviewCode"
+            },
+            "title": "Codes",
+            "type": "array"
+          },
           "guests": {
             "$ref": "#/components/schemas/OverviewGuests"
           },
@@ -2914,7 +3024,8 @@
           "guests",
           "scans",
           "photos",
-          "activities"
+          "activities",
+          "codes"
         ],
         "title": "OverviewOut",
         "type": "object"
@@ -3753,6 +3864,20 @@
             ],
             "description": "Public URL guests open, e.g. https://party.example.com. Default: VB_PUBLIC_BASE_URL. In a job: the URL that was used.",
             "title": "Base Url"
+          },
+          "code_id": {
+            "anyOf": [
+              {
+                "exclusiveMaximum": 4.611686018427388e+18,
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The QR code whose token the sheet carries. Default: the active code with the lowest number. In a job: the code that was used.",
+            "title": "Code Id"
           }
         },
         "title": "QrOptions",
@@ -7230,7 +7355,7 @@
     },
     "/api/admin/overview": {
       "get": {
-        "description": "Live counters: guests active and uploading now, scans and joins, photos\nin the last 15/60 minutes, per activity. Cheap; poll it every ~10 s.",
+        "description": "Live counters: guests active and uploading now, scans and joins, photos\nin the last 15/60 minutes, per activity and per QR code. Cheap; poll it\nevery ~10 s.",
         "operationId": "overview_api_admin_overview_get",
         "responses": {
           "200": {
@@ -9653,6 +9778,26 @@
               ],
               "description": "all | true | false",
               "title": "Paused"
+            }
+          },
+          {
+            "description": "only guests who joined via this QR code",
+            "in": "query",
+            "name": "code",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "exclusiveMaximum": 4611686018427387904,
+                  "minimum": 1,
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "only guests who joined via this QR code",
+              "title": "Code"
             }
           }
         ],

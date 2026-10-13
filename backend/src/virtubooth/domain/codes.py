@@ -130,7 +130,9 @@ class CodeStats:
     """Per code: `scans` (valid scans), `people` (browsers that scanned it),
     `guests` (joined through it), `not_joined` (its browsers that never
     joined), `photos` (its guests' photos that aren't deleted), `active_now`
-    (its guests not banned and seen within domain.overview.ACTIVE_MINUTES)."""
+    (its guests not banned and seen within domain.overview.ACTIVE_MINUTES),
+    `online_seconds` (its guests' online time added up), `online_now` (its
+    guests whose page is open and visible, domain.overview.is_online)."""
 
     scans: int = 0
     people: int = 0
@@ -138,5 +140,7 @@ class CodeStats:
     not_joined: int = 0
     photos: int = 0
     active_now: int = 0
+    online_seconds: int = 0
+    online_now: int = 0
     first_scan_at: str | None = None
     last_scan_at: str | None = None
