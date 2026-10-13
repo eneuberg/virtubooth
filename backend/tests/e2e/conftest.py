@@ -438,6 +438,18 @@ def settle_dialogs(page: Page) -> None:
             await frame();
             for (let i = 0; i < 120 && busy(); i++) await frame();
             await Promise.all(document.getAnimations().filter(inScrim).map((a) => a.finished.catch(() => null)));
+            // then until the sheets stand still for 3 frames (max ~2 s): an entry that
+            // starts late under load is waited for instead of measured mid-flight
+            const where = () => [...document.querySelectorAll('.vb-scrim [role=dialog], .vb-scrim [role=alertdialog]')]
+                .map((d) => { const r = d.getBoundingClientRect(); return [r.x, r.y, r.width, r.height].join(); })
+                .join('|');
+            let last = where();
+            for (let i = 0, still = 0; i < 120 && still < 3; i++) {
+                await frame();
+                const now = where();
+                still = now === last && !busy() ? still + 1 : 0;
+                last = now;
+            }
         }"""
     )
 
