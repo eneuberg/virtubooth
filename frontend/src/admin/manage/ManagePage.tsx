@@ -13,6 +13,7 @@ import {
   Radio,
   ScrollText,
   ShieldBan,
+  Tv,
   Upload,
   Users,
 } from 'lucide-react';
@@ -37,6 +38,7 @@ import { useStats } from '../store/hooks';
 import { useDocumentSurface } from '../surface';
 import { openUploadSheet } from '../uploads/sheetStore';
 import { UploadStatusPill } from '../uploads/UploadStatusPill';
+import { WallSection } from '../wall/WallSection';
 import { AuditSection } from './AuditSection';
 import { BansSection } from './BansSection';
 import { ExportSection } from './ExportSection';
@@ -49,6 +51,7 @@ const SECTION_VIEW: Record<Section, ComponentType> = {
   fotos: PhotosSection,
   gaeste: GuestsSection,
   instagram: InstagramSection,
+  livewall: WallSection,
   sperren: BansSection,
   protokoll: AuditSection,
   export: ExportSection,
@@ -65,6 +68,7 @@ function navItems(stats: AdminStats | undefined) {
     navItem('fotos', 'Fotos', Images, stats?.photos),
     navItem('gaeste', 'Gäste', Users, stats?.guests),
     navItem('instagram', 'Instagram', AtSign, stats?.instagram_handles),
+    navItem('livewall', 'Live-Wall', Tv),
     navItem('sperren', 'Sperren', ShieldBan, stats ? stats.banned + stats.fingerprint_bans : undefined),
     navItem('protokoll', 'Protokoll', ScrollText),
     navItem('export', 'Export', Archive),
