@@ -81,7 +81,7 @@ export function NumberField({
       }}
       errorMessage={error ?? null}
       description={description}
-      className={className}
+      className={cx('grid-cols-[minmax(0,1fr)]', className)}
       data-testid={testid}
     />
   );
@@ -125,7 +125,7 @@ export function ColorField({
           onChange(normalizeHex(next) ?? next);
         }}
         errorMessage={error ?? null}
-        className="min-w-0 flex-1"
+        className="min-w-0 flex-1 grid-cols-[minmax(0,1fr)]"
       />
     </div>
   );

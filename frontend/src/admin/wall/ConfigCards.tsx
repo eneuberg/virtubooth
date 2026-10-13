@@ -71,7 +71,7 @@ export function PlaylistCard({ draft, update, errors }: DraftProps) {
           <li
             key={entry.mode}
             data-mode={entry.mode}
-            className="grid grid-cols-[minmax(0,1fr)_auto] items-end gap-x-3 gap-y-2 rounded-control bg-surface-sunk px-3 py-2 sm:grid-cols-[minmax(0,1fr)_9rem_auto]"
+            className="grid grid-cols-[minmax(0,1fr)_auto] items-end gap-x-3 gap-y-2 rounded-control bg-surface-sunk px-3 py-2 sm:grid-cols-[minmax(0,1fr)_10rem_auto]"
           >
             <Switch
               isSelected={entry.enabled}
@@ -105,7 +105,7 @@ export function PlaylistCard({ draft, update, errors }: DraftProps) {
               onChange={(v) =>
                 update((c) => ({ ...c, playlist: setModeDuration(c.playlist, entry.mode, v) }))
               }
-              className="col-span-2 sm:col-span-1"
+              className="col-span-2 min-w-0 sm:col-span-1"
             />
           </li>
         ))}
@@ -268,7 +268,7 @@ export function LookCard({ draft, update, errors, defaults }: DraftProps & { def
         onChange={(preset) => set({ preset })}
         data-testid="wall-preset"
       />
-      <div className="grid gap-3 sm:grid-cols-3">
+      <div className="grid gap-3 sm:grid-cols-[repeat(auto-fit,minmax(11rem,1fr))]">
         <ColorField
           label="Hauptfarbe"
           value={look.primary}
@@ -284,7 +284,7 @@ export function LookCard({ draft, update, errors, defaults }: DraftProps & { def
           testid="wall-color-secondary"
         />
         <ColorField
-          label="Hintergrund"
+          label="Hintergrundfarbe"
           value={look.background}
           error={errors['look.background']}
           onChange={(background) => set({ background })}

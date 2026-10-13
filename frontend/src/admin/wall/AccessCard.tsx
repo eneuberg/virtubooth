@@ -32,7 +32,7 @@ export function AccessCard({ admin }: { admin: WallAdminOut }) {
   const submit = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     if (password.length < MIN_LENGTH) {
-      setError(`Mindestens ${MIN_LENGTH} Zeichen.`);
+      setError(`Das Passwort ist zu kurz: mindestens ${MIN_LENGTH} Zeichen.`);
       return;
     }
     setBusy('set');
