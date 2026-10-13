@@ -2,7 +2,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { Archive, Download, Film, QrCode, Trash2, X } from 'lucide-react';
 import { useState, type FormEvent, type ReactNode } from 'react';
 import type { ExportJob, ExportKind, ExportRequest } from '@/api/types';
-import { formatBytes, formatDateTime, formatRelative } from '@/lib/format';
+import { formatBytes, formatRelative } from '@/lib/format';
 import { Button, LinkButton } from '@/ui/Button';
 import { cx } from '@/ui/cx';
 import { Checkbox } from '@/ui/Checkbox';
@@ -14,17 +14,12 @@ import { Progress, Spinner } from '@/ui/Spinner';
 import { TextField } from '@/ui/TextField';
 import { showToast } from '@/ui/Toast';
 import { errorText, showError } from '../common/usePhotoActions';
+import { exportJobTitle } from '../lib/labels';
 import { deleteExport, startExport } from '../store/actions';
-import { useExports, useExtensions } from '../store/hooks';
+import { useExports, useExtensionMap, useExtensions } from '../store/hooks';
 
 const KIND_LABEL: Record<ExportKind, string> = { archive: 'Archiv', timelapse: 'Zeitraffer', qr: 'QR-Bogen' };
 const FPS = [6, 8, 12, 15, 24, 30] as const;
-
-function jobTitle(job: ExportJob): string {
-  const options: Record<string, unknown> = { ...job.options };
-  const ext = typeof options['extension'] === 'string' ? ` (${options['extension']})` : '';
-  return `${KIND_LABEL[job.kind]}${job.kind === 'timelapse' ? ext : ''} vom ${formatDateTime(job.created_at)}`;
-}
 
 function Panel({
   icon: Icon,
@@ -94,6 +89,7 @@ export function ExportSection() {
   const qc = useQueryClient();
   const exportsQuery = useExports();
   const { data: extensions } = useExtensions();
+  const extensionMap = useExtensionMap();
   const data = exportsQuery.data;
   const [archive, setArchive] = useState({ include_hidden: false, include_db: false });
   const [timelapse, setTimelapse] = useState({
@@ -187,7 +183,7 @@ export function ExportSection() {
                 className="grid gap-x-4 gap-y-2 border-b border-line py-3 sm:flex sm:items-center"
               >
                 <div className="grid min-w-0 flex-1 gap-1">
-                  <span className="font-semibold">{jobTitle(job)}</span>
+                  <span className="font-semibold">{exportJobTitle(job, extensionMap)}</span>
                   <JobStatus job={job} />
                 </div>
                 <div className="flex items-center gap-2">
@@ -373,7 +369,7 @@ export function ExportSection() {
             setDeleteError(null);
           }
         }}
-        title={deleting ? `${jobTitle(deleting)} löschen?` : ''}
+        title={deleting ? `${exportJobTitle(deleting, extensionMap)} löschen?` : ''}
         confirmLabel="Löschen"
         error={deleteError}
         data-testid="confirm"

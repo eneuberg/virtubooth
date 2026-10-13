@@ -2,7 +2,7 @@
  * Admin copy built from data: frame labels, readable meta, devices, audit entries,
  * counts. German typography (lib/format): NBSP between number and unit, „…“.
  */
-import type { AdminExtension, AdminPhoto, AdminUser, AuditEntry } from '@/api/types';
+import type { AdminExtension, AdminPhoto, AdminUser, AuditEntry, ExportJob } from '@/api/types';
 import { formatDateTime, formatTime, frameLabel, NBSP, pluralize } from '@/lib/format';
 import { quoted } from '@/lib/messages.de';
 
@@ -185,6 +185,18 @@ export function auditTarget(target: string): AuditTarget {
 }
 
 const KIND_WORDS: Record<string, string> = { archive: 'Archiv', timelapse: 'Zeitraffer', qr: 'QR-Bogen' };
+
+/** "Zeitraffer (Beer Cam) vom 13.10.2026, 22:41": a timelapse names its activity by title. */
+export function exportJobTitle(
+  job: Pick<ExportJob, 'kind' | 'options' | 'created_at'>,
+  extensions?: ReadonlyMap<string, Pick<AdminExtension, 'title'>>,
+): string {
+  const options: Record<string, unknown> = { ...job.options };
+  const id = options['extension'];
+  const activity =
+    job.kind === 'timelapse' && typeof id === 'string' ? ` (${extensions?.get(id)?.title ?? id})` : '';
+  return `${KIND_WORDS[job.kind] ?? job.kind}${activity} vom ${formatDateTime(job.created_at)}`;
+}
 
 function detailValue(key: string, v: unknown): string {
   if (typeof v === 'boolean') return v ? 'ja' : 'nein';
