@@ -2,7 +2,10 @@
  * The admin event stream's life cycle (contracts/api.md §4), without React:
  *
  * 1. Wait for the page's first admin answers, open the stream at the earliest
- *    `X-VB-Event-Id` they reported (`?since=`), so nothing in between is lost.
+ *    `X-VB-Event-Id` they reported (`?since=`), so nothing in between is lost. And
+ *    wait for the page's load event: Firefox counts a request opened before it as
+ *    part of the page load, so a stream would keep the page loading for good (the
+ *    tab's spinner; a test's `page.goto` waits until it times out).
  * 2. Apply every event to the query cache (applyEvent.ts); `stream.resync` refetches all.
  * 3. The browser reconnects by itself after network errors (`Last-Event-ID` → replay).
  *    While the stream is down, poll: refetch the shown queries every 5 s.
@@ -35,7 +38,9 @@ export interface StreamDeps {
   cursor: () => string | null;
   onCursor: (listener: () => void) => () => void;
   isOnline?: () => boolean;
-  target?: Pick<Document, 'addEventListener' | 'removeEventListener' | 'visibilityState'>;
+  target?: Pick<Document, 'addEventListener' | 'removeEventListener' | 'visibilityState'> & {
+    readyState?: DocumentReadyState;
+  };
   win?: Pick<Window, 'addEventListener' | 'removeEventListener'>;
 }
 
@@ -46,6 +51,8 @@ export function startAdminEvents(qc: QueryClient, deps: StreamDeps): () => void 
   const invalidator = createInvalidator(qc);
 
   let stopped = false;
+  /** between pagehide and a pageshow from the back/forward cache */
+  let away = false;
   let generation = 0;
   let handle: AdminEventsHandle | null = null;
   let streamStatus: StreamStatus = 'connecting';
@@ -106,7 +113,7 @@ export function startAdminEvents(qc: QueryClient, deps: StreamDeps): () => void 
   };
 
   function open() {
-    if (stopped) return;
+    if (stopped || away) return;
     if (reopen !== null) clearTimeout(reopen);
     reopen = null;
     const gen = ++generation; // the old handle's "closed" no longer counts
@@ -127,8 +134,9 @@ export function startAdminEvents(qc: QueryClient, deps: StreamDeps): () => void 
   // 1. open once the first answers are in (earliest cursor), or after a while anyway
   const started = Date.now();
   const unsubscribers: Array<() => void> = [];
+  const loading = () => doc.readyState !== undefined && doc.readyState !== 'complete';
   const firstOpen = () => {
-    if (handle || stopped) return;
+    if (handle || stopped || away || loading()) return;
     const waitedEnough = Date.now() - started >= OPEN_AT_LATEST_MS;
     if (!waitedEnough && (deps.cursor() === null || qc.isFetching() > 0)) return;
     for (const off of unsubscribers.splice(0)) off();
@@ -136,12 +144,16 @@ export function startAdminEvents(qc: QueryClient, deps: StreamDeps): () => void 
     open();
   };
   unsubscribers.push(deps.onCursor(firstOpen), qc.getQueryCache().subscribe(firstOpen));
+  if (loading()) {
+    win.addEventListener('load', firstOpen);
+    unsubscribers.push(() => win.removeEventListener('load', firstOpen));
+  }
   const fallback = setTimeout(firstOpen, OPEN_AT_LATEST_MS);
   firstOpen();
 
   // 5. back on the tab, back online
   const wake = () => {
-    if (stopped || !handle || doc.visibilityState === 'hidden') return;
+    if (stopped || away || !handle || doc.visibilityState === 'hidden') return;
     if (streamStatus !== 'live') open();
     resync();
   };
@@ -149,18 +161,22 @@ export function startAdminEvents(qc: QueryClient, deps: StreamDeps): () => void 
   win.addEventListener('online', wake);
 
   // 6. leaving the page, and coming back from the back/forward cache
+  // nothing opens while away: a first answer or the load event may still arrive after
+  // pagehide, and a stream opened then is aborted by the navigation (the same error)
   const leave = () => {
-    if (stopped || !handle) return;
+    if (stopped) return;
+    away = true;
     generation += 1; // its "closed" means nothing: no session check, no polling
     if (reopen !== null) clearTimeout(reopen);
     reopen = null;
     stopPolling();
-    handle.close();
+    handle?.close();
     handle = null;
   };
   const back = (e: Event) => {
     // PageTransitionEvent.persisted: restored from the back/forward cache
-    if (stopped || handle || !('persisted' in e && e.persisted === true)) return;
+    if (stopped || !away || !('persisted' in e && e.persisted === true)) return;
+    away = false;
     open();
     resync();
   };

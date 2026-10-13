@@ -10,6 +10,11 @@ class FakeDoc extends EventTarget {
   visibilityState: DocumentVisibilityState = 'visible';
 }
 
+/** a page whose load event has not fired yet */
+class LoadingDoc extends FakeDoc {
+  readyState: DocumentReadyState = 'interactive';
+}
+
 function setup(overrides: Partial<StreamDeps> = {}) {
   const qc = new QueryClient();
   const opened: AdminEventsOptions[] = [];
@@ -87,6 +92,30 @@ describe('startAdminEvents', () => {
       expect(opened[1]?.since).toBe('abcd1234-2');
       stop();
     });
+  });
+
+  it('waits for the page load event before it opens (Firefox: the stream would keep the page loading)', () => {
+    const doc = new LoadingDoc();
+    const { opened, win, stop } = setup({ target: doc });
+    noteEventId('abcd1234-1');
+    vi.advanceTimersByTime(OPEN_AT_LATEST_MS * 2);
+    expect(opened).toHaveLength(0);
+    doc.readyState = 'complete';
+    win.dispatchEvent(new Event('load'));
+    expect(opened).toHaveLength(1);
+    expect(opened[0]?.since).toBe('abcd1234-1');
+    stop();
+  });
+
+  it('opens nothing once the page is going, even when the first answers come late', () => {
+    const { opened, win, stop } = setup();
+    win.dispatchEvent(new Event('pagehide'));
+    noteEventId('abcd1234-1');
+    vi.advanceTimersByTime(OPEN_AT_LATEST_MS * 2);
+    expect(opened).toHaveLength(0);
+    win.dispatchEvent(Object.assign(new Event('pageshow'), { persisted: true }));
+    expect(opened).toHaveLength(1);
+    stop();
   });
 
   it('closes the stream when the page goes (no error, no polling) and reopens from the bfcache', () => {
