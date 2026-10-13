@@ -1,0 +1,293 @@
+/**
+ * The DOM transitions (WAAPI only: CSP-safe, no stylesheet changes at runtime).
+ */
+import { captionIn, cardOf, fadeOut, imgOf, picOf, play, type Transition } from './types';
+
+export const crossfade: Transition = ({ from, to, ms, signal }) =>
+  play(
+    [
+      to.animate([{ opacity: 0 }, { opacity: 1 }], {
+        duration: ms,
+        easing: 'ease-in-out',
+        fill: 'backwards',
+      }),
+      ...fadeOut(from, ms),
+    ],
+    signal,
+  );
+
+/** Crossfade, and the photo keeps zooming and drifting slowly while it is shown. */
+export const kenburns: Transition = (args) => {
+  const img = imgOf(args.to);
+  if (img) {
+    const dx = (args.rng() - 0.5) * 6;
+    const dy = (args.rng() - 0.5) * 6;
+    const zoomIn = args.rng() < 0.6;
+    const near = 'scale(1.14) translate(' + dx.toFixed(2) + '%, ' + dy.toFixed(2) + '%)';
+    const far = 'scale(1.02) translate(0, 0)';
+    img.animate([{ transform: zoomIn ? far : near }, { transform: zoomIn ? near : far }], {
+      duration: args.ms + args.hold + 1500,
+      easing: 'linear',
+      fill: 'forwards',
+    });
+  }
+  return crossfade({ ...args, ms: Math.max(args.ms, 900) });
+};
+
+/** Overshooting scale + lift. */
+export const spring: Transition = ({ from, to, ms, signal }) => {
+  const card = cardOf(to);
+  return play(
+    [
+      card.animate(
+        [
+          { transform: 'translateY(14vh) scale(0.6) rotate(-4deg)', opacity: 0 },
+          { transform: 'translateY(-2.5vh) scale(1.07) rotate(1.5deg)', opacity: 1, offset: 0.42 },
+          { transform: 'translateY(1vh) scale(0.97) rotate(-0.6deg)', offset: 0.62 },
+          { transform: 'translateY(-0.4vh) scale(1.015) rotate(0.2deg)', offset: 0.8 },
+          { transform: 'none', opacity: 1 },
+        ],
+        { duration: ms, easing: 'ease-out', fill: 'backwards' },
+      ),
+      ...captionIn(to, ms * 0.5, ms * 0.45),
+      ...(from
+        ? [
+            cardOf(from).animate(
+              [
+                { transform: 'none', opacity: 1 },
+                { transform: 'translateY(-6vh) scale(0.82)', opacity: 0 },
+              ],
+              { duration: ms * 0.55, easing: 'ease-in', fill: 'forwards' },
+            ),
+          ]
+        : []),
+      ...fadeOut(from, ms * 0.3, ms * 0.4),
+    ],
+    signal,
+  );
+};
+
+const CHANNELS = ['#ff0000', '#00ff00', '#0000ff'] as const;
+
+/** RGB split: three channel layers drift apart in steps, clipped to jumping slices. */
+export const glitch: Transition = (args) => {
+  const { from, to, ms, signal, rng } = args;
+  const pic = picOf(to);
+  const img = imgOf(to);
+  if (!img) return crossfade(args);
+  const box = document.createElement('div');
+  box.className = 'wall-glitch';
+  const animations: Animation[] = [];
+  const steps = 9;
+  CHANNELS.forEach((tint, i) => {
+    const layer = document.createElement('div');
+    layer.className = 'wall-glitch-layer';
+    const copy = img.cloneNode(false);
+    if (copy instanceof HTMLImageElement) {
+      copy.removeAttribute('class');
+      copy.alt = '';
+      layer.append(copy);
+    }
+    const color = document.createElement('div');
+    color.className = 'wall-glitch-tint';
+    color.style.backgroundColor = tint;
+    layer.append(color);
+    box.append(layer);
+    const frames: Keyframe[] = [];
+    for (let s = 0; s <= steps; s++) {
+      const left = s === steps;
+      const amp = left ? 0 : (1 - s / steps) * 7;
+      const x = (rng() - 0.5) * 2 * amp + (i - 1) * amp * 0.6;
+      const y = (rng() - 0.5) * amp * 0.4;
+      const top = left ? 0 : Math.floor(rng() * 70);
+      const bottom = left ? 0 : Math.floor(rng() * (90 - top));
+      frames.push({
+        transform: `translate(${x.toFixed(2)}%, ${y.toFixed(2)}%)`,
+        clipPath: `inset(${s === 0 || left ? 0 : top}% 0 ${s === 0 || left ? 0 : bottom}% 0)`,
+        easing: 'steps(1, end)',
+      });
+    }
+    animations.push(layer.animate(frames, { duration: ms, fill: 'both' }));
+  });
+  pic.append(box);
+  animations.push(
+    to.animate(
+      [
+        { opacity: 0 },
+        { opacity: 1, offset: 0.12 },
+        { opacity: 0.6, offset: 0.3 },
+        { opacity: 1, offset: 0.36 },
+        { opacity: 1 },
+      ],
+      { duration: ms, easing: 'steps(6, end)', fill: 'backwards' },
+    ),
+    ...fadeOut(from, ms * 0.35),
+  );
+  if (from) {
+    animations.push(
+      cardOf(from).animate(
+        [
+          { transform: 'none' },
+          { transform: 'translateX(-2%) skewX(4deg)' },
+          { transform: 'translateX(3%) skewX(-6deg)' },
+          { transform: 'none' },
+        ],
+        { duration: ms * 0.35, easing: 'steps(4, end)', fill: 'forwards' },
+      ),
+    );
+  }
+  return play(animations, signal).then(() => box.remove());
+};
+
+/** A white instant-photo frame drops in and settles with a tilt (and keeps it). */
+export const polaroid: Transition = ({ from, to, ms, signal, rng }) => {
+  to.classList.add('is-polaroid');
+  const card = cardOf(to);
+  const tilt = (rng() < 0.5 ? -1 : 1) * (1.5 + rng() * 2.5);
+  return play(
+    [
+      card.animate(
+        [
+          { transform: `translateY(-115vh) rotate(${-tilt * 5}deg)` },
+          { transform: `translateY(2.5vh) rotate(${tilt * 1.8}deg)`, offset: 0.55 },
+          { transform: `translateY(-1vh) rotate(${-tilt * 0.6}deg)`, offset: 0.75 },
+          { transform: `rotate(${tilt}deg)` },
+        ],
+        { duration: ms, easing: 'cubic-bezier(0.22, 0.9, 0.35, 1)', fill: 'both' },
+      ),
+      ...captionIn(to, ms * 0.4, ms * 0.6, true),
+      ...(from
+        ? [
+            cardOf(from).animate([{ transform: 'none' }, { transform: 'translateY(4vh) scale(0.94)' }], {
+              duration: ms * 0.6,
+              delay: ms * 0.3,
+              easing: 'ease-in',
+              fill: 'forwards',
+            }),
+          ]
+        : []),
+      ...fadeOut(from, ms * 0.5, ms * 0.4),
+    ],
+    signal,
+  );
+};
+
+/** A vertical slot-machine spin through copies of both photos, stopping on the new one. */
+export const slot: Transition = (args) => {
+  const { from, to, ms, signal } = args;
+  const pic = picOf(to);
+  const img = imgOf(to);
+  const fromImg = from ? imgOf(from) : null;
+  if (!img) return crossfade(args);
+  const viewport = document.createElement('div');
+  viewport.className = 'wall-slot';
+  const strip = document.createElement('div');
+  strip.className = 'wall-slot-strip';
+  const sources = [img, fromImg ?? img];
+  const cells = 7;
+  for (let i = 0; i < cells; i++) {
+    const cell = document.createElement('div');
+    cell.className = 'wall-slot-cell';
+    const copy = (i === 0 ? img : sources[i % 2]!).cloneNode(false);
+    if (copy instanceof HTMLImageElement) {
+      copy.removeAttribute('class');
+      copy.alt = '';
+      cell.append(copy);
+    }
+    strip.append(cell);
+  }
+  viewport.append(strip);
+  pic.append(viewport);
+  const end = -((cells - 1) / cells) * 100;
+  return play(
+    [
+      to.animate([{ opacity: 0 }, { opacity: 1, offset: 0.12 }, { opacity: 1 }], {
+        duration: ms,
+        fill: 'backwards',
+      }),
+      strip.animate(
+        [
+          { transform: `translateY(${end}%)`, filter: 'blur(0px)' },
+          { transform: `translateY(${end * 0.55}%)`, filter: 'blur(5px)', offset: 0.35 },
+          { transform: 'translateY(1.6%)', filter: 'blur(1px)', offset: 0.82 },
+          { transform: 'translateY(-0.6%)', filter: 'blur(0px)', offset: 0.92 },
+          { transform: 'translateY(0)', filter: 'blur(0px)' },
+        ],
+        { duration: ms, easing: 'cubic-bezier(0.45, 0, 0.2, 1)', fill: 'both' },
+      ),
+      ...captionIn(to, ms * 0.3, ms * 0.7),
+      ...fadeOut(from, ms * 0.25),
+    ],
+    signal,
+  ).then(() => viewport.remove());
+};
+
+/** Squash and stretch wobble from the bottom edge. */
+export const jelly: Transition = ({ from, to, ms, signal }) => {
+  const card = cardOf(to);
+  card.style.transformOrigin = '50% 100%';
+  const animations = [
+    card.animate(
+      [
+        { transform: 'scale(0.2, 0.2)', opacity: 0 },
+        { transform: 'scale(1.22, 0.78)', opacity: 1, offset: 0.32 },
+        { transform: 'scale(0.86, 1.14)', offset: 0.5 },
+        { transform: 'scale(1.07, 0.94)', offset: 0.66 },
+        { transform: 'scale(0.97, 1.03)', offset: 0.82 },
+        { transform: 'scale(1, 1)', opacity: 1 },
+      ],
+      { duration: ms, easing: 'ease-out', fill: 'backwards' },
+    ),
+    ...captionIn(to, ms * 0.4, ms * 0.55),
+    ...fadeOut(from, ms * 0.3),
+  ];
+  if (from) {
+    const old = cardOf(from);
+    old.style.transformOrigin = '50% 100%';
+    animations.push(
+      old.animate([{ transform: 'scale(1, 1)' }, { transform: 'scale(1.3, 0.1)' }], {
+        duration: ms * 0.3,
+        easing: 'ease-in',
+        fill: 'forwards',
+      }),
+    );
+  }
+  return play(animations, signal).then(() => {
+    card.style.transformOrigin = '';
+  });
+};
+
+/** Slams down from 3× size, the stage shakes. */
+export const stamp: Transition = ({ stage, from, to, ms, signal }) => {
+  const card = cardOf(to);
+  const hit = 0.38;
+  const shake: Keyframe[] = [{ transform: 'none' }];
+  const offsets = [
+    [-1.2, 0.8],
+    [1, -0.9],
+    [-0.7, 0.5],
+    [0.5, -0.3],
+    [-0.2, 0.2],
+  ] as const;
+  offsets.forEach(([x, y], i) => {
+    shake.push({ transform: `translate(${x}vmin, ${y}vmin)`, offset: hit + (i + 1) * 0.08 });
+  });
+  shake.push({ transform: 'none' });
+  return play(
+    [
+      card.animate(
+        [
+          { transform: 'scale(3) rotate(-8deg)', opacity: 0 },
+          { transform: 'scale(1) rotate(-2deg)', opacity: 1, offset: hit },
+          { transform: 'scale(0.98) rotate(0deg)', offset: hit + 0.12 },
+          { transform: 'none', opacity: 1 },
+        ],
+        { duration: ms, easing: 'ease-in', fill: 'backwards' },
+      ),
+      stage.animate(shake, { duration: ms, easing: 'linear' }),
+      ...captionIn(to, ms * 0.35, ms * 0.6),
+      ...fadeOut(from, ms * 0.25, ms * hit),
+    ],
+    signal,
+  );
+};

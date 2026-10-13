@@ -21,6 +21,8 @@ const PASS_THROUGH = /^\/(?:api|media|healthz|assets|src|node_modules|@[a-z]+)(?
 export function entryFor(pathname: string): string | null {
   if (PASS_THROUGH.test(pathname)) return null;
   if (pathname === '/admin' || pathname.startsWith('/admin/')) return '/admin.html';
+  if (/^\/livewall\/(?:api|media)(?:\/|$)/.test(pathname)) return null;
+  if (pathname === '/livewall' || pathname.startsWith('/livewall/')) return '/wall.html';
   if (pathname === '/' || pathname === '/x' || pathname.startsWith('/x/')) return '/index.html';
   // dev previews of the static gate page (the server answers it with HTTP 404)
   if (pathname === '/gate' || pathname === '/404') return '/gate.html';
@@ -80,6 +82,7 @@ export default defineConfig(({ mode }) => {
           guest: 'index.html',
           admin: 'admin.html',
           gate: 'gate.html',
+          wall: 'wall.html',
           // the component gallery is a dev tool and never ships in dist/
           ...(gallery ? { ui: 'ui.html' } : {}),
         },
@@ -100,6 +103,8 @@ export default defineConfig(({ mode }) => {
         '/api': api,
         '/media': api,
         '/healthz': api,
+        '/livewall/api': api,
+        '/livewall/media': api,
         // party-token entry on any page path: /x/beer/?t=…
         '^/[^?]*\\?(?:.*&)?t=': api,
       },
