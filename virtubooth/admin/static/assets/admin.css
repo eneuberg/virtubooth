@@ -469,6 +469,8 @@ body.adm-noscroll { overflow: hidden; }
 /* ------------------------------------------------------------ dialogs */
 
 .adm-dialog h2 { font-size: 1.5rem; }
+/* above the lightbox (1500): "Löschen" in the lightbox asks in a dialog; below toasts */
+.adm-dialog-scrim { z-index: 1600; }
 
 /* -------------------------------------------------------- lists/rows */
 
