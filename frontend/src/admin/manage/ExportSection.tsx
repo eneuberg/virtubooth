@@ -218,7 +218,10 @@ export function ExportSection() {
                     />
                   )}
                   {job.finished_at ? (
-                    <time dateTime={job.finished_at} className="ml-auto text-xs text-ink-muted sm:ml-2">
+                    <time
+                      dateTime={job.finished_at}
+                      className="ml-auto text-xs text-ink-muted sm:ml-2 sm:min-w-32 sm:text-right"
+                    >
                       fertig {formatRelative(job.finished_at)}
                     </time>
                   ) : null}
