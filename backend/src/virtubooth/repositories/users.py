@@ -20,6 +20,9 @@ _PHOTO_COUNT = (
     "(SELECT COUNT(*) FROM photos p WHERE p.user_id=u.id AND p.deleted_at IS NULL) AS photo_count"
 )
 MAX_PAGE = 500
+# fingerprints kept per user (the newest; banned ones always stay): the hash is
+# client-chosen, so a device could otherwise add a row with every request
+MAX_FINGERPRINTS = 20
 
 
 class UsersRepo:
@@ -101,6 +104,13 @@ class UsersRepo:
                     "INSERT INTO user_fingerprints VALUES (?,?,?,?) "
                     "ON CONFLICT(user_id, fp_hash) DO UPDATE SET last_seen=excluded.last_seen",
                     (user_id, fp_hash, at, at),
+                )
+                c.execute(
+                    "DELETE FROM user_fingerprints WHERE user_id=? "
+                    "AND fp_hash NOT IN (SELECT fp_hash FROM fingerprint_bans) "
+                    "AND rowid NOT IN (SELECT rowid FROM user_fingerprints WHERE user_id=? "
+                    "ORDER BY last_seen DESC, rowid DESC LIMIT ?)",
+                    (user_id, user_id, MAX_FINGERPRINTS),
                 )
 
     def set_instagram(self, user_id: int, handle: str | None) -> None:

@@ -35,6 +35,7 @@ from virtubooth.core.ratelimit import (
 )
 from virtubooth.core.security import is_direct_loopback, origin_allowed, sha256_hex
 from virtubooth.db.database import Database
+from virtubooth.repositories.users import MAX_FINGERPRINTS
 from virtubooth.services.images import MAX_SCANS, process_jpeg
 from virtubooth.settings import Settings, admin_password_warnings
 from virtubooth.tools.export import SCRUBBED_TABLES, snapshot_db, take_snapshot
@@ -669,3 +670,29 @@ def test_cookie_dependent_html_is_private(client, make_client):
     assert redirect.status_code == 303
     assert redirect.headers["cache-control"] == "private, no-cache"
     assert make_client().get("/admin/login").headers["cache-control"] == "private, no-cache"
+
+
+# =============================================== SEC-10 fingerprint rows
+
+
+def test_fingerprint_rows_per_guest_are_capped(guest, core):
+    g = guest()
+    user_id = core.repos.users.get_by_public_id(
+        core.signer.unsign("uid", g.cookies.get("vb_uid"))
+    ).id
+    first = f"{1:064x}"  # from the join
+    core.repos.bans.add(first, at="2026-01-01T00:00:00Z", reason="pytest")
+    for i in range(2, 40):
+        core.repos.users.touch(
+            user_id,
+            at=f"2099-01-01T00:{i:02d}:00.000+00:00",
+            ip="10.0.0.1",
+            user_agent="pytest",
+            fp_hash=f"{i:064x}",
+            fp_components={},
+        )
+    hashes = [f.fp_hash for f in core.repos.users.fingerprints(user_id)]
+    # the newest MAX_FINGERPRINTS, plus the banned one (kept for unban/auto-ban)
+    assert len(hashes) == MAX_FINGERPRINTS + 1
+    assert hashes[:MAX_FINGERPRINTS] == [f"{i:064x}" for i in range(39, 39 - MAX_FINGERPRINTS, -1)]
+    assert first in hashes
