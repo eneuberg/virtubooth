@@ -1,0 +1,31 @@
+# https://editorconfig.org
+root = true
+
+[*]
+charset = utf-8
+end_of_line = lf
+insert_final_newline = true
+trim_trailing_whitespace = true
+indent_style = space
+indent_size = 2
+
+# ruff: 4 spaces, lines up to 100
+[*.py]
+indent_size = 4
+max_line_length = 100
+
+# prettier (frontend/.prettierrc.json, which wins): 2 spaces, lines up to 110
+[*.{ts,tsx,js,mjs,css,html,json}]
+max_line_length = 110
+
+[Makefile]
+indent_style = tab
+
+# two trailing spaces can be a line break in Markdown
+[*.md]
+trim_trailing_whitespace = false
+
+# pnpm patches (frontend/patches/) must stay byte for byte
+[*.patch]
+trim_trailing_whitespace = unset
+insert_final_newline = unset

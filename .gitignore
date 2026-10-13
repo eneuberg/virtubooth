@@ -1,26 +1,43 @@
-# runtime data (photos, db) — never commit
-data/
+# runtime data (SQLite + photos): never commit. Anchored, so source folders
+# named "data" (e.g. under frontend/src) are not ignored by accident.
+/data/
+backend/data/
 *.db
 *.db-wal
 *.db-shm
 
-# secrets
+# secrets (.env.example is not matched)
 .env
 *.env
 
 # python
 __pycache__/
-*.pyc
+*.py[cod]
 .venv/
 .pytest_cache/
+.mypy_cache/
+.ruff_cache/
 
-# filter lists downloaded by tests/test_core_blockers.py (VB_BLOCKLISTS=.blocklists)
+# frontend (frontend/.gitignore has the same, for tools run inside frontend/)
+frontend/node_modules/
+frontend/dist/
+frontend/dist-gallery/
+*.tsbuildinfo
+
+# test output
+test-results/
+playwright-report/
+
+# filter lists downloaded by tests/unit/test_core_blockers.py (VB_BLOCKLISTS=.blocklists)
 .blocklists/
 
-# outputs
-*.mp4
-qr-sheet.*
-export/
+# outputs of the CLI tools when run with --out in the repo root
+/*.mp4
+/*.tar.gz
+/qr/
+/qr-sheet.*
+/export/
+/exports/
 
 # agent worktrees
 .worktrees/
