@@ -5,6 +5,7 @@ from __future__ import annotations
 import base64
 import hashlib
 import hmac
+import ipaddress
 from typing import Literal
 from urllib.parse import urlsplit
 
@@ -128,6 +129,19 @@ def client_ip(request: Request) -> str:
     return request.client.host if request.client else "unknown"
 
 
+def is_direct_loopback(request: Request) -> bool:
+    """The request came straight from this machine: a loopback client address
+    and no proxy header. A forwarded request never counts, so neither a proxy
+    on this host nor a client that claims `X-Forwarded-For: 127.0.0.1` is
+    treated as local."""
+    if "x-forwarded-for" in request.headers or "forwarded" in request.headers:
+        return False
+    try:
+        return ipaddress.ip_address(client_ip(request)).is_loopback
+    except ValueError:
+        return False
+
+
 _DEFAULT_PORTS = {"http": "80", "https": "443"}
 
 
@@ -147,21 +161,87 @@ def _normalize_netloc(netloc: str, scheme: str | None) -> str:
     return netloc
 
 
+def _origin(url: str) -> tuple[str, str] | None:
+    """(scheme, netloc) of an http(s) URL, lowercased, default port dropped."""
+    try:
+        parts = urlsplit(url.strip())
+    except ValueError:
+        return None
+    scheme = parts.scheme.lower()
+    if scheme not in _DEFAULT_PORTS or not parts.netloc or "@" in parts.netloc:
+        return None
+    return scheme, _normalize_netloc(parts.netloc, scheme)
+
+
+def _hostname(netloc: str) -> str:
+    try:
+        return urlsplit(f"//{netloc}").hostname or netloc
+    except ValueError:
+        return netloc
+
+
+def _forwarded_https(request: Request) -> bool:
+    """A proxy said the client came in over TLS (`X-Forwarded-Proto: https`),
+    trusted or not. A browser page can't add that header to a cross-site
+    request without a preflight, which fails: it only ever comes from a proxy
+    or from a client acting on its own behalf."""
+    forwarded = request.headers.get("x-forwarded-proto", "")
+    return "https" in {p.strip().lower() for p in forwarded.split(",")}
+
+
 def origin_allowed(request: Request, settings: Settings) -> bool:
     """CSRF guard for state-changing requests.
 
     Browsers always send Origin on cross-site POST/PUT/PATCH/DELETE, and an
-    attacker page cannot forge it, so matching it against our own Host header is
-    enough. Requests without Origin or Referer are rejected.
+    attacker page cannot forge it. The full origin (scheme, host, port) of
+    Origin (or Referer) must be one of:
+
+    1. an entry of VB_ALLOWED_ORIGINS (exact);
+    2. the origin of VB_PUBLIC_BASE_URL (exact);
+    3. the request's own origin: its scheme (uvicorn applies a trusted
+       X-Forwarded-Proto) with its Host header;
+    4. `https://<Host>` for a plain-http request when TLS ends at a proxy the
+       app doesn't trust for X-Forwarded-Proto: the proxy still says
+       `X-Forwarded-Proto: https`, or VB_PUBLIC_BASE_URL is https, or
+       VB_COOKIE_SECURE=true.
+
+    An `http://` origin is refused (2. and 3. included) for a request that came
+    in over TLS (own scheme or X-Forwarded-Proto https), and for the host of an
+    https VB_PUBLIC_BASE_URL: anyone on the venue Wi-Fi can answer for
+    `http://<that host>`. Only VB_ALLOWED_ORIGINS overrides that. Requests
+    without Origin or Referer are refused.
     """
     source = request.headers.get("origin") or request.headers.get("referer")
     if not source or source == "null":
         return False
-    parts = urlsplit(source)
-    if not parts.scheme or not parts.netloc:
+    origin = _origin(source)
+    if origin is None:
         return False
-    origin = f"{parts.scheme}://{parts.netloc}".lower()
-    if origin in (o.lower().rstrip("/") for o in settings.allowed_origins):
+    if origin in {_origin(o) for o in settings.allowed_origins}:
+        return True
+    scheme, netloc = origin
+    own = request.url.scheme
+    via_tls = own == "https" or _forwarded_https(request)
+    public = _origin(settings.public_base_url) if settings.public_base_url else None
+    if scheme == "http":
+        if via_tls:
+            return False
+        if public and public[0] == "https" and _hostname(netloc) == _hostname(public[1]):
+            return False
+    if origin == public:
         return True
     host = request.headers.get("host", "")
-    return _normalize_netloc(parts.netloc, parts.scheme) == _normalize_netloc(host, None)
+    if not host:
+        return False
+    if scheme == own and netloc == _normalize_netloc(host, own):
+        return True
+    # TLS ends at a proxy whose X-Forwarded-Proto the app doesn't trust
+    behind_tls = (
+        via_tls or (public is not None and public[0] == "https") or settings.cookie_secure == "true"
+    )
+    return (
+        scheme == "https"
+        and own == "http"
+        and behind_tls
+        and netloc == _normalize_netloc(host, None)
+    )

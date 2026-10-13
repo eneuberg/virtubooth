@@ -915,7 +915,7 @@ export interface components {
         ArchiveOptions: {
             /**
              * Include Db
-             * @description Add a consistent copy of the database (IP addresses, fingerprints, audit log).
+             * @description Add a consistent copy of the database: guests (IP addresses, fingerprints, bans), photo rows, device bans, the audit log and the upload settings. Admin sessions and export jobs are removed and the file is vacuumed.
              * @default false
              */
             include_db: boolean;

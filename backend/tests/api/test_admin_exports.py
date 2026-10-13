@@ -218,8 +218,11 @@ def test_archive_with_hidden_photos_and_database(admin, guest, core):
         assert conn.execute("PRAGMA journal_mode").fetchone()[0] == "delete"
         ids = {r[0] for r in conn.execute("SELECT public_id FROM photos")}
         assert ids == {a, b}
-        # the snapshot was taken while this job ran
-        assert conn.execute("SELECT status FROM export_jobs").fetchone()[0] == "running"
+        # SEC-03: no admin sessions (token hashes, password tags, admin IPs) and
+        # no export jobs; the tables stay, so the copy still opens as a database
+        assert conn.execute("SELECT COUNT(*) FROM admin_sessions").fetchone()[0] == 0
+        assert conn.execute("SELECT COUNT(*) FROM export_jobs").fetchone()[0] == 0
+        assert conn.execute("PRAGMA freelist_count").fetchone()[0] == 0
     finally:
         conn.close()
 

@@ -110,3 +110,25 @@ So `scripts/precompress.mjs` should write the siblings next to each asset.
 `backend/tests/e2e/conftest.py` serves `frontend/dist` (or `VB_E2E_WEB_DIR`) from
 a live uvicorn and skips every e2e test when there is no build. Build first:
 `cd frontend && pnpm build`, then `cd backend && uv run pytest -m e2e`.
+
+## 7. Amendment 2026-10-13 (security fixes SEC-05, SEC-09; commit 22e6bee)
+
+This changes §1, §3 and §4. Code: `PUBLIC_ROOT_FILES` and `HTML_CACHE` in
+`backend/src/virtubooth/web/frontend.py`; tests: `test_security_fixes.py`.
+
+- **Root files are an allow-list.** Only these root files of the build are
+  served, to anyone (`public, max-age=300`): `boot-check.js`, `gate-hint.js`,
+  `icon.svg`, `favicon.ico`, `apple-touch-icon.png`, `robots.txt`. Every other
+  root file is "not found" (404; the gate without access), with or without the
+  access cookie. That covers the `.br`/`.gz` siblings `scripts/precompress.mjs`
+  writes for `index.html`, `admin.html` and `gate.html` (the server renders the
+  HTML itself and never uses them) and anything a future build step drops in
+  the root. A new file in `frontend/public/` that must be reachable needs an
+  entry in `PUBLIC_ROOT_FILES`. `/assets/*` is unchanged.
+- §3 row `GET /<file>` now reads: an allow-listed root file of the build
+  (`PUBLIC_ROOT_FILES`), public, `Cache-Control: public, max-age=300`.
+- **HTML is private.** HTML entries, the gate and the not-found page send
+  `Cache-Control: private, no-cache` (+ `ETag`) instead of `no-cache`; so does
+  every other non-API answer without its own header (the `/admin/*` → login
+  and `/x/<id>` redirects). The `?t=` 303, which sets the access cookie, sends
+  `no-store`.

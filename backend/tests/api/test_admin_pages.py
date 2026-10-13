@@ -31,7 +31,7 @@ def test_pages_served_to_admin(admin, page):
     assert 'data-testid="stub-admin-app"' in r.text  # admin.html: the app routes itself
     assert f'src="/assets/{STUB_JS}"' in r.text
     assert "default-src 'self'" in r.headers["content-security-policy"]
-    assert r.headers["cache-control"] == "no-cache"
+    assert r.headers["cache-control"] == "private, no-cache"
 
 
 def test_login_page_is_public(client):
