@@ -22,7 +22,7 @@ from .core.logs import install_access_log_filter
 from .extensions.sdk import Extension, discover_extensions, validate_extension
 from .middleware import GuardMiddleware, SecurityHeadersMiddleware
 from .runtime import Core
-from .settings import Settings
+from .settings import Settings, admin_password_warnings
 from .web import routes as web_routes
 from .web.frontend import WebFrontend
 
@@ -102,8 +102,11 @@ def create_app(settings: Settings, *, extensions: Sequence[Extension] | None = N
 
 def create_app_from_env() -> FastAPI:
     settings = Settings.from_env()
+    log = logging.getLogger("virtubooth")
     if settings.cookie_secure == "false" and settings.public_base_url.startswith("https://"):
-        logging.getLogger("virtubooth").warning(
+        log.warning(
             "VB_COOKIE_SECURE=false while VB_PUBLIC_BASE_URL is https: cookies may leak over http"
         )
+    for warning in admin_password_warnings(settings.admin_password.get_secret_value()):
+        log.warning(warning)
     return create_app(settings)

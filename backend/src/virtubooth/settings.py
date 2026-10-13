@@ -254,6 +254,32 @@ class Settings(BaseSettings):
         return value.expanduser().resolve() if value is not None else None
 
 
+# below this the startup log warns (the hard minimum stays 12, so an existing
+# deployment keeps starting)
+RECOMMENDED_PASSWORD_LENGTH = 16
+
+
+def admin_password_warnings(password: str) -> list[str]:
+    """Why VB_ADMIN_PASSWORD is weak, for the startup log; empty when it's fine.
+
+    The login is rate limited and locks after repeated failures, but a short
+    or repetitive password can still be guessed over days. Never includes the
+    password itself."""
+    hint = "use 16+ random characters (`virtubooth gen-env` prints one)"
+    warnings: list[str] = []
+    if len(password) < RECOMMENDED_PASSWORD_LENGTH:
+        warnings.append(
+            f"VB_ADMIN_PASSWORD has only {len(password)} characters: easy to guess; {hint}"
+        )
+    classes = sum(
+        any(test(c) for c in password)
+        for test in (str.islower, str.isupper, str.isdigit, lambda c: not c.isalnum())
+    )
+    if len(set(password)) < 8 or (classes < 2 and len(password) < 20):
+        warnings.append(f"VB_ADMIN_PASSWORD has very little variety: easy to guess; {hint}")
+    return warnings
+
+
 def _csv(raw: str) -> tuple[str, ...]:
     return tuple(p.strip() for p in raw.split(",") if p.strip())
 

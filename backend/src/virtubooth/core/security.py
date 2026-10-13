@@ -5,6 +5,7 @@ from __future__ import annotations
 import base64
 import hashlib
 import hmac
+import ipaddress
 from typing import Literal
 from urllib.parse import urlsplit
 
@@ -126,6 +127,19 @@ def client_ip(request: Request) -> str:
     # uvicorn rewrites request.client from X-Forwarded-For only for proxies
     # listed in --forwarded-allow-ips, so this is safe to trust
     return request.client.host if request.client else "unknown"
+
+
+def is_direct_loopback(request: Request) -> bool:
+    """The request came straight from this machine: a loopback client address
+    and no proxy header. A forwarded request never counts, so neither a proxy
+    on this host nor a client that claims `X-Forwarded-For: 127.0.0.1` is
+    treated as local."""
+    if "x-forwarded-for" in request.headers or "forwarded" in request.headers:
+        return False
+    try:
+        return ipaddress.ip_address(client_ip(request)).is_loopback
+    except ValueError:
+        return False
 
 
 _DEFAULT_PORTS = {"http": "80", "https": "443"}
