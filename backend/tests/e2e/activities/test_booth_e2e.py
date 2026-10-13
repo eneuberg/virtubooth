@@ -36,6 +36,7 @@ from .conftest import (
     photos,
     reload,
     select_filter,
+    settled_box,
     shoot,
     shot,
     stored_images,
@@ -332,6 +333,9 @@ def test_photo_is_exactly_the_preview(guest: Page, live: LiveServer):
     select_filter(page, "party")
     page.wait_for_timeout(500)
     shoot(page)
+    # the capture flash (a white layer over everything, gone after ~180 ms) is not part
+    # of the preview: an upload that answers quickly leaves it on the screenshot
+    expect(page.locator(".vb-flash")).to_have_count(0)
     page.get_by_test_id("result-photo").evaluate("el => { el.style.visibility = 'hidden'; }")
     preview = Image.open(io.BytesIO(page.get_by_test_id("preview-canvas").screenshot())).convert(
         "RGB"
@@ -730,7 +734,7 @@ def test_canvas2d_fallback(guest: Page, live: LiveServer):
 
 
 def inside(page: Page, testid: str) -> dict:
-    box = page.get_by_test_id(testid).first.bounding_box()
+    box = settled_box(page.get_by_test_id(testid).first)
     size = page.viewport_size
     assert box and size, testid
     assert box["x"] >= -1 and box["y"] >= -1, (testid, box)

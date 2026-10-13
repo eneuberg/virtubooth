@@ -30,7 +30,16 @@ from ..conftest import (
     join_via_api,
     track_errors,
 )
-from .conftest import READY, open_beer, open_booth, select_filter, shot, stored_images
+from .conftest import (
+    READY,
+    fonts_ready,
+    open_beer,
+    open_booth,
+    select_filter,
+    settled_box,
+    shot,
+    stored_images,
+)
 
 pytestmark = pytest.mark.e2e
 
@@ -80,7 +89,7 @@ def screenshot_of(page: Page, testid: str) -> Image.Image:
 
 
 def on_screen(page: Page, testid: str) -> dict:
-    box = page.get_by_test_id(testid).first.bounding_box()
+    box = settled_box(page.get_by_test_id(testid).first)
     assert box, testid
     assert box["x"] >= 0 and box["y"] >= 0, (testid, box)
     assert box["x"] + box["width"] <= VIEW_W and box["y"] + box["height"] <= VIEW_H, (testid, box)
@@ -273,6 +282,7 @@ def firefox_guest(browser: Browser, live: LiveServer, path: str, device: dict = 
     page = track_errors(browser.new_context(**device).new_page())
     page.add_init_script(SPY)
     join_via_api(page, live)
+    fonts_ready(page)  # Start's lazy cards are in: leaving now aborts nothing
     assert page.evaluate("() => window.__cameraRequests.length") == 0  # none on "/"
     page.goto(live.url(path))
     return page
