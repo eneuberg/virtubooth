@@ -1,7 +1,8 @@
 # Abschlussbericht: Überarbeitung von virtubooth
 
 Stand 13.10.2026. Basis vor der Überarbeitung: `main` auf `1d6b5eb`. Danach 122 Commits
-bis zum Merge `01960c7`, plus die Nacharbeiten auf `fin/*`. Nichts wurde gepusht.
+bis zum Merge `01960c7`, dann die Nacharbeiten (Branches `fin/*`), alle in das lokale
+`main` gemerged. Nichts wurde gepusht.
 
 ## Kurzfassung
 
@@ -11,6 +12,13 @@ bis zum Merge `01960c7`, plus die Nacharbeiten auf `fin/*`. Nichts wurde gepusht
 - Alle bisherigen Funktionen sind geblieben. Neu sind unter anderem „Deine Bilder“,
   der Gästepass, die Outbox auch für die Beer Cam, Exporte im Admin und das
   Instagram-ZIP mit „Erledigt“.
+- Auf deinen Wunsch dazugekommen: „Hochladen stoppen“ und „Anmeldung stoppen“ mit
+  einem Tipp direkt auf dem Dashboard, ein Statusstreifen, solange ein Stopp aktiv ist,
+  und eine Live-Übersicht (aktiv, lädt hoch, gescannt, nicht beigetreten …).
+- Neue README mit Logo und Screenshots, dazu eine vollständige Funktionsliste in
+  `docs/FEATURES.md`.
+- QA: jede Anforderung einmal im Browser durchgespielt (Gast und Admin). Kein
+  Funktionsfehler im Admin; auf der Gastseite fünf Fehler gefunden und behoben.
 - Sicherheitsreview: 0 kritisch, 0 hoch, 1 mittel, 5 niedrig, 9 Info. Der mittlere
   und alle niedrigen Befunde sind behoben.
 - Dringend: SEC-13 heute ab 18:30 Uhr erledigen (siehe Todos).
@@ -94,6 +102,31 @@ virtubooth/
   Ein kopierter `data/`-Ordner enthält dann alles in dieser einen Datei.
 - Die alten DOM-Tests (`backend/tests/e2e_legacy/`) sind gelöscht. Sie sind nach
   `backend/tests/e2e/` portiert.
+- **Dashboard (dein Wunsch nach dem ersten Check):**
+  - „Hochladen stoppen“ und „Anmeldung stoppen“ stehen mit einem Tipp auf Live und in
+    der Verwaltung, ohne Rückfrage. Solange ein Stopp aktiv ist, verschwindet sein
+    Knopf und ein Statusstreifen (rot bzw. orange) mit „Fortsetzen“ bzw. „Wieder
+    öffnen“ ist die einzige Bedienung dafür. So kann niemand aus Versehen fortsetzen,
+    der eigentlich stoppen will. Alles bleibt über alle Admin-Geräte live synchron.
+  - Neu ist der Anmelde-Stopp: Neue Geräte bekommen beim Beitreten eine ruhige Meldung
+    („Gerade kann niemand neu beitreten …“) und der Knopf kommt von selbst zurück.
+    Wer schon dabei ist, merkt nichts. Anders als „Neue Gäste pausieren“ kommt dabei
+    niemand Neues rein.
+  - Live-Übersicht: sechs Zahlen auf Live, alle Zahlen im neuen Tab „Übersicht“
+    (aktiv jetzt, lädt gerade hoch, Fotos in 15/60 min, gescannt, beigetreten, nicht
+    beigetreten, Gäste mit Instagram/pausiert/gesperrt, Fotos je Aktivität). „Jetzt“
+    heißt: letzte 5 Minuten. Aktualisierung alle 10 s und bei Live-Events.
+  - Für „gescannt“ bekommt jedes Gerät beim Öffnen des QR-Links eine zufällige ID im
+    Cookie `vb_vid`. Gespeichert werden nur diese ID, Zeitstempel und später die
+    Verknüpfung zum Gast, keine IP und kein Browser-Typ. Die Archiv-Kopie der Datenbank
+    leert die Tabelle. Unter „Mehr dazu“ steht ein Satz dazu für die Gäste.
+  - Technik: `GET /api/admin/overview`, `GET/POST /api/admin/join-stop`, Fehlercode
+    `join_closed`, Event `settings.join_stop`, Migration 4 (`visitors`, Indizes).
+- **README** neu: Logo, zwei Screenshots mit Demodaten, Ablauf einer Party, Schnellstart.
+  Entwickler-Details stehen jetzt in `docs/ARCHITECTURE.md`.
+- **`docs/FEATURES.md`**: vollständige Funktionsliste auf Deutsch, gegen den Code
+  geprüft. Dabei wurden elf veraltete Stellen in README, DEPLOY, ARCHITECTURE und
+  diesem Bericht korrigiert.
 
 ## Funktionen: neu und vorher
 
@@ -113,7 +146,9 @@ virtubooth/
 | Funktion | Vorher | Jetzt |
 |---|---|---|
 | Live | nur Ausblenden | Kein Löschen; Aus- und Einblenden mit „Rückgängig“. Dichtes Raster, 44-px-Schalter, „Rückgängig“ im Toast, Leiste unten am Handy (im Querformat links), Verbindungsanzeige. |
-| Verwaltung | Tabs | Seitenleiste am Desktop: Fotos (Kontaktbogen, Filter, Mehrfachauswahl mit Tastatur, Inspektor), Gäste, Instagram, Sperren, Protokoll, Export. |
+| Schnell-Stopps | im Sheet versteckt | „Hochladen stoppen“ und „Anmeldung stoppen“ mit einem Tipp auf Live und in der Verwaltung, Statusstreifen mit „Fortsetzen“ / „Wieder öffnen“, solange ein Stopp aktiv ist. |
+| Übersicht | gab es nicht | Live-Zahlen auf Live und im Tab „Übersicht“: aktiv, lädt hoch, Fotos 15/60 min, gescannt, nicht beigetreten, Gäste, Fotos je Aktivität. |
+| Verwaltung | Tabs | Seitenleiste am Desktop: Übersicht, Fotos (Kontaktbogen, Filter, Mehrfachauswahl mit Tastatur, Inspektor), Gäste, Instagram, Sperren, Protokoll, Export. |
 | Gästeseite | viele Panels | Statuszeile, Fotos, „Hochladen pausieren“, Sperre im Sheet („Gerätemerkmal auch sperren“), Technik eingeklappt. |
 | Upload-Steuerung | Chip und Sheet | Status-Pille öffnet das Sheet „Hochladen“: „Hochladen für alle stoppen“, „Neue Gäste pausieren“ (beim Beenden: Betroffene freischalten oder pausiert lassen), Liste der pausierten Gäste mit „Freigeben“. Pro Gast auf der Gästeseite. Der Fokus bleibt im Sheet. |
 | Exporte | nur Kommandozeile | Unter Export: Archiv (ZIP mit Fotos, CSV-Listen, optional der Datenbank), Zeitraffer (MP4) und QR-Bogen. Hintergrund-Jobs mit Fortschritt und Download, die neuesten 10 Dateien bleiben. Die Kommandozeile gibt es weiter. |
@@ -165,17 +200,55 @@ Platzprüfung und Aufräumen). Offen: SEC-13 (siehe Todos). Details:
 
 | Lauf | Was | Ergebnis |
 |---|---|---|
-| `make check` | Lint, Typecheck, Tests, OpenAPI-Abgleich | {{TEST_CHECK}} |
-| Backend (pytest) | API, Migrationen, Werkzeuge, Web-Auslieferung, Content-Blocker | {{TEST_BACKEND}} |
-| Vitest | SDK, Fehlerabbildung, Formatierung, Komponenten | {{TEST_VITEST}} |
-| e2e Chromium | echte Browser gegen das gebaute Frontend, ohne Konsolenfehler | {{TEST_E2E_CHROMIUM}} |
-| e2e Firefox | dasselbe in Firefox | {{TEST_E2E_FIREFOX}} |
+| `make check` | Lint, Typecheck, Tests, OpenAPI-Abgleich | grün (alles unten in einem Lauf, Code-Stand `7168423`) |
+| Backend (pytest) | API, Migrationen, Werkzeuge, Web-Auslieferung, Content-Blocker | 529 bestanden, 2 übersprungen |
+| Vitest | SDK, Fehlerabbildung, Formatierung, Komponenten | 340 bestanden |
+| e2e Chromium | echte Browser gegen das gebaute Frontend, ohne Konsolenfehler | 191 bestanden, 22 übersprungen, 0 Fehler (8:18 min, seriell) |
+| e2e Firefox | dasselbe in Firefox | 199 bestanden, 14 übersprungen, 0 Fehler (8:52 min, seriell) |
 | e2e WebKit | dasselbe in WebKit (Docker, `run_webkit.sh`) | {{TEST_E2E_WEBKIT}} |
-| `make docker-smoke` | Image bauen, starten, Ende-zu-Ende prüfen | {{TEST_DOCKER_SMOKE}} |
+| `make docker-smoke` | Image bauen, starten, Ende-zu-Ende prüfen | bestanden |
 
 ## QA
 
-{{QA}}
+Zwei Agenten haben jede Anforderung einmal im echten Browser durchgespielt, gegen einen
+eigenen Server mit Testdaten. Jeder gefundene Fehler wurde behoben und bekam einen
+gezielten Test. Am Ende jedes Durchgangs: keine Konsolenfehler.
+
+**Gäste** (Chrome am Handy 390×844 und 360×640, Firefox wo nötig):
+
+| Anforderung | Ergebnis |
+|---|---|
+| Ohne Token überall „Scan den QR-Code“ (404), auch bei falschem `?t=` | OK |
+| Mit Token rein, Cookie gesetzt, Token verschwindet aus der Adresse | OK |
+| Beitritts-Sheet: ein Knopf, kein „Nein“, nicht wegklickbar, Instagram freiwillig | OK |
+| Pseudonym; Instagram später hinzufügen, ändern, löschen | OK |
+| Beer Cam: Flasche als Standard, Becher in ähnlicher Größe, Upload 1080×1440 | OK |
+| Fotobox: WebGL-Filter (Canvas2D als Rückfall), Countdown, Upload, nächste Nummer | OK |
+| „Deine Bilder“: Liste, Viewer, ausgeblendete Fotos verschwinden | behoben: ein neues Foto erschien erst nach bis zu 15 s |
+| Stopp, Pause neue Gäste, Pause pro Gast, Sperre: ruhige Meldung, kein Fehler | OK; behoben: in einem Grenzfall kam der rohe Servertext |
+| Firefox: Startseite zeigt die Aktivitäten, Kamera und Upload in beiden | OK |
+| Leere Startseite „der <Titel>“ | behoben: „Probier „Beer Cam“ oder „Fotobox“ aus …“ |
+| Bier-Nummer | behoben: angezeigt wurde die Zahl sichtbarer Biere, gespeichert die Fotonummer. Jetzt sieht der Gast überall die Nummer seines Fotos. |
+| Langes Pseudonym | behoben: schnitt den Titel der Aktivität ab |
+
+**Admin** (Chrome am Desktop 1440×900 und am Handy 390×844; 16 Gäste, rund 26 Fotos):
+
+| Anforderung | Ergebnis |
+|---|---|
+| Login, falsches Passwort, Sperre, Logout beendet auch offene Live-Tabs | OK |
+| Live: neue Fotos sofort, Ausblenden mit „Rückgängig“, nirgends Löschen | OK |
+| Verwaltung: Löschen mit Rückfrage, Datei wirklich weg | OK |
+| Name am Foto führt zur Gästeseite mit allen Uploads | OK |
+| Sperren, Entsperren, Gerätesperre, automatische Sperre und deren Freigabe | OK |
+| Gesperrter Gast kann nicht hochladen; Protokoll zeigt alle Aktionen | OK |
+| Hochladen für alle stoppen; neue Gäste pausieren; beim Ausschalten „Alle N freischalten“ oder „Alle N pausiert lassen“ (beide geprüft); Pause pro Gast | OK |
+| Instagram: ZIP pro Handle gültig, „Erledigt“ bleibt nach Reload | OK; ergänzt: Meldung mit „Rückgängig“ |
+| Exporte: Archiv-ZIP gültig, Zeitraffer H.264 1080×1440 30 fps, QR-Codes zeigen auf Adresse mit Token | OK; Titel und Ausrichtung verbessert |
+| Protokoll: Link auf gelöschtes Foto | behoben: kein toter Link mehr |
+
+Der Admin-Durchgang fand keinen Funktionsfehler. Das neue Dashboard (Schnell-Stopps,
+Anmelde-Stopp, Übersicht) wurde von seinem Agenten mit eigenen e2e-Tests in Chrome und
+Firefox geprüft und ist im Testlauf unten enthalten.
 
 ## Entscheidungen
 
@@ -215,12 +288,34 @@ Platzprüfung und Aufräumen). Offen: SEC-13 (siehe Todos). Details:
 7. **Speichern:** Das Teilen-Menü öffnet sich nur auf iOS. Android lädt herunter und
    bietet zusätzlich einen Knopf „Teilen“.
 8. **Fotobox auf Start:** Die Beispielbilder sind statisch.
-9. **Alte Worktrees** unter `.worktrees/` können weg.
+9. **Alte Worktrees** unter `.worktrees/` (`ov-*`, `fin-*`, `overhaul`) und die
+   gemergten Branches können weg.
 10. **Reste des alten Layouts:** der Ordner `virtubooth/` im Repo-Root (nur noch
     `__pycache__`) und das `.venv` im Root können gelöscht werden.
-11. **Screenshot** `docs/overhaul/design/shots/wave2-gp/02-start-photos-phone.png`
-    zeigt einen echten Partynamen und Handle. Solange das Repo privat ist, ist das in
-    Ordnung.
+11. **Screenshots** unter `docs/overhaul/design/shots/wave2-gp/` zeigen einen echten
+    Partynamen und Handle. Solange das Repo privat ist, ist das in Ordnung. Die
+    README-Bilder in `docs/assets/` nutzen nur Demodaten.
+12. **Datenschutz-Text:** Zu jedem beigetretenen Gast speichert die App (wie schon vor
+    der Überarbeitung) erste und letzte IP-Adresse und den Browser-Typ, für die
+    Wiedererkennung von Geräten und Sperren. Der Beitrittstext erwähnt das nicht. Bei
+    Bedarf einen Satz unter „Mehr dazu“ ergänzen.
+13. **„Aktiv jetzt“** zählt API-Anfragen der letzten 5 Minuten. Wer die Seite offen hat,
+    aber nichts tut, fällt heraus. Ein leichter Herzschlag würde das ändern.
+14. **„Gescannt“** zählt erst ab dem Update. Direkt danach kann es kleiner sein als
+    „Gäste“; die Übersicht sagt „Gezählt seit …“.
+15. **Wortwahl:** Der Knopf heißt „Hochladen stoppen“ (wie im übrigen Admin), nicht
+    „Uploads stoppen“. Änderbar in einer Zeile in `frontend/src/admin/dashboard/text.ts`.
+    Gäste sehen beim Stopp „Hochladen ist kurz angehalten“ statt „temporär deaktiviert“.
+16. **Kleinigkeiten aus der QA, nicht behoben:**
+    - Am Handy verdeckt der Toast 5–7 s lang den „Ausblenden“-Knopf im Foto-Viewer.
+    - Bei Mehrfachauswahl zeigt der Inspektor in „Fotos“ weiter das zuletzt geöffnete Foto.
+    - Der Viewer-Dialog heißt für Screenreader „Foto Foto 0008“.
+    - Von einer einzelnen Adresse zeigt der Login den allgemeinen Rate-Limit-Text
+      („Langsam! … Warte kurz … in 3 Sekunden“), etwas doppelt formuliert.
+    - Die Filterleiste der Fotobox zeigt Emoji als Platzhalter, bis die echten
+      Vorschaubilder fertig sind (kurz, auf schwachen Geräten länger).
+    - Blendet der Admin ein Foto aus, das ein Gast gerade im Viewer ansieht, springt der
+      Viewer zum nächsten Foto, statt sich zu schließen.
 
 ## Starten
 
