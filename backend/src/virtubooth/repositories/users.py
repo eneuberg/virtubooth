@@ -144,7 +144,9 @@ class UsersRepo:
                     (user_id,),
                 )
             ]
-            base = int(c.execute("SELECT COALESCE(MAX(rev), 0) + 1 FROM wall_analysis").fetchone()[0])
+            base = int(
+                c.execute("SELECT COALESCE(MAX(rev), 0) + 1 FROM wall_analysis").fetchone()[0]
+            )
             c.executemany(
                 "UPDATE wall_analysis SET state='pending', attempts=0, error=NULL, data='{}', "
                 "versions='{}', rev=? WHERE photo_id=?",

@@ -251,6 +251,7 @@ PAGES = [
     "/admin/manage",
     "/admin/manage?tab=gaeste",
     "/admin/manage?tab=instagram",
+    "/admin/manage?tab=livewall",
     "/admin/manage?tab=sperren",
     "/admin/manage?tab=protokoll",
     "/admin/manage?tab=qr",

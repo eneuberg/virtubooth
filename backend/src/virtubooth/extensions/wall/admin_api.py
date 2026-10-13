@@ -14,6 +14,7 @@ from ...api.deps import AdminDep, CoreDep, require_admin
 from ...core import errors
 from ...core.clock import now_iso
 from ...core.errors import error_responses
+from ...core.passwords import hash_password
 from ...runtime import Core
 from . import auth
 from .config import WallConfig, changed_keys, load_config, parse_settings, store_config
@@ -26,7 +27,6 @@ from .feed import (
     visible_by_ids,
 )
 from .hub import Wall, WallHub
-from ...core.passwords import hash_password
 from .schemas import (
     WallAdminCategoriesOut,
     WallAdminCategory,

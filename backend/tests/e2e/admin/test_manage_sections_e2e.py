@@ -42,7 +42,8 @@ def make_users(live: LiveServer, n: int) -> None:
 
 @pytest.mark.parametrize(
     ("tab", "heading"),
-    [("fotos", "Fotos"), ("gaeste", "Gäste"), ("instagram", "Instagram"), ("sperren", "Sperren"),
+    [("fotos", "Fotos"), ("gaeste", "Gäste"), ("instagram", "Instagram"),
+     ("livewall", "Live-Wall"), ("sperren", "Sperren"),
      ("protokoll", "Protokoll"), ("qr", "QR-Codes"), ("plakat", "Plakat"), ("export", "Export"),
      ("einstellungen", "Einstellungen"), ("nope", "Fotos")],
 )  # fmt: skip
@@ -210,7 +211,8 @@ def test_manage_sections_on_a_phone(
 ) -> None:
     g = guests(instagram="a.very.long.handle.for_layout1")
     g.upload()
-    for tab in ("fotos", "gaeste", "instagram", "sperren", "protokoll", "qr", "plakat", "export"):
+    for tab in ("fotos", "gaeste", "instagram", "livewall", "sperren", "protokoll", "qr", "plakat",
+                "export"):  # fmt: skip
         goto(admin_page, live, f"/admin/manage?tab={tab}")
         wait_live(admin_page)  # in before it leaves (see test_no_sideways_scrolling)
         strip = admin_page.get_by_role("navigation", name="Bereiche der Verwaltung")

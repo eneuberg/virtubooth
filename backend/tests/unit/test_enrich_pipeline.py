@@ -188,3 +188,27 @@ def test_the_worker_recycles_after_max_photos(data_dir):
     worker = Worker(data, analyzers=[Fake("a")], max_photos=1, idle_s=0.01, watch_parent=False)
     assert worker.run() == 75
     assert jobs.get(repos.db, photo_id).state == "done"
+
+
+def test_an_opted_out_guest_gets_only_the_basic_values(data_dir):
+    """„Meine Fotos nicht automatisch auswerten“: the ML analyzers (by their
+    registry names) are skipped; switching back requeues the photo."""
+    data, repos, photo_id = data_dir
+    user_id = repos.db.one("SELECT user_id FROM photos WHERE id=?", (photo_id,))[0]
+
+    def analyzers() -> list[Fake]:
+        return [Fake("basic"), Fake("faces"), Fake("emotion", ("faces",))]
+
+    assert repos.users.set_analysis_opt_out(user_id, True)
+    Worker(data, analyzers=analyzers()).run(once=True)
+    assert jobs.facts(repos.db, photo_id) == {"basic": 1.0}
+
+    rev = jobs.get(repos.db, photo_id).rev
+    assert repos.users.set_analysis_opt_out(user_id, False)
+    assert not repos.users.set_analysis_opt_out(user_id, False)  # unchanged: nothing requeued
+    row = jobs.get(repos.db, photo_id)
+    assert (row.state, row.data, row.versions) == ("pending", {}, {}) and row.rev > rev
+    assert jobs.facts(repos.db, photo_id) == {}
+    Worker(data, analyzers=analyzers()).run(once=True)
+    facts = jobs.facts(repos.db, photo_id)
+    assert facts == {"basic": 1.0, "faces": 1.0, "emotion": 1.0, "people": 1.0}

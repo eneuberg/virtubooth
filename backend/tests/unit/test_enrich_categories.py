@@ -221,3 +221,13 @@ def test_availability():
     )
     assert BY_ID["eroeffnung"].available(set()) is None
     assert BY_ID["farbexplosion"].available({"basic"}) is None
+
+
+def test_opted_out_guests_never_win_by_ml_facts(party):
+    a = party.photo(user=0, people=5, colorfulness=90)
+    b = party.photo(user=1, people=3, colorfulness=50)
+    with party.db.tx() as c:
+        c.execute("UPDATE users SET analysis_opt_out=1 WHERE id=?", (party.users[0].id,))
+    assert [pid for pid, _ in party.winners("volles_haus")] == [b]
+    # image values (basic) still count
+    assert [pid for pid, _ in party.winners("farbexplosion")] == [a, b]
