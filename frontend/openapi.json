@@ -5,8 +5,11 @@
         "description": "One message of the admin event stream, discriminated by `type`.",
         "discriminator": {
           "mapping": {
+            "export.deleted": "#/components/schemas/ExportDeletedEvent",
+            "export.updated": "#/components/schemas/ExportUpdatedEvent",
             "fingerprint.banned": "#/components/schemas/FingerprintBannedEvent",
             "fingerprint.unbanned": "#/components/schemas/FingerprintUnbannedEvent",
+            "instagram.done": "#/components/schemas/InstagramDoneEvent",
             "photo.created": "#/components/schemas/PhotoCreatedEvent",
             "photo.deleted": "#/components/schemas/PhotoDeletedEvent",
             "photo.hidden": "#/components/schemas/PhotoHiddenEvent",
@@ -57,6 +60,15 @@
           },
           {
             "$ref": "#/components/schemas/UploadPauseEvent"
+          },
+          {
+            "$ref": "#/components/schemas/ExportUpdatedEvent"
+          },
+          {
+            "$ref": "#/components/schemas/ExportDeletedEvent"
+          },
+          {
+            "$ref": "#/components/schemas/InstagramDoneEvent"
           },
           {
             "$ref": "#/components/schemas/StreamResyncEvent"
@@ -438,6 +450,43 @@
           "auto_ban"
         ],
         "title": "AdminUser",
+        "type": "object"
+      },
+      "ArchiveExportIn": {
+        "properties": {
+          "kind": {
+            "const": "archive",
+            "title": "Kind",
+            "type": "string"
+          },
+          "options": {
+            "$ref": "#/components/schemas/ArchiveOptions"
+          }
+        },
+        "required": [
+          "kind"
+        ],
+        "title": "ArchiveExportIn",
+        "type": "object"
+      },
+      "ArchiveOptions": {
+        "additionalProperties": false,
+        "description": "A zip of the photos, CSV lists, manifest.json and README.txt.",
+        "properties": {
+          "include_db": {
+            "default": false,
+            "description": "Add a consistent copy of the database (IP addresses, fingerprints, audit log).",
+            "title": "Include Db",
+            "type": "boolean"
+          },
+          "include_hidden": {
+            "default": false,
+            "description": "Also hidden photos (in photos/<activity>/hidden/).",
+            "title": "Include Hidden",
+            "type": "boolean"
+          }
+        },
+        "title": "ArchiveOptions",
         "type": "object"
       },
       "AuditEntryOut": {
@@ -914,6 +963,10 @@
               "invalid_cursor",
               "no_fingerprint",
               "restore_required",
+              "export_not_ready",
+              "export_running",
+              "base_url_required",
+              "invalid_base_url",
               "bad_origin",
               "length_required",
               "rate_limited",
@@ -936,6 +989,321 @@
           "message"
         ],
         "title": "ErrorBody",
+        "type": "object"
+      },
+      "ExportCreatedOut": {
+        "description": "202 with the new job; 200 with the job of this kind that is already\nqueued or running (`created` false; its options may differ).",
+        "properties": {
+          "created": {
+            "title": "Created",
+            "type": "boolean"
+          },
+          "job": {
+            "$ref": "#/components/schemas/ExportJob"
+          }
+        },
+        "required": [
+          "job",
+          "created"
+        ],
+        "title": "ExportCreatedOut",
+        "type": "object"
+      },
+      "ExportDeletedData": {
+        "properties": {
+          "id": {
+            "title": "Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id"
+        ],
+        "title": "ExportDeletedData",
+        "type": "object"
+      },
+      "ExportDeletedEvent": {
+        "description": "A job and its file are gone (deleted by an admin, or pruned).",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/ExportDeletedData"
+          },
+          "id": {
+            "description": "`<epoch>-<n>`: the SSE `id:` line.",
+            "title": "Id",
+            "type": "string"
+          },
+          "type": {
+            "const": "export.deleted",
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "type",
+          "id",
+          "data"
+        ],
+        "title": "ExportDeletedEvent",
+        "type": "object"
+      },
+      "ExportDeletedOut": {
+        "properties": {
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "ok": {
+            "const": true,
+            "title": "Ok",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "ok",
+          "id"
+        ],
+        "title": "ExportDeletedOut",
+        "type": "object"
+      },
+      "ExportIn": {
+        "description": "Start an export: `kind` plus its `options` (all optional).",
+        "discriminator": {
+          "mapping": {
+            "archive": "#/components/schemas/ArchiveExportIn",
+            "qr": "#/components/schemas/QrExportIn",
+            "timelapse": "#/components/schemas/TimelapseExportIn"
+          },
+          "propertyName": "kind"
+        },
+        "oneOf": [
+          {
+            "$ref": "#/components/schemas/ArchiveExportIn"
+          },
+          {
+            "$ref": "#/components/schemas/TimelapseExportIn"
+          },
+          {
+            "$ref": "#/components/schemas/QrExportIn"
+          }
+        ],
+        "title": "ExportIn"
+      },
+      "ExportJob": {
+        "properties": {
+          "bytes": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "File size, set when done.",
+            "title": "Bytes"
+          },
+          "created_at": {
+            "title": "Created At",
+            "type": "string"
+          },
+          "download_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "`GET` it for the file; set when done.",
+            "title": "Download Url"
+          },
+          "error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Why it failed: German, shown as-is.",
+            "title": "Error"
+          },
+          "file_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Set when done.",
+            "title": "File Name"
+          },
+          "finished_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Finished At"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "kind": {
+            "enum": [
+              "archive",
+              "timelapse",
+              "qr"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "options": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ArchiveOptions"
+              },
+              {
+                "$ref": "#/components/schemas/TimelapseOptions"
+              },
+              {
+                "$ref": "#/components/schemas/QrOptions"
+              }
+            ],
+            "description": "The options it runs with (defaults filled in; qr: the URL used).",
+            "title": "Options"
+          },
+          "progress": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "0..1 while running, 1 when done, null while queued; a failed job keeps the last value.",
+            "title": "Progress"
+          },
+          "started_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Started At"
+          },
+          "status": {
+            "enum": [
+              "queued",
+              "running",
+              "done",
+              "failed"
+            ],
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "kind",
+          "status",
+          "progress",
+          "created_at",
+          "started_at",
+          "finished_at",
+          "error",
+          "file_name",
+          "bytes",
+          "options",
+          "download_url"
+        ],
+        "title": "ExportJob",
+        "type": "object"
+      },
+      "ExportJobsOut": {
+        "properties": {
+          "ffmpeg": {
+            "description": "ffmpeg is installed: timelapse jobs can run.",
+            "title": "Ffmpeg",
+            "type": "boolean"
+          },
+          "jobs": {
+            "description": "Newest first.",
+            "items": {
+              "$ref": "#/components/schemas/ExportJob"
+            },
+            "title": "Jobs",
+            "type": "array"
+          },
+          "public_base_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "VB_PUBLIC_BASE_URL (the QR codes' default), null when unset.",
+            "title": "Public Base Url"
+          }
+        },
+        "required": [
+          "jobs",
+          "public_base_url",
+          "ffmpeg"
+        ],
+        "title": "ExportJobsOut",
+        "type": "object"
+      },
+      "ExportUpdatedData": {
+        "properties": {
+          "job": {
+            "$ref": "#/components/schemas/ExportJob"
+          }
+        },
+        "required": [
+          "job"
+        ],
+        "title": "ExportUpdatedData",
+        "type": "object"
+      },
+      "ExportUpdatedEvent": {
+        "description": "A job was created or changed status or progress (progress at most every\n5 % or second).",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/ExportUpdatedData"
+          },
+          "id": {
+            "description": "`<epoch>-<n>`: the SSE `id:` line.",
+            "title": "Id",
+            "type": "string"
+          },
+          "type": {
+            "const": "export.updated",
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "type",
+          "id",
+          "data"
+        ],
+        "title": "ExportUpdatedEvent",
         "type": "object"
       },
       "ExtensionCountOut": {
@@ -1288,8 +1656,92 @@
         "title": "IdentifyIn",
         "type": "object"
       },
+      "InstagramDoneData": {
+        "properties": {
+          "done": {
+            "title": "Done",
+            "type": "boolean"
+          },
+          "handle": {
+            "title": "Handle",
+            "type": "string"
+          }
+        },
+        "required": [
+          "handle",
+          "done"
+        ],
+        "title": "InstagramDoneData",
+        "type": "object"
+      },
+      "InstagramDoneEvent": {
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/InstagramDoneData"
+          },
+          "id": {
+            "description": "`<epoch>-<n>`: the SSE `id:` line.",
+            "title": "Id",
+            "type": "string"
+          },
+          "type": {
+            "const": "instagram.done",
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "type",
+          "id",
+          "data"
+        ],
+        "title": "InstagramDoneEvent",
+        "type": "object"
+      },
+      "InstagramDoneIn": {
+        "properties": {
+          "done": {
+            "title": "Done",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "done"
+        ],
+        "title": "InstagramDoneIn",
+        "type": "object"
+      },
+      "InstagramDoneOut": {
+        "properties": {
+          "changed": {
+            "title": "Changed",
+            "type": "boolean"
+          },
+          "done": {
+            "title": "Done",
+            "type": "boolean"
+          },
+          "handle": {
+            "description": "Normalized (lower case, no @).",
+            "title": "Handle",
+            "type": "string"
+          }
+        },
+        "required": [
+          "handle",
+          "done",
+          "changed"
+        ],
+        "title": "InstagramDoneOut",
+        "type": "object"
+      },
       "InstagramHandleOut": {
         "properties": {
+          "done": {
+            "description": "Marked „Erledigt“ (posted and tagged) on the board.",
+            "title": "Done",
+            "type": "boolean"
+          },
           "handle": {
             "title": "Handle",
             "type": "string"
@@ -1340,7 +1792,8 @@
           "visible",
           "hidden",
           "last_upload_at",
-          "recent"
+          "recent",
+          "done"
         ],
         "title": "InstagramHandleOut",
         "type": "object"
@@ -2012,6 +2465,44 @@
         "title": "PublicExtension",
         "type": "object"
       },
+      "QrExportIn": {
+        "properties": {
+          "kind": {
+            "const": "qr",
+            "title": "Kind",
+            "type": "string"
+          },
+          "options": {
+            "$ref": "#/components/schemas/QrOptions"
+          }
+        },
+        "required": [
+          "kind"
+        ],
+        "title": "QrExportIn",
+        "type": "object"
+      },
+      "QrOptions": {
+        "additionalProperties": false,
+        "description": "A zip of the party QR codes (SVG + PNG) and the printable qr-sheet.html.",
+        "properties": {
+          "base_url": {
+            "anyOf": [
+              {
+                "maxLength": 300,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Public URL guests open, e.g. https://party.example.com. Default: VB_PUBLIC_BASE_URL. In a job: the URL that was used.",
+            "title": "Base Url"
+          }
+        },
+        "title": "QrOptions",
+        "type": "object"
+      },
       "SessionOut": {
         "properties": {
           "authenticated": {
@@ -2232,6 +2723,58 @@
           "data"
         ],
         "title": "StreamResyncEvent",
+        "type": "object"
+      },
+      "TimelapseExportIn": {
+        "properties": {
+          "kind": {
+            "const": "timelapse",
+            "title": "Kind",
+            "type": "string"
+          },
+          "options": {
+            "$ref": "#/components/schemas/TimelapseOptions"
+          }
+        },
+        "required": [
+          "kind"
+        ],
+        "title": "TimelapseExportIn",
+        "type": "object"
+      },
+      "TimelapseOptions": {
+        "additionalProperties": false,
+        "description": "An H.264 .mp4 of one activity's photos in upload order (needs ffmpeg).",
+        "properties": {
+          "crossfade": {
+            "default": false,
+            "description": "Blend smoothly from photo to photo.",
+            "title": "Crossfade",
+            "type": "boolean"
+          },
+          "extension": {
+            "default": "beer",
+            "description": "Whose photos (activity id).",
+            "pattern": "^[a-z][a-z0-9-]{1,30}$",
+            "title": "Extension",
+            "type": "string"
+          },
+          "fps": {
+            "default": 12,
+            "description": "Photos per second.",
+            "maximum": 30.0,
+            "minimum": 1.0,
+            "title": "Fps",
+            "type": "integer"
+          },
+          "include_hidden": {
+            "default": false,
+            "description": "Also hidden photos.",
+            "title": "Include Hidden",
+            "type": "boolean"
+          }
+        },
+        "title": "TimelapseOptions",
         "type": "object"
       },
       "UnbanIn": {
@@ -3261,6 +3804,503 @@
         ]
       }
     },
+    "/api/admin/exports": {
+      "get": {
+        "description": "Every job, newest first, plus what the export form needs.",
+        "operationId": "list_exports_api_admin_exports_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExportJobsOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Invalid input (see `error`)"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Needs consent or an admin session"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Forbidden: banned, paused, stopped or a foreign Origin (CSRF)"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Not found, or no party access (`scan_qr`)"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "411": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Content-Length required"
+          },
+          "413": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Request too large"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Request validation failed (`invalid_request`)"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Rate limited (`Retry-After` header)"
+          }
+        },
+        "summary": "List Exports",
+        "tags": [
+          "admin"
+        ]
+      },
+      "post": {
+        "description": "Queue a job (202). One job per kind at a time: while one is queued or\nrunning, that one comes back (200, `created` false). Follow it through\n`export.updated` events or by polling `GET /api/admin/exports`.",
+        "operationId": "create_export_api_admin_exports_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ExportIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExportCreatedOut"
+                }
+              }
+            },
+            "description": "Already queued or running."
+          },
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExportCreatedOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Invalid input (see `error`)"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Needs consent or an admin session"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Forbidden: banned, paused, stopped or a foreign Origin (CSRF)"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Not found, or no party access (`scan_qr`)"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "411": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Content-Length required"
+          },
+          "413": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Request too large"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Request validation failed (`invalid_request`)"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Rate limited (`Retry-After` header)"
+          }
+        },
+        "summary": "Create Export",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/api/admin/exports/{job_id}": {
+      "delete": {
+        "description": "Delete a job and its file; a queued job is cancelled. Not while it\nruns (409 `export_running`).",
+        "operationId": "delete_export_api_admin_exports__job_id__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "job_id",
+            "required": true,
+            "schema": {
+              "pattern": "^[A-Za-z0-9_-]{8,32}$",
+              "title": "Job Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExportDeletedOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Invalid input (see `error`)"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Needs consent or an admin session"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Forbidden: banned, paused, stopped or a foreign Origin (CSRF)"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Not found, or no party access (`scan_qr`)"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "411": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Content-Length required"
+          },
+          "413": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Request too large"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Request validation failed (`invalid_request`)"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Rate limited (`Retry-After` header)"
+          }
+        },
+        "summary": "Delete Export",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/api/admin/exports/{job_id}/download": {
+      "get": {
+        "description": "The finished file (409 `export_not_ready` while queued, running or failed).",
+        "operationId": "download_export_api_admin_exports__job_id__download_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "job_id",
+            "required": true,
+            "schema": {
+              "pattern": "^[A-Za-z0-9_-]{8,32}$",
+              "title": "Job Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/zip": {
+                "schema": {
+                  "format": "binary",
+                  "type": "string"
+                }
+              },
+              "video/mp4": {
+                "schema": {
+                  "format": "binary",
+                  "type": "string"
+                }
+              }
+            },
+            "description": "The file as an attachment: archive and qr are a zip, timelapse an mp4."
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Invalid input (see `error`)"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Needs consent or an admin session"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Forbidden: banned, paused, stopped or a foreign Origin (CSRF)"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Not found, or no party access (`scan_qr`)"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "411": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Content-Length required"
+          },
+          "413": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Request too large"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Request validation failed (`invalid_request`)"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Rate limited (`Retry-After` header)"
+          }
+        },
+        "summary": "Download Export",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
     "/api/admin/extensions": {
       "get": {
         "description": "Loaded extensions plus ids that only still exist in old photos.",
@@ -3365,7 +4405,7 @@
     },
     "/api/admin/instagram": {
       "get": {
-        "description": "All handles, most active first, each with its newest visible photos.",
+        "description": "All handles, most active first, each with its newest visible photos and\nits „Erledigt“ mark.",
         "operationId": "instagram_api_admin_instagram_get",
         "responses": {
           "200": {
@@ -3460,6 +4500,247 @@
           }
         },
         "summary": "Instagram",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/api/admin/instagram/{handle}/done": {
+      "post": {
+        "description": "Mark a handle „Erledigt“ (or not). 404 for a handle no guest gave.",
+        "operationId": "set_instagram_done_api_admin_instagram__handle__done_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "handle",
+            "required": true,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 1,
+              "title": "Handle",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/InstagramDoneIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InstagramDoneOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Invalid input (see `error`)"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Needs consent or an admin session"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Forbidden: banned, paused, stopped or a foreign Origin (CSRF)"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Not found, or no party access (`scan_qr`)"
+          },
+          "411": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Content-Length required"
+          },
+          "413": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Request too large"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Request validation failed (`invalid_request`)"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Rate limited (`Retry-After` header)"
+          }
+        },
+        "summary": "Set Instagram Done",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/api/admin/instagram/{handle}/photos.zip": {
+      "get": {
+        "description": "The handle's visible photos of guests who aren't banned, as a zip\nattachment (streamed). 404 `not_found` when there are none.",
+        "operationId": "instagram_photos_zip_api_admin_instagram__handle__photos_zip_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "handle",
+            "required": true,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 1,
+              "title": "Handle",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/zip": {
+                "schema": {
+                  "format": "binary",
+                  "type": "string"
+                }
+              }
+            },
+            "description": "A zip of the photos: 0001-<activity>-<photo id>.jpg, … in upload order."
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Invalid input (see `error`)"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Needs consent or an admin session"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Forbidden: banned, paused, stopped or a foreign Origin (CSRF)"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Not found, or no party access (`scan_qr`)"
+          },
+          "411": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Content-Length required"
+          },
+          "413": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Request too large"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Request validation failed (`invalid_request`)"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Rate limited (`Retry-After` header)"
+          }
+        },
+        "summary": "Instagram Photos Zip",
         "tags": [
           "admin"
         ]
