@@ -23,7 +23,7 @@
       <div class="beer-counter" data-testid="counter" title="Biere bisher">
         <span aria-hidden="true">🍺</span>
         <b id="count">…</b>
-        <span class="beer-goal" id="goal">/ 1.000.000</span>
+        <span class="beer-goal"><span class="beer-goal-long" id="goal-long">/ 1.000.000</span><span class="beer-goal-short" id="goal-short">/ 1 Mio.</span></span>
       </div>
     </header>
 
@@ -44,6 +44,7 @@
           <div class="vb-progress" data-testid="upload-progress"><span id="upload-bar"></span></div>
           <div class="beer-upload-actions" id="upload-actions" hidden>
             <button class="vb-btn vb-btn--primary" id="retry" type="button" data-testid="retry">Nochmal</button>
+            <a class="vb-btn vb-btn--ghost" href="/" id="upload-home" data-testid="upload-home" hidden>Zur Startseite</a>
             <button class="vb-btn vb-btn--ghost" id="discard" type="button" data-testid="discard">Verwerfen</button>
           </div>
         </div>
@@ -78,18 +79,20 @@
         <img id="success-img" alt="Dein Bier-Foto" width="1080" height="1440">
         <figcaption id="success-caption">Bier</figcaption>
       </figure>
-      <h1 class="beer-success-title" data-testid="success-title">
-        <span class="beer-success-num">Bier <span class="vb-grad-text" id="success-num">#…</span></span>
-        <span class="beer-success-logged">geloggt <span aria-hidden="true">🍺</span></span>
-      </h1>
-      <p class="beer-success-cheer" id="success-cheer">Prost!</p>
-      <div class="beer-success-count" data-testid="success-count">
-        <span aria-hidden="true">🍺</span> <b id="success-total">…</b> <span class="beer-goal" id="success-goal">/ 1.000.000</span>
-      </div>
-      <p class="beer-success-togo vb-muted" id="success-togo" data-testid="success-togo"></p>
-      <div class="beer-success-actions">
-        <button class="vb-btn vb-btn--primary vb-btn--big" id="again" type="button" data-testid="again">Noch eins! 🍺</button>
-        <a class="vb-btn vb-btn--ghost vb-btn--block" href="/" data-testid="home">Zur Startseite</a>
+      <div class="beer-success-body">
+        <h1 class="beer-success-title" data-testid="success-title">
+          <span class="beer-success-num">Bier <span class="vb-grad-text" id="success-num">#…</span></span>
+          <span class="beer-success-logged">geloggt <span aria-hidden="true">🍺</span></span>
+        </h1>
+        <p class="beer-success-cheer" id="success-cheer">Prost!</p>
+        <div class="beer-success-count" data-testid="success-count">
+          <span aria-hidden="true">🍺</span> <b id="success-total">…</b> <span class="beer-goal" id="success-goal">/ 1.000.000</span>
+        </div>
+        <p class="beer-success-togo vb-muted" id="success-togo" data-testid="success-togo"></p>
+        <div class="beer-success-actions">
+          <button class="vb-btn vb-btn--primary vb-btn--big" id="again" type="button" data-testid="again">Noch eins! 🍺</button>
+          <a class="vb-btn vb-btn--ghost vb-btn--block" href="/" data-testid="home">Zur Startseite</a>
+        </div>
       </div>
     </div>
   </section>

@@ -5,7 +5,7 @@
 // outline drawn on top lines up with the stored 1080x1440 JPEG.
 
 import {
-  api, boot, canvasToJpeg, captureFrame, confetti, debug, flash, h, isInAppBrowser,
+  ApiError, api, boot, canvasToJpeg, captureFrame, confetti, debug, flash, h, isInAppBrowser,
   mountUserChip, openCamera, showNotice, toast, uploadJpeg, vibrate,
 } from '/static/core/vb.js';
 import { SHAPES, VESSELS, guideOverlay, vesselIcon } from './shapes.js';
@@ -17,6 +17,7 @@ const JPEG_QUALITY = 0.9; // the server re-encodes anyway
 const VESSEL_KEY = 'vb_beer_vessel';
 const INAPP_KEY = 'vb_beer_inapp_dismissed';
 const STATS_EVERY_MS = 30000;
+const BANNED_TEXT = 'Dieses Gerät wurde für Uploads gesperrt. Sprich die Gastgeber an, wenn das ein Versehen ist.';
 
 const CHEERS = [
   'Prost! 🍻',
@@ -29,6 +30,9 @@ const CHEERS = [
 ];
 
 const fmt = new Intl.NumberFormat('de-DE');
+const fmtShort = (() => {
+  try { return new Intl.NumberFormat('de-DE', { notation: 'compact' }); } catch (_) { return fmt; }
+})();
 const $ = (id) => document.getElementById(id);
 
 const els = {
@@ -40,11 +44,14 @@ const els = {
   shutter: $('shutter'),
   switchBtn: $('switch'),
   count: $('count'),
-  goal: $('goal'),
+  goalLong: $('goal-long'),
+  goalShort: $('goal-short'),
   upload: $('upload'),
   uploadText: $('upload-text'),
   uploadBar: $('upload-bar'),
   uploadActions: $('upload-actions'),
+  retry: $('retry'),
+  uploadHome: $('upload-home'),
   success: $('success'),
 };
 
@@ -56,6 +63,8 @@ const state = {
   busy: false,
   uploads: 0, // finished uploads, so stale stats polls can be ignored
   pending: null, // { blob, meta, canvas } of the shot being uploaded
+  waitUntil: 0, // rate limited: no retry before this (ms)
+  retryTimer: 0,
   successUrl: null,
 };
 
@@ -102,7 +111,8 @@ function renderTotal() {
     counter.classList.add('is-bumped');
   }
   els.count.textContent = text;
-  els.goal.textContent = `/ ${fmt.format(state.goal)}`;
+  els.goalLong.textContent = `/ ${fmt.format(state.goal)}`;
+  els.goalShort.textContent = `/ ${fmtShort.format(state.goal)}`; // "/ 1 Mio.": leaves the name chip room on phones
 }
 
 async function refreshStats() {
@@ -128,8 +138,36 @@ function reloadButton() {
     'Neu laden');
 }
 
-function homeLink() {
-  return h('a', { class: 'vb-btn vb-btn--ghost vb-btn--block beer-notice-home', href: '/' }, 'Zur Startseite');
+function homeLink({ primary = false } = {}) {
+  return h('a', {
+    class: `vb-btn ${primary ? 'vb-btn--primary vb-btn--big' : 'vb-btn--ghost vb-btn--block beer-notice-home'}`,
+    href: '/',
+  }, 'Zur Startseite');
+}
+
+/** Every boot failure (identify, chip, camera setup) ends here: a way out, never an endless spinner. */
+function fatal(err) {
+  debug('main failed', err && (err.stack || err.message));
+  console.warn(err);
+  setState('off');
+  const text = err instanceof ApiError ? err.message : 'Die Beer Cam konnte nicht starten.';
+  showNotice('😵', 'Ups', text, reloadButton(), homeLink());
+}
+
+function showBanned() {
+  setState('off');
+  if (state.cam) state.cam.stop();
+  if (document.querySelector('[data-testid="banned"]')) return;
+  showNotice('🚫', 'Gesperrt', BANNED_TEXT, homeLink({ primary: true })).dataset.testid = 'banned';
+}
+
+/** A dialog or full-screen notice is up: page shortcuts must not act behind it. */
+function dialogOpen() {
+  return !!document.querySelector('.vb-scrim, .vb-notice');
+}
+
+function isTyping(target) {
+  return !!(target && (target.isContentEditable || (target.closest && target.closest('input, textarea, select'))));
 }
 
 // -------------------------------------------------------------- camera
@@ -216,6 +254,8 @@ async function sendShot() {
   els.upload.hidden = false;
   els.upload.classList.remove('is-error');
   els.uploadActions.hidden = true;
+  els.retry.hidden = false;
+  els.uploadHome.hidden = true;
   setProgress(0);
   let res;
   try {
@@ -229,28 +269,75 @@ async function sendShot() {
   showSuccess(res, shot);
 }
 
+/** Seconds the server asked us to wait (429 Retry-After), if it said. */
+function retryAfter(err) {
+  const raw = err.retryAfter ?? (err.data && err.data.retry_after);
+  const seconds = Math.ceil(Number(raw));
+  return Number.isFinite(seconds) && seconds > 0 ? seconds : 0;
+}
+
 async function uploadFailed(err) {
   debug('upload failed', err.status, err.code, err.message);
   if (err.code === 'banned') {
-    setState('off');
-    showNotice('🚫', 'Gesperrt', err.message, homeLink());
+    discardShot();
+    showBanned();
+    return;
+  }
+  if (err.code === 'uploads_paused') {
+    // the hosts paused this guest's uploads: no retry that can't work, the server's words, a way home
+    state.pending = null; // nothing left to send: leaving loses nothing
+    setState('error');
+    els.upload.classList.add('is-error');
+    els.uploadText.textContent = err.message || 'Uploads sind gerade pausiert.';
+    els.retry.hidden = true;
+    els.uploadHome.hidden = false;
+    els.uploadActions.hidden = false;
     return;
   }
   if (err.code === 'needs_consent') {
     // the device lost its identity (cookies cleared): show the banner again, then retry
-    try { await boot(); } catch (_) { /* the retry button still works */ }
+    try {
+      const { banned } = await boot({ showBannedNotice: false });
+      if (banned) {
+        discardShot();
+        showBanned();
+        return;
+      }
+    } catch (_) { /* the retry button still works */ }
   }
+  let text = err.message || 'Upload fehlgeschlagen.';
+  const wait = err.code === 'rate_limited' ? retryAfter(err) : 0;
+  if (err.code === 'rate_limited') {
+    // the limit counts Beer Cam and Fotobox photos together
+    text = wait
+      ? `Langsam! Zu viele Fotos auf einmal. In ${wait} s nochmal.`
+      : 'Langsam! Zu viele Fotos auf einmal. Warte kurz und versuch es nochmal.';
+  }
+  state.waitUntil = wait ? Date.now() + wait * 1000 : 0;
   setState('error');
   els.upload.classList.add('is-error');
-  els.uploadText.textContent = err.message || 'Upload fehlgeschlagen.';
+  els.uploadText.textContent = text;
   els.uploadActions.hidden = false;
-  toast(err.message || 'Upload fehlgeschlagen.', { type: 'error', ms: 5000 });
+  renderRetry();
+  toast(text, { type: 'error', ms: 5000 });
+}
+
+/** "⏳ 7 s" while the server wants us to wait, then "Nochmal". */
+function renderRetry() {
+  clearTimeout(state.retryTimer);
+  const ms = els.app.dataset.state === 'error' ? state.waitUntil - Date.now() : 0;
+  const left = Math.ceil(ms / 1000);
+  els.retry.disabled = left > 0;
+  els.retry.textContent = left > 0 ? `⏳ ${left} s` : 'Nochmal';
+  if (left > 0) state.retryTimer = setTimeout(renderRetry, (ms % 1000) || 1000);
 }
 
 function discardShot() {
   if (state.pending && state.pending.canvas) state.pending.canvas.remove();
   for (const still of els.frame.querySelectorAll('.beer-still')) still.remove();
   state.pending = null;
+  state.waitUntil = 0;
+  clearTimeout(state.retryTimer);
   els.upload.hidden = true;
   els.uploadActions.hidden = true;
   setState(state.cam ? 'camera' : 'off');
@@ -259,10 +346,14 @@ function discardShot() {
 // ------------------------------------------------------------- success
 
 function showSuccess(res, shot) {
-  const number = res.beer_number ?? (res.photo && res.photo.seq);
+  const seq = res.beer_number ?? (res.photo && res.photo.seq);
   state.uploads += 1;
-  state.total = res.total ?? Math.max(number, state.total || 0);
+  state.total = res.total ?? Math.max(seq, state.total || 0);
   renderTotal();
+  // The guest's beer is the newest one on the board, so its number is the board's
+  // count: the same number the counter shows. (The photo's seq never shrinks, so it
+  // runs ahead of the count once the hosts take beers down.)
+  const number = state.total;
 
   if (state.successUrl) URL.revokeObjectURL(state.successUrl);
   state.successUrl = URL.createObjectURL(shot.blob);
@@ -338,8 +429,10 @@ function wireUi() {
   $('retry').addEventListener('click', () => { if (!state.busy) sendShot(); });
   $('discard').addEventListener('click', () => { if (!state.busy) discardShot(); });
   $('again').addEventListener('click', again);
-  // hardware/keyboard shutter: space or enter while the camera is up
+  // hardware/keyboard shutter: space or enter while the camera is up. Never behind a dialog.
   document.addEventListener('keydown', (e) => {
+    if (e.altKey || e.ctrlKey || e.metaKey || e.defaultPrevented) return;
+    if (dialogOpen() || isTyping(e.target)) return;
     if ((e.key === ' ' || e.key === 'Enter') && els.app.dataset.state === 'camera'
         && document.activeElement === document.body) {
       e.preventDefault();
@@ -351,23 +444,25 @@ function wireUi() {
   setInterval(() => {
     if (document.visibilityState === 'visible') refreshStats();
   }, STATS_EVERY_MS);
+  // a beer that is still uploading or failed to upload is lost when the page goes
+  window.addEventListener('beforeunload', (e) => {
+    if (!state.pending) return;
+    e.preventDefault();
+    e.returnValue = '';
+  });
 }
 
 async function main() {
   wireUi();
   setupInAppHint();
-  const { banned } = await boot();
+  const { banned } = await boot({ showBannedNotice: false });
   mountUserChip($('user-chip'));
   refreshStats();
   if (banned) {
-    // boot() already shows the "Gesperrt" notice
-    setState('off');
+    showBanned();
     return;
   }
   await startCamera();
 }
 
-main().catch((err) => {
-  debug('main failed', err && (err.stack || err.message));
-  showNotice('😵', 'Ups', (err && err.message) || 'Da ist etwas schiefgelaufen.', reloadButton());
-});
+main().catch(fatal);

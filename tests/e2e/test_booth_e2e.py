@@ -23,11 +23,24 @@ from virtubooth.extension import discover_extensions
 from virtubooth.extensions.booth import FILTERS
 from virtubooth.repo import PhotoQuery
 
-from .conftest import BROWSER_NAME, accept_consent_in_browser
+from .conftest import BROWSER_NAME, accept_consent_in_browser, new_context, track_errors
 
 pytestmark = pytest.mark.e2e
 
 READY = 15000
+
+
+def snap(page: Page, name: str, settle_ms: int = 700) -> None:
+    """Screenshot into VB_SCREENSHOT_DIR, if set."""
+    out = os.environ.get("VB_SCREENSHOT_DIR")
+    if not out:
+        return
+    page.wait_for_timeout(settle_ms)
+    Path(out).mkdir(parents=True, exist_ok=True)
+    before = len(page.js_errors)
+    page.screenshot(path=str(Path(out) / f"{name}.png"))
+    # WebKit logs the CSP refusing the <style> Playwright injects for screenshots: not the page's fault
+    page.js_errors[before:] = [e for e in page.js_errors[before:] if "Refused to apply a stylesheet" not in e]
 
 
 @pytest.fixture
@@ -379,6 +392,17 @@ def test_camera_denied_shows_a_german_notice(guest_page, live):
     expect(guest_page.get_by_test_id("shutter")).to_be_disabled()
 
 
+def rate_limited(route, seconds: int | None = None) -> None:
+    """A 429 like the server's. Retry-After is a header there; the SDK may pass it on as
+    err.retryAfter, the body field stands in for it until then."""
+    body = {"error": "rate_limited", "message": "Langsam! Zu viele Anfragen. Warte kurz und versuch es nochmal."}
+    headers = {}
+    if seconds is not None:
+        body["retry_after"] = seconds
+        headers["Retry-After"] = str(seconds)
+    route.fulfill(status=429, content_type="application/json", headers=headers, body=json.dumps(body))
+
+
 def test_upload_error_can_be_retried(guest_page, live):
     open_booth(guest_page, live)
     calls = {"n": 0}
@@ -386,8 +410,7 @@ def test_upload_error_can_be_retried(guest_page, live):
     def fail_once(route):
         calls["n"] += 1
         if calls["n"] == 1:
-            route.fulfill(status=429, content_type="application/json",
-                          body=json.dumps({"error": "rate_limited", "message": "Zu viele Fotos auf einmal."}))
+            rate_limited(route, 2)
         else:
             route.continue_()
 
@@ -395,8 +418,14 @@ def test_upload_error_can_be_retried(guest_page, live):
     guest_page.get_by_test_id("shutter").click()
     status = guest_page.get_by_test_id("upload-status")
     expect(status).to_have_attribute("data-state", "error", timeout=READY)
-    expect(status).to_contain_text("Zu viele Fotos auf einmal.")
-    guest_page.get_by_test_id("upload-retry").click()
+    expect(status).to_contain_text("Langsam! Zu viele Fotos auf einmal. In 2 s nochmal.")
+    retry = guest_page.get_by_test_id("upload-retry")
+    expect(retry).to_be_disabled()
+    expect(retry).to_contain_text("Nochmal in")
+    snap(guest_page, "result-rate-limited", 300)
+    expect(retry).to_be_enabled(timeout=4000)
+    expect(retry).to_have_text("↻ Nochmal hochladen")
+    retry.click()
     expect(status).to_have_attribute("data-state", "done", timeout=READY)
     assert len(stored_images(live)) == 1
     # the failed attempt logs a console error for the 429 response; nothing else
@@ -535,3 +564,413 @@ def test_screenshots(guest_page, live):
     page.goto(live.url("/x/booth/"))
     expect(page.get_by_role("alert")).to_contain_text("Die Kamera geht nicht")
     page.screenshot(path=out / "camera-denied.png")
+
+
+# ------------------------------------------------- failures and leaving
+
+
+def leaving_is_blocked(page: Page) -> bool:
+    """Whether the page asks before it goes (beforeunload cancelled)."""
+    return page.evaluate("""() => {
+        const e = new Event('beforeunload', { cancelable: true });
+        window.dispatchEvent(e);
+        return e.defaultPrevented;
+    }""")
+
+
+def kept_on_phone(page: Page) -> int:
+    """Photos in the page's IndexedDB outbox."""
+    return page.evaluate("""() => new Promise((resolve, reject) => {
+        const req = indexedDB.open('vb-booth', 1);
+        req.onupgradeneeded = () => req.result.createObjectStore('outbox', { keyPath: 'id' });
+        req.onerror = () => reject(req.error);
+        req.onsuccess = () => {
+            const db = req.result;
+            const count = db.transaction('outbox').objectStore('outbox').count();
+            count.onsuccess = () => { db.close(); resolve(count.result); };
+            count.onerror = () => reject(count.error);
+        };
+    })""")
+
+
+class Network:
+    """Upload requests fail while `offline` is set."""
+
+    def __init__(self, page: Page) -> None:
+        self.offline = True
+        page.route("**/api/x/booth/upload", self.handle)
+
+    def handle(self, route) -> None:
+        if self.offline:
+            route.abort("internetdisconnected")
+        else:
+            route.continue_()
+
+
+def shoot_offline(page: Page) -> None:
+    page.get_by_test_id("shutter").click()
+    expect(page.get_by_test_id("upload-status")).to_have_attribute("data-state", "error", timeout=READY)
+    expect(page.get_by_test_id("upload-status")).to_contain_text("Keine Verbindung")
+
+
+def network_errors_only(page: Page) -> list[str]:
+    return [e for e in page.js_errors if "ERR_INTERNET_DISCONNECTED" not in e and "NetworkError" not in e
+            and "Load failed" not in e and "network connection was lost" not in e]
+
+
+def wait_kept(page: Page, n: int) -> None:
+    deadline = time.monotonic() + 10
+    while (count := kept_on_phone(page)) != n:
+        assert time.monotonic() < deadline, f"{count} photos kept on the phone, expected {n}"
+        page.wait_for_timeout(100)
+
+
+def test_unsent_photo_survives_a_reload(guest_page, live):
+    page = guest_page
+    open_booth(page, live)
+    net = Network(page)
+    shoot_offline(page)
+    wait_kept(page, 1)
+    assert not leaving_is_blocked(page)  # it is safe on the phone: no browser prompt needed
+    again(page)
+    expect(page.get_by_test_id("outbox")).to_contain_text("1 nicht hochgeladen")
+
+    # reload while still offline: the photo is back in the outbox
+    page.reload()
+    expect(page.get_by_test_id("booth")).to_have_attribute("data-ready", "1", timeout=READY)
+    expect(page.get_by_test_id("outbox")).to_contain_text("1 nicht hochgeladen", timeout=READY)
+    assert stored_images(live) == []
+
+    # online again: the next visit sends it on its own
+    net.offline = False
+    page.reload()
+    expect(page.get_by_text("von vorhin ist jetzt hochgeladen")).to_be_visible(timeout=READY)
+    expect(page.get_by_test_id("outbox")).to_be_hidden()
+    [(meta, img)] = stored_images(live)
+    assert meta == {"filter": "normal", "facing": "user"} and img.size == (1080, 1440)
+    wait_kept(page, 0)
+    assert network_errors_only(page) == []
+
+
+def test_back_button_asks_before_leaving_unsent_photos(guest_page, live):
+    page = guest_page
+    open_booth(page, live)
+    net = Network(page)
+    shoot_offline(page)
+    again(page)
+    select(page, "bw")
+    shoot_offline(page)
+    again(page)
+    outbox = page.get_by_test_id("outbox")
+    expect(outbox).to_contain_text("2 nicht hochgeladen")
+    wait_kept(page, 2)
+
+    page.get_by_test_id("back").click()
+    sheet = page.get_by_test_id("leave")
+    expect(sheet).to_contain_text("2 Fotos sind noch nicht hochgeladen")
+    expect(sheet).to_contain_text("sobald du die Fotobox wieder öffnest")
+    assert page.url == live.url("/x/booth/")
+    snap(page, "leave-sheet", 400)
+    # the page's shortcuts wait while the sheet is open
+    page.evaluate("() => document.activeElement.blur()")
+    page.keyboard.press("ArrowRight")
+    page.keyboard.press("Space")
+    page.wait_for_timeout(300)
+    expect(page.get_by_test_id("booth")).to_have_attribute("data-filter", "bw")
+    expect(page.get_by_test_id("result")).to_be_hidden()
+
+    # stay: tries again (still offline), the photos stay in the outbox
+    sheet.get_by_test_id("leave-stay").click()
+    expect(sheet).to_have_count(0)
+    expect(outbox).to_contain_text("2 nicht hochgeladen", timeout=READY)
+    page.get_by_test_id("back").click()
+    page.keyboard.press("Escape")  # closes the sheet too
+    expect(sheet).to_have_count(0)
+    assert page.url == live.url("/x/booth/")
+
+    # leave anyway: home, no browser prompt on the way
+    page.get_by_test_id("back").click()
+    sheet.get_by_test_id("leave-go").click()
+    page.wait_for_url(live.url("/"))
+    expect(page.get_by_test_id("tile-booth")).to_be_visible()  # home has booted: nothing left in flight
+
+    # back online, back in the Fotobox: both are sent
+    net.offline = False
+    open_booth(page, live)
+    expect(outbox).to_be_hidden()
+    deadline = time.monotonic() + 10
+    while len(stored_images(live)) < 2 and time.monotonic() < deadline:
+        page.wait_for_timeout(100)
+    assert sorted(meta["filter"] for meta, _ in stored_images(live)) == ["bw", "normal"]
+    wait_kept(page, 0)
+    page.get_by_test_id("back").click()  # nothing unsent: straight home
+    page.wait_for_url(live.url("/"))
+    expect(page.get_by_test_id("tile-booth")).to_be_visible()
+    assert network_errors_only(page) == []
+
+
+NO_INDEXEDDB = "Object.defineProperty(window, 'indexedDB', { configurable: true, get: () => undefined });"
+
+
+def test_without_storage_leaving_warns_that_photos_are_lost(guest_page, live):
+    page = guest_page
+    page.add_init_script(NO_INDEXEDDB)
+    open_booth(page, live)
+    net = Network(page)
+    assert not leaving_is_blocked(page)
+    shoot_offline(page)
+    assert leaving_is_blocked(page)  # on the result screen already
+    again(page)
+    assert leaving_is_blocked(page)
+    page.get_by_test_id("back").click()
+    expect(page.get_by_test_id("leave")).to_contain_text("Wenn du jetzt gehst, ist es weg.")
+    net.offline = False
+    page.get_by_test_id("leave-stay").click()  # stays and tries again
+    expect(page.get_by_text("Foto #1 ist hochgeladen ✓")).to_be_visible(timeout=READY)
+    expect(page.get_by_test_id("outbox")).to_be_hidden()
+    assert not leaving_is_blocked(page)
+    assert len(stored_images(live)) == 1
+    assert network_errors_only(page) == []
+
+
+def test_leaving_mid_upload_warns(guest_page, live):
+    page = guest_page
+    open_booth(page, live)
+    page.route("**/api/x/booth/upload", lambda route: None)  # never answers
+    page.get_by_test_id("shutter").click()
+    expect(page.get_by_test_id("upload-status")).to_have_attribute("data-state", "uploading")
+    assert leaving_is_blocked(page)
+
+
+def test_boot_failure_offers_a_reload(page, live):
+    """/api/identify fails (flaky WiFi, a blocker): no endless "Kamera startet …"."""
+    page.goto(live.entry("/"))
+    accept_consent_in_browser(page)
+    page.route("**/api/identify", lambda route: route.abort())
+    page.goto(live.url("/x/booth/"))
+    notice = page.get_by_role("alert").filter(has_text="Ups")
+    expect(notice).to_contain_text("Keine Verbindung")
+    expect(notice.get_by_role("link", name="Zur Startseite")).to_be_visible()
+    expect(page.get_by_text("Kamera startet")).to_be_hidden()
+    snap(page, "boot-failed")
+    page.unroute("**/api/identify")
+    notice.get_by_role("button", name="Neu laden").click()
+    expect(page.get_by_test_id("booth")).to_have_attribute("data-ready", "1", timeout=READY)
+    expect(page.locator(".vb-notice")).to_have_count(0)
+
+
+def test_filter_catalogue_failure_offers_a_reload(guest_page, live):
+    page = guest_page
+    page.route("**/x/booth/filters.json", lambda route: route.abort())
+    page.goto(live.url("/x/booth/"))
+    notice = page.get_by_role("alert").filter(has_text="Ups")
+    expect(notice.get_by_role("button", name="Neu laden")).to_be_visible()
+    expect(page.get_by_text("Kamera startet")).to_be_hidden()
+
+
+def test_shortcuts_wait_while_a_dialog_is_open(guest_page, live):
+    page = guest_page
+    open_booth(page, live)
+    booth = page.get_by_test_id("booth")
+    page.evaluate("""() => {
+        document.querySelector('[data-testid=user-chip]').click();
+        if (!document.querySelector('.vb-scrim')) throw new Error('no dialog');
+        document.activeElement.blur();
+    }""")
+    assert page.evaluate("() => document.activeElement === document.body")
+    for key in ("ArrowRight", "ArrowLeft", "ArrowRight", "Space", "Enter"):
+        page.keyboard.press(key)
+    page.locator(".vb-scrim input").first.focus()
+    page.keyboard.type("a b ")
+    page.keyboard.press("ArrowLeft")  # moves the cursor in the field, not the filter
+    page.wait_for_timeout(400)
+    expect(booth).to_have_attribute("data-filter", "normal")
+    expect(page.get_by_test_id("result")).to_be_hidden()
+    assert stored_images(live) == []
+
+    page.evaluate("() => { document.querySelector('.vb-scrim').remove(); document.activeElement.blur(); }")
+    page.keyboard.press("ArrowRight")
+    expect(booth).to_have_attribute("data-filter", list(FILTERS)[1])
+    page.keyboard.press("Space")
+    expect(page.get_by_test_id("upload-status")).to_have_attribute("data-state", "done", timeout=READY)
+    assert guest_page.js_errors == []
+
+
+def test_banned_guest_gets_a_way_home(guest_page, live):
+    page = guest_page
+    user = live.core.repo.list_users()[0]
+    live.core.repo.ban_user(user.id, "test", "admin:test")
+    page.goto(live.url("/x/booth/"))
+    notice = page.get_by_test_id("banned")
+    expect(notice).to_contain_text("Gesperrt")
+    expect(page.locator(".vb-notice")).to_have_count(1)
+    expect(page.get_by_text("Kamera startet")).to_be_hidden()
+    assert page.locator("#video").evaluate("v => v.srcObject") is None
+    snap(page, "banned")
+    notice.get_by_role("link", name="Zur Startseite").click()
+    page.wait_for_url(live.url("/"))
+
+
+def test_banned_mid_party(guest_page, live):
+    page = guest_page
+    open_booth(page, live)
+    user = live.core.repo.list_users()[0]
+    live.core.repo.ban_user(user.id, "test", "admin:test")
+    page.get_by_test_id("shutter").click()
+    status = page.get_by_test_id("upload-status")
+    expect(status).to_have_attribute("data-state", "error", timeout=READY)
+    expect(status).to_contain_text("gesperrt")
+    expect(page.get_by_test_id("upload-retry")).to_be_hidden()  # retrying can't help
+    expect(page.get_by_test_id("again")).to_be_hidden()  # neither can more photos
+    expect(page.get_by_test_id("upload-home")).to_be_visible()
+    expect(page.get_by_test_id("save")).to_be_visible()  # the photo is still theirs to keep
+    snap(page, "result-banned", 300)
+    assert not leaving_is_blocked(page)
+    page.keyboard.press("Escape")  # leaving the result: the notice, not the camera
+    expect(page.get_by_test_id("banned")).to_be_visible()
+    expect(page.get_by_test_id("outbox")).to_be_hidden()
+    page.get_by_test_id("banned").get_by_role("link", name="Zur Startseite").click()
+    page.wait_for_url(live.url("/"))
+    assert stored_images(live) == []
+
+
+PAUSED_MESSAGE = "Deine Uploads sind gerade pausiert. Sprich die Gastgeber an."
+
+
+def uploads_paused(route) -> None:
+    """The server's answer while the hosts paused this guest's uploads."""
+    route.fulfill(status=403, content_type="application/json",
+                  body=json.dumps({"error": "uploads_paused", "message": PAUSED_MESSAGE}))
+
+
+def test_paused_uploads_offer_no_retry(guest_page, live):
+    page = guest_page
+    open_booth(page, live)
+    page.route("**/api/x/booth/upload", uploads_paused)
+    page.get_by_test_id("shutter").click()
+    status = page.get_by_test_id("upload-status")
+    expect(status).to_have_attribute("data-state", "error", timeout=READY)
+    expect(status).to_contain_text(PAUSED_MESSAGE)
+    expect(page.get_by_test_id("upload-retry")).to_be_hidden()
+    expect(page.get_by_test_id("upload-home")).to_be_visible()
+    expect(page.get_by_test_id("save")).to_be_visible()
+    assert not leaving_is_blocked(page)
+    snap(page, "result-paused", 300)
+    again(page)  # the camera still works, nothing piles up in the outbox
+    expect(page.get_by_test_id("outbox")).to_be_hidden()
+    expect(page.get_by_test_id("banned")).to_have_count(0)
+    page.get_by_test_id("back").click()  # nothing unsent: no question
+    page.wait_for_url(live.url("/"))
+    assert stored_images(live) == []
+
+
+def test_paused_uploads_keep_photos_from_before(guest_page, live):
+    """A photo kept on the phone from an offline moment waits out the pause."""
+    page = guest_page
+    open_booth(page, live)
+    Network(page)
+    shoot_offline(page)
+    wait_kept(page, 1)
+    again(page)
+    page.unroute("**/api/x/booth/upload")
+    page.route("**/api/x/booth/upload", uploads_paused)
+    page.reload()
+    expect(page.get_by_role("status").or_(page.get_by_role("alert")).filter(has_text=PAUSED_MESSAGE)).to_be_visible(
+        timeout=READY)
+    expect(page.get_by_test_id("outbox")).to_be_hidden()
+    assert kept_on_phone(page) == 1
+    assert not leaving_is_blocked(page)
+    page.unroute("**/api/x/booth/upload")
+    page.reload()  # the pause is over
+    expect(page.get_by_text("von vorhin ist jetzt hochgeladen")).to_be_visible(timeout=READY)
+    wait_kept(page, 0)
+    assert len(stored_images(live)) == 1
+
+
+# ------------------------------------------------------------- layout
+
+
+def animations_done(page: Page) -> None:
+    """Wait for the drop-in/pop-in animations (not the endless pulses) before measuring."""
+    page.evaluate("""() => Promise.all(document.getAnimations()
+        .filter((a) => a.effect && a.effect.getComputedTiming().iterations !== Infinity)
+        .map((a) => a.finished.catch(() => null)))""")
+
+
+def inside(page: Page, testid: str) -> dict:
+    """The element is fully on screen, without scrolling."""
+    box = page.get_by_test_id(testid).bounding_box()
+    size = page.viewport_size
+    assert box and size, testid
+    assert box["x"] >= -1 and box["y"] >= -1, (testid, box)
+    assert box["x"] + box["width"] <= size["width"] + 1, (testid, box, size)
+    assert box["y"] + box["height"] <= size["height"] + 1, (testid, box, size)
+    return box
+
+
+def test_phone_landscape_result_fits(guest_page, live):
+    page = guest_page
+    page.set_viewport_size({"width": 844, "height": 390})
+    open_booth(page, live)
+    for testid in ("shutter", "countdown-toggle", "back", "user-chip", "preview"):
+        inside(page, testid)
+    snap(page, "landscape-camera", 1700)
+    shoot(page)
+    animations_done(page)
+    for testid in ("save", "again", "upload-status", "result-photo"):
+        inside(page, testid)
+    sizes = page.get_by_test_id("result").evaluate("el => [el.scrollHeight, el.clientHeight]")
+    assert sizes[0] <= sizes[1] + 1, sizes  # nothing below the fold
+    photo = page.get_by_test_id("result-photo").bounding_box()
+    assert photo and photo["height"] > 250, photo
+    snap(page, "landscape-result", 2600)
+
+
+def test_phone_portrait_top_bar(guest_page, live):
+    page = guest_page
+    open_booth(page, live)
+    chip = inside(page, "user-chip")
+    assert chip["width"] >= 150, chip
+    inside(page, "back")
+    snap(page, "portrait-camera", 300)
+    Network(page)
+    shoot_offline(page)
+    snap(page, "result-offline", 300)
+    again(page)
+    expect(page.get_by_test_id("outbox")).to_be_visible()
+    for testid in ("outbox", "user-chip", "back"):
+        inside(page, testid)
+    assert page.get_by_test_id("user-chip").bounding_box()["width"] >= 100  # type: ignore[index]
+    snap(page, "portrait-outbox", 300)
+    assert network_errors_only(page) == []
+
+
+def test_desktop_shows_every_filter(browser, live):
+    ctx = new_context(browser, "desktop")
+    try:
+        page = track_errors(ctx.new_page())
+        page.goto(live.entry("/x/booth/"))
+        accept_consent_in_browser(page)
+        expect(page.get_by_test_id("booth")).to_have_attribute("data-ready", "1", timeout=READY)
+        strip = page.get_by_test_id("filter-strip")
+        expect(strip).to_have_class(re.compile(r"\bis-fit\b"))
+        box = strip.bounding_box()
+        assert box
+        lefts = []
+        for fid in FILTERS:
+            chip = page.get_by_test_id(f"filter-{fid}").bounding_box()
+            assert chip and chip["x"] >= box["x"] and chip["x"] + chip["width"] <= box["x"] + box["width"], fid
+            lefts.append(chip["x"])
+        middle = (lefts[0] + lefts[-1] + 78) / 2
+        assert abs(middle - (box["x"] + box["width"] / 2)) < 4  # one centred group
+        assert strip.evaluate("el => el.scrollWidth <= el.clientWidth")
+        page.keyboard.press("ArrowLeft")  # wraps to the last filter: nothing scrolls away
+        expect(page.get_by_test_id("booth")).to_have_attribute("data-filter", list(FILTERS)[-1])
+        page.wait_for_timeout(500)
+        assert page.get_by_test_id("filter-normal").bounding_box()["x"] == pytest.approx(lefts[0], abs=1)  # type: ignore[index]
+        snap(page, "desktop-camera", 1700)
+        page.set_viewport_size({"width": 390, "height": 844})  # narrow window: back to a scrolling strip
+        expect(strip).not_to_have_class(re.compile(r"\bis-fit\b"))
+        assert page.js_errors == []
+    finally:
+        ctx.close()
