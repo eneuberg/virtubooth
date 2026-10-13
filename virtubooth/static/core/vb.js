@@ -181,6 +181,7 @@ export async function boot({ showBannedNotice = true } = {}) {
     res = await askConsent(res.consent, fp);
   }
   if (res.uid_token) storageSet(UID_KEY, res.uid_token);
+  uploadsStopped = Boolean(res.uploads_stopped);
   setUser(res.user);
   const banned = res.state === 'banned';
   if (banned && showBannedNotice) {
@@ -286,6 +287,104 @@ export function editInstagram() {
   input.focus();
 }
 
+// ---------------------------------------------------------- upload pauses
+
+// The hosts can pause one guest's uploads, pause everyone who joins from now
+// on, or stop all uploads for a while. The server then refuses uploads with a
+// German message the pages show. This keeps a small hint on every page (tap:
+// what it means) and checks back every half minute until uploads work again.
+// It floats below the top bar, or sits in #vb-uploads-slot if the page has one.
+const UPLOAD_HINTS = {
+  paused: {
+    label: '⏸ Uploads sind gerade pausiert',
+    title: '⏸ Uploads sind für dich pausiert',
+    text: 'Die Gastgeber haben Uploads für dich kurz angehalten. Du kannst dich weiter umsehen und '
+      + 'deinen Instagram-Namen ändern. Sobald sie wieder freigeben, verschwindet dieser Hinweis.',
+  },
+  stopped: {
+    label: '⏹ Uploads kurz gestoppt',
+    title: '⏹ Uploads sind kurz gestoppt',
+    text: 'Die Gastgeber haben Uploads gerade für alle angehalten. Gleich geht\'s weiter – '
+      + 'dann verschwindet dieser Hinweis von selbst.',
+  },
+};
+const UPLOAD_RECHECK_MS = 30000;
+let uploadsStopped = false;
+let uploadHint = null; // { kind, el, timer }
+
+function uploadBlock() {
+  const user = currentUser;
+  if (!user || user.banned) return null; // banned devices get their own notice
+  if (user.uploads_paused) return 'paused';
+  return uploadsStopped ? 'stopped' : null;
+}
+
+function syncUploadHint() {
+  const kind = uploadBlock();
+  if ((uploadHint ? uploadHint.kind : null) === kind) return;
+  if (uploadHint) {
+    uploadHint.el.remove();
+    clearInterval(uploadHint.timer);
+    uploadHint = null;
+  }
+  if (!kind) return;
+  const slot = document.getElementById('vb-uploads-slot');
+  const el = h('button', {
+    class: slot ? 'vb-pausechip vb-pausechip--inline' : 'vb-pausechip', type: 'button',
+    'data-testid': 'uploads-paused', 'data-kind': kind, onclick: () => explainUploadHint(kind),
+  }, UPLOAD_HINTS[kind].label);
+  (slot || document.body).append(el);
+  uploadHint = { kind, el, timer: setInterval(recheckUploads, UPLOAD_RECHECK_MS) };
+}
+onUserChange(syncUploadHint);
+
+/** What an upload answer says about pauses: 'ok' or an error code. */
+function noteUploadAnswer(code) {
+  let paused;
+  if (code === 'ok') [paused, uploadsStopped] = [false, false];
+  else if (code === 'uploads_paused') paused = true;
+  else if (code === 'uploads_stopped') [paused, uploadsStopped] = [false, true];
+  else return;
+  if (currentUser && Boolean(currentUser.uploads_paused) !== paused) setUser({ ...currentUser, uploads_paused: paused });
+  else syncUploadHint();
+}
+
+async function recheckUploads() {
+  if (document.visibilityState === 'hidden') return;
+  try {
+    const res = await api('/api/identify', { method: 'POST', json: { uid: storageGet(UID_KEY) } });
+    if (!res.user) return;
+    const wasBlocked = Boolean(uploadHint);
+    uploadsStopped = Boolean(res.uploads_stopped);
+    setUser({ ...currentUser, ...res.user });
+    if (wasBlocked && !uploadHint && !res.user.banned) toast('Uploads sind wieder frei 🎉', { type: 'success' });
+  } catch (_) { /* offline: the next check tries again */ }
+}
+document.addEventListener('visibilitychange', () => {
+  if (uploadHint && document.visibilityState === 'visible') recheckUploads();
+});
+
+function explainUploadHint(kind) {
+  const { title, text } = UPLOAD_HINTS[kind];
+  const close = () => {
+    document.removeEventListener('keydown', onKey);
+    scrim.remove();
+  };
+  const onKey = (event) => { if (event.key === 'Escape') close(); };
+  const ok = h('button', { class: 'vb-btn vb-btn--primary vb-btn--block', type: 'button', onclick: close }, 'Alles klar');
+  const scrim = h('div', { class: 'vb-scrim', 'data-testid': 'uploads-paused-info' },
+    h('div', { class: 'vb-sheet', role: 'dialog', 'aria-modal': 'true', 'aria-labelledby': 'vb-pause-title' },
+      h('h2', { id: 'vb-pause-title' }, title),
+      h('p', { class: 'vb-muted' }, text),
+      h('div', { class: 'vb-actions' }, ok),
+    ),
+  );
+  scrim.addEventListener('click', (event) => { if (event.target === scrim) close(); });
+  document.addEventListener('keydown', onKey);
+  document.body.append(scrim);
+  ok.focus();
+}
+
 // ---------------------------------------------------------------- uploads
 
 /**
@@ -310,11 +409,13 @@ export function uploadJpeg(extId, blob, { meta = {}, onProgress } = {}) {
       const data = xhr.response;
       if (xhr.status >= 200 && xhr.status < 300) {
         onProgress && onProgress(1);
+        noteUploadAnswer('ok');
         resolve(data);
       } else {
         const err = new ApiError(xhr.status, (data && data.error) || `http_${xhr.status}`,
           (data && data.message) || 'Upload fehlgeschlagen.', data);
         if (err.code === 'scan_qr') handleNoAccess();
+        noteUploadAnswer(err.code);
         reject(err);
       }
     });

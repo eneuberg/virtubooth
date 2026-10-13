@@ -292,6 +292,41 @@ button.vb-chip { cursor: pointer; font: inherit; font-size: 0.9rem; font-weight:
 .vb-toast--error { border-color: var(--vb-red); }
 .vb-toast--success { border-color: var(--vb-green); }
 
+/* ------------------------------------------- upload pause hint (vb.js) */
+
+/* "⏸ Uploads sind gerade pausiert": small, below the top bars, tap for why */
+.vb-pausechip {
+  position: fixed;
+  top: calc(68px + var(--vb-safe-top));
+  left: 12px;
+  right: 12px;
+  z-index: 950;
+  width: fit-content;
+  max-width: calc(100% - 24px);
+  min-height: 40px;
+  margin: 0 auto;
+  padding: 8px 16px;
+  border: 2px solid var(--vb-yellow);
+  border-radius: 999px;
+  background: rgba(20, 2, 31, 0.92);
+  -webkit-backdrop-filter: blur(8px);
+  backdrop-filter: blur(8px);
+  box-shadow: var(--vb-shadow);
+  color: var(--vb-fg);
+  font: inherit;
+  font-size: 0.95rem;
+  font-weight: 800;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  cursor: pointer;
+  touch-action: manipulation;
+  animation: vb-pop-in 0.25s ease;
+}
+.vb-pausechip[data-kind="stopped"] { border-color: var(--vb-orange); }
+.vb-pausechip--inline { position: static; display: block; margin: 12px 0; }
+.vb-pausechip:focus-visible { outline: 3px solid var(--vb-cyan); outline-offset: 3px; }
+
 /* ---------------------------------------------------------- progress */
 
 .vb-progress {
