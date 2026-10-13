@@ -2,14 +2,16 @@
  * Verwaltung → Plakat: the host's own poster template. Upload a PDF (stored on the
  * server, so every admin device has it), pick a page, place the green square where
  * the QR code goes (mouse, touch, keyboard), save it, print a test poster. Without a
- * template the standard poster (Kontaktbogen style) is used.
+ * template the standard poster (Kontaktbogen style) is used. The test print carries
+ * the sample code (no access) or a real active code („Code für den Probedruck“), and
+ * the event name from Einstellungen.
  *
  * pdf.js and the print library load only here, on demand (separate chunks).
  */
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query';
 import { Download, FileText, Printer, RotateCcw, Save, Trash2, Upload } from 'lucide-react';
 import type { PDFDocumentProxy } from 'pdfjs-dist/legacy/build/pdf.mjs';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { DropZone, FileTrigger, Text, type FileDropItem } from 'react-aria-components';
 import { formatBytes, formatRelative } from '@/lib/format';
 import type { CodePrintInput } from '@/print/types';
@@ -18,13 +20,18 @@ import { Button } from '@/ui/Button';
 import { ConfirmDialog } from '@/ui/ConfirmDialog';
 import { cx } from '@/ui/cx';
 import { EmptyState } from '@/ui/EmptyState';
-import { Select } from '@/ui/Select';
+import { Select, type SelectOption } from '@/ui/Select';
 import { Skeleton } from '@/ui/Skeleton';
 import { Spinner } from '@/ui/Spinner';
 import { showToast } from '@/ui/Toast';
 import { toastAvoid } from '@/ui/toastPlacement';
+import { fetchCodes, useActivities, type Activities } from '../codes/api';
+import { exportErrorText, printInput } from '../codes/printInput';
+import { codesKey, type CodesList } from '../codes/keys';
 import { errorText, showError } from '../common/usePhotoActions';
 import { DESKTOP, useMediaQuery } from '../lib/browser';
+import { fetchSettings } from '../settings/api';
+import { settingsKey } from '../settings/keys';
 import {
   deleteTemplate,
   fetchPoster,
@@ -45,15 +52,61 @@ import { templateBytes } from './template';
 const MAX_PAGE_WIDTH = 720;
 
 /**
- * The code on test prints: the bare address shows the "scan the QR code" gate, so it
- * grants no access. TODO(INT): the real event name (settings API) instead of "Party",
- * and the real codes from the QR table.
+ * The sample code on test prints: the bare address shows the "scan the QR code" gate,
+ * so it grants no access.
  */
-function sampleCode(): CodePrintInput {
-  return { url: `${location.origin}/`, number: 0, name: 'Muster 0', eventName: 'Party', subtitle: null };
+function sampleCode(eventName = 'Party'): CodePrintInput {
+  return { url: `${location.origin}/`, number: 0, name: 'Muster 0', eventName, subtitle: null };
 }
 
-const SAMPLE_NOTE = 'Der Probedruck hat einen Muster-Code ohne Zugang.';
+/** „Code für den Probedruck“: the sample code (0) or an active code's number. */
+const SAMPLE = 0;
+
+const SAMPLE_NOTE = 'Mit „Muster“ hat der Probedruck einen Code ohne Zugang.';
+
+/** The choices for the test print: „Muster“, then the active codes by number. */
+function printChoices(list: CodesList | undefined): SelectOption<number>[] {
+  const active = (list?.codes ?? []).filter((c) => c.active);
+  return [{ id: SAMPLE, label: 'Muster' }, ...active.map((c) => ({ id: c.id, label: c.name }))];
+}
+
+/** What the test print carries: the chosen active code, else the sample; the real event name. */
+async function printChoice(qc: QueryClient, choice: number, activities: Activities): Promise<CodePrintInput> {
+  const [settings, list] = await Promise.all([
+    qc.fetchQuery({ queryKey: settingsKey, queryFn: fetchSettings, staleTime: 30_000 }),
+    choice === SAMPLE
+      ? Promise.resolve(undefined)
+      : qc.fetchQuery({ queryKey: codesKey, queryFn: fetchCodes, staleTime: 15_000 }),
+  ]);
+  const code = list?.codes.find((c) => c.id === choice && c.active);
+  return code
+    ? printInput(code, list?.base_url ?? null, activities, settings.event.name)
+    : sampleCode(settings.event.name);
+}
+
+/** The Select „Code für den Probedruck“ and its state (shared by both views). */
+function usePrintChoice() {
+  const qc = useQueryClient();
+  const codes = useQuery({ queryKey: codesKey, queryFn: fetchCodes });
+  const activities = useActivities();
+  const options = useMemo(() => printChoices(codes.data), [codes.data]);
+  const [picked, setPicked] = useState(SAMPLE);
+  const choice = options.some((o) => o.id === picked) ? picked : SAMPLE;
+  return {
+    select: (
+      <Select
+        label="Code für den Probedruck"
+        size="sm"
+        options={options}
+        value={choice}
+        onChange={setPicked}
+        data-testid="poster-print-code"
+        className="min-w-0"
+      />
+    ),
+    input: () => printChoice(qc, choice, activities),
+  };
+}
 
 function megabytes(bytes: number): string {
   return `${Math.round(bytes / 1_000_000)} MB`;
@@ -63,16 +116,17 @@ function isPdf(file: File): boolean {
   return file.type === 'application/pdf' || /\.pdf$/i.test(file.name);
 }
 
-/** Build the poster with the sample code and save it (the print library loads now). */
-async function downloadSamplePoster(template: { pdf: ArrayBuffer; page: number; rect: RelRect } | null) {
+/** Build the poster with the chosen code and save it (the print library loads now). */
+async function downloadTestPoster(
+  input: () => Promise<CodePrintInput>,
+  template: { pdf: ArrayBuffer; page: number; rect: RelRect } | null,
+) {
   try {
-    const print = await import('@/print');
-    const sample = sampleCode();
-    const pdf = await print.posterPdf(sample, template);
-    print.downloadBlob(pdf, print.exportFileName(sample, 'poster'));
+    const [print, code] = await Promise.all([import('@/print'), input()]);
+    const pdf = await print.posterPdf(code, template);
+    print.downloadBlob(pdf, print.exportFileName(code, 'poster'));
   } catch (err) {
-    const known = err instanceof Error && err.name === 'PrintError';
-    showToast({ message: known ? err.message : 'Das Plakat ließ sich nicht erstellen.', tone: 'error' });
+    showToast({ message: `Export ging nicht: ${exportErrorText(err)}`, tone: 'error' });
   }
 }
 
@@ -164,6 +218,7 @@ function NoTemplate({ maxBytes }: { maxBytes: number }) {
   const desktop = useMediaQuery(DESKTOP);
   const { upload, pending } = usePosterUpload(maxBytes);
   const [building, setBuilding] = useState(false);
+  const print = usePrintChoice();
   return (
     <div className="grid max-w-2xl gap-4" data-testid="poster-empty">
       <EmptyState
@@ -186,7 +241,7 @@ function NoTemplate({ maxBytes }: { maxBytes: number }) {
               data-testid="poster-standard"
               onPress={() => {
                 setBuilding(true);
-                void downloadSamplePoster(null).finally(() => setBuilding(false));
+                void downloadTestPoster(print.input, null).finally(() => setBuilding(false));
               }}
             >
               Standard-Plakat ansehen (PDF)
@@ -197,7 +252,10 @@ function NoTemplate({ maxBytes }: { maxBytes: number }) {
         <UploadHelp />
       </EmptyState>
       {desktop ? <PdfDropZone onFile={(f) => void upload(f)} /> : null}
-      <p className="text-sm text-ink-muted">{SAMPLE_NOTE}</p>
+      <div className="grid max-w-sm gap-1">
+        {print.select}
+        <p className="text-sm text-ink-muted">{SAMPLE_NOTE}</p>
+      </div>
     </div>
   );
 }
@@ -278,6 +336,7 @@ function TemplateEditor({ template, maxBytes }: { template: PosterTemplate; maxB
   const [renderError, setRenderError] = useState<string | null>(null);
   const onRenderError = useCallback(() => setRenderError(UNREADABLE), []);
   const matrix = useSampleMatrix();
+  const print = usePrintChoice();
   const [measure, width] = useContainerWidth(MAX_PAGE_WIDTH);
 
   // the unsaved choice; null = what the server has
@@ -317,7 +376,7 @@ function TemplateEditor({ template, maxBytes }: { template: PosterTemplate; maxB
   const testPrint = async () => {
     if (!bytes.data || !rect) return;
     setBusy('print');
-    await downloadSamplePoster({ pdf: bytes.data, page, rect });
+    await downloadTestPoster(print.input, { pdf: bytes.data, page, rect });
     setBusy(null);
   };
 
@@ -393,7 +452,10 @@ function TemplateEditor({ template, maxBytes }: { template: PosterTemplate; maxB
             <UploadHelp />
           </div>
           {desktop ? <PdfDropZone onFile={(f) => void upload(f)} /> : null}
-          <p className="text-ink-muted">{SAMPLE_NOTE}</p>
+          <div className="grid gap-1">
+            {print.select}
+            <p className="text-ink-muted">{SAMPLE_NOTE}</p>
+          </div>
         </aside>
       </div>
       <div

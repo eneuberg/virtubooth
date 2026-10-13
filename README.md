@@ -48,8 +48,10 @@ not belong, and takes home the photo archive and the timelapse.
 ## How a party works
 
 1. **Set it up.** Deploy the container ([quick start](#quick-start)), set the
-   party name and print the QR codes: admin → Verwaltung → Export →
-   "QR-Bogen erstellen" makes one A4 page per code.
+   event name and your own admin password (Verwaltung → Einstellungen), and
+   print the QR codes: Verwaltung → QR-Codes makes a code as PNG, a big QR on
+   A4 or a poster (your own PDF template or the standard one), and Export →
+   "QR-Bogen erstellen" one A4 page per activity.
 2. **Guests scan and join.** The code opens the party in the phone's browser.
    A sheet greets them ("Willkommen bei Lenas 30.!"), says what happens with
    the photos and asks for an optional Instagram name. One tap on
@@ -110,9 +112,10 @@ preview showed. The result comes as a print with "Speichern" and
   <img src="docs/assets/admin-manage.webp" alt="The admin's Verwaltung on a laptop, a light table: the sidebar with Fotos, Gäste, Instagram, Sperren, Protokoll and Export; a contact sheet of party photos with filters; one photo crossed out in red as hidden, two circled as selected; the selection bar with Ausblenden, Einblenden and Löschen; and the inspector showing Foto 0012 with its guest, filter and actions.">
 </p>
 
-The host logs in at `/admin` with `VB_ADMIN_PASSWORD`, on a laptop or a
-phone. The admin needs no party token. Every open admin page updates live
-(Server-Sent Events), and every action goes into the audit log.
+The host logs in at `/admin`, on a laptop or a phone: first with
+`VB_ADMIN_PASSWORD`, then with the password set under Einstellungen. The
+admin needs no QR code. Every open admin page updates live (Server-Sent
+Events), and every action goes into the audit log.
 
 **Live** (`/admin/live`) is for the party itself: a dense grid of the photos
 as they arrive, with the connection state ("verbunden"). A 44 px toggle per
@@ -129,24 +132,32 @@ resume button, the same on every open admin screen.
 **Live overview.** Under the Live header, and in full in the "Übersicht" tab:
 active now, uploading now (both the last 5 minutes), photos in the last 15 and
 60 minutes, scanned, not joined, guests, Instagram, paused, banned, per
-activity. It refreshes every 10 seconds and on every relevant event.
+activity and (in the tab) per QR code. It refreshes every 10 seconds and on
+every relevant event.
 
-**Verwaltung** (`/admin/manage`) has seven tabs, in a sidebar on desktop:
+**Verwaltung** (`/admin/manage`) has nine tabs, in a sidebar on desktop:
 
 | Tab | What the host does there |
 |---|---|
-| Übersicht | The live overview in full: the numbers above, grouped, with how they are counted. |
+| Übersicht | The live overview in full: the numbers above, grouped, with how they are counted, per activity and per QR code. |
 | Fotos | A contact sheet with grease-pencil marks (X = hidden, circle = selected). Filters (Aktivität, Gast, Sichtbar/Ausgeblendet), multi-select with keyboard shortcuts, an inspector, and "Löschen…", which removes the files for good (numbers are never reused). |
-| Gäste | Every guest with pseudonym, Instagram name, photo count and status, filterable (for example "Hochladen pausiert"). |
+| Gäste | Every guest with pseudonym, Instagram name, photo count, **online time**, the QR code they came through, and status; filterable (for example "Hochladen pausiert", or one QR code). |
 | Instagram | Every Instagram name with its photos, a **ZIP per name** to post from, and an **"Erledigt"** mark once you have tagged them. |
 | Sperren | Bans and **device bans** ("Gerätemerkmal"). A device ban starts new identities with that device trait banned ("Automatisch gesperrt"); lifting it releases them. |
 | Protokoll | The audit log of every moderation action. |
-| Export | The archive (ZIP with photos, CSVs and optionally the database), the timelapse (MP4 via ffmpeg) and the QR sheet, as background jobs with progress and a download. |
+| QR-Codes | **Several QR codes**, each with a fixed number, an animal name ("Gorilla 2"), its own token, an optional target activity and note, and its numbers (scanned, joined, photos, online). Change a token or delete a code without locking out guests who already joined. Each code's sheet saves it as PNG, as a big QR on A4, or as a poster PDF. |
+| Plakat | Upload your own **poster template** (PDF) and drag the green square to where the QR code goes; without one, a standard poster in the app's style. |
+| Export | The archive (ZIP with photos, CSVs and optionally the database), the timelapse (MP4 via ffmpeg) and the QR sheet for a chosen code, as background jobs with progress and a download. |
+
+**Einstellungen** (the sidebar footer, the gear on a phone): the event name
+(overrides `VB_PARTY_NAME`), which Fotobox filters guests get, and the admin
+password (changing it logs out every other admin device).
 
 Also in the admin:
 
-- **Guest page** (`/admin/user?id=…`): a status line, the guest's photos,
-  "Hochladen pausieren" for this guest, and the ban in a sheet
+- **Guest page** (`/admin/user?id=…`): a status line, a small statistic
+  (online time and visits, photos per activity, the QR code), the guest's
+  photos, "Hochladen pausieren" for this guest, and the ban in a sheet
   ("Gerätemerkmal auch sperren"). Technical details are collapsed.
 - **Upload controls**: the status pill opens the "Hochladen" sheet.
   "Hochladen für alle stoppen" is a short emergency stop. "Neue Gäste
@@ -158,7 +169,8 @@ Also in the admin:
   at once. One browser keeps at most 4 live tabs; a fifth reconnects the
   oldest.
 - **Deep links**: `?photo=<id>` opens a photo on the live screen, in Fotos
-  and on the guest page.
+  and on the guest page; `/admin/manage?tab=qr&code=<n>` a QR code,
+  `?tab=gaeste&code=<n>` the guests who joined through it.
 
 ## Quick start
 
@@ -175,8 +187,9 @@ docker compose up -d --build
 docker compose ps                                           # wait for "(healthy)"
 ```
 
-Open `http://localhost:8000/?t=<VB_PARTY_TOKEN from .env>` as a guest and
-`http://localhost:8000/admin` as the host. On the first run Compose prints
+Open `http://localhost:8000/?t=<VB_PARTY_TOKEN from .env>` as a guest (the
+first start turns that token into QR code 1; later links come from Admin →
+QR-Codes) and `http://localhost:8000/admin` as the host. On the first run Compose prints
 "pull access denied for virtubooth" before it builds the image; that is
 expected.
 
@@ -228,10 +241,10 @@ in Coolify in its Environment Variables. The ones you will touch:
 
 | Variable | What |
 |---|---|
-| `VB_PARTY_TOKEN` | **Required.** The secret in every QR code URL (`?t=`). Changing it locks every guest out until they scan a new code. |
-| `VB_ADMIN_PASSWORD` | **Required.** The admin password: at least 12 characters, better 16+ random ones (`gen-env` makes one). |
+| `VB_PARTY_TOKEN` | Optional, read only on the first start: it becomes QR code 1's token (empty: a generated one). After that, manage QR codes in the admin. |
+| `VB_ADMIN_PASSWORD` | **Required.** The first admin password: at least 12 characters, better 16+ random ones (`gen-env` makes one). Once changed in the admin, that one applies (reset: `virtubooth reset-admin-password --from-env`). |
 | `VB_SECRET_KEY` | **Required.** Signs the cookies, at least 32 characters. |
-| `VB_PARTY_NAME` | Shown on Start, in the join sheet and on the QR sheet. Default `Party`. |
+| `VB_PARTY_NAME` | The default event name (Start, join sheet, QR sheet, posters); the admin can override it. Default `Party`. |
 | `VB_INSTAGRAM_ACCOUNT` | The account you may post photos to, named in the join sheet. |
 | `VB_PUBLIC_BASE_URL` | The public URL, e.g. `https://party.example.com`. The QR codes use it. |
 | `VB_EXTENSIONS` | The activities to enable, in this order, e.g. `beer,booth`. Default: all. |
@@ -243,9 +256,10 @@ Every setting with its default, including the rate limits:
 
 ## Privacy and security
 
-- **No QR code, no entry.** Every guest page and API call needs the party
-  token from the QR code. Without it, every page shows "Scan den QR-Code"
-  (HTTP 404) and the API answers 404.
+- **No QR code, no entry.** Every guest page and API call needs the token of
+  an active QR code. Without it, every page shows "Scan den QR-Code"
+  (HTTP 404) and the API answers 404. A deleted or re-tokened code stops
+  working at once for new visitors; guests who already joined stay.
 - **No accounts.** A guest is a pseudonym tied to one device by a signed
   cookie. The Instagram name is optional. Device traits are kept only as a
   hint for bans, never as an identity.
@@ -256,9 +270,12 @@ Every setting with its default, including the rate limits:
 - **Private photos.** Uploads are re-encoded, which strips EXIF/GPS and all
   other metadata. A photo is served only to the guest who took it and to the
   admin.
-- **A guarded admin.** One password from the environment, a rate-limited
-  login that locks for everyone after 20 wrong guesses, and sessions that
-  expire.
+- **A small statistic per guest.** The host sees each guest's photo count,
+  how long their page was open (it reports once a minute while visible) and
+  the QR code they came through; the join texts say so.
+- **A guarded admin.** One shared password (first from the environment, then
+  stored as a scrypt hash when changed in the admin), a rate-limited login
+  that locks for everyone after 20 wrong guesses, and sessions that expire.
 - **Hardened by default.** A strict CSP with no external hosts, a CSRF
   origin check on every change, rate limits per device, IP and party, and a
   container that runs without root on a read-only filesystem.
@@ -281,7 +298,7 @@ plus photo files. How it fits together: [docs/ARCHITECTURE.md](docs/ARCHITECTURE
 | Area | What |
 |---|---|
 | Backend | Python 3.14, FastAPI, Pydantic, SQLite (WAL), Pillow, segno (QR), ffmpeg (timelapse); one uvicorn worker |
-| Frontend | React 19 with the React Compiler, TypeScript (strict), Vite (three entries), Tailwind CSS 4, React Aria Components, TanStack Query |
+| Frontend | React 19 with the React Compiler, TypeScript (strict), Vite (three entries), Tailwind CSS 4, React Aria Components, TanStack Query; in the admin only, lazily: pdf.js (poster preview), pdf-lib and qr (PNG/PDF exports in the browser) |
 | API client | Typed, generated from the backend's OpenAPI export (openapi-typescript + openapi-fetch) |
 | Tooling | uv, pnpm, ruff, mypy (strict), oxlint, Prettier |
 | Tests | pytest, Vitest + Testing Library, Playwright (Chromium, Firefox, WebKit) |

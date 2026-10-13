@@ -1,7 +1,8 @@
 /**
  * The user page's „Statistik“: online time and visits (the guest page reports every
- * minute while it is visible), photos per activity, hidden and deleted ones, first
- * and last photo, since when the guest is here and when it was last seen.
+ * minute while it is visible), the QR code it joined through, photos per activity,
+ * hidden and deleted ones, first and last photo, since when the guest is here and
+ * when it was last seen.
  *
  * The counts are the server's (`UserDetailOut.stats`). The event stream patches the
  * page's photos in place, not these counts, so a change to the photos refetches the
@@ -9,12 +10,29 @@
  */
 import { useQueryClient } from '@tanstack/react-query';
 import { useEffect, useRef, type ReactNode } from 'react';
+import { Link } from 'react-aria-components';
 import type { AdminExtension, AdminPhoto, UserDetail } from '@/api/types';
 import { formatDateTime, formatNumber, formatRelative, formatTime } from '@/lib/format';
 import { qk } from '../store/keys';
 import { onlineText, photoCountsText } from './statsText';
 
 const FOLLOW_MS = 1_000;
+
+const LINK =
+  'font-semibold text-ink underline decoration-line-strong underline-offset-3 outline-none hover:decoration-ink focus-visible:outline-2 focus-visible:outline-focus';
+
+/** „Gorilla 2“ (to the code's sheet), „Gorilla 2 (gelöscht)“, or „unbekannt“. */
+function CodeValue({ code }: { code: UserDetail['user']['code'] }) {
+  if (!code) return <span className="text-ink-muted">unbekannt</span>;
+  return (
+    <>
+      <Link href={`/manage?tab=qr&code=${code.id}`} className={LINK} data-testid="user-code-link">
+        <span translate="no">{code.name}</span>
+      </Link>
+      {code.active ? null : <span className="text-ink-muted"> (gelöscht)</span>}
+    </>
+  );
+}
 
 /** Refetch the user page when its photos changed through the event stream. */
 function useCountsFollowPhotos(userId: number, photos: ReadonlyArray<AdminPhoto>): void {
@@ -67,6 +85,7 @@ export function UserStats({
         </>
       ),
     },
+    { label: 'QR-Code', testId: 'user-code', value: <CodeValue code={user.code} /> },
     {
       label: 'Fotos',
       testId: 'user-photo-counts',

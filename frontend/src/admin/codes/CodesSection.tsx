@@ -8,7 +8,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { Plus, QrCode } from 'lucide-react';
 import { useState } from 'react';
 import { useSearchParams } from 'wouter';
-import { formatDateTime, formatNumber, formatRelative } from '@/lib/format';
+import { formatDateTime, formatDuration, formatNumber, formatRelative } from '@/lib/format';
 import { Badge } from '@/ui/Badge';
 import { Button } from '@/ui/Button';
 import { ConfirmDialog } from '@/ui/ConfirmDialog';
@@ -67,6 +67,17 @@ function columns(activities: Activities): ReadonlyArray<DataColumn<AdminCode>> {
     },
     { id: 'guests', label: 'Beigetreten', align: 'end', render: (c) => formatNumber(c.stats.guests) },
     { id: 'photos', label: 'Fotos', align: 'end', render: (c) => formatNumber(c.stats.photos) },
+    {
+      id: 'online',
+      label: 'Online',
+      align: 'end',
+      hideBelow: 'lg',
+      render: (c) => (
+        <span className={c.stats.online_seconds > 0 ? undefined : 'text-ink-muted'}>
+          {formatDuration(c.stats.online_seconds)}
+        </span>
+      ),
+    },
     {
       id: 'last',
       label: 'Zuletzt gescannt',

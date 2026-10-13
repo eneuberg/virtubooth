@@ -43,7 +43,8 @@ def make_users(live: LiveServer, n: int) -> None:
 @pytest.mark.parametrize(
     ("tab", "heading"),
     [("fotos", "Fotos"), ("gaeste", "Gäste"), ("instagram", "Instagram"), ("sperren", "Sperren"),
-     ("protokoll", "Protokoll"), ("export", "Export"), ("nope", "Fotos")],
+     ("protokoll", "Protokoll"), ("qr", "QR-Codes"), ("plakat", "Plakat"), ("export", "Export"),
+     ("einstellungen", "Einstellungen"), ("nope", "Fotos")],
 )  # fmt: skip
 def test_tab_deep_links(desktop_page: Page, live: LiveServer, tab: str, heading: str) -> None:
     goto(desktop_page, live, f"/admin/manage?tab={tab}")
@@ -51,7 +52,10 @@ def test_tab_deep_links(desktop_page: Page, live: LiveServer, tab: str, heading:
     current = desktop_page.get_by_role("navigation", name="Verwaltung").locator(
         "[aria-current=page]"
     )
-    expect(current).to_contain_text(heading)
+    if tab == "einstellungen":  # in the sidebar footer, not in the list
+        expect(current).to_have_count(0)
+    else:
+        expect(current).to_contain_text(heading)
     assert errors(desktop_page) == []
 
 
@@ -168,7 +172,8 @@ def test_audit_log_with_paging(
     expect(rows.first).to_contain_text("Grund: Spam")
     expect(rows.first).to_contain_text("Admin-Sitzung abcd")
     page.get_by_role("button", name="Ältere Einträge").click()
-    expect(rows).to_have_count(113)  # 110 + failed login + ban + the test's own login
+    # 110 + failed login + ban + the test's own login + QR code 1 made at the first start
+    expect(rows).to_have_count(114)
     expect(page.get_by_test_id("audit")).to_contain_text("Falsches Admin-Passwort")
     expect(page.get_by_test_id("audit")).to_contain_text("Unbekannt")
     # a photo target opens the photo
@@ -205,7 +210,7 @@ def test_manage_sections_on_a_phone(
 ) -> None:
     g = guests(instagram="a.very.long.handle.for_layout1")
     g.upload()
-    for tab in ("fotos", "gaeste", "instagram", "sperren", "protokoll", "export"):
+    for tab in ("fotos", "gaeste", "instagram", "sperren", "protokoll", "qr", "plakat", "export"):
         goto(admin_page, live, f"/admin/manage?tab={tab}")
         wait_live(admin_page)  # in before it leaves (see test_no_sideways_scrolling)
         strip = admin_page.get_by_role("navigation", name="Bereiche der Verwaltung")

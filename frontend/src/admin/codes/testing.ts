@@ -25,6 +25,8 @@ export function code(over: Partial<AdminCode> = {}): AdminCode {
       not_joined: 0,
       photos: 0,
       active_now: 0,
+      online_seconds: 0,
+      online_now: 0,
       first_scan_at: null,
       last_scan_at: null,
     },

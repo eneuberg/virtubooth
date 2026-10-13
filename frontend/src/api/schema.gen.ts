@@ -372,7 +372,8 @@ export interface paths {
         /**
          * Overview
          * @description Live counters: guests active and uploading now, scans and joins, photos
-         *     in the last 15/60 minutes, per activity. Cheap; poll it every ~10 s.
+         *     in the last 15/60 minutes, per activity and per QR code. Cheap; poll it
+         *     every ~10 s.
          */
         get: operations["overview_api_admin_overview_get"];
         put?: never;
@@ -1229,6 +1230,8 @@ export interface components {
             banned: boolean;
             /** Banned At */
             banned_at: string | null;
+            /** @description The QR code it joined through; null: unknown. */
+            code: components["schemas"]["CodeRef"] | null;
             /** Consent At */
             consent_at: string;
             /** Consent Version */
@@ -1534,6 +1537,27 @@ export interface components {
             code: components["schemas"]["AdminCode"];
         };
         /**
+         * CodeRef
+         * @description The QR code a guest joined through (see /api/admin/codes).
+         */
+        CodeRef: {
+            /**
+             * Active
+             * @description False: the code was deleted (revoked) since.
+             */
+            active: boolean;
+            /**
+             * Id
+             * @description The code's number.
+             */
+            id: number;
+            /**
+             * Name
+             * @description „<animal> <id>“, e.g. „Gorilla 2“.
+             */
+            name: string;
+        };
+        /**
          * CodeStats
          * @description What happened through one code. Party scale, counted live.
          */
@@ -1557,6 +1581,16 @@ export interface components {
              * @description Its browsers that never joined.
              */
             not_joined: number;
+            /**
+             * Online Now
+             * @description Its guests whose page is open and visible right now.
+             */
+            online_now: number;
+            /**
+             * Online Seconds
+             * @description Its guests' online time added up (seconds).
+             */
+            online_seconds: number;
             /**
              * People
              * @description Browsers that opened it.
@@ -2298,6 +2332,34 @@ export interface components {
             /** Visible */
             visible: number;
         };
+        /**
+         * OverviewCode
+         * @description One QR code's numbers (see `CodeStats` of /api/admin/codes).
+         */
+        OverviewCode: {
+            /**
+             * Active
+             * @description False: deleted (revoked).
+             */
+            active: boolean;
+            /** Active Now */
+            active_now: number;
+            /** Guests */
+            guests: number;
+            /**
+             * Id
+             * @description The code's number.
+             */
+            id: number;
+            /** Name */
+            name: string;
+            /** People */
+            people: number;
+            /** Photos */
+            photos: number;
+            /** Scans */
+            scans: number;
+        };
         /** OverviewGuests */
         OverviewGuests: {
             /**
@@ -2348,6 +2410,11 @@ export interface components {
              * @description Server time of this snapshot (ISO-8601 UTC).
              */
             at: string;
+            /**
+             * Codes
+             * @description The active QR codes plus deleted ones that were scanned, by number.
+             */
+            codes: components["schemas"]["OverviewCode"][];
             guests: components["schemas"]["OverviewGuests"];
             photos: components["schemas"]["OverviewPhotos"];
             scans: components["schemas"]["OverviewScans"];
@@ -2736,6 +2803,11 @@ export interface components {
              * @description Public URL guests open, e.g. https://party.example.com. Default: VB_PUBLIC_BASE_URL. In a job: the URL that was used.
              */
             base_url?: string | null;
+            /**
+             * Code Id
+             * @description The QR code whose token the sheet carries. Default: the active code with the lowest number. In a job: the code that was used.
+             */
+            code_id?: number | null;
         };
         /** SessionOut */
         SessionOut: {
@@ -7251,6 +7323,8 @@ export interface operations {
                 offset?: number;
                 /** @description all | true | false */
                 paused?: string | null;
+                /** @description only guests who joined via this QR code */
+                code?: number | null;
             };
             header?: never;
             path?: never;

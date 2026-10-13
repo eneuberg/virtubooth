@@ -117,3 +117,24 @@ export type InstagramDoneResponse = S['InstagramDoneOut'];
 /** GET /api/admin/overview: live counters (definitions in contracts/api.md §7) */
 export type Overview = S['OverviewOut'];
 export type OverviewActivity = S['OverviewActivity'];
+/** one QR code's numbers in the overview (active codes plus deleted ones with scans) */
+export type OverviewCode = S['OverviewCode'];
+
+// ------------------------------------- QR codes, Einstellungen, Plakat (batch QR)
+
+/** one QR code (revoked ones too: `active` false) */
+export type AdminCode = S['AdminCode'];
+/** GET /api/admin/codes */
+export type CodesList = S['CodesOut'];
+/** GET /api/admin/settings */
+export type AdminSettings = S['AdminSettingsOut'];
+export type EventSettings = S['EventSettings'];
+export type PasswordState = S['PasswordState'];
+/** GET/PUT /api/admin/x/booth/filters */
+export type BoothFilterSettings = S['BoothFilterSettingsOut'];
+export type BoothFilterSetting = S['BoothFilterSetting'];
+/** GET /api/admin/poster */
+export type PosterOut = S['PosterOut'];
+export type PosterTemplate = S['PosterTemplate'];
+/** PUT /api/admin/poster/layout */
+export type PosterLayoutIn = S['PosterLayoutIn'];

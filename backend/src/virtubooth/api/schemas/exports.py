@@ -8,7 +8,7 @@ from typing import Annotated, Literal
 from pydantic import BaseModel, ConfigDict, Field, RootModel, ValidationError
 
 from ...domain import exports as dx
-from ...domain.constants import EXT_ID_PATTERN
+from ...domain.constants import EXT_ID_PATTERN, MAX_ID
 
 # ------------------------------------------------------------------ options
 
@@ -59,6 +59,13 @@ class QrOptions(BaseModel):
         max_length=300,
         description="Public URL guests open, e.g. https://party.example.com. Default: "
         "VB_PUBLIC_BASE_URL. In a job: the URL that was used.",
+    )
+    code_id: int | None = Field(
+        default=None,
+        ge=1,
+        lt=MAX_ID,
+        description="The QR code whose token the sheet carries. Default: the active code with "
+        "the lowest number. In a job: the code that was used.",
     )
 
 

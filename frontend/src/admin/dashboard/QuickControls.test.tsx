@@ -11,7 +11,8 @@ import { QuickControls } from './QuickControls';
 import { StatusStrip } from './StatusStrip';
 
 const off: StopState = { enabled: false, since: null, by: null };
-const SINCE = '2026-10-13T20:41:00.000+00:00';
+// now: the strip says „seit 22:41“ for today, „seit Di, 22:41“ for an earlier day
+const SINCE = new Date().toISOString();
 
 /** The server's answer to a switch: the state it asked for. */
 async function answer(req: Request) {

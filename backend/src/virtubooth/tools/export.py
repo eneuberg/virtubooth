@@ -30,7 +30,7 @@ import tarfile
 import tempfile
 import time
 from collections import defaultdict
-from dataclasses import dataclass, replace
+from dataclasses import dataclass, field, replace
 from pathlib import Path
 
 from ..core.clock import local_now
@@ -59,7 +59,7 @@ PHOTO_COLUMNS = [
 ]  # fmt: skip
 USER_COLUMNS = [
     "user", "instagram", "consent_at", "photo_count", "banned", "ban_reason",
-    "online_seconds", "online_sessions",
+    "online_seconds", "online_sessions", "code",
 ]  # fmt: skip
 INSTAGRAM_COLUMNS = ["instagram", "user", "photo_count", "files"]
 USERS_PAGE = 500  # UsersRepo.list caps a page at 500
@@ -79,6 +79,7 @@ class Snapshot:
     db_file: Path  # the standalone copy (journal_mode=DELETE)
     entries: list[Entry]
     users: list[User]
+    code_names: dict[int, str] = field(default_factory=dict)  # QR code number -> name
 
     @property
     def files(self) -> list[Entry]:
@@ -145,11 +146,12 @@ def take_snapshot(data_dir: Path, tmp: Path, *, include_hidden: bool) -> Snapsho
         repos = Repositories.create(db, data_dir)
         entries = plan_entries(repos, include_hidden=include_hidden)
         users = all_users(repos)
+        code_names = {c.id: c.name for c in repos.codes.list()}
     finally:
         db.close()
     # also makes it a standalone file again (Database() switched it to WAL)
     scrub_snapshot(snap)
-    return Snapshot(snap, entries, users)
+    return Snapshot(snap, entries, users, code_names)
 
 
 def plan_entries(repos: Repositories, *, include_hidden: bool) -> list[Entry]:
@@ -208,7 +210,9 @@ def photos_csv(entries: list[Entry]) -> bytes:
     return _csv(PHOTO_COLUMNS, rows)
 
 
-def users_csv(users: list[User]) -> bytes:
+def users_csv(users: list[User], code_names: dict[int, str] | None = None) -> bytes:
+    """`code`: the name of the QR code the guest joined through ("" unknown)."""
+    names = code_names or {}
     rows: list[list[object]] = [
         [
             u.name,
@@ -219,6 +223,7 @@ def users_csv(users: list[User]) -> bytes:
             u.ban_reason or "",
             u.online_seconds,
             u.online_sessions,
+            names.get(u.code_id, "") if u.code_id is not None else "",
         ]
         for u in users
     ]
@@ -444,7 +449,7 @@ def _main(args: argparse.Namespace) -> int:
                     if i % step == 0 or i == len(files):
                         print(f"  {i}/{len(files)} photos", flush=True)
                 _add_bytes(tar, f"{root}/photos.csv", photos_csv(entries))
-                _add_bytes(tar, f"{root}/users.csv", users_csv(users))
+                _add_bytes(tar, f"{root}/users.csv", users_csv(users, snapshot.code_names))
                 _add_bytes(tar, f"{root}/instagram.csv", instagram_csv(entries))
                 if not args.no_db:
                     tar.add(snap, arcname=f"{root}/{DB_NAME}", filter=_normalize)

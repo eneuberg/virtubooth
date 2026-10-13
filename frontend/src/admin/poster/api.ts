@@ -1,17 +1,11 @@
-/**
- * The poster template API (`/api/admin/poster`, see backend services/posters.py).
- * TODO(INT): move the type aliases to `@/api/types` with the other friendly names.
- */
+/** The poster template API (`/api/admin/poster`, see backend services/posters.py). */
 import { api } from '@/api/client';
-import { msg } from '@/lib/messages.de';
-import type { components } from '@/api/schema.gen';
 import { unreachable } from '@/api/errors';
+import type { PosterLayoutIn, PosterOut, PosterTemplate } from '@/api/types';
+import { msg } from '@/lib/messages.de';
 import { call } from '../store/api';
 
-type S = components['schemas'];
-export type PosterOut = S['PosterOut'];
-export type PosterTemplate = S['PosterTemplate'];
-export type PosterLayoutIn = S['PosterLayoutIn'];
+export type { PosterLayoutIn, PosterOut, PosterTemplate };
 
 export function fetchPoster(): Promise<PosterOut> {
   return call(api.GET('/api/admin/poster'));

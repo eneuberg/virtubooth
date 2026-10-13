@@ -4,7 +4,8 @@ Was man mit virtubooth machen kann, nach Rolle und Bereich. Für Gastgeber und f
 Entwickler. Jede Zeile ist gegen den Code geprüft. Wörter in „…“ stehen genau so in
 der App.
 
-**Stand:** 13.10.2026, Branch `main`.
+**Stand:** 14.10.2026, Branch `main` (mit QR-Codes, Plakaten, Einstellungen und
+Online-Zeit).
 
 **Inhalt:**
 [1. Kurzüberblick](#1-kurzüberblick) ·
@@ -21,8 +22,8 @@ virtubooth ist eine selbst gehostete Web-App für eine Party. Gäste scannen ein
 QR-Code und sind mit einem Tipp dabei, ohne App und ohne Konto. Auf dem eigenen Handy
 spielen sie Foto-Aktivitäten: die Beer Cam für einen gemeinsamen Zeitraffer und die
 Fotobox für Selfies mit Filtern. Der Host moderiert live im Admin-Bereich, steuert
-Hochladen und Anmeldung und nimmt nach der Party Archiv, Zeitraffer und
-Instagram-Liste mit.
+Hochladen und Anmeldung, verwaltet mehrere QR-Codes mit Zahlen pro Code, druckt
+Plakate und nimmt nach der Party Archiv, Zeitraffer und Instagram-Liste mit.
 
 ## 2. Für Gäste
 
@@ -253,7 +254,7 @@ Seite neu. Eine Freigabe wirkt also ohne Neuladen.
 
 ## 3. Für den Host
 
-Der Admin-Bereich liegt unter `/admin` und braucht kein Party-Token. Er läuft auf
+Der Admin-Bereich liegt unter `/admin` und braucht keinen QR-Code. Er läuft auf
 Laptop und Handy.
 
 ### Anmeldung und Sitzungen
@@ -331,8 +332,8 @@ Die Party-Ansicht für das Handy des Hosts (`/admin/live`), dunkel.
 
 - **Auf Live** stehen sechs Zahlen: „Aktiv jetzt“, „Laden hoch“, „Fotos in 15 min“,
   „Gescannt“, „Nicht beigetreten“, „Gäste“. „Alle Zahlen“ öffnet die Übersicht.
-- **Tab „Übersicht“** in der Verwaltung (`?tab=uebersicht`): vier Gruppen und eine
-  Tabelle.
+- **Tab „Übersicht“** in der Verwaltung (`?tab=uebersicht`): vier Gruppen und zwei
+  Tabellen.
   - „Jetzt (letzte 5 min)“: „Aktiv“, „Laden gerade hoch“, „Gescannt, noch nicht
     dabei“.
   - „Scans“: „Gescannt“, „Beigetreten“, „Nicht beigetreten“, dazu seit wann gezählt
@@ -341,6 +342,9 @@ Die Party-Ansicht für das Handy des Hosts (`/admin/live`), dunkel.
   - „Fotos“: „Gesamt“, „Sichtbar“, „Ausgeblendet“, „Letzte 15 min“, „Letzte 60 min“,
     „Letzter Upload“.
   - Tabelle „Aktivitäten“ mit „Fotos“, „Sichtbar“, „Letzte 60 min“ pro Aktivität.
+  - Tabelle „QR-Codes“ darunter: „QR-Code“, „Gescannt“, „Personen“, „Beigetreten“,
+    „Fotos“, „Aktiv jetzt“ pro Code (die aktiven und gelöschte, die gescannt wurden).
+    Eine Zeile öffnet den Code im Tab „QR-Codes“. Nicht auf Live.
   - „Wie wird gezählt?“ erklärt die Zahlen in der App.
 - Die Zahlen laden alle 10 s neu, solange die Seite sichtbar ist, und bei passenden
   Ereignissen (z. B. neues Foto, neuer Gast, Sperre, Pause). Eine Zeile nennt das
@@ -372,9 +376,10 @@ Der Leuchttisch (`/admin/manage`), hell, für den Desktop gedacht, geht aber auc
 Handy.
 
 - Desktop: Seitenleiste mit den Tabs und ihren Zahlen, Verbindungsanzeige,
-  Schnellschaltern, Status-Pille („Hochladen: an“ usw.), „Live öffnen“ und „Abmelden“.
-- Handy: Kopfzeile mit Status-Pille, „Abmelden“, Schnellschaltern, Statusleiste und
-  Tab-Leiste. Unten dieselbe Leiste wie auf Live.
+  Schnellschaltern, Status-Pille („Hochladen: an“ usw.), „Live öffnen“,
+  „Einstellungen“ und „Abmelden“.
+- Handy: Kopfzeile mit Status-Pille, Zahnrad („Einstellungen“), „Abmelden“,
+  Schnellschaltern, Statusleiste und Tab-Leiste. Unten dieselbe Leiste wie auf Live.
 - Der Tab steht in der Adresse (`?tab=…`), alte Lesezeichen funktionieren weiter.
 
 | Tab | Adresse | Inhalt |
@@ -385,7 +390,10 @@ Handy.
 | „Instagram“ | `?tab=instagram` | die Liste zum Markieren, siehe [Instagram](#instagram) |
 | „Sperren“ | `?tab=sperren` | gesperrte Gäste und Gerätemerkmale, siehe [Sperren](#sperren-und-gerätemerkmale) |
 | „Protokoll“ | `?tab=protokoll` | wer wann was gemacht hat, siehe unten |
+| „QR-Codes“ | `?tab=qr` | die QR-Codes mit ihren Zahlen und Exporten, siehe [QR-Codes](#qr-codes) |
+| „Plakat“ | `?tab=plakat` | die Plakat-Vorlage und das QR-Feld, siehe [Plakate](#plakate) |
 | „Export“ | `?tab=export` | Archiv, Zeitraffer, QR-Bogen, siehe [Exporte](#exporte) |
+| „Einstellungen“ | `?tab=einstellungen` | über Seitenleiste/Kopfzeile, kein Tab in der Liste; Eventname, Fotobox-Filter, Admin-Passwort, siehe [Einstellungen](#einstellungen) |
 
 **„Fotos“, der Kontaktbogen:**
 
@@ -409,13 +417,17 @@ Handy.
 
 **„Gäste“:**
 
-- Tabelle mit „Nr.“, „Name“, „Status“, „Instagram“, „Fotos“, „Online“, „Zuletzt“,
-  „Gerät“. Sortierbar nach Nummer, Name, Fotos, Online und Zuletzt.
+- Tabelle mit „Nr.“, „Name“, „Status“, „Instagram“, „Fotos“, „Online“, „QR-Code“,
+  „Zuletzt“, „Gerät“. Sortierbar nach Nummer, Name, Fotos, Online, QR-Code und
+  Zuletzt.
 - „Online“: wie lange die Seite des Gasts sichtbar offen war, zusammengezählt („–“,
   „unter 1 min“, „12 min“, „1 h 05 min“). Ein grüner Punkt heißt: die Seite ist gerade
   offen. Am Handy ausgeblendet.
+- „QR-Code“: der Name des Codes, über den der Gast beigetreten ist („Gorilla 2“; „–“
+  ohne). Am Handy ausgeblendet.
 - Suche nach Name, @instagram oder #Nummer. Filter „Status“: „Alle“, „Gesperrt“,
-  „Nicht gesperrt“, „Hochladen pausiert“.
+  „Nicht gesperrt“, „Hochladen pausiert“. Filter „QR-Code“: alle Codes, gelöschte mit
+  „(gelöscht)“; er steht in der Adresse (`&code=<Nr.>`).
 - Status als Abzeichen: „Gesperrt“, „Automatisch gesperrt“, „Hochladen pausiert“.
 - Ein Klick auf eine Zeile öffnet die [Gästeseite](#gästeseite).
 
@@ -425,10 +437,11 @@ Handy.
   100 pro Seite, „Ältere Einträge“.
 - Erfasst werden: Fotos aus- und einblenden und löschen, Gäste und Gerätemerkmale
   sperren und entsperren, Pausen und Stopps, Anmeldung stoppen und öffnen,
-  Instagram-„Erledigt“, Exporte starten und löschen, Admin-Logins, Abmeldungen und
-  falsche Passwörter (mit IP).
-- Ziele sind Links: „Gast #12“, „Foto ansehen“. Gelöschte Fotos heißen „Foto
-  (gelöscht)“.
+  Instagram-„Erledigt“, Exporte starten und löschen, QR-Codes anlegen, ändern und
+  löschen, Eventname, Fotobox-Filter, Plakat-Vorlage und QR-Feld, Admin-Logins,
+  Abmeldungen, Passwortänderungen und falsche Passwörter (mit IP).
+- Ziele sind Links: „Gast #12“, „Foto ansehen“, „QR-Code 2“. Gelöschte Fotos heißen
+  „Foto (gelöscht)“.
 
 ### Gästeseite
 
@@ -446,7 +459,9 @@ Instagram, Sperren und dem Protokoll.
 - **„Sperren…“** bzw. **„Entsperren…“** öffnen ein Sheet, siehe
   [Sperren](#sperren-und-gerätemerkmale).
 - **„Statistik“:** „Online“ („1 h 12 min in 3 Besuchen“, dazu „gerade online“; ein
-  Besuch endet, wenn die Seite verborgen wird oder sich 150 s nicht meldet), „Fotos“
+  Besuch endet, wenn die Seite verborgen wird oder sich 150 s nicht meldet),
+  „QR-Code“ (der Code des Beitritts, z. B. „Gorilla 2“, als Link zum Code; mit
+  „gelöscht“, wenn er gelöscht ist; „unbekannt“ ohne), „Fotos“
   pro Aktivität („12: Beer Cam 8, Fotobox 4“), „Ausgeblendet“ und „Gelöscht“ (wenn es
   welche gibt), „Erstes Foto“, „Letztes Foto“, „Dabei seit“, „Zuletzt gesehen“.
 - Die Fotos des Gasts; groß mit „Ausblenden“/„Einblenden“ und „Löschen…“.
@@ -493,14 +508,17 @@ Handy-Leiste. Drei Hebel, unabhängig voneinander und von Sperren:
 
 ### QR-Codes
 
-- **Tab „QR-Codes“:** alle Codes mit „Nr.“, „Name“, „Ziel“, „Notiz“, „Gescannt“,
-  „Personen“, „Beigetreten“, „Fotos“, „Zuletzt gescannt“ und „Status“. Oben die Zahl,
-  z. B. „3 aktiv · 1 gelöscht“. Die Zahlen laufen alle 15 s und bei jeder Änderung mit.
+- **Tab „QR-Codes“** (`?tab=qr`): alle Codes mit „Nr.“, „Name“, „Ziel“, „Notiz“,
+  „Gescannt“, „Personen“, „Beigetreten“, „Fotos“, „Online“ (die Online-Zeit seiner
+  Gäste zusammen; nur auf breiten Bildschirmen), „Zuletzt gescannt“ und „Status“.
+  Oben die Zahl, z. B. „3 aktiv · 1 gelöscht“. Die Zahlen laufen alle 15 s und bei
+  jeder Änderung mit.
 - **Nummer und Name:** Jeder Code hat eine feste Nummer und einen Tiernamen, z. B.
   „Gorilla 2“. Nummern werden nie neu vergeben, Namen ändern sich nie. Die Tiere
   kommen aus einer Liste von 100, ohne die Tiere der Gast-Pseudonyme.
 - **Code 1** entsteht beim ersten Start aus `VB_PARTY_TOKEN` (ohne die Variable mit
-  einem neuen Token). Alle Gäste und Scans von vorher zählen für ihn.
+  einem neuen Token). Alle Gäste und Scans von vorher zählen für ihn. Danach liest der
+  Server die Variable nicht mehr: Tokens ändert man nur noch hier.
 - **„Neuer QR-Code“:** „Ziel“ (Start oder eine Aktivität), „Notiz (freiwillig)“, bis 60
   Zeichen, z. B. „Eingang“, und das Token: „Neu erzeugen“ oder „Eigenes“.
 - **Token ändern:** „Token ändern…“ im Code. Der bisherige Code (gedruckt oder
@@ -521,7 +539,15 @@ Handy-Leiste. Drei Hebel, unabhängig voneinander und von Sperren:
 - **Code-Sheet:** Klick auf eine Zeile oder `?tab=qr&code=<Nr.>` öffnet den Code mit
   Link („Link kopieren“), Token, Ziel, Notiz, „Angelegt“ und den Zahlen: „Gescannt“
   (z. B. „12-mal von 9 Personen“), „Beigetreten“, „Noch nicht beigetreten“, „Fotos“
-  (ihrer Gäste), „Aktiv jetzt“, „Zuerst gescannt“, „Zuletzt gescannt“.
+  (ihrer Gäste), „Aktiv jetzt“, „Online-Zeit zusammen“, „Gerade online“, „Zuerst
+  gescannt“, „Zuletzt gescannt“. „Gäste über diesen Code anzeigen“ öffnet die
+  gefilterte Gästeliste (`?tab=gaeste&code=<Nr.>`).
+- **Exporte pro Code** (nur aktive Codes), im Sheet: „QR als PNG“ (mindestens
+  1600 px), „QR groß (PDF)“ (A4, etwa 17 cm) und „Plakat (PDF)“, mit der Vorlage aus
+  dem Tab „Plakat“, sonst das Standard-Plakat (siehe [Plakate](#plakate)). Die Dateien
+  heißen z. B. `qr-02-gorilla.png`, `qr-02-gorilla-gross.pdf`, `plakat-02-gorilla.pdf`.
+  Ist das Ziel eine Aktivität, steht ihr Titel als Untertitel auf dem großen QR und
+  dem Standard-Plakat.
 - Jeder Gast gehört zu dem Code, über den er beigetreten ist, und bleibt dabei.
 - Anlegen, Bearbeiten, Token ändern und Löschen stehen im Protokoll, nie mit dem
   ganzen Token (nur „Token endet auf“).
@@ -580,7 +606,7 @@ dem anderen. Man kann die Seite verlassen.
 |---|---|---|
 | „Archiv erstellen“ | „Ausgeblendete Fotos mitnehmen“, „Datenbank mitnehmen (für ein Backup)“ | ZIP: Fotos pro Aktivität (ausgeblendete im Unterordner `hidden/`), `photos.csv`, `users.csv`, `instagram.csv`, `manifest.json`, `README.txt`, optional eine Kopie der Datenbank |
 | „Zeitraffer erstellen“ | „Aktivität“, „Fotos pro Sekunde“ (6, 8, 12, 15, 24, 30; Standard 12), „Weich überblenden“, „Ausgeblendete Fotos mitnehmen“ | MP4 (H.264), 1080 × 1440, Fotos in Upload-Reihenfolge, das letzte 2 s lang. Gelöschte Fotos nie |
-| „QR-Bogen erstellen“ | „Adresse der Party“ (vorbelegt mit `VB_PUBLIC_BASE_URL`) | ZIP: `qr-sheet.html` mit einer A4-Seite pro Code zum Drucken aus dem Browser, dazu jeder Code als SVG und PNG |
+| „QR-Bogen erstellen“ | „QR-Code“ (Standard: der aktive mit der kleinsten Nummer), „Adresse der Party“ (vorbelegt mit `VB_PUBLIC_BASE_URL`) | ZIP: `qr-sheet.html` mit einer A4-Seite für Start und einer pro Aktivität, alle mit dem Token des gewählten Codes, zum Drucken aus dem Browser, dazu jeder Code als SVG und PNG |
 
 - Liste „Erstellte Exporte“ mit Status („Wartet…“, Fortschrittsbalken „Wird
   erstellt…“, Fehler in Worten), „Herunterladen“, „Abbrechen“ (solange er wartet) und
@@ -592,13 +618,20 @@ dem anderen. Man kann die Seite verlassen.
 - Ohne ffmpeg: „Auf dem Server fehlt ffmpeg, darum geht der Zeitraffer gerade nicht.“
   Im Docker-Image ist ffmpeg dabei.
 - Ein Neustart beendet laufende Jobs mit „Server wurde neu gestartet.“
-- **QR-Codes:** einer für Start und einer pro Aktivität auf Start. Jede Seite hat
+- **QR-Bogen:** eine Seite für Start und eine pro Aktivität auf Start, alle für den
+  gewählten Code (sein Ziel spielt hier keine Rolle). Jede Seite hat
   Titel, Untertitel, den großen Code und „Handy-Kamera drauf halten und los!“. Die
   Codes nutzen die höchste Fehlerkorrektur. Das Token steht nur im Code, nie als Text.
   Wer einen Code hat, ist drin: Bögen wie Schlüssel behandeln.
+- **Einzelne Codes und Plakate** gibt es im Tab „QR-Codes“: „QR als PNG“, „QR groß
+  (PDF)“, „Plakat (PDF)“ im Sheet jedes Codes (siehe [QR-Codes](#qr-codes)). Sie
+  entstehen sofort im Browser, ohne Job.
+- **`users.csv`** hat pro Gast auch die Online-Zeit (`online_seconds`,
+  `online_sessions`) und den QR-Code des Beitritts (`code`, der Name).
 - **Datenbank im Archiv:** eine konsistente Kopie, ohne Admin-Sitzungen, Export-Jobs
-  und Besucher-IDs, so bereinigt, dass früher Gelöschtes nicht mehr lesbar ist. Sie
-  enthält Gäste mit IPs und Gerätemerkmalen.
+  und Besucher-IDs (auch nicht pro QR-Code), so bereinigt, dass früher Gelöschtes
+  nicht mehr lesbar ist. Sie enthält Gäste mit IPs und Gerätemerkmalen, die QR-Codes
+  mit ihren Tokens und den Hash des Admin-Passworts.
 - Die Kommandozeile kann dasselbe mit mehr Optionen, siehe
   [Kommandozeile](#kommandozeile).
 
@@ -618,16 +651,18 @@ QR-Code hängt.
   Umschalt um 5 %, Plus und Minus ändern die Größe. „Speichern“ merkt sich das Feld,
   „Änderungen verwerfen“ holt das gespeicherte zurück, „Nicht gespeichert“ zeigt
   offene Änderungen.
-- **Probedruck (PDF):** das Plakat mit einem Muster-Code („Muster 0“), auch mit
-  ungespeicherten Änderungen. Der Muster-Code führt nur zur Startseite ohne Zugang.
+- **Probedruck (PDF):** das Plakat mit dem Eventnamen, auch mit ungespeicherten
+  Änderungen. „Code für den Probedruck“ wählt einen aktiven QR-Code oder „Muster“
+  (Standard): Der Muster-Code („Muster 0“) führt nur zur Startseite ohne Zugang.
 - **Ohne Vorlage** gibt es das Standard-Plakat im Kontaktbogen-Stil: Filmstreifen oben
   und unten, der Name der Party groß, der QR-Code im Rahmen mit Fettstift-Kreis,
   „Handy-Kamera drauf halten und los!“. „Standard-Plakat ansehen (PDF)“ zeigt es mit
   dem Muster-Code.
 - **Exporte pro Code:** der Code als PNG (mindestens 1600 px), der große QR-Code als
   PDF (A4, etwa 17 cm) und das Plakat als PDF (eine Seite: die Vorlage mit dem Code im
-  grünen Feld, sonst das Standard-Plakat). Die Knöpfe dafür kommen in die Liste der
-  QR-Codes.
+  grünen Feld, sonst das Standard-Plakat). Die Knöpfe „QR als PNG“, „QR groß (PDF)“
+  und „Plakat (PDF)“ stehen im Sheet jedes aktiven Codes im Tab
+  [„QR-Codes“](#qr-codes). Ohne gespeichertes QR-Feld gibt es das Standard-Plakat.
 - Jedes PDF trägt klein unten rechts den Namen des Codes („Gorilla 2“), damit man die
   Ausdrucke auseinanderhält. Das Token steht nur im Code, nie als Text.
 - Alles entsteht im Browser des Admins; der Server speichert nur die Vorlage und das
@@ -641,7 +676,9 @@ QR-Code hängt.
 | `/admin/manage?photo=<id>` | ein Foto im Kontaktbogen |
 | `/admin/manage?ext=<id>&status=hidden&user=<Nr.>` | den Kontaktbogen gefiltert |
 | `/admin/manage?tab=gaeste&q=<Suche>&show=paused` | die Gästeliste gefiltert (`banned`, `ok`, `paused`) |
-| `/admin/manage?tab=<Tab>` | einen Tab der Verwaltung |
+| `/admin/manage?tab=gaeste&code=<Nr.>` | die Gäste, die über diesen QR-Code beigetreten sind |
+| `/admin/manage?tab=qr&code=<Nr.>` | das Sheet eines QR-Codes (`&deleted=1`: mit den gelöschten) |
+| `/admin/manage?tab=<Tab>` | einen Tab der Verwaltung (auch `einstellungen`) |
 | `/admin/user?id=<Nr.>&photo=<id>` | einen Gast, optional mit einem Foto groß |
 | `/admin/login?next=<Pfad>` | den Login, danach den Pfad |
 
@@ -652,7 +689,11 @@ Ansicht.
 
 - Jede offene Admin-Seite aktualisiert sich live (Server-Sent Events): neue Fotos,
   Aus- und Einblenden, Löschen, neue Gäste, Sperren, Pausen, Stopps von Hochladen und
-  Anmeldung, Instagram-Marken und Export-Fortschritt.
+  Anmeldung, Instagram-Marken, Export-Fortschritt, QR-Codes (neu, bearbeitet, neues
+  Token, gelöscht), Eventname und Fotobox-Filter.
+- Die Plakat-Vorlage lädt neu, wenn man zur Seite zurückkehrt. Gäste haben keinen
+  Live-Kanal: Sie sehen einen neuen Eventnamen spätestens nach einer Minute, neue
+  Fotobox-Filter spätestens nach 30 s.
 - Was ein Host am Laptop tut, sieht der andere sofort am Handy.
 - Verbindungsanzeige: „verbunden“, „verbindet…“, „nur Abfrage“, „getrennt“.
 - Fällt die Verbindung aus, fragt die Seite alle 5 s nach und holt verpasste
@@ -669,7 +710,8 @@ Tab-Leiste. Jede Änderung steht im „Protokoll“, andere Admin-Geräte sehen 
 
 - **„Eventname“:** „Name des Events“, 1 bis 60 Zeichen (mehrere Leerzeichen werden zu
   einem). Er steht auf Start, im Beitritts-Sheet („Willkommen bei …!“), im
-  „Party-Rahmen“ der Fotobox, auf dem QR-Bogen und im Archiv. Ohne eigenen Namen gilt
+  „Party-Rahmen“ der Fotobox, auf dem QR-Bogen, auf Plakaten und großen QR-Codes und
+  im Archiv; auch `python -m virtubooth.tools.qr` nimmt ihn. Ohne eigenen Namen gilt
   `VB_PARTY_NAME`; „Zurück zu „…““ löscht den eigenen wieder. Gäste sehen den neuen
   Namen spätestens nach einer Minute.
 - **„Fotobox-Filter“** (nur mit der Fotobox): ein Schalter pro Filter, jeder Klick
@@ -701,8 +743,8 @@ Details zu allem hier: [DEPLOY.md](DEPLOY.md).
   `no-new-privileges`, Grenzen für CPU, Speicher und Prozesse, Logs rotieren
   (5 × 10 MB), Port standardmäßig nur auf `127.0.0.1:8000`.
 - **Coolify** (`docker-compose.coolify.yaml`): kein eigener Port, die Domain kommt von
-  Coolify, die drei Geheimnisse erzeugt Coolify beim ersten Deploy. Keine `.env`
-  nötig.
+  Coolify, die drei Geheimnisse erzeugt Coolify beim ersten Deploy (das Party-Token
+  wird nur zu QR-Code 1). Keine `.env` nötig.
 - **HTTPS ist Pflicht**, sonst gibt es keine Kamera. Ein Reverse Proxy davor (Caddy,
   Traefik, nginx oder Coolify) muss TLS beenden, den `Host` weitergeben,
   `X-Forwarded-For`/`-Proto` setzen, SSE nicht puffern und Uploads bis 8 MB erlauben.
@@ -714,23 +756,25 @@ docker compose up -d --build
 docker compose ps                                           # warten auf "(healthy)"
 ```
 
-### Einstellungen
+### Umgebungsvariablen
 
-Alles über `VB_*`-Umgebungsvariablen (Compose: `.env`, Coolify: Environment
-Variables). Fehlt ein Pflichtwert oder ist einer ungültig, startet der Server nicht und
-nennt die Variable. Die Limits stehen unter [Limits](#limits).
+Alles, was nicht im Admin unter [Einstellungen](#einstellungen) oder
+[QR-Codes](#qr-codes) steht, über `VB_*`-Umgebungsvariablen (Compose: `.env`,
+Coolify: Environment Variables). Fehlt ein Pflichtwert oder ist einer ungültig,
+startet der Server nicht und nennt die Variable. Die Limits stehen unter
+[Limits](#limits).
 
 | Variable | Standard | Wofür |
 |---|---|---|
-| `VB_PARTY_TOKEN` | Pflicht | Das Geheimnis im QR-Code, 16 bis 128 Zeichen aus `A-Z a-z 0-9 _ -`. Ändern sperrt alle Gäste aus, bis sie neu scannen |
-| `VB_ADMIN_PASSWORD` | Pflicht | Admin-Passwort, mindestens 12 Zeichen. Unter 16 oder eintönig: Warnung im Log. Ändern beendet alle Admin-Sitzungen |
+| `VB_PARTY_TOKEN` | leer | optional; nur beim ersten Start gelesen: wird das Token von QR-Code 1 (16 bis 128 Zeichen aus `A-Z a-z 0-9 _ -`; leer: ein neues). Danach im Admin verwalten; ein späteres Ändern bewirkt nichts außer einer Warnung im Log |
+| `VB_ADMIN_PASSWORD` | Pflicht | Start-Passwort, mindestens 12 Zeichen; sobald im Admin geändert, gilt das dort gesetzte (zurücksetzen: `virtubooth reset-admin-password --from-env`). Unter 16 oder eintönig: Warnung im Log. Solange keins im Admin gesetzt ist, beendet Ändern alle Admin-Sitzungen |
 | `VB_SECRET_KEY` | Pflicht | Signiert die Cookies, mindestens 32 Zeichen. Ändern vergisst alle Gast-Geräte |
-| `VB_PARTY_NAME` | `Party` | auf Start, im Beitritts-Sheet, im Party-Rahmen und auf dem QR-Bogen |
+| `VB_PARTY_NAME` | `Party` | Standard-Eventname; im Admin überschreibbar. Auf Start, im Beitritts-Sheet, im Party-Rahmen, auf QR-Bogen und Plakaten |
 | `VB_INSTAGRAM_ACCOUNT` | leer | der Account, auf dem gepostet wird; steht im Beitritts-Sheet und auf Start |
 | `VB_PUBLIC_BASE_URL` | leer | öffentliche Adresse, z. B. `https://party.example.com`: QR-Codes, CSRF-Prüfung, Secure-Cookies |
 | `VB_EXTENSIONS` | alle | Aktivitäten und ihre Reihenfolge, z. B. `beer,booth`. Unbekannte IDs verhindern den Start |
 | `VB_TIMEZONE` | `Europe/Berlin` | Uhrzeit in Foto- und Exportdateinamen |
-| `VB_CONSENT_VERSION` | `1` | Version der Beitrittstexte; erhöhen, wenn sich das Versprechen ändert |
+| `VB_CONSENT_VERSION` | `1` | Version der Beitrittstexte; erhöhen, wenn sich das Versprechen ändert, z. B. damit der Satz zur Statistik pro Gast als neue Textversion festgehalten wird |
 | `VB_COOKIE_SECURE` | `auto` | `auto`, `true` oder `false`. Hinter TLS-Proxy `true` |
 | `VB_FORWARDED_ALLOW_IPS` | `127.0.0.1` | Proxys, deren `X-Forwarded-*` gelten (IPs oder Netze). `*` wird abgelehnt. Coolify-Datei: private Netze |
 | `VB_ALLOWED_ORIGINS` | leer | zusätzliche Origins für die CSRF-Prüfung |
@@ -751,7 +795,7 @@ nennt die Variable. Die Limits stehen unter [Limits](#limits).
 | `virtubooth gen-env` | gibt eine `.env` mit neuen Geheimnissen aus |
 | `virtubooth reset-admin-password` | Admin-Passwort vergessen: `--from-env` löscht das im Admin gesetzte, dann gilt wieder `VB_ADMIN_PASSWORD`; ohne Option fragt es zweimal nach einem neuen (oder `--password-stdin`). Meldet alle Admins ab. Im Container: `docker compose exec app virtubooth reset-admin-password --from-env` |
 | `virtubooth export-openapi -o <Datei>` | schreibt das OpenAPI-Schema (für den typisierten Frontend-Client) |
-| `python -m virtubooth.tools.qr` | QR-Codes und Druckbogen. `--base-url`, `--code <Nr.>` (Token dieses QR-Codes), `--token` (ein bestimmtes Token), `--extensions`, `--party-name`, `--no-home`, `--out`. Ohne beides: der aktive QR-Code mit der kleinsten Nummer aus der Datenbank von `--data-dir`, ohne Datenbank `VB_PARTY_TOKEN` |
+| `python -m virtubooth.tools.qr` | QR-Codes und Druckbogen. `--base-url`, `--code <Nr.>` (Token dieses QR-Codes), `--token` (ein bestimmtes Token), `--extensions`, `--party-name` (Standard: der Eventname aus der Datenbank, ohne Datenbank `VB_PARTY_NAME`), `--no-home`, `--out`. Ohne `--code` und `--token`: der aktive QR-Code mit der kleinsten Nummer aus der Datenbank von `--data-dir`, ohne Datenbank `VB_PARTY_TOKEN` |
 | `python -m virtubooth.tools.timelapse` | Zeitraffer. `--extension`, `--fps`, `--crossfade`, `--fade`, `--out-fps`, `--size`, `--hold-last`, `--crf`, `--preset`, `--include-hidden`, `--limit` (Vorschau), `--dry-run`, `--out` |
 | `python -m virtubooth.tools.export` | alles als `.tar.gz`, auch im laufenden Betrieb. `--no-hidden`, `--no-db`, `--out` |
 
@@ -765,15 +809,16 @@ nennt die Variable. Die Limits stehen unter [Limits](#limits).
 ### Daten und Backups
 
 - Alles liegt in einem Ordner bzw. Volume (`/data`): `virtubooth.db` (SQLite im
-  WAL-Modus), ein Ordner pro Aktivität mit Fotos und `thumbs/`, und `exports/`.
+  WAL-Modus), ein Ordner pro Aktivität mit Fotos und `thumbs/`, `exports/` und
+  `poster/` (die Plakat-Vorlage).
 - Ausgeblendete Fotos bleiben auf der Platte. Nur Löschen entfernt Dateien.
 - **Backup im laufenden Betrieb:** „Archiv erstellen“ mit „Datenbank mitnehmen (für
   ein Backup)“, oder `python -m virtubooth.tools.export`. Die Datenbank-Kopie ist
   konsistent. Nach einer Wiederherstellung melden sich Admins neu an.
 - **Vollständiges Backup:** Container stoppen, Volume archivieren, wieder starten
   (Befehle in [DEPLOY.md → Backups](DEPLOY.md#backups)).
-- Backups enthalten Fotos, IPs und Gerätemerkmale: so sicher aufbewahren wie die
-  Fotos.
+- Backups enthalten Fotos, IPs und Gerätemerkmale, dazu die QR-Tokens und den Hash
+  des Admin-Passworts: so sicher aufbewahren wie die Fotos.
 - Nach der Party: exportieren, kopieren, dann `docker compose down -v` (löscht alles).
 
 ### Updates und Migrationen
@@ -782,7 +827,10 @@ nennt die Variable. Die Limits stehen unter [Limits](#limits).
 - Das Volume bleibt bei Updates unberührt.
 - Datenbank-Migrationen laufen beim Start von selbst. Es sind nummerierte Schritte,
   neue werden nur angehängt. Auch eine Datenbank von vor der Überarbeitung wird so
-  aktualisiert. Schritt 4 bringt die Tabelle `visitors` für den Besucherzähler.
+  aktualisiert. Schritt 4 bringt die Tabelle `visitors` für den Besucherzähler,
+  Schritt 5 die QR-Codes: Beim ersten Start danach wird `VB_PARTY_TOKEN` zu QR-Code 1,
+  gedruckte Codes funktionieren weiter, alle bisherigen Gäste und Scans zählen für
+  ihn. Schritt 6 bringt die Online-Zeit pro Gast.
 - Sicherheitsupdates der Basis-Images: `docker compose build --pull`.
 - Kein Update am Party-Abend.
 
@@ -916,7 +964,8 @@ Jede Aktivität ist eine Erweiterung aus zwei Hälften mit derselben ID:
 - **Backend:** ein Paket `backend/src/virtubooth/extensions/<id>/` mit
   `extension = Extension(...)`. Es nennt Titel, Untertitel und Reihenfolge, optional
   Upload-Regeln (genaue Größe, erlaubte Metadaten, Prüffunktion), eine eigene API unter
-  `/api/x/<id>/` und einen `on_upload`-Hook für Zusatzfelder in der Upload-Antwort.
+  `/api/x/<id>/`, Admin-Routen unter `/api/admin/x/<id>/` (z. B. die Fotobox-Filter)
+  und einen `on_upload`-Hook für Zusatzfelder in der Upload-Antwort.
 - **Frontend:** ein Ordner `frontend/src/extensions/<id>/` mit einer `index.ts`, die
   die Seite unter `/x/<id>/` lazy registriert, optional mit einer Live-Zeile für Start.
   Die Seite nutzt das Gast-SDK: Sitzung, Kamera (Vorschau = Foto), Outbox und Upload,

@@ -6,19 +6,17 @@
  */
 import { useQuery, type QueryClient } from '@tanstack/react-query';
 import { api } from '@/api/client';
-import type { components } from '@/api/schema.gen';
+import type {
+  AdminSettings,
+  BoothFilterSetting,
+  BoothFilterSettings,
+  EventSettings,
+  PasswordState,
+} from '@/api/types';
 import { call } from '../store/api';
 import { extensionSettingsKey, settingsKey } from './keys';
 
-type S = components['schemas'];
-
-/** GET /api/admin/settings */
-export type AdminSettings = S['AdminSettingsOut'];
-export type EventSettings = S['EventSettings'];
-export type PasswordState = S['PasswordState'];
-/** GET/PUT /api/admin/x/booth/filters */
-export type BoothFilterSettings = S['BoothFilterSettingsOut'];
-export type BoothFilterSetting = S['BoothFilterSetting'];
+export type { AdminSettings, BoothFilterSetting, BoothFilterSettings, EventSettings, PasswordState };
 
 export const BOOTH_ID = 'booth';
 export const boothFiltersKey = extensionSettingsKey(BOOTH_ID);

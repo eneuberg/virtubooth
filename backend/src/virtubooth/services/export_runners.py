@@ -34,6 +34,7 @@ from .host_settings import event_name
 
 log = logging.getLogger("virtubooth.exports")
 
+NO_ACTIVE_CODE = "Kein aktiver QR-Code. Leg im Tab „QR-Codes“ einen an."
 # the timelapse video: the Beer Cam's 3:4 at full size, x264's default speed
 TIMELAPSE_SIZE = timelapse_tool.Size(1080, 1440)
 TIMELAPSE_PRESET = "medium"
@@ -113,7 +114,9 @@ def run_archive(ctx: JobContext) -> None:
                 packed += size
                 ctx.progress(0.05 + 0.9 * packed / max(1, total))
             zf.writestr(f"{root}/photos.csv", export_tool.photos_csv(entries))
-            zf.writestr(f"{root}/users.csv", export_tool.users_csv(snapshot.users))
+            zf.writestr(
+                f"{root}/users.csv", export_tool.users_csv(snapshot.users, snapshot.code_names)
+            )
             zf.writestr(f"{root}/instagram.csv", export_tool.instagram_csv(entries))
             zf.writestr(
                 f"{root}/manifest.json",
@@ -238,7 +241,7 @@ def run_qr(ctx: JobContext) -> None:
     party_name = event_name(settings, ctx.repos)
     cards = qr_tool.build_cards(
         opts.base_url,
-        _qr_token(ctx),
+        _qr_token(ctx, opts.code_id),
         [e for e in ctx.extensions if e.show_on_home],
         party_name=party_name,
     )
@@ -251,11 +254,14 @@ def run_qr(ctx: JobContext) -> None:
             ctx.progress(i / len(cards))
 
 
-def _qr_token(ctx: JobContext) -> str:
-    """The token of the active QR code with the lowest number."""
-    code = ctx.repos.codes.lowest_active()
+def _qr_token(ctx: JobContext, code_id: int | None) -> str:
+    """The token of the job's QR code (chosen when the job was created; jobs
+    from before the choice: the active code with the lowest number)."""
+    code = ctx.repos.codes.get(code_id) if code_id else ctx.repos.codes.lowest_active()
     if code is None:
-        raise JobFailed("Kein aktiver QR-Code. Leg im Tab „QR-Codes“ einen an.")
+        raise JobFailed(NO_ACTIVE_CODE)
+    if not code.active:
+        raise JobFailed(f"{code.name} wurde inzwischen gelöscht. Wähl einen aktiven QR-Code.")
     return code.token
 
 

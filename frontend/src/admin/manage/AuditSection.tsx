@@ -1,4 +1,5 @@
 import { ScrollText } from 'lucide-react';
+import { useMemo } from 'react';
 import { Link } from 'react-aria-components';
 import type { AuditEntry } from '@/api/types';
 import { formatDateTime } from '@/lib/format';
@@ -6,12 +7,13 @@ import { Button } from '@/ui/Button';
 import { DataTable, type DataColumn } from '@/ui/DataTable';
 import { EmptyState } from '@/ui/EmptyState';
 import { auditAction, auditActor, auditDetails, auditTarget, clock, shortHash } from '../lib/labels';
-import { useAudit } from '../store/hooks';
+import { BOOTH_ID, useBoothFilters } from '../settings/api';
+import { useAudit, useExtensionMap } from '../store/hooks';
 
 const LINK =
   'font-semibold text-ink underline decoration-line-strong underline-offset-3 outline-none hover:decoration-ink focus-visible:outline-2 focus-visible:outline-focus';
 
-function Target({ entry }: { entry: AuditEntry }) {
+function Target({ entry, titles }: { entry: AuditEntry; titles: ReadonlyMap<string, string> }) {
   const target = auditTarget(entry.target);
   switch (target.kind) {
     case 'user':
@@ -42,12 +44,20 @@ function Target({ entry }: { entry: AuditEntry }) {
           QR-Code {target.id}
         </Link>
       );
+    case 'extension':
+      return <span translate="no">{titles.get(target.id) ?? target.id}</span>;
     default:
       return <span className="text-ink-muted">{target.text}</span>;
   }
 }
 
-const COLUMNS: ReadonlyArray<DataColumn<AuditEntry>> = [
+/** Activity titles and booth filter names: the readable target and details. */
+interface Names {
+  titles: ReadonlyMap<string, string>;
+  filters: ReadonlyMap<string, string>;
+}
+
+const columns = ({ titles, filters }: Names): ReadonlyArray<DataColumn<AuditEntry>> => [
   {
     id: 'at',
     label: 'Zeit',
@@ -59,13 +69,13 @@ const COLUMNS: ReadonlyArray<DataColumn<AuditEntry>> = [
     ),
   },
   { id: 'action', label: 'Aktion', isRowHeader: true, render: (e) => auditAction(e.action) },
-  { id: 'target', label: 'Ziel', render: (e) => <Target entry={e} /> },
+  { id: 'target', label: 'Ziel', render: (e) => <Target entry={e} titles={titles} /> },
   {
     id: 'details',
     label: 'Details',
     hideBelow: 'md',
     render: (e) => {
-      const text = auditDetails(e) || '–';
+      const text = auditDetails(e, e.target === `x:${BOOTH_ID}` ? filters : undefined) || '–';
       return (
         <span title={text} className="block max-w-[22rem] truncate text-ink-muted">
           {text}
@@ -80,6 +90,17 @@ const COLUMNS: ReadonlyArray<DataColumn<AuditEntry>> = [
 export function AuditSection() {
   const audit = useAudit();
   const entries = audit.data?.pages.flatMap((p) => p.entries) ?? [];
+  const extensions = useExtensionMap();
+  // the filter names only when a booth setting is in the list
+  const booth = useBoothFilters(entries.some((e) => e.target === `x:${BOOTH_ID}`));
+  const columnList = useMemo(
+    () =>
+      columns({
+        titles: new Map([...extensions].map(([id, e]) => [id, e.title])),
+        filters: new Map((booth.data?.filters ?? []).map((f) => [f.id, f.name])),
+      }),
+    [extensions, booth.data],
+  );
   return (
     <section aria-labelledby="section-title" className="grid content-start gap-4 px-4 py-4 lg:px-6 lg:py-5">
       <header className="grid gap-1">
@@ -93,7 +114,7 @@ export function AuditSection() {
       <DataTable
         data-testid="audit"
         aria-label="Protokoll"
-        columns={COLUMNS}
+        columns={columnList}
         rows={entries}
         getRowId={(e) => e.id}
         rowProps={(e) => ({ 'data-testid': 'audit-row', 'data-action': e.action })}

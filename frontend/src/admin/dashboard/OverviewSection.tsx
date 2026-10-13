@@ -1,4 +1,5 @@
-import type { Overview, OverviewActivity } from '@/api/types';
+import { useLocation } from 'wouter';
+import type { Overview, OverviewActivity, OverviewCode } from '@/api/types';
 import { formatNumber } from '@/lib/format';
 import { DataTable, type DataColumn } from '@/ui/DataTable';
 import { HelpDisclosure } from '@/ui/HelpDisclosure';
@@ -49,6 +50,25 @@ const ACTIVITY_COLUMNS: ReadonlyArray<DataColumn<OverviewActivity>> = [
   },
 ];
 
+const CODE_COLUMNS: ReadonlyArray<DataColumn<OverviewCode>> = [
+  {
+    id: 'name',
+    label: 'QR-Code',
+    isRowHeader: true,
+    render: (c) => (
+      <span translate="no" className={c.active ? undefined : 'text-ink-muted'}>
+        {c.name}
+        {c.active ? null : ' (gelöscht)'}
+      </span>
+    ),
+  },
+  { id: 'scans', label: 'Gescannt', align: 'end', render: (c) => formatNumber(c.scans) },
+  { id: 'people', label: 'Personen', align: 'end', hideBelow: 'sm', render: (c) => formatNumber(c.people) },
+  { id: 'guests', label: 'Beigetreten', align: 'end', render: (c) => formatNumber(c.guests) },
+  { id: 'photos', label: 'Fotos', align: 'end', render: (c) => formatNumber(c.photos) },
+  { id: 'active', label: 'Aktiv jetzt', align: 'end', render: (c) => formatNumber(c.active_now) },
+];
+
 function Groups({ o }: { o: Overview }) {
   const now = minutes(o.active_minutes);
   return (
@@ -97,6 +117,7 @@ function Groups({ o }: { o: Overview }) {
 /** Übersicht (manage): every live counter, grouped (the switches are in the header). */
 export function OverviewSection() {
   const { data, isError } = useOverview();
+  const [, navigate] = useLocation();
   return (
     <section
       aria-labelledby="section-title"
@@ -123,6 +144,19 @@ export function OverviewSection() {
             maxHeightClass="max-h-none"
             className="min-w-0"
           />
+          {data.codes.length > 0 ? (
+            <DataTable
+              data-testid="overview-codes"
+              aria-label="QR-Codes"
+              columns={CODE_COLUMNS}
+              rows={data.codes}
+              getRowId={(c) => c.id}
+              rowProps={(c) => ({ 'data-testid': 'overview-code', 'data-id': c.id })}
+              onRowAction={(id) => navigate(`/manage?tab=qr&code=${String(id)}`)}
+              maxHeightClass="max-h-none"
+              className="min-w-0"
+            />
+          ) : null}
         </>
       ) : isError ? (
         <p className="text-sm text-ink-muted">Die Zahlen laden gerade nicht. Gleich nochmal.</p>

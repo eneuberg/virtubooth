@@ -105,7 +105,8 @@ def app_requests(app, token: str, web_dirs: Sequence[Path] = ()) -> list[Request
 
     # pages and the QR codes' entry URLs
     admin_pages = ["/admin/live", "/admin/manage", "/admin/user"]
-    tabs = ("fotos", "gaeste", "instagram", "sperren", "protokoll", "export")
+    tabs = ("fotos", "gaeste", "instagram", "sperren", "protokoll", "qr", "plakat", "export",
+            "uebersicht", "einstellungen")  # fmt: skip
     for path in [
         "/",
         "/healthz",
@@ -115,6 +116,8 @@ def app_requests(app, token: str, web_dirs: Sequence[Path] = ()) -> list[Request
         *admin_pages,
         "/admin/user?id=17",
         *(f"/admin/manage?tab={t}" for t in tabs),
+        "/admin/manage?tab=qr&code=3",
+        "/admin/manage?tab=gaeste&code=3",
     ]:
         add(path, "document")
     add(f"/?t={token}", "document")

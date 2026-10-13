@@ -62,6 +62,19 @@ class OverviewActivity(BaseModel):
     last_60_min: int
 
 
+class OverviewCode(BaseModel):
+    """One QR code's numbers (see `CodeStats` of /api/admin/codes)."""
+
+    id: int = Field(description="The code's number.")
+    name: str
+    active: bool = Field(description="False: deleted (revoked).")
+    scans: int
+    people: int
+    guests: int
+    photos: int
+    active_now: int
+
+
 class OverviewOut(BaseModel):
     """Aggregate, first-party counters for the host's dashboard."""
 
@@ -72,4 +85,7 @@ class OverviewOut(BaseModel):
     photos: OverviewPhotos
     activities: list[OverviewActivity] = Field(
         description="Every loaded activity that takes photos, plus ids that only old photos have."
+    )
+    codes: list[OverviewCode] = Field(
+        description="The active QR codes plus deleted ones that were scanned, by number."
     )

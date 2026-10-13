@@ -61,7 +61,7 @@ route:
 
 | Dependency | Needs | Fails with |
 |---|---|---|
-| `AccessDep` (`require_access`) | the `vb_access` cookie (an HMAC of the party token) | 404 `scan_qr` |
+| `AccessDep` (`require_access`) | the `vb_access` cookie (the signed number and token generation of an active QR code, see [QR codes and party access](#qr-codes-and-party-access)) | 404 `scan_qr` |
 | `MeDep` | access + a joined guest (`vb_uid`, signed) that is not banned | 401 `needs_consent`, 403 `banned` |
 | `GuestDep` | the same, for uploads | the same, with the upload wording |
 | `AdminDep` | a live admin session (`vb_admin`, hashed in the DB) | 401 `admin_required` |
@@ -205,7 +205,11 @@ refreshes its visitor row (throttled).
   `online_now` (the guests table's "Online" column); the user page gets
   `UserDetailOut.stats` (photos, hidden, deleted, per activity, first and last
   upload) from two aggregate queries. The archive's `users.csv` has
-  `online_seconds` and `online_sessions`.
+  `online_seconds` and `online_sessions` (and `code`, the guest's QR code).
+- **Per QR code** the online time adds up in `CodeStats.online_seconds` (the
+  sum over the code's guests) and `CodeStats.online_now` (its guests with
+  `online_at` within 150 s), in the same query as the other code statistics
+  (see [QR codes and party access](#qr-codes-and-party-access)).
 - The join texts tell guests that the hosts see this per-guest statistic.
 
 ## The admin event stream
@@ -316,8 +320,31 @@ for all codes): `scans` (sum of `code_visitors.scans`), `people`
 (`code_visitors` rows), `guests` (`users.code_id`), `not_joined` (its
 visitors without a user), `photos` (its guests' non-deleted photos),
 `active_now` (its guests not banned and seen within 5 minutes),
+`online_seconds`/`online_now` (from the heartbeat, see
+[Presence and online time](#presence-and-online-time)),
 `first_scan_at`/`last_scan_at`. Archives scrub `code_visitors` like
 `visitors`; `party_codes` (with the tokens) stays in database copies.
+
+**Where else codes show up.**
+
+- `AdminUser.code` = `CodeRef {id, name, active}` (null: a guest without a
+  code), built in `AdminViews.users()` from one lookup of all codes, so the
+  guests list, the user page and every `user.*` event carry it.
+  `GET /api/admin/users?code=<id>` lists the guests who joined through a code
+  (`UsersRepo.list(code_id=…)`); the guests list keeps it in the URL
+  (`/admin/manage?tab=gaeste&code=<id>`). `users.csv` has a `code` column (the
+  name).
+- `OverviewOut.codes` = `[OverviewCode {id, name, active, scans, people,
+  guests, photos, active_now}]`: the active codes plus deleted ones with any
+  scan, by number, from the same `CodeStats`; the Übersicht shows them as the
+  table „QR-Codes“.
+- `QrOptions.code_id` (the QR-Bogen export job): the chosen code, or the
+  active code with the lowest number, resolved when the job is created like
+  `base_url` (unknown: 404 `not_found`, revoked or none active: 409
+  `code_revoked`) and recorded in the job's options.
+- The single-code downloads (PNG, big QR, poster) are made in the admin's
+  browser from `AdminCode.entry_path` and the event name; see
+  [Posters and printing](#posters-and-printing).
 
 **Admin API** (`/api/admin/codes`): list (with `base_url`), create, get,
 `PATCH` (target, note), `POST …/token` (null = generate), `DELETE` (revoke;
@@ -325,8 +352,10 @@ visitors without a user), `photos` (its guests' non-deleted photos),
 `token_taken` (409), `code_revoked` (409), `invalid_target`, `invalid_note`.
 Every change is audited (`code.create`, `code.edit`, `code.token`,
 `code.revoke`, target `code:<id>`) and sent as `code.changed`. The QR-Bogen
-export job and `python -m virtubooth.tools.qr` use the active code with the
-lowest number (the CLI also takes `--code N` or `--token`).
+export job uses its `code_id` (default: the active code with the lowest
+number); `python -m virtubooth.tools.qr` takes `--code N` or `--token`, else
+the lowest active code, and the stored event name unless `--party-name` is
+given.
 
 ## Web serving
 
@@ -494,6 +523,15 @@ rendered page in the browser anyway).
   The file is `<data>/poster/template.pdf` (written to `.part`, fsynced,
   renamed), the meta the settings key `poster.template`; every change is
   audit-logged. No admin events: other devices refetch on focus.
+- **Where the exports start**: each active code's sheet in Admin → QR-Codes
+  (`admin/codes/CodeExports.tsx`) loads `@/print` on the first click and
+  builds the input from the code (`admin/codes/printInput.ts`: `(base_url ??
+  origin) + entry_path`, number, name, the activity title of its target) and
+  the event name from `GET /api/admin/settings`; the poster gets
+  `loadPosterTemplate()` (`admin/poster/template.ts`, null → the standard
+  poster). The Plakat section's test print uses the same input for the code
+  chosen under „Code für den Probedruck“, or the sample code. See
+  [QR codes and party access](#qr-codes-and-party-access).
 
 ## Adding an activity
 
@@ -873,18 +911,24 @@ What the suites cover:
 
 What protects a party, layer by layer.
 
-- **Party token.** Everything a guest sees needs the token from the QR code.
-  A valid `?t=` sets an HttpOnly access cookie (an HMAC of the token, 30 days)
-  and redirects to the same URL without the token. The access log masks it,
-  and pages send `Referrer-Policy: no-referrer`. Rotating `VB_PARTY_TOKEN`
-  locks every guest out until they scan a new code.
+- **QR codes.** Everything a guest sees needs the token of an active QR
+  code. A valid `?t=` sets an HttpOnly access cookie (the signed code number
+  and token generation, 30 days) and redirects to the same URL without the
+  token. The access log masks it, and pages send `Referrer-Policy:
+  no-referrer`. Deleting a code or changing its token stops new scans and
+  not-yet-joined browsers at once; joined guests stay (bans, „Anmeldung
+  stoppen“). `VB_PARTY_TOKEN` only seeds code 1 on the first start, so
+  changing it locks nobody out. Details: [QR codes and party
+  access](#qr-codes-and-party-access).
 - **Guest identity without accounts.** Joining creates a pseudonymous guest
   pinned to the device by a signed cookie, plus a localStorage copy. Device
   traits are stored as a moderation **hint**, never as an identity:
   identical phones often look the same.
-- **Admin.** A password from the environment: at least 12 characters, and
-  use 16+ random ones (`gen-env` makes one; the log warns at startup when it
-  is shorter than 16 characters or very repetitive). The session is a random
+- **Admin.** One shared password: first `VB_ADMIN_PASSWORD` (at least 12
+  characters; use 16+ random ones, `gen-env` makes one, the log warns at
+  startup when it is shorter than 16 characters or very repetitive), then the
+  one set in the admin, stored as a scrypt hash (see [The admin
+  password](#the-admin-password)). The session is a random
   token stored hashed, in a `SameSite=Strict` cookie that expires
   (`VB_ADMIN_SESSION_HOURS`, 12 h; log in before the guests arrive).
 - **Admin login lock.** Login is rate limited per IP (5 per minute, 20 per
@@ -916,9 +960,10 @@ What protects a party, layer by layer.
   Linux capabilities and with `no-new-privileges`, CPU/memory/PID limits and
   a health check. Everything it writes is in the `/data` volume.
 - **Exports.** The database copy in the admin's archive and in the CLI
-  export holds guests with IPs, fingerprints and bans, all photo rows and the
-  audit log, but no admin sessions and no export jobs, and it is vacuumed so
-  nothing deleted earlier can be recovered.
+  export holds guests with IPs, fingerprints and bans, all photo rows, the
+  audit log, the QR codes with their tokens and the admin password's hash,
+  but no admin sessions, no export jobs and no visitor ids, and it is
+  vacuumed so nothing deleted earlier can be recovered.
 - **Retention.** Hidden photos stay on disk; only deleting removes files.
   After the party, export what you keep and delete the volume
   ([DEPLOY.md → Teardown](DEPLOY.md#teardown)).

@@ -256,7 +256,8 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument(
         "--party-name",
         metavar="NAME",
-        help="heading on the sheet and title of the home card (default: $VB_PARTY_NAME or 'Party')",
+        help="heading on the sheet and title of the home card (default: the event name set in "
+        "Admin → Einstellungen in the database of --data-dir, else $VB_PARTY_NAME or 'Party')",
     )
     p.add_argument("--no-home", action="store_true", help="leave out the home page code")
     p.add_argument(
@@ -300,6 +301,20 @@ def resolve_token(args: argparse.Namespace) -> str:
     return token
 
 
+def resolve_party_name(args: argparse.Namespace) -> str:
+    """--party-name, else the event name stored in the database (Admin →
+    Einstellungen), else $VB_PARTY_NAME, else "Party"."""
+    if args.party_name and str(args.party_name).strip():
+        return str(args.party_name).strip()
+    data_dir = resolve_data_dir(args.data_dir)
+    if (data_dir / DB_NAME).is_file():
+        with open_repos(data_dir) as repos:
+            stored = repos.app_settings.event_name()
+        if stored is not None:
+            return stored.name
+    return os.environ.get("VB_PARTY_NAME", "").strip() or "Party"
+
+
 def _main(args: argparse.Namespace) -> int:
     base_raw = args.base_url or os.environ.get("VB_PUBLIC_BASE_URL", "").strip()
     if not base_raw:
@@ -310,7 +325,7 @@ def _main(args: argparse.Namespace) -> int:
         raise ToolError("the token must be 16-128 chars of A-Z a-z 0-9 _ -")
     names = split_list(args.extensions) if args.extensions else env_list("VB_EXTENSIONS")
     extensions = load_extensions(names)
-    party_name = (args.party_name or os.environ.get("VB_PARTY_NAME", "")).strip() or "Party"
+    party_name = resolve_party_name(args)
     out_dir = (
         Path(args.out).expanduser().resolve()
         if args.out

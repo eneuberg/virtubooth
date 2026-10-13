@@ -82,11 +82,6 @@ class Signer:
         return value if hmac.compare_digest(mac, self.mac(purpose, value)) else None
 
 
-def admin_password_tag(settings: Settings, signer: Signer) -> str:
-    # stored with each admin session: changing the password ends all sessions
-    return signer.mac("admin-pw", settings.admin_password.get_secret_value())[:22]
-
-
 def cookie_secure(settings: Settings, request: Request) -> bool:
     if settings.cookie_secure == "auto":
         # an https public URL means guests always come in over TLS, even when the
