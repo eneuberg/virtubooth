@@ -3,6 +3,7 @@ section "Resolution"), one section per finding (SEC-xx)."""
 
 from __future__ import annotations
 
+import io
 import logging
 import socket
 import threading
@@ -15,6 +16,7 @@ import pytest
 import uvicorn
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
+from PIL import Image
 from starlette.requests import Request
 
 from virtubooth.api.routers.admin import events as events_router
@@ -30,9 +32,10 @@ from virtubooth.core.ratelimit import (
     ip_bucket,
 )
 from virtubooth.core.security import is_direct_loopback, origin_allowed, sha256_hex
+from virtubooth.services.images import MAX_SCANS, process_jpeg
 from virtubooth.settings import Settings, admin_password_warnings
 
-from ..conftest import ADMIN_PASSWORD, ORIGIN, PARTY_TOKEN, SECRET_KEY
+from ..conftest import ADMIN_PASSWORD, JPEG, ORIGIN, PARTY_TOKEN, SECRET_KEY
 from .test_admin_events import Live, Stream, admin_client
 
 # ===================================================== SEC-01 login guessing
@@ -178,6 +181,87 @@ def test_startup_logs_the_password_warning(tmp_path, web_dir, monkeypatch, caplo
     text = caplog.text
     assert "VB_ADMIN_PASSWORD has only 14 characters" in text and "gen-env" in text
     assert "Sommerfest2026" not in text
+
+
+# =================================================== SEC-02 image metadata
+
+MARKERS = (b"COMMENT-MARKER", b"EXIF-MARKER", b"XMP-MARKER", b"ICC-MARKER", b"TRAILING-MARKER")
+
+
+def tagged_jpeg(width: int = 1080, height: int = 1440) -> bytes:
+    """A JPEG carrying a COM segment, EXIF (with GPS), XMP, ICC and trailing bytes."""
+    img = Image.new("RGB", (width, height), (90, 140, 200))
+    exif = Image.Exif()
+    exif[0x010F] = "EXIF-MARKER"  # Make
+    exif[0x8825] = {1: "N", 2: (52.0, 31.0, 12.0)}  # GPS
+    buf = io.BytesIO()
+    img.save(
+        buf,
+        "JPEG",
+        quality=90,
+        comment=b"<script>alert(1)</script> COMMENT-MARKER" + b"A" * 2000,
+        exif=exif.tobytes(),
+        xmp=b'<x:xmpmeta xmlns:x="adobe:ns:meta/">XMP-MARKER</x:xmpmeta>',
+        icc_profile=b"ICC-MARKER" + b"\0" * 200,
+    )
+    raw = buf.getvalue() + b"TRAILING-MARKER"
+    assert all(m in raw for m in MARKERS)  # the precondition
+    return raw
+
+
+def assert_clean(data: bytes) -> None:
+    for marker in MARKERS:
+        assert marker not in data, marker
+    with Image.open(io.BytesIO(data)) as img:
+        assert not {"comment", "exif", "xmp", "icc_profile"} & set(img.info), img.info
+
+
+def test_reencoding_drops_every_metadata_segment():
+    out = process_jpeg(tagged_jpeg(), max_side=2000, quality=88, thumb_side=480)
+    assert_clean(out.data)
+    assert_clean(out.thumb)
+
+
+def test_stored_photo_and_thumbnail_carry_no_metadata(guest):
+    g = guest()
+    r = g.post("/api/x/demo/upload", content=tagged_jpeg(), headers=JPEG)
+    assert r.status_code == 201, r.text
+    photo = r.json()["photo"]
+    for url in (photo["url"], photo["thumb_url"]):
+        stored = g.get(url)
+        assert stored.status_code == 200 and stored.headers["content-type"] == "image/jpeg"
+        assert_clean(stored.content)
+
+
+# ================================================== SEC-14 decode work
+
+
+def test_too_many_scans_are_refused_before_decoding():
+    img = Image.new("RGB", (1080, 1440), (10, 20, 30))
+    buf = io.BytesIO()
+    # SOS marker bytes are counted as an upper bound, so a comment full of
+    # them stands in for a crafted progressive file with thousands of scans
+    img.save(buf, "JPEG", comment=b"\xff\xda" * (MAX_SCANS + 1))
+    with pytest.raises(errors.ApiError) as exc:
+        process_jpeg(buf.getvalue(), max_side=2000, quality=88, thumb_side=480)
+    assert exc.value.code == "invalid_image"
+    # a normal progressive JPEG has about 10 scans and passes
+    progressive = io.BytesIO()
+    img.save(progressive, "JPEG", progressive=True, quality=90)
+    assert 1 < progressive.getvalue().count(b"\xff\xda") <= MAX_SCANS
+    out = process_jpeg(progressive.getvalue(), max_side=2000, quality=88, thumb_side=480)
+    assert (out.width, out.height) == (1080, 1440)
+
+
+def test_the_header_size_is_checked_before_decoding(monkeypatch):
+    buf = io.BytesIO()
+    Image.new("RGB", (4000, 3000)).save(buf, "JPEG")
+    loaded: list[bool] = []
+    monkeypatch.setattr(Image.Image, "load", lambda self: loaded.append(True))
+    with pytest.raises(errors.ApiError) as exc:
+        process_jpeg(buf.getvalue(), max_side=2000, quality=88, thumb_side=480)
+    assert exc.value.code == "invalid_image" and not loaded  # refused from the header
+    assert Image.MAX_IMAGE_PIXELS == 25_000_000
 
 
 # ============================================================ SEC-04 CSRF
