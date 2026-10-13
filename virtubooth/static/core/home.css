@@ -1,5 +1,7 @@
 .home-header { margin-bottom: 20px; }
-.home-header #user-chip { min-height: 34px; margin-bottom: 18px; }
+.home-header #user-chip { min-height: 34px; margin-bottom: 18px; display: flex; min-width: 0; }
+/* the name comes from /api/extensions a moment later */
+#party-name:empty::before { content: "\2026"; }
 .home-tiles { display: grid; gap: 14px; }
 .home-tile {
   display: grid;

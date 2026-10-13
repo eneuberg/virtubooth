@@ -15,6 +15,8 @@
   --vb-cyan: #2de2e6;
   --vb-green: #3ddc84;
   --vb-red: #ff4d4d;
+  /* behind white text: 5:1 (--vb-red is for red text on the dark background) */
+  --vb-danger: #d42a3a;
   --vb-grad: linear-gradient(135deg, var(--vb-pink) 0%, var(--vb-orange) 55%, var(--vb-yellow) 100%);
   --vb-grad-cool: linear-gradient(135deg, #7b2ff7 0%, var(--vb-cyan) 100%);
   --vb-radius: 22px;
@@ -100,7 +102,7 @@ a { color: var(--vb-yellow); }
   box-shadow: 0 6px 24px rgba(255, 61, 139, 0.45);
 }
 .vb-btn--cool { border-color: transparent; background: var(--vb-grad-cool); }
-.vb-btn--danger { border-color: transparent; background: var(--vb-red); }
+.vb-btn--danger { border-color: transparent; background: var(--vb-danger); color: #fff; }
 .vb-btn--ghost { background: transparent; }
 .vb-btn--big { min-height: 68px; font-size: 1.25rem; width: 100%; }
 .vb-btn--block { width: 100%; }
@@ -154,6 +156,8 @@ a { color: var(--vb-yellow); }
   display: inline-flex;
   align-items: center;
   gap: 0.4em;
+  max-width: 100%;
+  min-width: 0;
   padding: 6px 12px;
   border-radius: 999px;
   background: rgba(0, 0, 0, 0.4);
@@ -165,6 +169,10 @@ a { color: var(--vb-yellow); }
   backdrop-filter: blur(8px);
 }
 button.vb-chip { cursor: pointer; font: inherit; font-size: 0.9rem; font-weight: 700; }
+.vb-chip[hidden] { display: none !important; }
+.vb-chip:focus-visible { outline: 3px solid var(--vb-cyan); outline-offset: 2px; }
+.vb-chip-icon { flex: none; }
+.vb-chip-text { min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
 
 .vb-input {
   width: 100%;
@@ -223,24 +231,29 @@ button.vb-chip { cursor: pointer; font: inherit; font-size: 0.9rem; font-weight:
 
 /* ------------------------------------------- dialog sheet over a scrim */
 
+/* .vb-scrim > .vb-sheet[role=dialog]. Long dialogs use the split layout so the
+   buttons never leave the screen, however short it is:
+   .vb-sheet.vb-sheet--split > form.vb-sheet-form > .vb-sheet-body (scrolls) + .vb-sheet-foot */
 .vb-scrim {
   position: fixed;
   inset: 0;
   z-index: 1000;
-  display: grid;
-  place-items: end center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-end;
   background: rgba(10, 0, 20, 0.72);
   -webkit-backdrop-filter: blur(6px);
   backdrop-filter: blur(6px);
-  padding: 16px;
-  padding-bottom: calc(16px + var(--vb-safe-bottom));
+  padding: calc(16px + var(--vb-safe-top)) 16px calc(16px + var(--vb-safe-bottom));
   animation: vb-fade-in 0.2s ease;
 }
-@media (min-width: 600px) { .vb-scrim { place-items: center; } }
+@media (min-width: 600px) { .vb-scrim { justify-content: center; } }
 .vb-sheet {
+  flex: none;
   width: 100%;
   max-width: 480px;
-  max-height: calc(100dvh - 32px);
+  max-height: 100%;
   overflow-y: auto;
   background: linear-gradient(160deg, #3a0d5c, #1d0430);
   border: 1px solid var(--vb-border);
@@ -249,8 +262,66 @@ button.vb-chip { cursor: pointer; font: inherit; font-size: 0.9rem; font-weight:
   box-shadow: 0 20px 60px rgba(0, 0, 0, 0.6);
   animation: vb-pop-in 0.28s cubic-bezier(0.2, 1.4, 0.4, 1);
 }
+.vb-sheet:focus { outline: none; }
 .vb-sheet h2 { font-size: 1.7rem; }
 .vb-sheet .vb-actions { display: grid; gap: 10px; margin-top: 18px; }
+
+.vb-sheet--split {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  padding: 0;
+}
+.vb-sheet-form {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0;
+  margin: 0;
+}
+.vb-sheet-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  padding: 24px 20px 4px;
+}
+.vb-sheet-foot {
+  position: relative;
+  flex: none;
+  padding: 12px 20px 20px;
+}
+.vb-sheet-foot .vb-actions { margin-top: 0; }
+/* more text above the buttons: fade it out and draw a line, so it reads as "scroll me" */
+.vb-sheet-foot::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 100%;
+  height: 36px;
+  background: linear-gradient(rgba(29, 4, 48, 0), rgba(29, 4, 48, 0.95));
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.2s ease;
+}
+.vb-sheet--more .vb-sheet-foot { border-top: 1px solid var(--vb-border); }
+.vb-sheet--more .vb-sheet-foot::before { opacity: 1; }
+
+/* short screens (iPhone SE with Safari's bars: 375x548): tighter, smaller */
+@media (max-height: 700px) {
+  .vb-scrim { padding: calc(8px + var(--vb-safe-top)) 8px calc(8px + var(--vb-safe-bottom)); }
+  .vb-sheet { border-radius: 22px; }
+  .vb-sheet h2 { font-size: 1.35rem; }
+  .vb-sheet-body { padding: 18px 16px 2px; font-size: 15px; line-height: 1.4; }
+  .vb-sheet-body p { margin-bottom: 0.7em; }
+  .vb-sheet-body .vb-input { min-height: 48px; }
+  .vb-sheet-foot { padding: 10px 16px 14px; }
+  .vb-sheet .vb-actions { gap: 8px; }
+  .vb-sheet .vb-btn { min-height: 50px; }
+  .vb-sheet .vb-btn--big { min-height: 56px; font-size: 1.1rem; }
+}
 
 /* full-screen notice (camera errors, banned, in-app browser) */
 .vb-notice {
@@ -263,7 +334,8 @@ button.vb-chip { cursor: pointer; font: inherit; font-size: 0.9rem; font-weight:
   text-align: center;
   background: var(--vb-bg);
 }
-.vb-notice .vb-notice-emoji { font-size: 4rem; line-height: 1; margin-bottom: 12px; }
+/* also on the static gate and 404 pages */
+.vb-notice-emoji { font-size: 4rem; line-height: 1; margin-bottom: 12px; }
 
 /* --------------------------------------------------------------- toast */
 
@@ -338,23 +410,49 @@ button.vb-chip { cursor: pointer; font: inherit; font-size: 0.9rem; font-weight:
   animation: vb-flash 0.35s ease-out forwards;
 }
 
-/* debug overlay (?debug=1) */
+/* debug log (?debug=1): at the top, lets every tap through to the page; the
+   🐞 tab on the left edge folds it away */
 .vb-debug {
   position: fixed;
+  top: 0;
   left: 0;
   right: 0;
-  bottom: 0;
-  max-height: 40dvh;
-  overflow-y: auto;
   z-index: 5000;
+  pointer-events: none;
+}
+.vb-debug-log {
   margin: 0;
-  padding: 8px;
-  background: rgba(0, 0, 0, 0.85);
+  max-height: 35vh;
+  max-height: 35dvh;
+  overflow-y: auto;
+  padding: calc(6px + var(--vb-safe-top)) 8px 6px;
+  background: rgba(0, 0, 0, 0.7);
   color: #9f9;
   font: 11px/1.35 ui-monospace, Menlo, monospace;
   white-space: pre-wrap;
   word-break: break-word;
+  pointer-events: none;
 }
+.vb-debug--folded .vb-debug-log { display: none; }
+.vb-debug-toggle {
+  position: fixed;
+  left: 0;
+  top: 50%;
+  width: 34px;
+  height: 44px;
+  margin-top: -22px;
+  padding: 0;
+  border: 1px solid rgba(153, 255, 153, 0.5);
+  border-left: 0;
+  border-radius: 0 12px 12px 0;
+  background: rgba(0, 0, 0, 0.7);
+  font-size: 18px;
+  line-height: 1;
+  cursor: pointer;
+  pointer-events: auto;
+  touch-action: manipulation;
+}
+.vb-debug--folded .vb-debug-toggle { opacity: 0.6; }
 
 @keyframes vb-fade-in { from { opacity: 0; } to { opacity: 1; } }
 @keyframes vb-pop-in { from { opacity: 0; transform: translateY(16px) scale(0.96); } to { opacity: 1; transform: none; } }
