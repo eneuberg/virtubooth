@@ -1,16 +1,24 @@
 /**
- * Admin routes under base /admin. OWNER: wave 2 "AD". The server already redirects
- * /admin → /admin/live and unauthenticated pages → /admin/login?next=… (303).
+ * Admin routes under base /admin. The server already redirects /admin → /admin/live and
+ * pages without a session → /admin/login?next=… (303); the app does the same when a
+ * request answers 401 later (store/api.ts).
  */
 import { CircleQuestionMark } from 'lucide-react';
 import { Redirect, Route, Router, Switch, useLocation } from 'wouter';
 import { LinkButton } from '@/ui/Button';
 import { Notice } from '@/ui/Notice';
-import { ToastSlot } from '@/ui/Toast';
 import { UiProvider } from '@/ui/UiProvider';
-import { LivePage, LoginPage, ManagePage, UserPage } from './pages';
+import { LivePage } from './live/LivePage';
+import { LoginPage } from './login/LoginPage';
+import { ManagePage } from './manage/ManagePage';
+import { useDocumentSurface } from './surface';
+import { UserPage } from './user/UserPage';
+
+/** Paths the admin app routes itself (React Aria links to anything else load normally). */
+const APP_ROUTE = /^\/(?:live|manage|user|login)(?:[/?#]|$)/;
 
 function NotFound() {
+  useDocumentSurface('dark');
   return (
     <Notice
       icon={CircleQuestionMark}
@@ -30,7 +38,10 @@ function NotFound() {
 function Routes() {
   const [, navigate] = useLocation();
   return (
-    <UiProvider navigate={navigate}>
+    <UiProvider
+      navigate={(path) => (APP_ROUTE.test(path) ? navigate(path) : location.assign(path))}
+      useHref={(href) => (APP_ROUTE.test(href) ? `/admin${href}` : href)}
+    >
       <Switch>
         <Route path="/">
           <Redirect to="/live" replace />
@@ -41,7 +52,6 @@ function Routes() {
         <Route path="/user" component={UserPage} />
         <Route component={NotFound} />
       </Switch>
-      <ToastSlot />
     </UiProvider>
   );
 }

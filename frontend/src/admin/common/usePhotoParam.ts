@@ -10,9 +10,13 @@ interface PhotoState {
   vbPhoto?: boolean;
 }
 
-function pushedHere(): boolean {
+function historyState(): PhotoState {
   const state: unknown = history.state;
-  return Boolean(state && typeof state === 'object' && (state as PhotoState).vbPhoto);
+  return state && typeof state === 'object' ? { ...state } : {};
+}
+
+function pushedHere(): boolean {
+  return historyState().vbPhoto === true;
 }
 
 export function usePhotoParam(): {
@@ -41,7 +45,7 @@ export function usePhotoParam(): {
     if (pushedHere()) {
       // mark it first: a second close (the API answer and the event both report a
       // deletion) must not go back once more, off the page
-      history.replaceState({ ...(history.state as PhotoState), vbPhoto: false }, '');
+      history.replaceState({ ...historyState(), vbPhoto: false }, '');
       history.back();
       return;
     }

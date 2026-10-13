@@ -19,7 +19,7 @@ export interface PhotoViewerProps {
   onClose: () => void;
   extensions: ReadonlyMap<string, AdminExtension>;
   /** the actions this screen allows (live: hide only) */
-  actions: (photo: AdminPhoto) => ReactNode;
+  renderActions: (photo: AdminPhoto) => ReactNode;
 }
 
 function ViewerImage({ photo }: { photo: AdminPhoto }) {
@@ -54,7 +54,14 @@ function ViewerImage({ photo }: { photo: AdminPhoto }) {
  * A photo, big: on phones the whole screen, on desktop with an info panel. Arrow keys
  * and swipes go to the newer / older photo, Esc and the back button close it.
  */
-export function PhotoViewer({ photo, list, onNavigate, onClose, extensions, actions }: PhotoViewerProps) {
+export function PhotoViewer({
+  photo,
+  list,
+  onNavigate,
+  onClose,
+  extensions,
+  renderActions,
+}: PhotoViewerProps) {
   const index = photo ? list.findIndex((p) => p.id === photo.id) : -1;
   const newer = index > 0 ? list[index - 1] : undefined;
   const older = index >= 0 && index < list.length - 1 ? list[index + 1] : undefined;
@@ -115,7 +122,6 @@ export function PhotoViewer({ photo, list, onNavigate, onClose, extensions, acti
                   autoFocus
                   onPress={onClose}
                   data-testid="lightbox-close"
-                  className="text-papier"
                 >
                   Schließen
                 </Button>
@@ -190,14 +196,13 @@ export function PhotoViewer({ photo, list, onNavigate, onClose, extensions, acti
                   ))}
                 </dl>
                 <div className="grid gap-2">
-                  {actions(photo)}
+                  {renderActions(photo)}
                   <LinkButton
                     href={`/user?id=${photo.user.id}`}
                     variant="secondary"
                     size="sm"
                     icon={UserRound}
                     data-testid="user-link"
-                    className="text-papier"
                   >
                     Gast öffnen
                   </LinkButton>

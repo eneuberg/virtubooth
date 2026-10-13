@@ -29,6 +29,12 @@ import {
 import { qk } from './keys';
 import { ALL_PHOTOS } from './types';
 
+/**
+ * Photos that arrived through the stream (not with a page load): their tile plays the
+ * "develop" animation once. Keyed by object, so a later change (hidden) doesn't replay it.
+ */
+export const arrivedLive = new WeakSet<AdminPhoto>();
+
 export interface EventContext {
   qc: QueryClient;
   /** throttled: refetch these (prefix) keys soon */
@@ -83,6 +89,7 @@ export function applyAdminEvent(event: AdminEvent, { qc, invalidate }: EventCont
   switch (event.type) {
     case 'photo.created': {
       const { photo } = event.data;
+      arrivedLive.add(photo);
       patchQueries<PhotoPages>(qc, qk.photoLists, (data, key) =>
         addIncoming(data, photo, filterOfKey(key) ?? ALL_PHOTOS),
       );

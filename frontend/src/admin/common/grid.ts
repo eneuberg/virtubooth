@@ -2,7 +2,7 @@
  * Photo grids: arrow-key navigation between tiles, the tile to focus after a viewer
  * closes, "is the page at the top", and loading the next page before the end.
  */
-import { useEffect, useRef, useSyncExternalStore, type KeyboardEvent, type RefObject } from 'react';
+import { useEffect, useRef, useSyncExternalStore, type RefObject } from 'react';
 
 /** The open button of a photo tile (first button inside `[data-photo-id]`). */
 export function tileButton(id: string): HTMLElement | null {
@@ -13,14 +13,14 @@ export function tileButton(id: string): HTMLElement | null {
  * Arrow keys move between the tiles' open buttons like in a grid: ←/→ one tile,
  * ↑/↓ one row (columns are counted from the layout), Home/End to the ends.
  */
-export function onGridKeyDown(event: KeyboardEvent<HTMLElement>): void {
+export function moveInGrid(event: KeyboardEvent, grid: HTMLElement): void {
   if (event.altKey || event.ctrlKey || event.metaKey) return;
   const keys = ['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'Home', 'End'];
   if (!keys.includes(event.key)) return;
   const target = event.target instanceof HTMLElement ? event.target : null;
   const tile = target?.closest<HTMLElement>('[data-photo-id]');
-  if (!tile || !event.currentTarget.contains(tile)) return;
-  const tiles = [...event.currentTarget.querySelectorAll<HTMLElement>('[data-photo-id]')];
+  if (!tile || !grid.contains(tile)) return;
+  const tiles = [...grid.querySelectorAll<HTMLElement>('[data-photo-id]')];
   const i = tiles.indexOf(tile);
   if (i === -1) return;
   const top = tiles[0]?.offsetTop ?? 0;
@@ -40,7 +40,20 @@ export function onGridKeyDown(event: KeyboardEvent<HTMLElement>): void {
   to.scrollIntoView({ block: 'nearest' });
 }
 
-const AT_TOP = 60;
+/** Arrow keys between the tiles of the list this ref is on (moveInGrid). */
+export function useGridKeys<T extends HTMLElement>(): RefObject<T | null> {
+  const ref = useRef<T>(null);
+  useEffect(() => {
+    const grid = ref.current;
+    if (!grid) return undefined;
+    const onKey = (event: KeyboardEvent) => moveInGrid(event, grid);
+    grid.addEventListener('keydown', onKey);
+    return () => grid.removeEventListener('keydown', onKey);
+  });
+  return ref;
+}
+
+export const AT_TOP = 60;
 
 function subscribeScroll(notify: () => void): () => void {
   window.addEventListener('scroll', notify, { passive: true });

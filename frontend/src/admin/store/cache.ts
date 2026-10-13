@@ -34,11 +34,11 @@ function sortedNewestFirst(list: ReadonlyArray<AdminPhoto>): AdminPhoto[] {
   return copy;
 }
 
-export function listedPhotos(data: PhotoPages | undefined): AdminPhoto[] {
+export function listedPhotos(data: { pages: PhotoPage[] } | undefined): AdminPhoto[] {
   return data ? data.pages.flatMap((p) => p.photos) : [];
 }
 
-export function incomingPhotos(data: PhotoPages | undefined): AdminPhoto[] {
+export function incomingPhotos(data: { pages: PhotoPage[] } | undefined): AdminPhoto[] {
   return data?.pages[0]?.incoming ?? [];
 }
 

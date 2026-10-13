@@ -64,3 +64,11 @@ export function focusLater(find: () => HTMLElement | null | undefined, delay = 3
 export function thumbFor(id: string): HTMLElement | null {
   return document.querySelector<HTMLElement>(`[data-thumb-for="${CSS.escape(id)}"]`);
 }
+
+/** A sorted copy (Array#toSorted needs Firefox 115; the build targets 114). */
+export function sortedCopy<T>(list: ReadonlyArray<T>, compare: (a: T, b: T) => number): T[] {
+  const copy = [...list];
+  // oxlint-disable-next-line unicorn/no-array-sort -- sorts a fresh copy
+  copy.sort(compare);
+  return copy;
+}

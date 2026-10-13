@@ -3,7 +3,7 @@
  * one of these current (applyEvent.ts), so stale times are long.
  */
 import { useInfiniteQuery, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useMemo } from 'react';
+import { useEffect, useMemo } from 'react';
 import type { AdminExtension } from '@/api/types';
 import {
   fetchAudit,
@@ -20,7 +20,7 @@ import {
   fetchUsers,
   PAGE_SIZE,
 } from './api';
-import { mergeIncoming, type PhotoPages } from './cache';
+import { incomingPhotos, mergeIncoming, type PhotoPages } from './cache';
 import { qk, type PhotoScope } from './keys';
 import type { GuestFilter, PhotoFilter } from './types';
 
@@ -39,6 +39,35 @@ export function useMergeIncoming(scope: PhotoScope, filter: PhotoFilter): () => 
   return () => {
     qc.setQueryData<PhotoPages>(qk.photos(scope, filter), (data) => (data ? mergeIncoming(data) : data));
   };
+}
+
+/**
+ * Live: new photos slide in at once while the host is at the top of the page (and as
+ * soon as they scroll back up); further down they wait behind the "neue Fotos" pill.
+ */
+export function useAutoMerge(scope: PhotoScope, filter: PhotoFilter, isAtTop: () => boolean): void {
+  const qc = useQueryClient();
+  const key = JSON.stringify(qk.photos(scope, filter));
+  useEffect(() => {
+    const queryKey = qk.photos(scope, filter);
+    const check = () => {
+      if (!isAtTop()) return;
+      const data = qc.getQueryData<PhotoPages>(queryKey);
+      if (incomingPhotos(data).length > 0)
+        qc.setQueryData<PhotoPages>(queryKey, (d) => (d ? mergeIncoming(d) : d));
+    };
+    check();
+    const unsubscribe = qc.getQueryCache().subscribe((e) => {
+      if (e.type === 'updated' && JSON.stringify(e.query.queryKey) === key) check();
+    });
+    window.addEventListener('scroll', check, { passive: true });
+    return () => {
+      unsubscribe();
+      window.removeEventListener('scroll', check);
+    };
+    // scope/filter are covered by `key`
+    // oxlint-disable-next-line react/exhaustive-deps
+  }, [qc, key, isAtTop]);
 }
 
 export function usePhoto(id: string | null) {

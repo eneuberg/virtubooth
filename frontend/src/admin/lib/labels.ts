@@ -62,6 +62,12 @@ export function describeUA(ua: string | null | undefined): string {
   return parts.length ? parts.join(', ') : ua.slice(0, 60);
 }
 
+/** ", 2 weitere Geräte entsperrt" after lifting a device ban that auto-banned others. */
+export function releasedText(n: number): string {
+  if (n === 0) return '';
+  return `, ${n === 1 ? '1 weiteres Gerät' : `${n} weitere Geräte`} entsperrt`;
+}
+
 /** First characters of a device-trait hash, grouped for reading: "e6c3 3669". */
 export function shortHash(hash: string): string {
   return `${hash.slice(0, 4)} ${hash.slice(4, 8)}`;
