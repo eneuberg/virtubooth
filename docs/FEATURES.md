@@ -163,6 +163,9 @@ Selfies mit Live-Filtern. Adresse: `/x/booth/`.
   - Die Filter sind WebGL-Shader. Ohne WebGL läuft eine Canvas2D-Variante; Filter, die
     dort nicht gehen, fehlen dann in der Leiste.
   - Das gespeicherte Foto ist genau das Vorschaubild, mit Filter, in 1080 × 1440 px.
+  - Der Host kann einzelne Filter unter [Einstellungen](#einstellungen) ausschalten,
+    mindestens einer bleibt an. Sie verschwinden spätestens nach 30 s aus der Leiste;
+    war einer davon gewählt, gilt der erste Filter.
 - **Countdown:** Schalter „aus“ / „3 s“, das Gerät merkt sich die Wahl. Ein Tipp auf
   den Auslöser oder Esc bricht den Countdown ab.
 - **Ergebnis** als Abzug, der sich langsam entwickelt:
@@ -258,12 +261,18 @@ Laptop und Handy.
 - `/admin` führt zu `/admin/live`. Ohne Sitzung geht es zu `/admin/login` und danach
   zurück zur gewünschten Seite.
 - Login-Seite: ein Feld „Passwort“, Knopf „Anmelden“.
-- **Ein gemeinsames Passwort** aus `VB_ADMIN_PASSWORD`, keine Admin-Konten. Im
-  „Protokoll“ hat jede Sitzung eine eigene Kennung („Admin-Sitzung 3f2a“).
+- **Ein gemeinsames Passwort**, keine Admin-Konten: zuerst das aus
+  `VB_ADMIN_PASSWORD`. Ändert der Host es unter [Einstellungen](#einstellungen), gilt
+  nur noch das neue; der Server speichert es als scrypt-Hash in der Datenbank, nie im
+  Klartext. Im „Protokoll“ hat jede Sitzung eine eigene Kennung („Admin-Sitzung 3f2a“).
 - Eine Sitzung hält `VB_ADMIN_SESSION_HOURS` (12 h). Tipp: kurz vor der Party
   anmelden, auf jedem Gerät, mit dem man moderiert.
 - „Abmelden“ beendet die Sitzung und ihre Live-Verbindungen sofort.
-- Ein neues Passwort beendet alle Sitzungen.
+- Ein neues Passwort im Admin beendet alle anderen Sitzungen samt Live-Verbindungen
+  sofort; das Gerät, auf dem es geändert wurde, bleibt angemeldet. Solange keins im
+  Admin gesetzt ist, beendet ein geändertes `VB_ADMIN_PASSWORD` alle Sitzungen.
+- Passwort vergessen: `virtubooth reset-admin-password` auf dem Server (siehe
+  [Kommandozeile](#kommandozeile)) setzt es zurück und meldet alle Geräte ab.
 - **Login-Sperre:**
   - Pro IP höchstens 5 Versuche pro Minute und 20 pro Stunde.
   - Nach 20 falschen Passwörtern in 15 Minuten, egal von wo, ist 5 Minuten lang jeder
@@ -621,6 +630,31 @@ Ansicht.
 - Ein Login hält höchstens 4 Live-Verbindungen. Ein fünfter Tab ersetzt den ältesten,
   der sich dann neu verbindet.
 
+### Einstellungen
+
+„Einstellungen“ (`/admin/manage?tab=einstellungen`): am Desktop unten in der
+Seitenleiste über „Abmelden“, am Handy das Zahnrad in der Kopfzeile. Kein Tab in der
+Tab-Leiste. Jede Änderung steht im „Protokoll“, andere Admin-Geräte sehen sie sofort.
+
+- **„Eventname“:** „Name des Events“, 1 bis 60 Zeichen (mehrere Leerzeichen werden zu
+  einem). Er steht auf Start, im Beitritts-Sheet („Willkommen bei …!“), im
+  „Party-Rahmen“ der Fotobox, auf dem QR-Bogen und im Archiv. Ohne eigenen Namen gilt
+  `VB_PARTY_NAME`; „Zurück zu „…““ löscht den eigenen wieder. Gäste sehen den neuen
+  Namen spätestens nach einer Minute.
+- **„Fotobox-Filter“** (nur mit der Fotobox): ein Schalter pro Filter, jeder Klick
+  speichert sofort („„Neon“ ist aus.“, „„Neon“ ist wieder an.“). Mindestens ein Filter
+  bleibt an: der letzte Schalter ist gesperrt. Gäste in der Fotobox haben die Änderung
+  spätestens nach 30 s, die Fotobox-Zeile auf Start zählt nur die eingeschalteten.
+  Fotos, die schon unterwegs sind, kommen trotzdem an. Filter, die ein Update neu
+  bringt, sind an.
+- **„Admin-Passwort“:** sagt, welches gilt („Gerade gilt das Passwort aus
+  VB_ADMIN_PASSWORD.“ oder „Hier geändert am …“). Ändern mit „Aktuelles Passwort“,
+  „Neues Passwort“ (mindestens 12 Zeichen, besser 16 oder mehr) und „Neues Passwort
+  wiederholen“. Danach sind alle anderen Geräte abgemeldet („Passwort geändert. 1
+  anderes Gerät abgemeldet.“), dieses bleibt angemeldet. Es gelten die Limits des
+  Logins; ein falsches aktuelles Passwort zählt wie ein falscher Login. „Passwort
+  vergessen?“ nennt den Befehl für den Server.
+
 ## 4. Betrieb
 
 Details zu allem hier: [DEPLOY.md](DEPLOY.md).
@@ -684,6 +718,7 @@ nennt die Variable. Die Limits stehen unter [Limits](#limits).
 |---|---|
 | `virtubooth serve` | der Server (Standard). `--host`, `--port`, `--forwarded-allow-ips`, `--reload` |
 | `virtubooth gen-env` | gibt eine `.env` mit neuen Geheimnissen aus |
+| `virtubooth reset-admin-password` | Admin-Passwort vergessen: `--from-env` löscht das im Admin gesetzte, dann gilt wieder `VB_ADMIN_PASSWORD`; ohne Option fragt es zweimal nach einem neuen (oder `--password-stdin`). Meldet alle Admins ab. Im Container: `docker compose exec app virtubooth reset-admin-password --from-env` |
 | `virtubooth export-openapi -o <Datei>` | schreibt das OpenAPI-Schema (für den typisierten Frontend-Client) |
 | `python -m virtubooth.tools.qr` | QR-Codes und Druckbogen. `--base-url`, `--code <Nr.>` (Token dieses QR-Codes), `--token` (ein bestimmtes Token), `--extensions`, `--party-name`, `--no-home`, `--out`. Ohne beides: der aktive QR-Code mit der kleinsten Nummer aus der Datenbank von `--data-dir`, ohne Datenbank `VB_PARTY_TOKEN` |
 | `python -m virtubooth.tools.timelapse` | Zeitraffer. `--extension`, `--fps`, `--crossfade`, `--fade`, `--out-fps`, `--size`, `--hold-last`, `--crf`, `--preset`, `--include-hidden`, `--limit` (Vorschau), `--dry-run`, `--out` |

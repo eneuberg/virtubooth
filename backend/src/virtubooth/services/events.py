@@ -15,12 +15,14 @@ from ..api.schemas.events import (
     CodeChangedData,
     ExportDeletedData,
     ExportUpdatedData,
+    ExtensionSettingsData,
     FingerprintBannedData,
     FingerprintUnbannedData,
     InstagramDoneData,
     JoinStopData,
     PhotoDeletedData,
     PhotoEventData,
+    SettingsEventData,
     UploadPauseData,
     UploadsChangedData,
     UploadStopData,
@@ -28,6 +30,7 @@ from ..api.schemas.events import (
     UserCreatedData,
 )
 from ..api.schemas.exports import ExportJob
+from ..api.schemas.host_settings import EventSettings
 from ..core.events import EventBus
 from ..db.database import Database
 from ..domain.models import User
@@ -94,6 +97,12 @@ class AdminEvents:
 
     def join_stop(self, state: StopState) -> None:
         self._emit("settings.join_stop", JoinStopData(join_stop=state))
+
+    def settings_event(self, state: EventSettings) -> None:
+        self._emit("settings.event", SettingsEventData(event=state))
+
+    def extension_settings(self, ext_id: str) -> None:
+        self._emit("extension.settings", ExtensionSettingsData(id=ext_id))
 
     def export_updated(self, job: ExportJob) -> None:
         self._emit("export.updated", ExportUpdatedData(job=job))

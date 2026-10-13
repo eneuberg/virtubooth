@@ -30,6 +30,7 @@ from ..tools import export as export_tool
 from ..tools import qr as qr_tool
 from ..tools import timelapse as timelapse_tool
 from ..tools._common import DB_NAME, ToolError, check_free_space
+from .host_settings import event_name
 
 log = logging.getLogger("virtubooth.exports")
 
@@ -141,7 +142,7 @@ def archive_manifest(
     manifest = {
         "format": "virtubooth-archive/1",
         "created_at": now_iso(),
-        "party_name": ctx.settings.party_name,
+        "party_name": event_name(ctx.settings, ctx.repos),
         "include_hidden": opts.include_hidden,
         "include_db": opts.include_db,
         "photos": len(packed),
@@ -234,7 +235,7 @@ def run_qr(ctx: JobContext) -> None:
     if not opts.base_url:  # resolved when the job was created
         raise JobFailed("Keine öffentliche Adresse für die QR-Codes.")
     settings = ctx.settings
-    party_name = settings.party_name
+    party_name = event_name(settings, ctx.repos)
     cards = qr_tool.build_cards(
         opts.base_url,
         _qr_token(ctx),

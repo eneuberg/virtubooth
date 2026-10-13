@@ -469,6 +469,11 @@ build has a page for it (`registry.ts`). A unit test
 (`test_frontend_contract.py::test_extension_folders_match_the_backend`) fails
 when one half is missing.
 
+An extension can also bring admin routes: `Extension.admin_router` is mounted
+at `/api/admin/x/<id>/` behind the admin session check (the Fotobox keeps its
+filter switches there, stored as `x.booth.filters` in the `settings` table, and
+announces changes with the `extension.settings` event).
+
 ### A complete example: "Schnappschuss"
 
 The smallest useful camera activity: one photo, no frills. This exact code
@@ -860,6 +865,35 @@ What protects a party, layer by layer.
   ([DEPLOY.md → Teardown](DEPLOY.md#teardown)).
 - The full security review of the overhaul, with what was fixed and what was
   accepted: [overhaul/SECURITY_REVIEW.md](overhaul/SECURITY_REVIEW.md).
+
+### The admin password
+
+- **Where it lives.** Until the host changes it, the password is
+  `VB_ADMIN_PASSWORD`, compared in constant time. Changing it in the admin
+  (`POST /api/admin/settings/password`) or with `virtubooth
+  reset-admin-password` stores `admin.password` in the `settings` table: a
+  scrypt hash (stdlib `hashlib.scrypt`, n = 2^15, r = 8, p = 1, 16-byte salt,
+  encoded `scrypt$15$8$1$<salt>$<hash>`; `core/passwords.py`). While it exists
+  it is the only valid password. `VB_ADMIN_PASSWORD` stays required: it is the
+  first password and what `reset-admin-password --from-env` goes back to.
+- **Session tag.** Every session stores a tag of the password it logged in
+  with: an HMAC of the stored hash (new salt per change, so a new tag), or of
+  the env password while no hash is stored (as before, so existing sessions
+  survived the update). The session check reads the settings row on every
+  request, never a cache, so a reset from the CLI (another process) applies at
+  once.
+- **Change.** Needs the current password and shares the login's limits (per-IP
+  budget, global lock). A wrong current password is audited
+  (`admin.password_change_failed`) and counts as a failed login; the answer is
+  403 `wrong_password`, because the admin client reads 401 as "logged out". One
+  transaction stores the hash, re-tags the session that asked, deletes every
+  other session and writes the audit entry; after the commit the bus closes the
+  other sessions' event streams.
+- **Reset.** `virtubooth reset-admin-password` (`tools/admin_password.py`)
+  works on the database directly: `--from-env` deletes the hash, otherwise it
+  stores a new one (asked twice, or `--password-stdin`). It always deletes every
+  admin session (open streams end at their next 30 s session check) and audits
+  `admin.password_reset` by `cli`.
 
 ## Stack
 

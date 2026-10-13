@@ -130,6 +130,7 @@
             "code.changed": "#/components/schemas/CodeChangedEvent",
             "export.deleted": "#/components/schemas/ExportDeletedEvent",
             "export.updated": "#/components/schemas/ExportUpdatedEvent",
+            "extension.settings": "#/components/schemas/ExtensionSettingsEvent",
             "fingerprint.banned": "#/components/schemas/FingerprintBannedEvent",
             "fingerprint.unbanned": "#/components/schemas/FingerprintUnbannedEvent",
             "instagram.done": "#/components/schemas/InstagramDoneEvent",
@@ -137,6 +138,7 @@
             "photo.deleted": "#/components/schemas/PhotoDeletedEvent",
             "photo.hidden": "#/components/schemas/PhotoHiddenEvent",
             "photo.unhidden": "#/components/schemas/PhotoUnhiddenEvent",
+            "settings.event": "#/components/schemas/SettingsEventEvent",
             "settings.join_stop": "#/components/schemas/JoinStopEvent",
             "settings.upload_pause": "#/components/schemas/UploadPauseEvent",
             "settings.upload_stop": "#/components/schemas/UploadStopEvent",
@@ -187,6 +189,12 @@
           },
           {
             "$ref": "#/components/schemas/JoinStopEvent"
+          },
+          {
+            "$ref": "#/components/schemas/SettingsEventEvent"
+          },
+          {
+            "$ref": "#/components/schemas/ExtensionSettingsEvent"
           },
           {
             "$ref": "#/components/schemas/ExportUpdatedEvent"
@@ -400,6 +408,22 @@
           "user"
         ],
         "title": "AdminPhoto",
+        "type": "object"
+      },
+      "AdminSettingsOut": {
+        "properties": {
+          "event": {
+            "$ref": "#/components/schemas/EventSettings"
+          },
+          "password": {
+            "$ref": "#/components/schemas/PasswordState"
+          }
+        },
+        "required": [
+          "event",
+          "password"
+        ],
+        "title": "AdminSettingsOut",
         "type": "object"
       },
       "AdminUser": {
@@ -840,6 +864,52 @@
         "title": "BoothFilter",
         "type": "object"
       },
+      "BoothFilterSetting": {
+        "properties": {
+          "enabled": {
+            "title": "Enabled",
+            "type": "boolean"
+          },
+          "icon": {
+            "title": "Icon",
+            "type": "string"
+          },
+          "id": {
+            "pattern": "^[a-z][a-z0-9-]{0,31}$",
+            "title": "Id",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "icon",
+          "enabled"
+        ],
+        "title": "BoothFilterSetting",
+        "type": "object"
+      },
+      "BoothFilterSettingsOut": {
+        "properties": {
+          "filters": {
+            "description": "Every filter of the catalogue, in strip order.",
+            "items": {
+              "$ref": "#/components/schemas/BoothFilterSetting"
+            },
+            "title": "Filters",
+            "type": "array"
+          }
+        },
+        "required": [
+          "filters"
+        ],
+        "title": "BoothFilterSettingsOut",
+        "type": "object"
+      },
       "BoothFilters": {
         "properties": {
           "filters": {
@@ -855,6 +925,25 @@
           "filters"
         ],
         "title": "BoothFilters",
+        "type": "object"
+      },
+      "BoothFiltersIn": {
+        "properties": {
+          "enabled": {
+            "description": "The filters guests get, at least one (empty: 400 `no_filter_enabled`).",
+            "items": {
+              "pattern": "^[a-z][a-z0-9-]{0,31}$",
+              "type": "string"
+            },
+            "maxItems": 50,
+            "title": "Enabled",
+            "type": "array"
+          }
+        },
+        "required": [
+          "enabled"
+        ],
+        "title": "BoothFiltersIn",
         "type": "object"
       },
       "BoothStats": {
@@ -1393,6 +1482,11 @@
               "invalid_cursor",
               "no_fingerprint",
               "restore_required",
+              "invalid_event_name",
+              "password_too_short",
+              "password_unchanged",
+              "no_filter_enabled",
+              "unknown_filter",
               "export_not_ready",
               "export_running",
               "base_url_required",
@@ -1424,6 +1518,138 @@
           "message"
         ],
         "title": "ErrorBody",
+        "type": "object"
+      },
+      "EventNameIn": {
+        "properties": {
+          "name": {
+            "anyOf": [
+              {
+                "maxLength": 200,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "1–60 characters after normalising (whitespace runs become one space); null or blank: back to VB_PARTY_NAME.",
+            "title": "Name"
+          }
+        },
+        "required": [
+          "name"
+        ],
+        "title": "EventNameIn",
+        "type": "object"
+      },
+      "EventSettings": {
+        "description": "The event name everywhere guests see it (Start, join sheet title, the\nFotobox's party frame, posters, archive manifest).",
+        "properties": {
+          "by": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Who set it (audit actor); null: never.",
+            "title": "By"
+          },
+          "custom": {
+            "description": "The host set a name in the admin.",
+            "title": "Custom",
+            "type": "boolean"
+          },
+          "default_name": {
+            "description": "VB_PARTY_NAME (default „Party“).",
+            "title": "Default Name",
+            "type": "string"
+          },
+          "name": {
+            "description": "The name in use: the host's, else `default_name`.",
+            "title": "Name",
+            "type": "string"
+          },
+          "updated_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "When the host set it; null: never.",
+            "title": "Updated At"
+          }
+        },
+        "required": [
+          "name",
+          "default_name",
+          "custom",
+          "updated_at",
+          "by"
+        ],
+        "title": "EventSettings",
+        "type": "object"
+      },
+      "EventSettingsOut": {
+        "properties": {
+          "by": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Who set it (audit actor); null: never.",
+            "title": "By"
+          },
+          "changed": {
+            "title": "Changed",
+            "type": "boolean"
+          },
+          "custom": {
+            "description": "The host set a name in the admin.",
+            "title": "Custom",
+            "type": "boolean"
+          },
+          "default_name": {
+            "description": "VB_PARTY_NAME (default „Party“).",
+            "title": "Default Name",
+            "type": "string"
+          },
+          "name": {
+            "description": "The name in use: the host's, else `default_name`.",
+            "title": "Name",
+            "type": "string"
+          },
+          "updated_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "When the host set it; null: never.",
+            "title": "Updated At"
+          }
+        },
+        "required": [
+          "name",
+          "default_name",
+          "custom",
+          "updated_at",
+          "by",
+          "changed"
+        ],
+        "title": "EventSettingsOut",
         "type": "object"
       },
       "ExportCreatedOut": {
@@ -1757,6 +1983,45 @@
           "hidden"
         ],
         "title": "ExtensionCountOut",
+        "type": "object"
+      },
+      "ExtensionSettingsData": {
+        "properties": {
+          "id": {
+            "description": "The extension whose settings changed.",
+            "title": "Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id"
+        ],
+        "title": "ExtensionSettingsData",
+        "type": "object"
+      },
+      "ExtensionSettingsEvent": {
+        "description": "An extension's admin settings changed (e.g. the Fotobox filters): refetch them.",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/ExtensionSettingsData"
+          },
+          "id": {
+            "description": "`<epoch>-<n>`: the SSE `id:` line.",
+            "title": "Id",
+            "type": "string"
+          },
+          "type": {
+            "const": "extension.settings",
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "type",
+          "id",
+          "data"
+        ],
+        "title": "ExtensionSettingsEvent",
         "type": "object"
       },
       "ExtensionsOut": {
@@ -2744,6 +3009,78 @@
         "title": "OverviewScans",
         "type": "object"
       },
+      "PasswordChangeIn": {
+        "properties": {
+          "current": {
+            "maxLength": 256,
+            "title": "Current",
+            "type": "string"
+          },
+          "new": {
+            "description": "At least 12 characters.",
+            "maxLength": 256,
+            "title": "New",
+            "type": "string"
+          }
+        },
+        "required": [
+          "current",
+          "new"
+        ],
+        "title": "PasswordChangeIn",
+        "type": "object"
+      },
+      "PasswordChangedOut": {
+        "properties": {
+          "ok": {
+            "const": true,
+            "title": "Ok",
+            "type": "boolean"
+          },
+          "sessions_ended": {
+            "description": "Other admin sessions that were logged out.",
+            "title": "Sessions Ended",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "ok",
+          "sessions_ended"
+        ],
+        "title": "PasswordChangedOut",
+        "type": "object"
+      },
+      "PasswordState": {
+        "properties": {
+          "changed_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "When it was set; null for env.",
+            "title": "Changed At"
+          },
+          "source": {
+            "description": "env: VB_ADMIN_PASSWORD applies; admin: the password set in the admin (or by `virtubooth reset-admin-password`), VB_ADMIN_PASSWORD no longer logs in.",
+            "enum": [
+              "env",
+              "admin"
+            ],
+            "title": "Source",
+            "type": "string"
+          }
+        },
+        "required": [
+          "source",
+          "changed_at"
+        ],
+        "title": "PasswordState",
+        "type": "object"
+      },
       "PauseIn": {
         "properties": {
           "enabled": {
@@ -3237,6 +3574,43 @@
           "authenticated"
         ],
         "title": "SessionOut",
+        "type": "object"
+      },
+      "SettingsEventData": {
+        "properties": {
+          "event": {
+            "$ref": "#/components/schemas/EventSettings"
+          }
+        },
+        "required": [
+          "event"
+        ],
+        "title": "SettingsEventData",
+        "type": "object"
+      },
+      "SettingsEventEvent": {
+        "description": "The event name was set or reset.",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/SettingsEventData"
+          },
+          "id": {
+            "description": "`<epoch>-<n>`: the SSE `id:` line.",
+            "title": "Id",
+            "type": "string"
+          },
+          "type": {
+            "const": "settings.event",
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "type",
+          "id",
+          "data"
+        ],
+        "title": "SettingsEventEvent",
         "type": "object"
       },
       "StatsOut": {
@@ -7604,6 +7978,332 @@
         ]
       }
     },
+    "/api/admin/settings": {
+      "get": {
+        "description": "The event name and where the admin password comes from.",
+        "operationId": "get_settings_api_admin_settings_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminSettingsOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Invalid input (see `error`)"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Needs consent or an admin session"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Forbidden: banned, paused, stopped, joining closed or a foreign Origin (CSRF)"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Not found, or no party access (`scan_qr`)"
+          },
+          "411": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Content-Length required"
+          },
+          "413": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Request too large"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Request validation failed (`invalid_request`)"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Rate limited (`Retry-After` header)"
+          }
+        },
+        "summary": "Get Settings",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/api/admin/settings/event": {
+      "put": {
+        "description": "Set the event name, or reset it to VB_PARTY_NAME (null or blank).\n400 `invalid_event_name`.",
+        "operationId": "set_event_name_api_admin_settings_event_put",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EventNameIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EventSettingsOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Invalid input (see `error`)"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Needs consent or an admin session"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Forbidden: banned, paused, stopped, joining closed or a foreign Origin (CSRF)"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Not found, or no party access (`scan_qr`)"
+          },
+          "411": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Content-Length required"
+          },
+          "413": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Request too large"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Request validation failed (`invalid_request`)"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Rate limited (`Retry-After` header)"
+          }
+        },
+        "summary": "Set Event Name",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/api/admin/settings/password": {
+      "post": {
+        "description": "Change the admin password. This session stays, every other one ends.\n400 `password_too_short` / `password_unchanged`; 403 `wrong_password` (the\ncurrent one is wrong); 429 `rate_limited` / `login_locked` (the login's limits).",
+        "operationId": "change_password_api_admin_settings_password_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PasswordChangeIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PasswordChangedOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Invalid input (see `error`)"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Needs consent or an admin session"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Forbidden: banned, paused, stopped, joining closed or a foreign Origin (CSRF)"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Not found, or no party access (`scan_qr`)"
+          },
+          "411": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Content-Length required"
+          },
+          "413": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Request too large"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Request validation failed (`invalid_request`)"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Rate limited (`Retry-After` header)"
+          }
+        },
+        "summary": "Change Password",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
     "/api/admin/stats": {
       "get": {
         "operationId": "stats_api_admin_stats_get",
@@ -8808,6 +9508,218 @@
         ]
       }
     },
+    "/api/admin/x/booth/filters": {
+      "get": {
+        "description": "Every filter with whether guests get it.",
+        "operationId": "get_filter_settings_api_admin_x_booth_filters_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BoothFilterSettingsOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Invalid input (see `error`)"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Needs consent or an admin session"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Forbidden: banned, paused, stopped, joining closed or a foreign Origin (CSRF)"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Not found, or no party access (`scan_qr`)"
+          },
+          "411": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Content-Length required"
+          },
+          "413": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Request too large"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Request validation failed (`invalid_request`)"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Rate limited (`Retry-After` header)"
+          }
+        },
+        "summary": "Get Filter Settings",
+        "tags": [
+          "extension:booth"
+        ]
+      },
+      "put": {
+        "description": "Which filters guests get (the others are off). 400 `no_filter_enabled`\nfor an empty list, `unknown_filter` for an id not in the catalogue.",
+        "operationId": "set_filter_settings_api_admin_x_booth_filters_put",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BoothFiltersIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BoothFilterSettingsOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Invalid input (see `error`)"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Needs consent or an admin session"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Forbidden: banned, paused, stopped, joining closed or a foreign Origin (CSRF)"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Not found, or no party access (`scan_qr`)"
+          },
+          "411": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Content-Length required"
+          },
+          "413": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Request too large"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Request validation failed (`invalid_request`)"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Rate limited (`Retry-After` header)"
+          }
+        },
+        "summary": "Set Filter Settings",
+        "tags": [
+          "extension:booth"
+        ]
+      }
+    },
     "/api/extensions": {
       "get": {
         "description": "The activities on the start screen, in their configured order.",
@@ -9470,7 +10382,7 @@
     },
     "/api/x/booth/filters": {
       "get": {
-        "description": "The filter catalogue (ids, German names, icons) in strip order.",
+        "description": "The filters the host has on (ids, German names, icons), in strip order.",
         "operationId": "filters_api_x_booth_filters_get",
         "responses": {
           "200": {

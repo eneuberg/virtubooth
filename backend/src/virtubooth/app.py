@@ -8,12 +8,13 @@ from collections.abc import AsyncIterator, Sequence
 from contextlib import asynccontextmanager
 
 from anyio import to_thread
-from fastapi import FastAPI, Request
+from fastapi import Depends, FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse, Response
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from . import __version__
+from .api.deps import require_admin
 from .api.routers import guest, health, media, uploads
 from .api.routers.admin import auth as admin_auth
 from .api.routers.admin import router as admin_router
@@ -96,6 +97,14 @@ def create_app(settings: Settings, *, extensions: Sequence[Extension] | None = N
                 tags=[f"extension:{ext.id}"],
                 responses=errors.error_responses(404, 422, 429),
             )
+        if ext.admin_router is not None:
+            app.include_router(
+                ext.admin_router,
+                prefix=f"/api/admin/x/{ext.id}",
+                dependencies=[Depends(require_admin)],
+                tags=[f"extension:{ext.id}"],
+                responses=errors.error_responses(400, 401, 403, 404, 411, 413, 422, 429),
+            )
     app.include_router(web_routes.router)
 
     # last added = outermost
@@ -111,6 +120,14 @@ def create_app_from_env() -> FastAPI:
         log.warning(
             "VB_COOKIE_SECURE=false while VB_PUBLIC_BASE_URL is https: cookies may leak over http"
         )
-    for warning in admin_password_warnings(settings.admin_password.get_secret_value()):
-        log.warning(warning)
-    return create_app(settings)
+    app = create_app(settings)
+    core: Core = app.state.core
+    if core.services.admin_auth.password_source() == "env":
+        for warning in admin_password_warnings(settings.admin_password.get_secret_value()):
+            log.warning(warning)
+    else:
+        log.info(
+            "admin password: set in the admin UI (VB_ADMIN_PASSWORD is not used; "
+            "reset: virtubooth reset-admin-password)"
+        )
+    return app

@@ -501,6 +501,69 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/admin/settings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Settings
+         * @description The event name and where the admin password comes from.
+         */
+        get: operations["get_settings_api_admin_settings_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/settings/event": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Set Event Name
+         * @description Set the event name, or reset it to VB_PARTY_NAME (null or blank).
+         *     400 `invalid_event_name`.
+         */
+        put: operations["set_event_name_api_admin_settings_event_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/settings/password": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Change Password
+         * @description Change the admin password. This session stays, every other one ends.
+         *     400 `password_too_short` / `password_unchanged`; 403 `wrong_password` (the
+         *     current one is wrong); 429 `rate_limited` / `login_locked` (the login's limits).
+         */
+        post: operations["change_password_api_admin_settings_password_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/admin/stats": {
         parameters: {
             query?: never;
@@ -655,6 +718,31 @@ export interface paths {
          * @description Pause or allow one guest's uploads (not a ban: photos stay up).
          */
         post: operations["set_user_uploads_api_admin_users__user_id__uploads_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/x/booth/filters": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Filter Settings
+         * @description Every filter with whether guests get it.
+         */
+        get: operations["get_filter_settings_api_admin_x_booth_filters_get"];
+        /**
+         * Set Filter Settings
+         * @description Which filters guests get (the others are off). 400 `no_filter_enabled`
+         *     for an empty list, `unknown_filter` for an id not in the catalogue.
+         */
+        put: operations["set_filter_settings_api_admin_x_booth_filters_put"];
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -817,7 +905,7 @@ export interface paths {
         };
         /**
          * Filters
-         * @description The filter catalogue (ids, German names, icons) in strip order.
+         * @description The filters the host has on (ids, German names, icons), in strip order.
          */
         get: operations["filters_api_x_booth_filters_get"];
         put?: never;
@@ -980,7 +1068,7 @@ export interface components {
          * AdminEvent
          * @description One message of the admin event stream, discriminated by `type`.
          */
-        AdminEvent: components["schemas"]["PhotoCreatedEvent"] | components["schemas"]["PhotoHiddenEvent"] | components["schemas"]["PhotoUnhiddenEvent"] | components["schemas"]["PhotoDeletedEvent"] | components["schemas"]["UserCreatedEvent"] | components["schemas"]["UserBannedEvent"] | components["schemas"]["UserUnbannedEvent"] | components["schemas"]["FingerprintBannedEvent"] | components["schemas"]["FingerprintUnbannedEvent"] | components["schemas"]["UploadsChangedEvent"] | components["schemas"]["UploadStopEvent"] | components["schemas"]["UploadPauseEvent"] | components["schemas"]["JoinStopEvent"] | components["schemas"]["ExportUpdatedEvent"] | components["schemas"]["ExportDeletedEvent"] | components["schemas"]["InstagramDoneEvent"] | components["schemas"]["CodeChangedEvent"] | components["schemas"]["StreamResyncEvent"];
+        AdminEvent: components["schemas"]["PhotoCreatedEvent"] | components["schemas"]["PhotoHiddenEvent"] | components["schemas"]["PhotoUnhiddenEvent"] | components["schemas"]["PhotoDeletedEvent"] | components["schemas"]["UserCreatedEvent"] | components["schemas"]["UserBannedEvent"] | components["schemas"]["UserUnbannedEvent"] | components["schemas"]["FingerprintBannedEvent"] | components["schemas"]["FingerprintUnbannedEvent"] | components["schemas"]["UploadsChangedEvent"] | components["schemas"]["UploadStopEvent"] | components["schemas"]["UploadPauseEvent"] | components["schemas"]["JoinStopEvent"] | components["schemas"]["SettingsEventEvent"] | components["schemas"]["ExtensionSettingsEvent"] | components["schemas"]["ExportUpdatedEvent"] | components["schemas"]["ExportDeletedEvent"] | components["schemas"]["InstagramDoneEvent"] | components["schemas"]["CodeChangedEvent"] | components["schemas"]["StreamResyncEvent"];
         /** AdminExtension */
         AdminExtension: {
             /** Emoji */
@@ -1049,6 +1137,11 @@ export interface components {
             user: components["schemas"]["PhotoUser"];
             /** Width */
             width: number;
+        };
+        /** AdminSettingsOut */
+        AdminSettingsOut: {
+            event: components["schemas"]["EventSettings"];
+            password: components["schemas"]["PasswordState"];
         };
         /**
          * AdminUser
@@ -1235,6 +1328,25 @@ export interface components {
             /** Name */
             name: string;
         };
+        /** BoothFilterSetting */
+        BoothFilterSetting: {
+            /** Enabled */
+            enabled: boolean;
+            /** Icon */
+            icon: string;
+            /** Id */
+            id: string;
+            /** Name */
+            name: string;
+        };
+        /** BoothFilterSettingsOut */
+        BoothFilterSettingsOut: {
+            /**
+             * Filters
+             * @description Every filter of the catalogue, in strip order.
+             */
+            filters: components["schemas"]["BoothFilterSetting"][];
+        };
         /** BoothFilters */
         BoothFilters: {
             /**
@@ -1242,6 +1354,14 @@ export interface components {
              * @description In strip order; the first is the default.
              */
             filters: components["schemas"]["BoothFilter"][];
+        };
+        /** BoothFiltersIn */
+        BoothFiltersIn: {
+            /**
+             * Enabled
+             * @description The filters guests get, at least one (empty: 400 `no_filter_enabled`).
+             */
+            enabled: string[];
         };
         /** BoothStats */
         BoothStats: {
@@ -1478,12 +1598,82 @@ export interface components {
              * @description Machine-readable error code.
              * @enum {string}
              */
-            error: "scan_qr" | "needs_consent" | "banned" | "consent_outdated" | "invalid_instagram" | "join_closed" | "uploads_paused" | "uploads_stopped" | "unsupported_type" | "too_large" | "invalid_meta" | "empty_upload" | "invalid_image" | "admin_required" | "wrong_password" | "login_locked" | "invalid_filter" | "invalid_cursor" | "no_fingerprint" | "restore_required" | "export_not_ready" | "export_running" | "base_url_required" | "invalid_base_url" | "invalid_token" | "token_taken" | "code_revoked" | "invalid_target" | "invalid_note" | "bad_origin" | "length_required" | "rate_limited" | "invalid_request" | "not_found" | "http_404" | "http_405";
+            error: "scan_qr" | "needs_consent" | "banned" | "consent_outdated" | "invalid_instagram" | "join_closed" | "uploads_paused" | "uploads_stopped" | "unsupported_type" | "too_large" | "invalid_meta" | "empty_upload" | "invalid_image" | "admin_required" | "wrong_password" | "login_locked" | "invalid_filter" | "invalid_cursor" | "no_fingerprint" | "restore_required" | "invalid_event_name" | "password_too_short" | "password_unchanged" | "no_filter_enabled" | "unknown_filter" | "export_not_ready" | "export_running" | "base_url_required" | "invalid_base_url" | "invalid_token" | "token_taken" | "code_revoked" | "invalid_target" | "invalid_note" | "bad_origin" | "length_required" | "rate_limited" | "invalid_request" | "not_found" | "http_404" | "http_405";
             /**
              * Message
              * @description German text for the guest or admin, shown as-is.
              */
             message: string;
+        };
+        /** EventNameIn */
+        EventNameIn: {
+            /**
+             * Name
+             * @description 1–60 characters after normalising (whitespace runs become one space); null or blank: back to VB_PARTY_NAME.
+             */
+            name: string | null;
+        };
+        /**
+         * EventSettings
+         * @description The event name everywhere guests see it (Start, join sheet title, the
+         *     Fotobox's party frame, posters, archive manifest).
+         */
+        EventSettings: {
+            /**
+             * By
+             * @description Who set it (audit actor); null: never.
+             */
+            by: string | null;
+            /**
+             * Custom
+             * @description The host set a name in the admin.
+             */
+            custom: boolean;
+            /**
+             * Default Name
+             * @description VB_PARTY_NAME (default „Party“).
+             */
+            default_name: string;
+            /**
+             * Name
+             * @description The name in use: the host's, else `default_name`.
+             */
+            name: string;
+            /**
+             * Updated At
+             * @description When the host set it; null: never.
+             */
+            updated_at: string | null;
+        };
+        /** EventSettingsOut */
+        EventSettingsOut: {
+            /**
+             * By
+             * @description Who set it (audit actor); null: never.
+             */
+            by: string | null;
+            /** Changed */
+            changed: boolean;
+            /**
+             * Custom
+             * @description The host set a name in the admin.
+             */
+            custom: boolean;
+            /**
+             * Default Name
+             * @description VB_PARTY_NAME (default „Party“).
+             */
+            default_name: string;
+            /**
+             * Name
+             * @description The name in use: the host's, else `default_name`.
+             */
+            name: string;
+            /**
+             * Updated At
+             * @description When the host set it; null: never.
+             */
+            updated_at: string | null;
         };
         /**
          * ExportCreatedOut
@@ -1629,6 +1819,31 @@ export interface components {
             hidden: number;
             /** Photos */
             photos: number;
+        };
+        /** ExtensionSettingsData */
+        ExtensionSettingsData: {
+            /**
+             * Id
+             * @description The extension whose settings changed.
+             */
+            id: string;
+        };
+        /**
+         * ExtensionSettingsEvent
+         * @description An extension's admin settings changed (e.g. the Fotobox filters): refetch them.
+         */
+        ExtensionSettingsEvent: {
+            data: components["schemas"]["ExtensionSettingsData"];
+            /**
+             * Id
+             * @description `<epoch>-<n>`: the SSE `id:` line.
+             */
+            id: string;
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            type: "extension.settings";
         };
         /** ExtensionsOut */
         ExtensionsOut: {
@@ -2117,6 +2332,43 @@ export interface components {
              */
             waiting_now: number;
         };
+        /** PasswordChangeIn */
+        PasswordChangeIn: {
+            /** Current */
+            current: string;
+            /**
+             * New
+             * @description At least 12 characters.
+             */
+            new: string;
+        };
+        /** PasswordChangedOut */
+        PasswordChangedOut: {
+            /**
+             * Ok
+             * @constant
+             */
+            ok: true;
+            /**
+             * Sessions Ended
+             * @description Other admin sessions that were logged out.
+             */
+            sessions_ended: number;
+        };
+        /** PasswordState */
+        PasswordState: {
+            /**
+             * Changed At
+             * @description When it was set; null for env.
+             */
+            changed_at: string | null;
+            /**
+             * Source
+             * @description env: VB_ADMIN_PASSWORD applies; admin: the password set in the admin (or by `virtubooth reset-admin-password`), VB_ADMIN_PASSWORD no longer logs in.
+             * @enum {string}
+             */
+            source: "env" | "admin";
+        };
         /** PauseIn */
         PauseIn: {
             /** Enabled */
@@ -2311,6 +2563,27 @@ export interface components {
         SessionOut: {
             /** Authenticated */
             authenticated: boolean;
+        };
+        /** SettingsEventData */
+        SettingsEventData: {
+            event: components["schemas"]["EventSettings"];
+        };
+        /**
+         * SettingsEventEvent
+         * @description The event name was set or reset.
+         */
+        SettingsEventEvent: {
+            data: components["schemas"]["SettingsEventData"];
+            /**
+             * Id
+             * @description `<epoch>-<n>`: the SSE `id:` line.
+             */
+            id: string;
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            type: "settings.event";
         };
         /** StatsOut */
         StatsOut: {
@@ -5551,6 +5824,290 @@ export interface operations {
             };
         };
     };
+    get_settings_api_admin_settings_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminSettingsOut"];
+                };
+            };
+            /** @description Invalid input (see `error`) */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Needs consent or an admin session */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Forbidden: banned, paused, stopped, joining closed or a foreign Origin (CSRF) */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Not found, or no party access (`scan_qr`) */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Content-Length required */
+            411: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Request too large */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Request validation failed (`invalid_request`) */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Rate limited (`Retry-After` header) */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    set_event_name_api_admin_settings_event_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["EventNameIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EventSettingsOut"];
+                };
+            };
+            /** @description Invalid input (see `error`) */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Needs consent or an admin session */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Forbidden: banned, paused, stopped, joining closed or a foreign Origin (CSRF) */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Not found, or no party access (`scan_qr`) */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Content-Length required */
+            411: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Request too large */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Request validation failed (`invalid_request`) */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Rate limited (`Retry-After` header) */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    change_password_api_admin_settings_password_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PasswordChangeIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PasswordChangedOut"];
+                };
+            };
+            /** @description Invalid input (see `error`) */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Needs consent or an admin session */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Forbidden: banned, paused, stopped, joining closed or a foreign Origin (CSRF) */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Not found, or no party access (`scan_qr`) */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Content-Length required */
+            411: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Request too large */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Request validation failed (`invalid_request`) */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Rate limited (`Retry-After` header) */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
     stats_api_admin_stats_get: {
         parameters: {
             query?: never;
@@ -6432,6 +6989,194 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["UserUploadsOut"];
+                };
+            };
+            /** @description Invalid input (see `error`) */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Needs consent or an admin session */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Forbidden: banned, paused, stopped, joining closed or a foreign Origin (CSRF) */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Not found, or no party access (`scan_qr`) */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Content-Length required */
+            411: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Request too large */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Request validation failed (`invalid_request`) */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Rate limited (`Retry-After` header) */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    get_filter_settings_api_admin_x_booth_filters_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BoothFilterSettingsOut"];
+                };
+            };
+            /** @description Invalid input (see `error`) */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Needs consent or an admin session */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Forbidden: banned, paused, stopped, joining closed or a foreign Origin (CSRF) */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Not found, or no party access (`scan_qr`) */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Content-Length required */
+            411: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Request too large */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Request validation failed (`invalid_request`) */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Rate limited (`Retry-After` header) */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    set_filter_settings_api_admin_x_booth_filters_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BoothFiltersIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BoothFilterSettingsOut"];
                 };
             };
             /** @description Invalid input (see `error`) */

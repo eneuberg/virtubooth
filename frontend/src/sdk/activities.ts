@@ -22,6 +22,13 @@ export interface Activity {
 
 export const ACTIVITIES_KEY = ['extensions'] as const;
 
+/**
+ * How often the list is fetched again while the page is visible (React Query pauses it
+ * in the background): the host may rename the event in the admin, and guests have no
+ * event stream.
+ */
+export const ACTIVITIES_REFRESH_MS = 60_000;
+
 export function fetchActivities(): Promise<ExtensionsResponse> {
   return unwrap(api.GET('/api/extensions'));
 }
@@ -38,12 +45,13 @@ export function toActivities(extensions: ReadonlyArray<PublicExtension>): Activi
     }));
 }
 
-/** The party's name, its Instagram account and the activities (cached for 5 min). */
+/** The party's name, its Instagram account and the activities (refetched every minute). */
 export function useActivities() {
   return useQuery({
     queryKey: ACTIVITIES_KEY,
     queryFn: fetchActivities,
     staleTime: 5 * 60_000,
+    refetchInterval: ACTIVITIES_REFRESH_MS,
     select: (data) => ({
       partyName: data.party_name,
       instagramAccount: data.instagram_account,

@@ -9,6 +9,7 @@ from .admin_auth import AdminAuthService
 from .codes import CodesService
 from .events import AdminEvents
 from .exports import ExportService
+from .host_settings import HostSettingsService
 from .identity import IdentityService
 from .instagram import InstagramService
 from .join_controls import JoinControlsService
@@ -33,6 +34,7 @@ class Services:
     upload_controls: UploadControlsService
     admin_auth: AdminAuthService
     exports: ExportService
+    host_settings: HostSettingsService
     instagram: InstagramService
     join_controls: JoinControlsService
     presence: PresenceService
@@ -52,6 +54,7 @@ class Services:
             upload_controls=UploadControlsService(db, repos, events, views),
             admin_auth=AdminAuthService(core, db, repos),
             exports=ExportService(core, db, repos, events),
+            host_settings=HostSettingsService(core, db, repos, events),
             instagram=InstagramService(db, repos, events),
             join_controls=JoinControlsService(db, repos, events),
             presence=PresenceService(core, repos),

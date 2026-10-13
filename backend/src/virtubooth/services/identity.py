@@ -117,9 +117,10 @@ class IdentityService:
     def consent_info(self) -> ConsentInfo:
         s = self.core.settings
         insta = f" ({s.instagram_account})" if s.instagram_account else ""
+        name = self.core.services.host_settings.event_name()
         return ConsentInfo(
             version=s.consent_version,
-            title=f"Willkommen bei {s.party_name}!",
+            title=f"Willkommen bei {name}!",
             paragraphs=[
                 "Kurz bevor’s losgeht: Wenn du hier Fotos machst, speichern wir sie "
                 f"und dürfen sie auf Instagram{insta} posten.",
@@ -133,7 +134,7 @@ class IdentityService:
             ],
             instagram_prompt="Instagram-Name (freiwillig). Dann können wir dich markieren.",
             accept_label="Alles klar, los geht’s!",
-            party_name=s.party_name,
+            party_name=name,
             instagram_account=s.instagram_account,
         )
 

@@ -137,7 +137,7 @@ def list_extensions(core: CoreDep) -> ExtensionsOut:
     """The activities on the start screen, in their configured order."""
     s = core.settings
     return ExtensionsOut(
-        party_name=s.party_name,
+        party_name=core.services.host_settings.event_name(),
         instagram_account=s.instagram_account,
         extensions=[
             PublicExtension(

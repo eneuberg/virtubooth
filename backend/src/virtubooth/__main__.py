@@ -1,4 +1,5 @@
-"""CLI: `virtubooth serve` (default), `virtubooth gen-env`, `virtubooth export-openapi`."""
+"""CLI: `virtubooth serve` (default), `virtubooth gen-env`, `virtubooth export-openapi`,
+`virtubooth reset-admin-password`."""
 
 from __future__ import annotations
 
@@ -64,6 +65,16 @@ def main(argv: list[str] | None = None) -> None:
         "export-openapi", help="write the OpenAPI schema (JSON) for the frontend's typed client"
     )
     export.add_argument("-o", "--out", required=True, metavar="PATH", help="output file, or -")
+    from .tools import admin_password
+
+    reset = sub.add_parser(
+        "reset-admin-password",
+        help=admin_password.HELP,
+        description=admin_password.DESCRIPTION,
+        epilog=admin_password.EPILOG,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+    admin_password.add_arguments(reset)
     args = parser.parse_args(argv)
 
     if args.cmd == "gen-env":
@@ -74,6 +85,9 @@ def main(argv: list[str] | None = None) -> None:
 
         export_openapi(args.out)
         return
+    if args.cmd == "reset-admin-password":
+        # the subcommand is always the first argument (no global options)
+        raise SystemExit(admin_password.main((sys.argv[1:] if argv is None else argv)[1:]))
     if args.cmd is None:
         args = parser.parse_args(["serve", *(argv or sys.argv[1:])])
 
