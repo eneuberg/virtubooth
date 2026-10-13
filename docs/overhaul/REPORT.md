@@ -19,6 +19,9 @@ bis zum Merge `01960c7`, dann die Nacharbeiten (Branches `fin/*`), alle in das l
   `docs/FEATURES.md`.
 - QA: jede Anforderung einmal im Browser durchgespielt (Gast und Admin). Kein
   Funktionsfehler im Admin; auf der Gastseite fünf Fehler gefunden und behoben.
+- Tests laufen parallel: ein Browser-Durchlauf dauert 2–2,5 statt 8–10 Minuten.
+  `make check` (Alltag) braucht 2:24 min, `make check-all` (alles inkl. Firefox,
+  WebKit, Docker) 7:26 min.
 - Sicherheitsreview: 0 kritisch, 0 hoch, 1 mittel, 5 niedrig, 9 Info. Der mittlere
   und alle niedrigen Befunde sind behoben.
 - Dringend: SEC-13 heute ab 18:30 Uhr erledigen (siehe Todos).
@@ -127,6 +130,20 @@ virtubooth/
 - **`docs/FEATURES.md`**: vollständige Funktionsliste auf Deutsch, gegen den Code
   geprüft. Dabei wurden elf veraltete Stellen in README, DEPLOY, ARCHITECTURE und
   diesem Bericht korrigiert.
+- **Schnellere Tests** (Branch `fin/test-speed`, App-Code unverändert):
+  - Die Browser-Tests laufen mit pytest-xdist in 4 Prozessen (`E2E_WORKERS=4`), jeder
+    Test hat weiter seinen eigenen Server, Datenordner und Port.
+  - Playwrights Warten prüft alle 100 ms statt alle 500 ms (`tests/e2e/fastpoll.py`,
+    abschaltbar mit `VB_E2E_SLOW_POLL=1`). Allein das spart etwa ein Sechstel.
+  - Einige Tests warten jetzt auf den echten Zustand, statt ihm hinterherzulaufen
+    (keine Wiederholungen, keine Sonderbehandlung). Firefox bekommt einen Workaround
+    für einen Playwright-Fehler, bei dem `goto()` 30 s hing.
+  - WebKit: die Software-Grafik (llvmpipe) auf 4 Threads begrenzt, sonst bremsten sich
+    die parallelen Kamera-Tests gegenseitig aus.
+  - `make check` ist jetzt der schnelle Alltags-Check (OpenAPI-Abgleich, dann Lint,
+    Typecheck und Tests nebeneinander, dann Chromium). `make check-all` macht alles.
+    Neu: `make e2e-changed` (nur geänderte e2e-Tests). `frontend/dist` wird nur neu
+    gebaut, wenn sich in `frontend/` etwas geändert hat. Die CI nutzt ebenfalls 4 Prozesse.
 
 ## Funktionen: neu und vorher
 
@@ -200,13 +217,30 @@ Platzprüfung und Aufräumen). Offen: SEC-13 (siehe Todos). Details:
 
 | Lauf | Was | Ergebnis |
 |---|---|---|
-| `make check` | Lint, Typecheck, Tests, OpenAPI-Abgleich | grün (alles unten in einem Lauf, Code-Stand `7168423`) |
-| Backend (pytest) | API, Migrationen, Werkzeuge, Web-Auslieferung, Content-Blocker | 529 bestanden, 2 übersprungen |
+Endstand: App-Code wie `7168423`, Test-Harness aus `fin/test-speed`. `make check-all`
+war darauf grün; danach lief `make check` noch einmal auf dem fertigen `main`: grün in
+2:34 min.
+
+| Lauf | Was | Ergebnis |
+|---|---|---|
+| Lint, Typecheck, OpenAPI-Abgleich | ruff, mypy --strict, ESLint, tsc, Schema-Drift | sauber |
+| Backend (pytest) | API, Migrationen, Werkzeuge, Web-Auslieferung, Content-Blocker | 529 bestanden, 2 übersprungen (14 s, vorher 44 s) |
 | Vitest | SDK, Fehlerabbildung, Formatierung, Komponenten | 340 bestanden |
-| e2e Chromium | echte Browser gegen das gebaute Frontend, ohne Konsolenfehler | 191 bestanden, 22 übersprungen, 0 Fehler (8:18 min, seriell) |
-| e2e Firefox | dasselbe in Firefox | 199 bestanden, 14 übersprungen, 0 Fehler (8:52 min, seriell) |
-| e2e WebKit | dasselbe in WebKit (Docker, `run_webkit.sh`) | {{TEST_E2E_WEBKIT}} |
-| `make docker-smoke` | Image bauen, starten, Ende-zu-Ende prüfen | bestanden |
+| e2e Chromium | echte Browser gegen das gebaute Frontend, ohne Konsolenfehler | 191 bestanden, 22 übersprungen, 0 Fehler, 3 Läufe (2:02 min, vorher 8:19) |
+| e2e Firefox | dasselbe in Firefox | 199 bestanden, 14 übersprungen, 0 Fehler, 2 Läufe (2:11 min, vorher 8:52) |
+| e2e WebKit | dasselbe in WebKit (Docker, `run_webkit.sh`) | 188 bestanden, 25 übersprungen, 0 Fehler, 3 Läufe (2:36–2:40 min inkl. Container-Start, vorher 9:55 mit 1 Wackler) |
+| `make docker-smoke` | Image bauen, starten, Ende-zu-Ende prüfen | bestanden (9–15 s mit Build-Cache) |
+
+Spitzen-RAM der Testprozesse mit 4 Workern: Chromium 3,2 GB, Firefox 3,8 GB, WebKit-Container
+4,1 GB. Auf schwächeren Rechnern: `E2E_WORKERS=2` (oder `0` für einen Prozess, z. B. mit `--pdb`).
+
+| Befehl | Was | Dauer |
+|---|---|---|
+| `make check` | OpenAPI-Abgleich, Lint + Typecheck + Tests nebeneinander, e2e Chromium | 2:24 min |
+| `make check-all` | `check` + Firefox + WebKit + Docker-Smoke | 7:26 min |
+| `make test` | pytest + Vitest | 17 s |
+| `make e2e-changed` | nur die seit `main` geänderten e2e-Dateien (alle, wenn ein Helfer geändert wurde) | je nach Umfang |
+| `make e2e E2E_ARGS="tests/e2e/admin -k live"` | gezielt einzelne Tests | je nach Umfang |
 
 ## QA
 
@@ -274,7 +308,7 @@ Firefox geprüft und ist im Testlauf unten enthalten.
    `frontend/pnpm-workspace.yaml` den Block `minimumReleaseAgeExclude` samt Kommentar
    löschen und `cd frontend && pnpm install --frozen-lockfile` ausführen.
 2. **WebKit läuft nicht in der CI.** Das Playwright-Image ist 3,5 GB groß. Lokal:
-   `make e2e-webkit`.
+   `make e2e-webkit` oder alles mit `make check-all`.
 3. **Coolify braucht Zugriff auf das Repo.** Es ist privat, und Coolify hat nur die
    Quelle „Public GitHub“. Nötig ist die GitHub App oder ein Deploy Key (siehe
    `docs/DEPLOY.md`, Abschnitt Coolify).
@@ -316,6 +350,18 @@ Firefox geprüft und ist im Testlauf unten enthalten.
       Vorschaubilder fertig sind (kurz, auf schwachen Geräten länger).
     - Blendet der Admin ein Foto aus, das ein Gast gerade im Viewer ansieht, springt der
       Viewer zum nächsten Foto, statt sich zu schließen.
+17. **Gefunden beim Beschleunigen der Tests (App-Code nicht geändert):**
+    - Firefox/Safari: Startet eine echte Seitennavigation (Adresszeile, externer Link,
+      Zurück zu einer anderen Seite), während noch ein Seitenmodul lädt, bricht der
+      Browser das Laden ab. Die Deploy-Wiederherstellung in `frontend/src/lib/boot.ts`
+      hält das für einen veralteten Build und lädt die aktuelle Seite neu, die
+      Navigation geht verloren. Links innerhalb der App sind nicht betroffen (Client-
+      Routing). Möglicher Fix: Ladefehler ignorieren, sobald die Seite verlassen wird.
+    - Am Handy verdeckt der Rückgängig-Toast in der Verwaltung etwa 7 s lang den Knopf
+      „Endgültig löschen“ und die Viewer-Knöpfe (wie bei Punkt 16).
+    - `test_upload_publishes_event` dauert 5 s: sein Event-Loop wird nie geweckt, weil
+      der Bus an den Loop des TestClients gebunden wird; er endet erst über den eigenen
+      Timeout. Nur ein Testproblem.
 
 ## Starten
 
