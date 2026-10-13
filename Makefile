@@ -19,7 +19,8 @@ PORT ?= 8000
 WEB_PORT ?= 5173
 # the settings `make dev` loads; created with fresh secrets (gen-env) when missing
 ENV_FILE ?= .env
-# VB_DATA_DIR for `make dev` unless ENV_FILE sets one (SQLite + photos)
+# VB_DATA_DIR for `make dev` unless ENV_FILE sets one (SQLite + photos). Relative
+# VB_DATA_DIR / VB_WEB_DIR values in ENV_FILE count from the repository root.
 DATA_DIR ?= $(CURDIR)/data
 # image name for docker / docker-smoke
 IMAGE ?= virtubooth:local
@@ -60,6 +61,8 @@ dev: $(ENV_FILE) ## backend on :PORT with reload; serves frontend/dist, or place
 	  token="$$VB_PARTY_TOKEN" && \
 	  echo "open http://localhost:$(PORT)/?t=$$token (admin: http://localhost:$(PORT)/admin)" && \
 	  export VB_DATA_DIR="$${VB_DATA_DIR:-$(DATA_DIR)}" && \
+	  case "$$VB_DATA_DIR" in /*) ;; *) VB_DATA_DIR="$(CURDIR)/$$VB_DATA_DIR" ;; esac && \
+	  case "$${VB_WEB_DIR:-/}" in /*) ;; *) export VB_WEB_DIR="$(CURDIR)/$$VB_WEB_DIR" ;; esac && \
 	  if [ ! -f frontend/dist/index.html ]; then export VB_DEV=1; fi && \
 	  cd backend && exec uv run virtubooth serve --port $(PORT) --reload
 
