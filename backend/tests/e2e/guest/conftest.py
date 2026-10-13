@@ -20,8 +20,8 @@ from playwright.sync_api import Browser, Page
 
 from ..conftest import LiveServer, new_context, track_errors
 
-# read at import: the shared clean_env fixture removes every VB_* before each test,
-# which would turn the shared shot() helper into a no-op
+# read at import: the shared clean_env fixture removes every VB_* before each test
+# (the shared shot() helper reads its own copy at import too)
 SCREENSHOT_DIR = os.environ.get("VB_SCREENSHOT_DIR", "")
 
 ANDROID_UA = (
@@ -38,12 +38,6 @@ VIEWPORTS = {
     "land": {"width": 844, "height": 390},
     "desk": {"width": 1440, "height": 900},
 }
-
-
-@pytest.fixture(autouse=True)
-def keep_screenshot_dir(clean_env: None, monkeypatch: pytest.MonkeyPatch) -> None:
-    if SCREENSHOT_DIR:
-        monkeypatch.setenv("VB_SCREENSHOT_DIR", SCREENSHOT_DIR)
 
 
 @pytest.fixture

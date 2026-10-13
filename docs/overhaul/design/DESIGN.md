@@ -224,7 +224,7 @@ Every component wraps React Aria with our own classes. Every RAC element gets a 
 ## 4. Rules for wave 2
 
 1. **App roots** wrap in `<UiProvider navigate={…}>`, call `markReady()` (`src/lib/boot.ts`) once rendered, and call `installPreloadRecovery()`.
-2. **CSP.** No `<style>`, no `dangerouslySetInnerHTML`, no eval. `style={{}}` is fine (CSSOM). New libraries must be checked with `scripts/browser-check.py` against a built `dist`. The lint config already bans the known offenders (sonner, vaul, Radix, motion, emotion, styled-components, bare `zod`).
+2. **CSP.** No `<style>`, no `dangerouslySetInnerHTML`, no eval. `style={{}}` is fine (CSSOM). New libraries must pass the e2e suite against a built `dist` in Chromium, Firefox and WebKit (every test ends with zero console errors; `tests/e2e/audit.py` also fails on leaked `react-aria-*` classes; `test_smoke_e2e.py` boots the apps in an English browser). The lint config already bans the known offenders (sonner, vaul, Radix, motion, emotion, styled-components, bare `zod`). (`scripts/browser-check.py`, the wave-1 stand-in for this, is gone.)
 3. **Neutral names** in files, classes, ids and test ids:
    - none of consent, cookie, gdpr, banner, notice, modal, backdrop, privacy, popup, fingerprint, track, beacon, `ad(s)`;
    - examples: `vb-screen` for the full-screen state, `vb-scrim` for overlays, `vb-sheet`, `vb-film`, `vb-activity`.
@@ -261,9 +261,18 @@ Against the web interface guidelines:
 - no `transition: all`;
 - autofocus only on the confirm dialog's cancel button.
 
-## 6. Open points for later waves
+## 6. Open points and later changes
 
-- Fonts are not preloaded: the hashed woff2 names are only known after the build. A tiny Vite plugin could add `<link rel="preload">`. They are small (≤ 77 KB) and swap.
+- **Fonts are not preloaded (decided in wave 3, measured).** A preload of Bricolage's latin file (77 KB; Doto is 6 KB and not on a new guest's first screen) was tried in `dist` against the real server: a new guest's QR entry on a 390×844 phone, Chromium with 4× CPU throttling, cache off, median of 5–9 runs:
+
+  | Link | First paint (join sheet) without → with preload | Font loaded | Without preload |
+  |---|---|---|---|
+  | 9 Mbit/s, 40 ms | 728 → 780 ms | 647 / 390 ms | before the first paint: no swap either way |
+  | 1.6 Mbit/s, 150 ms | 1980 → 2360 ms | 2153 / 1721 ms | swaps 0.2 s after the first paint |
+  | 0.4 Mbit/s, 300 ms (bad party Wi-Fi) | 5524 → 7044 ms | 6685 / 5696 ms | swaps 1.2 s after the first paint |
+
+  The apps paint their text from JavaScript, so nothing can paint before the app's chunks ran; a preload makes the font compete with exactly those for the bandwidth. It only removes the fallback-to-Bricolage swap, and delays the first paint (and LCP) on every link, by up to 1.5 s. `font-display: swap` stays; no preload. Revisit if the first screen becomes server-rendered HTML.
 - The production CSS also contains the gallery's few extra classes, because Tailwind scans the whole frontend. This is negligible.
-- `ActivityShell` is a working first cut (GP owns it). Camera pages still need the real stage (CameraSession) and the camera-specific landscape behaviour.
+- `ActivityShell` (`src/sdk/components/ActivityShell.tsx`) is the camera pages' real layout since wave 2 (AC owns it): header with back link, title and guest pass; the 3:4 stage; the film edge; the strip, hint and controls below. It measures everything but the stage (`--vb-reserve`, a ResizeObserver, applied in the next frame since wave 3) so the stage is as large as the screen allows; on short screens the header lies over the stage, on landscape phones the stage takes the full height on the left. Since wave 3 its root is the page's `<main>` landmark.
+- Activities bring their own live line for Start: the optional lazy `card` slot of `defineExtension` (wave 3; `src/extensions/<id>/…Card.tsx`).
 - The gate page shows both copies to visitors without CSS (it has no JS on purpose).
