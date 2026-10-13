@@ -18,7 +18,7 @@ from virtubooth.extensions.wall.enrichment import (
     load_enrichment,
 )
 
-from ..conftest import ADMIN_PASSWORD, BASE_URL, ORIGIN
+from ..conftest import ADMIN_PASSWORD, BASE_URL, ORIGIN, accept_consent, scan
 from .wall_support import (
     FakeEnrichment,
     age_photos,
@@ -195,13 +195,18 @@ def test_without_analysis(settings, demo_extension, monkeypatch):
     monkeypatch.setattr(enrichment_module.importlib, "import_module", missing)
     app = create_app(settings, extensions=[demo_extension, make_extension()])
     try:
-        with TestClient(app, base_url=BASE_URL) as admin:
+        with TestClient(app, base_url=BASE_URL, follow_redirects=False) as admin:
             admin.post("/api/admin/login", json={"password": ADMIN_PASSWORD}, headers=ORIGIN)
             body = admin.get("/api/x/wall/admin/config").json()
             assert body["categories"] == []
             assert admin.get("/api/x/wall/admin/categories").json() == {"categories": []}
             assert admin.get("/livewall/api/categories").json() == {"categories": []}
-            assert admin.get("/livewall/api/feed").json()["photos"] == []
+            scan(admin)
+            accept_consent(admin)
+            pid = upload(admin)
+            age_photos(app.state.core)
+            (photo,) = admin.get("/livewall/api/feed").json()["photos"]
+            assert photo["id"] == pid and photo["analysis"] == "off" and photo["facts"] == {}
     finally:
         app.state.core.db.close()
 

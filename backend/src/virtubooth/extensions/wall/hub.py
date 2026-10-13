@@ -158,8 +158,9 @@ class WallHub:
                 await to_thread.run_sync(drop_cached, self.core, data["id"])
             elif type_ == "user.banned":
                 self._remove([p["id"] for p in data.get("photos", [])])
-        except (KeyError, TypeError):
-            log.exception("wall: unexpected %s event", type_)
+        except Exception:
+            # never let one odd event stop the translator
+            log.exception("wall: handling a %s event failed", type_)
 
     def _remove(self, ids: Iterable[str]) -> None:
         ids = list(dict.fromkeys(ids))

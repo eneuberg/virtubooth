@@ -89,7 +89,7 @@ def test_feed_shape(wall, guest, core, admin):
             "l": f"/livewall/media/{pid}?s=l",
         },
         "facts": {},
-        "analysis": "off",
+        "analysis": "pending",
     }
     put_config(admin, show_instagram=True)
     (photo,) = wall.get("/livewall/api/feed").json()["photos"]
@@ -100,7 +100,8 @@ def test_analysis_summary_and_public_facts(wall, guest, core, fake):
     pid = upload(guest())
     age_photos(core)
     fake.analysed(
-        internal_id(core, pid), {"people": 3, "faces": 3, "smiles": 2, "sad_max": 0.7, "age_groups": 2}
+        internal_id(core, pid),
+        {"people": 3, "faces": 3, "smiles": 2, "sad_max": 0.7, "age_groups": 2},
     )
     (photo,) = wall.get("/livewall/api/feed").json()["photos"]
     assert photo["analysis"] == "done"
@@ -114,9 +115,7 @@ def test_visibility(wall, guest, admin, core):
     assert feed_ids(wall) == [shown, banned, deleted, hidden]
     admin.post(f"/api/admin/photos/{hidden}/hide", headers=ORIGIN)
     admin.delete(f"/api/admin/photos/{deleted}", headers=ORIGIN)
-    r = admin.post(
-        f"/api/admin/users/{user_of(core, other_guest).id}/ban", json={}, headers=ORIGIN
-    )
+    r = admin.post(f"/api/admin/users/{user_of(core, other_guest).id}/ban", json={}, headers=ORIGIN)
     assert r.status_code == 200, r.text
     assert feed_ids(wall) == [shown]
     assert wall.get("/livewall/api/feed").json()["total"] == 1

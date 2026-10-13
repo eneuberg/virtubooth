@@ -15,7 +15,7 @@ from ...core.clock import iso
 from ...domain.models import Photo
 from ...repositories._rows import PHOTO_COLS, photo_from_row
 from .config import WallConfig
-from .enrichment import PUBLIC_FACTS, Enrichment, PhotoFilter
+from .enrichment import PUBLIC_FACTS, Enrichment, NullEnrichment, PhotoFilter
 from .schemas import AnalysisState, WallPhoto, WallPhotoUrls
 
 if TYPE_CHECKING:
@@ -119,10 +119,12 @@ def wall_photos(
     core: Core, config: WallConfig, enrichment: Enrichment, photos: Sequence[Photo]
 ) -> list[WallPhoto]:
     summaries = enrichment.summaries([p.id for p in photos]) if photos else {}
+    # with an analysis, a photo it has not picked up yet is waiting for it
+    unknown: AnalysisState = "off" if isinstance(enrichment, NullEnrichment) else "pending"
     out: list[WallPhoto] = []
     for p in photos:
         summary = summaries.get(p.id)
-        state: AnalysisState = "off"
+        state = unknown
         facts: dict[str, float] = {}
         if summary is not None:
             if summary.state in _STATES:
