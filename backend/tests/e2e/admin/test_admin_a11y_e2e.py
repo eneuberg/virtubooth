@@ -255,7 +255,6 @@ PAGES = [
     "/admin/manage?tab=protokoll",
     "/admin/manage?tab=export",
     "/admin/user?id={id}",
-    "/admin/login",
 ]
 
 
@@ -275,6 +274,11 @@ def test_no_sideways_scrolling(
     ctx = admin_context(browser, viewport)
     try:
         page = track_errors(ctx.new_page())
+        # the login page first: signed in, it forwards to the live screen
+        goto(page, live, "/admin/login")
+        wait_until(
+            lambda: no_horizontal_scroll(page), timeout=4, what="no sideways scroll on the login"
+        )
         login_api(page, live)
         for path in PAGES:
             goto(page, live, path.format(id=g.id))
