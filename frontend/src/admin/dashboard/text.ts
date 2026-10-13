@@ -10,28 +10,31 @@ import type { QuickSwitch } from './data';
 export interface SwitchCopy {
   /** the toggle's label (constant; the pressed state says whether it is on) */
   toggle: string;
-  /** the status strip while it is on */
+  /** the status strip while it is on: title, since when, and (wider screens) the effect */
   title: string;
   detail: string;
+  effect: string;
   /** the strip's resume button: short text, full accessible name */
   resume: string;
   resumeLabel: string;
 }
 
 export function switchCopy(which: QuickSwitch, state: StopState | undefined, now?: Date): SwitchCopy {
-  const since = state?.enabled ? `Seit ${clock(state.since, now)}. ` : '';
+  const at = clock(state?.enabled ? state.since : null, now);
   return which === 'uploads'
     ? {
         toggle: 'Hochladen stoppen',
-        title: 'Hochladen gestoppt – für alle',
-        detail: `${since}Niemand kann hochladen.`,
+        title: 'Hochladen gestoppt',
+        detail: `Für alle, seit ${at}.`,
+        effect: 'Niemand kann hochladen, auch bekannte Gäste nicht.',
         resume: 'Fortsetzen',
         resumeLabel: 'Hochladen fortsetzen',
       }
     : {
         toggle: 'Anmeldung stoppen',
         title: 'Anmeldung gestoppt',
-        detail: `${since}Niemand Neues kann beitreten.`,
+        detail: `Seit ${at}.`,
+        effect: 'Niemand Neues kann beitreten. Wer dabei ist, macht weiter.',
         resume: 'Wieder öffnen',
         resumeLabel: 'Anmeldung wieder öffnen',
       };
@@ -52,8 +55,8 @@ export interface Stat {
 export function liveStats(o: Overview): Stat[] {
   return [
     { id: 'active', label: 'Aktiv jetzt', value: o.guests.active_now },
-    { id: 'uploading', label: 'Laden gerade hoch', value: o.guests.uploading_now },
-    { id: 'recent', label: `Fotos, letzte ${minutes(15)}`, value: o.photos.last_15_min },
+    { id: 'uploading', label: 'Laden hoch', value: o.guests.uploading_now },
+    { id: 'recent', label: `Fotos in ${minutes(15)}`, value: o.photos.last_15_min },
     { id: 'scanned', label: 'Gescannt', value: o.scans.scanned },
     { id: 'not-joined', label: 'Nicht beigetreten', value: o.scans.not_joined },
     { id: 'guests', label: 'Gäste', value: o.guests.total },
@@ -62,7 +65,7 @@ export function liveStats(o: Overview): Stat[] {
 
 /** The line under the strip: what "jetzt" means, and how fresh the numbers are. */
 export function freshness(o: Overview, now?: Date): string {
-  return `„Jetzt“ heißt: in den letzten ${minutes(o.active_minutes)}. Stand ${clock(o.at, now)}.`;
+  return `„Jetzt“: letzte ${minutes(o.active_minutes)}, Stand ${clock(o.at, now)}.`;
 }
 
 /** Since when visitors are counted (older guests have no scan). */

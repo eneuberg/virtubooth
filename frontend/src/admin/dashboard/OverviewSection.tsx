@@ -5,7 +5,6 @@ import { HelpDisclosure } from '@/ui/HelpDisclosure';
 import { Skeleton } from '@/ui/Skeleton';
 import { clock } from '../lib/labels';
 import { useOverview } from './data';
-import { QuickControls } from './QuickControls';
 import { freshness, minutes, scansSince } from './text';
 
 interface Item {
@@ -95,7 +94,7 @@ function Groups({ o }: { o: Overview }) {
   );
 }
 
-/** Übersicht (manage): every live counter, grouped, plus the two switches. */
+/** Übersicht (manage): every live counter, grouped (the switches are in the header). */
 export function OverviewSection() {
   const { data, isError } = useOverview();
   return (
@@ -112,7 +111,6 @@ export function OverviewSection() {
           {data ? freshness(data) : 'Was gerade auf der Party los ist.'}
         </p>
       </header>
-      <QuickControls className="max-w-md" />
       {data ? (
         <>
           <Groups o={data} />

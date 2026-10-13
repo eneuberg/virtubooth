@@ -59,8 +59,8 @@ describe('QuickControls and StatusStrip', () => {
     await waitFor(() => expect(toggle.getAttribute('aria-pressed')).toBe('true'));
     expect(screen.queryByRole('dialog')).toBeNull();
     const strip = await screen.findByTestId('status-strip-uploads');
-    expect(strip.textContent).toContain('Hochladen gestoppt – für alle');
-    expect(strip.textContent).toMatch(/Seit \d\d:\d\d\. Niemand kann hochladen\./);
+    expect(strip.textContent).toContain('Hochladen gestoppt');
+    expect(strip.textContent).toMatch(/Für alle, seit \d\d:\d\d\./);
 
     fireEvent.click(screen.getByRole('button', { name: 'Hochladen fortsetzen' }));
     await waitFor(() => expect(screen.queryByTestId('status-strip-uploads')).toBeNull());

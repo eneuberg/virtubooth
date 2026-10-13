@@ -10,8 +10,8 @@ import { switchCopy } from './text';
 
 const row = tv({
   slots: {
-    root: 'flex items-center gap-3 py-2 pr-2 pl-4',
-    icon: 'size-6 shrink-0',
+    root: 'flex items-center gap-2.5 py-1.5 pr-2 pl-4',
+    icon: 'size-5 shrink-0',
     action: [
       'relative inline-flex h-11 shrink-0 cursor-pointer items-center justify-center rounded-control px-4',
       'text-sm font-semibold whitespace-nowrap outline-none select-none',
@@ -54,8 +54,10 @@ function StripRow({
     <div className={s.root()} data-testid={`status-strip-${which}`}>
       <Icon aria-hidden="true" className={s.icon()} strokeWidth={2} />
       <p className="grid min-w-0 flex-1">
-        <strong className="text-md leading-tight font-bold">{copy.title}</strong>
-        <span className="text-xs tabular">{copy.detail}</span>
+        <strong className="text-sm leading-tight font-bold lg:text-md">{copy.title}</strong>
+        <span className="text-xs tabular">
+          {copy.detail} <span className="max-sm:hidden">{copy.effect}</span>
+        </span>
       </p>
       <Button
         className={s.action()}

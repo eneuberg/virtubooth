@@ -58,9 +58,9 @@ function QuickToggle({ which, isSelected, isKnown, icon: Icon, tone, children }:
       {pending ? (
         <Spinner label="Wird umgeschaltet…" className="size-5 shrink-0" />
       ) : (
-        <Icon aria-hidden="true" className="size-5 shrink-0" strokeWidth={2} />
+        <Icon aria-hidden="true" className="size-5 shrink-0 max-[419px]:hidden" strokeWidth={2} />
       )}
-      <span className="min-w-0 text-left">{children}</span>
+      <span className="min-w-0 text-center">{children}</span>
     </ToggleButton>
   );
 }

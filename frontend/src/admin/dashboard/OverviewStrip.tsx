@@ -31,12 +31,12 @@ export function OverviewStrip({ className }: { className?: string }) {
                 className="flex min-w-0 flex-col-reverse"
                 data-testid={`overview-${stat.id}`}
               >
-                <dt className="truncate text-xs text-ink-muted">{stat.label}</dt>
+                <dt className="text-xs leading-tight text-ink-muted">{stat.label}</dt>
                 <dd className="dots text-dots-sm text-accent-ink">{formatNumber(stat.value)}</dd>
               </div>
             ))}
           </dl>
-          <p className="mt-1.5 flex flex-wrap items-center justify-between gap-x-3 text-xs text-ink-muted">
+          <p className="mt-0.5 flex flex-wrap items-center justify-between gap-x-3 text-xs text-ink-muted">
             <span>{freshness(data)}</span>
             <Link
               href="/manage?tab=uebersicht"

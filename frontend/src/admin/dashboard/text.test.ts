@@ -25,23 +25,23 @@ describe('dashboard text', () => {
   it('names the switches with the glossary words and says since when they are on', () => {
     const off = switchCopy('uploads', { enabled: false, since: null, by: null }, NOW);
     expect(off.toggle).toBe('Hochladen stoppen');
-    expect(off.detail).toBe('Niemand kann hochladen.');
+    expect(off.detail).toBe('Für alle, seit –.');
     const on = switchCopy('uploads', { enabled: true, since: SINCE, by: 'admin:1' }, NOW);
-    expect(on.title).toBe('Hochladen gestoppt – für alle');
-    expect(on.detail).toMatch(/^Seit \d\d:\d\d\. Niemand kann hochladen\.$/);
+    expect(on.title).toBe('Hochladen gestoppt');
+    expect(on.detail).toMatch(/^Für alle, seit \d\d:\d\d\.$/);
+    expect(on.effect).toBe('Niemand kann hochladen, auch bekannte Gäste nicht.');
     expect(on.resumeLabel).toBe('Hochladen fortsetzen');
     const join = switchCopy('join', { enabled: true, since: SINCE, by: 'admin:1' }, NOW);
     expect(join.toggle).toBe('Anmeldung stoppen');
     expect(join.title).toBe('Anmeldung gestoppt');
-    expect(join.detail).toMatch(/Niemand Neues kann beitreten\.$/);
+    expect(join.detail).toMatch(/^Seit \d\d:\d\d\.$/);
+    expect(join.effect).toContain('Wer dabei ist, macht weiter.');
     expect(join.resume).toBe('Wieder öffnen');
   });
 
   it('puts a no-break space before units', () => {
     expect(minutes(5)).toBe('5\u00a0min');
-    expect(freshness(overview, NOW)).toMatch(
-      /^„Jetzt“ heißt: in den letzten 5\u00a0min\. Stand \d\d:\d\d\.$/,
-    );
+    expect(freshness(overview, NOW)).toMatch(/^„Jetzt“: letzte 5\u00a0min, Stand \d\d:\d\d\.$/);
   });
 
   it('picks the six live numbers in a fixed order', () => {
@@ -53,7 +53,7 @@ describe('dashboard text', () => {
       ['not-joined', 12],
       ['guests', 36],
     ]);
-    expect(liveStats(overview)[2]?.label).toBe('Fotos, letzte 15\u00a0min');
+    expect(liveStats(overview)[2]?.label).toBe('Fotos in 15\u00a0min');
   });
 
   it('says since when scans are counted, or that nobody scanned yet', () => {
