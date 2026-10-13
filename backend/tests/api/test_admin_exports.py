@@ -195,6 +195,7 @@ def test_archive_job_end_to_end(admin, guest, core):
     assert {f["file"] for f in manifest["files"]} == set(photos)
     readme = files["README.txt"].decode()
     assert "manifest.json" in readme and "--no-hidden" not in readme
+    assert "(Europe/Berlin) from" in readme  # VB_TIMEZONE, as the file name
     assert "anna.party" in files["instagram.csv"].decode("utf-8-sig")
     # only the zip is left behind: no snapshot, no partial file
     assert [p.name for p in (core.settings.data_dir / "exports").iterdir()] == [done["file_name"]]

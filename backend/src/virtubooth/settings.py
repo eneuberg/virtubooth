@@ -27,6 +27,8 @@ from pydantic_settings import (
     SettingsConfigDict,
 )
 
+from .core.clock import DEFAULT_TIMEZONE
+
 TOKEN_RE = re.compile(r"^[A-Za-z0-9_-]{16,128}$")
 
 # backend/src/virtubooth/settings.py -> the repository root (a source checkout)
@@ -76,7 +78,7 @@ class Settings(BaseSettings):
     party_name: str = "Party"
     instagram_account: str = ""
     consent_version: str = "1"
-    timezone: str = "Europe/Berlin"
+    timezone: str = DEFAULT_TIMEZONE
     # "auto" marks cookies Secure when the request arrived over https
     # (behind a proxy this needs uvicorn's proxy headers, see README)
     cookie_secure: Literal["auto", "true", "false"] = "auto"

@@ -6,6 +6,9 @@ from __future__ import annotations
 from datetime import UTC, datetime
 from zoneinfo import ZoneInfo
 
+# VB_TIMEZONE's default: the party's wall clock for file names
+DEFAULT_TIMEZONE = "Europe/Berlin"
+
 
 def now_iso() -> str:
     return datetime.now(UTC).isoformat(timespec="milliseconds")
