@@ -11,6 +11,15 @@
 #            no sources, no tests.
 # The app runs as an unprivileged user (uid/gid 10001) and keeps all state in
 # the /data volume.
+#
+# Live-Wall photo analysis (optional, ~+480 MB image, ~+145 MB models):
+#   docker build --build-arg VB_ML=1 -t virtubooth:ml .
+#       adds the `ml` extra (mediapipe, onnxruntime, OpenCV) + libEGL/GLES;
+#       models then come from /data/wall/models (run `python -m
+#       virtubooth.extensions.wall.enrich models fetch` in the container once)
+#   docker build --build-arg VB_ML=1 --build-arg VB_BAKE_MODELS=1 -t virtubooth:ml .
+#       also downloads the models (SHA256-checked) into /opt/vb-models
+# Without VB_ML the image is unchanged and only the basic analysis (Pillow) runs.
 
 # Keep these in sync with the repo files they mirror:
 #   frontend/.node-version, frontend/package.json "packageManager",
@@ -19,6 +28,9 @@ ARG NODE_IMAGE=node:22.22.1-trixie-slim
 ARG PNPM_VERSION=11.28.5
 ARG PYTHON_IMAGE=python:3.14.8-slim-trixie
 ARG UV_IMAGE=ghcr.io/astral-sh/uv:0.12.18
+# 1 = with the `ml` extra (Live-Wall photo analysis); 1 = bake the models in too
+ARG VB_ML=0
+ARG VB_BAKE_MODELS=0
 
 FROM ${UV_IMAGE} AS uv
 
@@ -49,6 +61,7 @@ RUN pnpm build
 
 # ---------------------------------------------------------------- build stage
 FROM ${PYTHON_IMAGE} AS build
+ARG VB_ML
 
 COPY --from=uv /uv /usr/local/bin/uv
 
@@ -65,23 +78,46 @@ WORKDIR /src
 RUN --mount=type=cache,target=/root/.cache/uv \
     --mount=type=bind,source=backend/uv.lock,target=uv.lock \
     --mount=type=bind,source=backend/pyproject.toml,target=pyproject.toml \
-    uv sync --frozen --no-dev --no-install-project
+    uv sync --frozen --no-dev --no-install-project $([ "$VB_ML" = 1 ] && echo --extra ml)
 
 # 2) The app itself, installed as a regular (non-editable) package, so the
 #    runtime stage needs only /opt/venv. README.md is the package's readme.
 COPY backend/pyproject.toml backend/uv.lock backend/README.md ./
 COPY backend/src ./src
 RUN --mount=type=cache,target=/root/.cache/uv \
-    uv sync --frozen --no-dev --no-editable
+    uv sync --frozen --no-dev --no-editable $([ "$VB_ML" = 1 ] && echo --extra ml)
+
+# ------------------------------------------------- Live-Wall models (optional)
+# VB_BAKE_MODELS=1: download the analysis models into /opt/vb-models (versioned
+# URLs, SHA256-checked by the app's own downloader). 0: an empty folder.
+FROM build AS models-1
+RUN /opt/venv/bin/python -m virtubooth.extensions.wall.enrich models fetch --dest /opt/vb-models
+
+FROM ${PYTHON_IMAGE} AS models-0
+RUN mkdir -p /opt/vb-models
+
+FROM models-${VB_BAKE_MODELS} AS models
 
 # -------------------------------------------------------------- runtime stage
-FROM ${PYTHON_IMAGE} AS runtime
+# runtime-0 is the default image; runtime-1 (VB_ML=1) adds what MediaPipe
+# loads (libEGL, libGLESv2), MPLBACKEND=Agg and the baked models, if any.
+FROM ${PYTHON_IMAGE} AS runtime-0
 
 # ffmpeg: the timelapse export (admin "Export" section and
 # `python -m virtubooth.tools.timelapse`)
 RUN apt-get update \
     && apt-get install -y --no-install-recommends ffmpeg \
     && rm -rf /var/lib/apt/lists/*
+
+FROM ${PYTHON_IMAGE} AS runtime-1
+
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends ffmpeg libegl1 libgles2 \
+    && rm -rf /var/lib/apt/lists/*
+ENV MPLBACKEND=Agg
+COPY --from=models /opt/vb-models /opt/vb-models
+
+FROM runtime-${VB_ML} AS runtime
 
 # Fixed ids so a bind-mounted data directory can be chowned to 10001:10001.
 # /data is created owned by that user: a fresh named volume inherits it.
