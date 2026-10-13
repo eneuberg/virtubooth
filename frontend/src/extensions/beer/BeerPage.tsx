@@ -22,7 +22,7 @@ import { STREAM_SIZE } from '@/sdk/camera/capture';
 import { useCameraKeys, useLeaveGuard } from '@/sdk/camera/keys';
 import { isVessel, VESSEL_SHAPES, VESSELS, shadePath, type Vessel } from '@/sdk/camera/overlays';
 import { useCameraSession } from '@/sdk/camera/useCameraSession';
-import { useNow, useOutboxToasts, useShot, type Shot } from '@/sdk/camera/useShot';
+import { shotErrorText, useNow, useOutboxToasts, useShot, type Shot } from '@/sdk/camera/useShot';
 import { ActivityMenu } from '@/sdk/components/ActivityMenu';
 import { ActivityShell } from '@/sdk/components/ActivityShell';
 import type { ExtensionPageProps } from '@/sdk/extension';
@@ -175,9 +175,10 @@ function BeerCam({ id }: { id: string }) {
     saveVessel(next);
   };
 
+  const [nudge, setNudge] = useState(0);
   const explainBlocked = () => {
     vibrate([20, 40, 20]);
-    showToast({ message: blockedMessage, tone: 'info' });
+    setNudge((n) => n + 1);
   };
 
   const shoot = async () => {
@@ -301,12 +302,7 @@ function BeerCam({ id }: { id: string }) {
   // ------------------------------------------------------------ hint
   let hint;
   if (shot) {
-    const message =
-      shot.error?.code === 'rate_limited'
-        ? waitSeconds > 0
-          ? `Langsam! Zu viele Fotos auf einmal. In ${waitSeconds} s nochmal.`
-          : 'Langsam! Zu viele Fotos auf einmal. Versuch es gleich nochmal.'
-        : (shot.error?.message ?? '');
+    const message = shotErrorText(shot.error, waitSeconds);
     hint = (
       <div aria-live="polite" data-testid="result-text" className="grid gap-1">
         {shot.status === 'done' && number !== null ? (
@@ -340,7 +336,7 @@ function BeerCam({ id }: { id: string }) {
       </div>
     );
   } else if (blocked) {
-    hint = <BlockedHint message={blockedMessage} />;
+    hint = <BlockedHint message={blockedMessage} nudge={nudge} />;
   } else {
     hint = (
       <div className="grid gap-1">
@@ -453,6 +449,7 @@ function BeerCam({ id }: { id: string }) {
       hint={hint}
       controls={controls}
       controlsLayout={shot ? 'actions' : 'camera'}
+      holdLayout={!!shot}
     >
       {cam.status === 'error' && cam.error ? <CameraErrorScreen error={cam.error} /> : null}
     </ActivityShell>

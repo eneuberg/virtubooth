@@ -179,6 +179,23 @@ export function useOutboxToasts(attachedId: string | null): void {
   );
 }
 
+/** What went wrong with a shot's upload, in one short sentence (the print says the rest). */
+export function shotErrorText(error: ApiError | null, waitSeconds: number): string {
+  if (!error) return '';
+  switch (error.code) {
+    case 'rate_limited':
+      return waitSeconds > 0
+        ? `Langsam! Zu viele Fotos auf einmal. In ${waitSeconds}\u00a0s nochmal.`
+        : 'Langsam! Zu viele Fotos auf einmal. Versuch es gleich nochmal.';
+    case 'network':
+      return error.offline ? 'Keine Verbindung.' : 'Keine Verbindung zum Server.';
+    case 'timeout':
+      return 'Das Hochladen hat zu lange gedauert.';
+    default:
+      return error.message;
+  }
+}
+
 /** Ticks once a second while `active` (rate-limit countdowns). */
 export function useNow(active: boolean): number {
   const [now, setNow] = useState(() => Date.now());

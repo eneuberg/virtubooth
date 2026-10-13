@@ -12,16 +12,29 @@ import { isInAppBrowser } from '../platform';
 
 const INAPP_KEY = 'vb_inapp_dismissed';
 
-/** Why the shutter is locked (paused, stopped): said before the guest shoots. */
-export function BlockedHint({ message }: { message: string }) {
+/**
+ * Why the shutter is locked (paused, stopped): said before the guest shoots. Pressing
+ * the locked shutter bumps `nudge`: the line pops and is read out again (no second copy
+ * of the same words in a toast).
+ */
+export function BlockedHint({ message, nudge = 0 }: { message: string; nudge?: number }) {
   return (
-    <p
-      data-testid="blocked-hint"
-      className="mx-auto flex max-w-[26rem] items-start justify-center gap-2 text-sm text-pretty"
-    >
-      <Lock aria-hidden="true" className="mt-0.5 size-4 shrink-0 text-accent" strokeWidth={2.25} />
-      <span>{message}</span>
-    </p>
+    <div aria-live="polite" data-testid="blocked-hint" data-nudge={nudge}>
+      <p
+        key={nudge}
+        className={cx(
+          'mx-auto max-w-[26rem] text-center text-sm text-pretty',
+          nudge > 0 && 'motion-ok:animate-pop',
+        )}
+      >
+        <Lock
+          aria-hidden="true"
+          className="-mt-0.5 mr-1.5 inline size-4 align-middle text-accent"
+          strokeWidth={2.25}
+        />
+        {message}
+      </p>
+    </div>
   );
 }
 

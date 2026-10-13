@@ -6,13 +6,15 @@
  *
  * Layouts:
  *   portrait phone:   bar / stage (full width) / film edge / hint + controls centred in the rest
- *   short (≤ 700 px): the bar and the film edge lie over the stage (360×640 keeps a big stage)
+ *   short (≤ 700 px): the bar lies over the stage top (a gradient, like a camera app); the
+ *                     film edge stays under it: it never covers the photo's bottom (the
+ *                     bottle's foot is there)
  *   landscape phone:  stage left at full height; bar, film edge, hint, controls on the right
  *   desktop:          one centred column, the stage limited by the height
  * The stage keeps 3:4 in every layout; it is the photo (WYSIWYG).
  */
 import { ChevronLeft } from 'lucide-react';
-import type { ReactNode } from 'react';
+import { useEffect, useRef, type ReactNode } from 'react';
 import { Link } from 'react-aria-components';
 import { cx } from '@/ui/cx';
 import { iconButtonStyles } from '@/ui/IconButton';
@@ -31,16 +33,13 @@ export interface ActivityShellProps {
   filmEdge?: ReactNode;
   /** a row between film edge and hint (the Fotobox filter strip) */
   strip?: ReactNode;
-  /**
-   * the height kept free under the stage: 'strip' for pages with a filter strip, also
-   * while the strip is hidden (the result), so the stage never jumps
-   */
-  reserve?: 'camera' | 'strip';
   /** one short line (or a short result headline) above the controls */
   hint?: ReactNode;
   /** camera: [left] [shutter] [right]; actions: buttons side by side */
   controls: ReactNode;
   controlsLayout?: 'camera' | 'actions';
+  /** keep the stage size while true (the result print replaces the strip: no jump) */
+  holdLayout?: boolean;
   /** extra content outside the grid (dialogs) */
   children?: ReactNode;
   backHref?: string;
@@ -52,18 +51,49 @@ export interface ActivityShellProps {
 }
 
 /*
- * Stage width = min(full width, the height left for it × 3/4). Reserved height:
- *   camera: 56 bar + 46 film edge + 150 hint/controls        = 252 px (15.75rem)
- *   strip:  56 + 46 + 110 strip and name + 12 + 80 shutter + 12 = 316 px (19.75rem)
- * Short screens: bar and film edge overlay the stage, so only hint/controls (+ strip).
- * Desktop leaves a little more room under the controls for the key hint.
+ * Stage width = min(full width, (viewport height − everything else) × 3/4). "Everything
+ * else" (bar, film edge, strip, hint, controls) is measured (--vb-reserve, set by a
+ * ResizeObserver), so a two-line hint or the filter strip never pushes the controls
+ * off screen; the fallback covers the first frame. Short screens: the bar lies over the
+ * stage and doesn't count. Landscape phones: the stage takes the full height instead.
  */
-const STAGE_W = {
-  camera:
-    'w-[min(100%,calc((100dvh-15.75rem)*0.75))] short:w-[min(100%,calc((100dvh-10rem)*0.75))] fine:w-[min(100%,calc((100dvh-17rem)*0.75))]',
-  strip:
-    'w-[min(100%,calc((100dvh-19.75rem)*0.75))] short:w-[min(100%,calc((100dvh-14rem)*0.75))] fine:w-[min(100%,calc((100dvh-22rem)*0.75))]',
-} as const;
+const STAGE_W = 'w-[min(100%,calc((100dvh-var(--vb-reserve,15.75rem))*0.75))]';
+
+/** Keeps --vb-reserve on the root equal to the height of everything but the stage. */
+function useReserve(hold: boolean) {
+  const holding = useRef(hold);
+  useEffect(() => {
+    holding.current = hold;
+  }, [hold]);
+  const root = useRef<HTMLDivElement | null>(null);
+  const header = useRef<HTMLElement | null>(null);
+  const film = useRef<HTMLDivElement | null>(null);
+  const lower = useRef<HTMLDivElement | null>(null);
+  const lowerInner = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    const els = [header.current, film.current, lower.current, lowerInner.current];
+    if (!root.current || typeof ResizeObserver === 'undefined') return undefined;
+    const measure = () => {
+      if (holding.current) return;
+      const bar = header.current;
+      const overlaid = bar ? getComputedStyle(bar).position === 'absolute' : true;
+      let px = overlaid || !bar ? 0 : bar.getBoundingClientRect().height;
+      px += film.current?.getBoundingClientRect().height ?? 0;
+      if (lower.current && lowerInner.current) {
+        const style = getComputedStyle(lower.current);
+        px += lowerInner.current.getBoundingClientRect().height;
+        px += Number.parseFloat(style.paddingTop) + Number.parseFloat(style.paddingBottom);
+      }
+      root.current?.style.setProperty('--vb-reserve', `${Math.ceil(px)}px`);
+    };
+    const observer = new ResizeObserver(measure);
+    for (const el of els) if (el) observer.observe(el);
+    observer.observe(root.current);
+    measure();
+    return () => observer.disconnect();
+  }, []);
+  return { root, header, film, lower, lowerInner };
+}
 
 export function ActivityShell({
   title,
@@ -72,10 +102,10 @@ export function ActivityShell({
   stage,
   filmEdge,
   strip,
-  reserve,
   hint,
   controls,
   controlsLayout = 'camera',
+  holdLayout = false,
   children,
   backHref = '/',
   backLabel = 'Zurück zum Start',
@@ -83,9 +113,10 @@ export function ActivityShell({
   rootProps,
   className,
 }: ActivityShellProps) {
-  const stageWidth = STAGE_W[reserve ?? (strip ? 'strip' : 'camera')];
+  const { root, header, film, lower, lowerInner } = useReserve(holdLayout);
   return (
     <div
+      ref={root}
       data-surface="dark"
       {...rootProps}
       className={cx(
@@ -99,6 +130,7 @@ export function ActivityShell({
         {heading}
       </h1>
       <header
+        ref={header}
         className={cx(
           'z-(--z-sticky) box-content flex h-14 min-w-0 items-center gap-1 px-2 pt-[env(safe-area-inset-top)]',
           'short:absolute short:inset-x-0 short:top-0 short:bg-linear-to-b short:from-black/70 short:to-transparent',
@@ -122,25 +154,22 @@ export function ActivityShell({
         data-testid={stageTestId}
         className={cx(
           'relative mx-auto aspect-[3/4] overflow-hidden bg-black select-none',
-          stageWidth,
+          STAGE_W,
           'short:row-start-1',
           'landscape-phone:col-start-1 landscape-phone:row-span-full landscape-phone:row-start-1 landscape-phone:h-dvh landscape-phone:w-auto landscape-phone:max-w-[60vw] landscape-phone:pl-[env(safe-area-inset-left)]',
         )}
       >
         {stage}
-        {filmEdge ? (
-          <div className="absolute inset-x-0 bottom-0 z-(--z-raised) hidden bg-black/70 short:block landscape-phone:hidden">
-            {filmEdge}
-          </div>
-        ) : null}
       </div>
 
       {filmEdge ? (
         <div
+          ref={film}
           className={cx(
-            'mx-auto w-full short:hidden',
-            stageWidth,
-            'landscape-phone:col-start-2 landscape-phone:row-start-2 landscape-phone:block landscape-phone:w-full',
+            'mx-auto w-full',
+            STAGE_W,
+            'short:row-start-2',
+            'landscape-phone:col-start-2 landscape-phone:row-start-2 landscape-phone:w-full',
           )}
         >
           {filmEdge}
@@ -148,31 +177,34 @@ export function ActivityShell({
       ) : null}
 
       <div
+        ref={lower}
         className={cx(
-          'mx-auto grid w-full max-w-[32rem] min-w-0 content-center gap-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]',
-          'short:gap-2 short:pt-2',
+          'mx-auto grid w-full max-w-[32rem] min-w-0 [align-content:safe_center] pt-1 pb-[max(0.75rem,env(safe-area-inset-bottom))]',
+          'short:row-start-3 short:pt-1',
           'landscape-phone:col-start-2 landscape-phone:row-start-3 landscape-phone:max-w-none landscape-phone:content-end landscape-phone:pr-[max(1rem,env(safe-area-inset-right))]',
           'fine:pb-6',
         )}
       >
-        {strip ? <div className="min-w-0">{strip}</div> : null}
-        {hint ? (
+        <div ref={lowerInner} className="grid min-w-0 gap-3 short:gap-2">
+          {strip ? <div className="min-w-0">{strip}</div> : null}
+          {hint ? (
+            <div
+              className="px-4 text-center text-md empty:hidden landscape-phone:text-left"
+              data-testid="hint-row"
+            >
+              {hint}
+            </div>
+          ) : null}
           <div
-            className="px-4 text-center text-md empty:hidden landscape-phone:text-left"
-            data-testid="hint-row"
+            className={cx(
+              'px-4',
+              controlsLayout === 'camera'
+                ? 'grid grid-cols-[1fr_auto_1fr] items-center gap-3 [&>:first-child]:justify-self-start [&>:last-child]:justify-self-end'
+                : 'grid w-full max-w-[32rem] grid-cols-2 gap-3 landscape-phone:max-w-[30rem]',
+            )}
           >
-            {hint}
+            {controls}
           </div>
-        ) : null}
-        <div
-          className={cx(
-            'px-4',
-            controlsLayout === 'camera'
-              ? 'grid grid-cols-[1fr_auto_1fr] items-center gap-3 [&>:first-child]:justify-self-start [&>:last-child]:justify-self-end'
-              : 'grid grid-cols-2 gap-3',
-          )}
-        >
-          {controls}
         </div>
       </div>
 

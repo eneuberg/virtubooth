@@ -34,7 +34,9 @@ export function FilterStrip({ filters, selectedId, onSelect, swatches, isDisable
     const list = listRef.current;
     const item = list?.querySelector<HTMLElement>(`[data-filter="${CSS.escape(selectedId)}"]`);
     if (!list || !item) return;
-    const left = item.offsetLeft - (list.clientWidth - item.offsetWidth) / 2;
+    const box = list.getBoundingClientRect();
+    const at = item.getBoundingClientRect();
+    const left = list.scrollLeft + (at.left - box.left) - (box.width - at.width) / 2;
     list.scrollTo({ left, behavior: first.current || reducedMotion() ? 'auto' : 'smooth' });
     first.current = false;
   }, [selectedId]);
@@ -59,7 +61,7 @@ export function FilterStrip({ filters, selectedId, onSelect, swatches, isDisable
         }}
         {...(isDisabled ? { disabledKeys: filters.map((f) => f.id) } : {})}
         className={cx(
-          'flex snap-x snap-mandatory gap-2 overflow-x-auto overscroll-x-contain py-1.5 outline-none',
+          'flex snap-x snap-mandatory gap-2 overflow-x-auto overscroll-x-contain py-1 outline-none',
           // the first and the last swatch can sit in the middle
           '[scrollbar-width:none] px-[calc(50%-1.625rem)] [&::-webkit-scrollbar]:hidden',
         )}
