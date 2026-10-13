@@ -1,39 +1,34 @@
 /**
  * The Fotobox catalogue (GET /api/x/booth/filters: ids, names, icons, strip order) and
- * the party name for the overlays (GET /api/extensions). A failed catalogue is fatal
- * (the server only accepts its ids); a failed party name falls back to "Party".
+ * the party name for the overlays (GET /api/extensions, the cache the activity menu
+ * and Start share). A failed catalogue is fatal (the server only accepts its ids); a
+ * failed party name falls back to "Party".
  */
-import { useEffect, useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { api, unwrap } from '@/api/client';
-import type { ApiError } from '@/api/errors';
 import type { BoothFilter } from '@/api/types';
+import { ACTIVITIES_KEY, fetchActivities } from '@/sdk/activities';
 
 export type CatalogueState =
   | { status: 'loading' }
   | { status: 'ready'; filters: BoothFilter[]; partyName: string }
-  | { status: 'error'; error: ApiError | Error };
+  | { status: 'error'; error: Error };
 
-export function useCatalogue(enabled: boolean): CatalogueState {
-  const [state, setState] = useState<CatalogueState>({ status: 'loading' });
-  useEffect(() => {
-    if (!enabled) return undefined;
-    let cancelled = false;
-    const party = unwrap(api.GET('/api/extensions'))
-      .then((info) => info.party_name)
-      .catch(() => 'Party');
-    unwrap(api.GET('/api/x/booth/filters'))
-      .then(async ({ filters }) => {
-        const partyName = await party;
-        if (!cancelled) setState({ status: 'ready', filters, partyName });
-      })
-      .catch((error: unknown) => {
-        if (!cancelled) {
-          setState({ status: 'error', error: error instanceof Error ? error : new Error(String(error)) });
-        }
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [enabled]);
-  return state;
+const FILTERS_KEY = ['booth', 'filters'] as const;
+
+export function useCatalogue(): CatalogueState {
+  const filters = useQuery({
+    queryKey: FILTERS_KEY,
+    queryFn: async () => (await unwrap(api.GET('/api/x/booth/filters'))).filters,
+    staleTime: Infinity,
+  });
+  const party = useQuery({
+    queryKey: ACTIVITIES_KEY,
+    queryFn: fetchActivities,
+    staleTime: 5 * 60_000,
+    select: (data) => data.party_name,
+  });
+  if (filters.isError) return { status: 'error', error: filters.error };
+  if (!filters.data || party.isPending) return { status: 'loading' };
+  return { status: 'ready', filters: filters.data, partyName: party.data ?? 'Party' };
 }

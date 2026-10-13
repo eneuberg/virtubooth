@@ -65,7 +65,7 @@ function prefer(): 'canvas2d' | null {
 
 /** Rendered inside GP's session gate: the guest has joined (banned/error never get here). */
 export default function BoothPage({ id }: ExtensionPageProps) {
-  const catalogue = useCatalogue(true);
+  const catalogue = useCatalogue();
   if (catalogue.status === 'error') {
     return <FatalScreen error={catalogue.error} fallback="Die Fotobox konnte nicht starten." />;
   }
@@ -149,10 +149,6 @@ function Fotobox({
       setSelectedId(previous.id);
     }
   }, [camera, filter, info, cam.status, cam.renderer, filters, overlayCanvas]);
-
-  useEffect(() => {
-    if (catalogue && info) document.title = `${TITLE} – ${info.partyName}`;
-  }, [catalogue, info]);
 
   const swatches = useSwatches(camera, filters, info, live);
 
