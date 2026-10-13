@@ -25,7 +25,8 @@ colliding.
 - Run e2e from `backend/`:
   `uv run pytest tests/e2e/<dir> -m e2e -q`, with `VB_E2E_BROWSER=firefox` for
   Firefox. Screenshots go to `VB_SCREENSHOT_DIR=<dir>`.
-- Legacy DOM tests to port are in `backend/tests/e2e_legacy/` (not collected).
+- Legacy DOM tests to port are in `backend/tests/e2e_legacy/` (not collected;
+  removed after the overhaul).
   Map: `docs/overhaul/analysis/test-suite-map.md`.
 - The old frontend is the behaviour reference. Read it with
   `git show main:virtubooth/static/<path>` (also `main:virtubooth/extensions/*/static/`).

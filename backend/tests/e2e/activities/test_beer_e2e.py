@@ -1,6 +1,6 @@
 """Beer Cam in a real browser: fake camera → outline → shutter → upload → print.
 
-Ported from e2e_legacy/test_beer_e2e.py to the new UI (same behaviours, new
+Ported from the pre-overhaul test_beer_e2e.py to the new UI (same behaviours, new
 selectors). New in the overhaul: the shutter is locked up front while uploads are
 paused or stopped, and a beer that can't be sent waits in the outbox.
 """

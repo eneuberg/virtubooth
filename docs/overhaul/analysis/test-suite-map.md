@@ -1,5 +1,7 @@
 # Test suite map: virtubooth (`.worktrees/overhaul`)
 
+> Historic: the suite before the overhaul. Its DOM-based e2e files (`tests/e2e/test_*_e2e.py` below) moved to `backend/tests/e2e_legacy/` in wave 1, were ported to `backend/tests/e2e/` (`guest/`, `activities/`, `admin/`) in wave 2, and were removed after the overhaul.
+
 Repo root: `/home/erikli/a/personal/aaa_doingthings/random_projects/virtubooth/.worktrees/overhaul`. I read every file under `tests/` in full, plus `pyproject.toml`, `Dockerfile`, `README.md` and `docs/ARCHITECTURE.md`. Nothing was modified and nothing was run.
 
 ## 0. Config and how tests are invoked

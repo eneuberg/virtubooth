@@ -1,6 +1,6 @@
 """The join sheet in a real browser: QR entry → join → Start, the Instagram name
 (valid, invalid, pasted link), changed texts, deep links, two tabs, keyboard only,
-small phones. Ported from e2e_legacy/test_core_e2e.py and test_core_ui_e2e.py
+small phones. Ported from the pre-overhaul test_core_e2e.py and test_core_ui_e2e.py
 (selectors changed, behaviour kept) plus the guest part of test_firefox_e2e.py
 (no camera before joining)."""
 

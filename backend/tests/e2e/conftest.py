@@ -20,9 +20,6 @@ and failed loads show up there.
     @pytest.mark.e2e
     def test_page(guest_page, live):
         guest_page.goto(live.url("/x/beer/"))
-
-The old DOM-based tests are in tests/e2e_legacy/ (not collected) for wave 2
-to port; their helpers that depend on the old markup are marked LEGACY below.
 """
 
 from __future__ import annotations

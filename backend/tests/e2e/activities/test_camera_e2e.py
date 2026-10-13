@@ -1,11 +1,11 @@
 """The camera itself, on the host's PC and in Firefox's real permission flow.
 
-Desktop (from e2e_legacy/test_desktop_e2e.py): 1280×800, mouse and keyboard, one 16:9
+Desktop (from the pre-overhaul test_desktop_e2e.py): 1280×800, mouse and keyboard, one 16:9
 webcam that doesn't say which way it points (conftest WEBCAM: a test card with a
 yellow square in the top-left of the region a portrait photo keeps). The photo and
 the preview must both be that centred 3:4 region, mirrored like a video call.
 
-Firefox (from e2e_legacy/test_firefox_e2e.py): permissions.default.camera stands in
+Firefox (from the pre-overhaul test_firefox_e2e.py): permissions.default.camera stands in
 for the guest's answer to the prompt: 0 = ask (the prompt stays open), 1 = allow,
 2 = block.
 """
