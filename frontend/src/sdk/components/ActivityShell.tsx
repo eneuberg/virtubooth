@@ -14,7 +14,7 @@
  * The stage keeps 3:4 in every layout; it is the photo (WYSIWYG).
  */
 import { ChevronLeft } from 'lucide-react';
-import { useEffect, useRef, type ReactNode } from 'react';
+import { useEffect, useLayoutEffect, useRef, type ReactNode } from 'react';
 import { Link } from 'react-aria-components';
 import { cx } from '@/ui/cx';
 import { iconButtonStyles } from '@/ui/IconButton';
@@ -63,7 +63,8 @@ const STAGE_W = 'w-[min(100%,calc((100dvh-var(--vb-reserve,15.75rem))*0.75))]';
 /** Keeps --vb-reserve on the root equal to the height of everything but the stage. */
 function useReserve(hold: boolean) {
   const holding = useRef(hold);
-  useEffect(() => {
+  // before the browser lays out the print (and the ResizeObserver reports it)
+  useLayoutEffect(() => {
     holding.current = hold;
   }, [hold]);
   const root = useRef<HTMLDivElement | null>(null);

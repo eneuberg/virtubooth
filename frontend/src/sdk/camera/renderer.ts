@@ -21,11 +21,16 @@ export interface Renderer {
   setFilter(filter: FilterImpl, overlay: HTMLCanvasElement | null): void;
   /** one preview frame onto the canvas; false until the video has a frame */
   render(video: HTMLVideoElement, state: RenderState): boolean;
+  /** draws the last frame again (a new filter on a frozen preview); no new video frame */
+  redraw(): void;
   /** the last rendered frame at 1080×1440 in the shared capture canvas (valid until the next capture) */
   capture(): HTMLCanvasElement;
   /** the last rendered frame at any 3:4 size, in a fresh canvas (filter swatches) */
   snapshot(width: number, height: number): HTMLCanvasElement;
-  /** sets the backing store from the on-screen width (DPR ≤ 2, capped) */
+  /**
+   * sets the backing store from the on-screen width (DPR ≤ 2, capped); the picture on
+   * it stays the same frame (a frozen preview never picks up a newer video frame)
+   */
   resize(cssWidth: number, dpr: number): void;
   destroy(): void;
 }
@@ -341,6 +346,10 @@ class GLRenderer implements Renderer {
     return true;
   }
 
+  redraw(): void {
+    if (!this.lost && this.filter && this.hasFrame) this.draw(this.canvas.width, this.canvas.height, 1);
+  }
+
   /** Renders the last frame at w×h into a framebuffer and reads it back (rows top-down). */
   private readFrame(w: number, h: number): ImageData {
     if (this.lost) throw new Error('WebGL context lost');
@@ -388,7 +397,10 @@ class GLRenderer implements Renderer {
 
   resize(cssWidth: number, dpr: number): void {
     const { w, h } = previewSize(cssWidth, dpr, this.kind);
+    if (this.canvas.width === w && this.canvas.height === h) return;
     resizeCanvas(this.canvas, w, h);
+    // the last uploaded video frame again, at the new size (no new frame)
+    if (!this.lost && this.filter && this.hasFrame) this.draw(w, h, 1);
   }
 
   destroy(): void {
@@ -457,6 +469,10 @@ class CanvasRenderer implements Renderer {
     return true;
   }
 
+  redraw(): void {
+    // the video element moved on: keep what is on the canvas
+  }
+
   capture(): HTMLCanvasElement {
     const out = captureCanvas();
     this.paint(context2d(out, true), PHOTO_W, PHOTO_H);
@@ -473,7 +489,14 @@ class CanvasRenderer implements Renderer {
 
   resize(cssWidth: number, dpr: number): void {
     const { w, h } = previewSize(cssWidth, dpr, this.kind);
+    if (this.canvas.width === w && this.canvas.height === h) return;
+    // keep the picture: the video element already shows a newer frame
+    const copy = document.createElement('canvas');
+    copy.width = this.canvas.width;
+    copy.height = this.canvas.height;
+    copy.getContext('2d')?.drawImage(this.canvas, 0, 0);
     resizeCanvas(this.canvas, w, h);
+    this.ctx.drawImage(copy, 0, 0, w, h);
   }
 
   destroy(): void {

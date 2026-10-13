@@ -268,10 +268,8 @@ export class CameraSession {
     if (!this.renderer) return;
     const width = this.options.mount.getBoundingClientRect().width;
     if (!width) return;
-    const before = this.renderer.canvas.width;
+    // the renderer redraws the same frame at the new size (a frozen preview stays the photo)
     this.renderer.resize(width, window.devicePixelRatio || 1);
-    // a resized canvas is blank: draw the frozen frame again
-    if (this.snapshot.frozen && before !== this.renderer.canvas.width) this.drawOnce();
   }
 
   // --------------------------------------------------------------- loop
@@ -292,13 +290,6 @@ export class CameraSession {
     if (drawn && !this.snapshot.ready) this.set({ ready: true });
     this.rafId = requestAnimationFrame(this.frame);
   };
-
-  private drawOnce(): void {
-    this.renderer?.render(this.options.video, {
-      mirror: this.snapshot.mirrored,
-      time: ((performance.now() - this.t0) / 1000) % 1000,
-    });
-  }
 
   private startLoop(): void {
     if (this.running || this.stopped || !this.renderer || document.hidden) return;
@@ -344,7 +335,7 @@ export class CameraSession {
   setFilter(filter: FilterImpl, overlay: HTMLCanvasElement | null): void {
     if (this.renderer) {
       this.renderer.setFilter(filter, overlay);
-      if (this.snapshot.frozen) this.drawOnce();
+      if (this.snapshot.frozen) this.renderer.redraw();
     }
     this.filter = filter;
     this.overlay = overlay;
