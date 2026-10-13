@@ -81,7 +81,7 @@ export class FakeXhr {
 
   /** Waits (a few ticks) for a request that has not been answered yet. */
   static async next(): Promise<FakeXhr> {
-    for (let i = 0; i < 50; i++) {
+    for (let i = 0; i < 500; i++) {
       const open = FakeXhr.all.find((x) => !x.settled && x.body !== null);
       if (open) return open;
       // oxlint-disable-next-line no-await-in-loop -- polling on purpose

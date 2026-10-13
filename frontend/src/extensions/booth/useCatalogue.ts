@@ -14,13 +14,15 @@ export type CatalogueState =
   | { status: 'ready'; filters: BoothFilter[]; partyName: string }
   | { status: 'error'; error: Error };
 
+/** Shared with Start's Fotobox card (src/guest/ActivityCards.tsx): same key, same data (the whole answer). */
 const FILTERS_KEY = ['booth', 'filters'] as const;
 
 export function useCatalogue(): CatalogueState {
   const filters = useQuery({
     queryKey: FILTERS_KEY,
-    queryFn: async () => (await unwrap(api.GET('/api/x/booth/filters'))).filters,
+    queryFn: () => unwrap(api.GET('/api/x/booth/filters')),
     staleTime: Infinity,
+    select: (data) => data.filters,
   });
   const party = useQuery({
     queryKey: ACTIVITIES_KEY,
