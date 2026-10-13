@@ -9,6 +9,12 @@ automatically and then:
   in the DB, calls `on_upload` and publishes a `photo.created` event
 - if `router` is set: mounts it at `/api/x/<id>/` (protect routes yourself with
   the dependencies in `virtubooth.api.deps`)
+- if `admin_router` is set: mounts it at `/api/admin/x/<id>/` behind the admin
+  session check (like every admin route: CSRF origin check, admin error
+  responses); routes take `admin: AdminDep` for the audit actor. That is where
+  an extension keeps its admin settings, stored in the `settings` table under
+  `x.<id>.<name>` (`core.repos.app_settings`); after a change it publishes
+  `core.services.events.extension_settings(<id>)`, so admin screens refetch
 - lists it on the home page (`show_on_home`) and in `/api/extensions`
 - the guest page `/x/<id>/` is served from the built frontend (`index.html`);
   the frontend renders the extension from its own registry (frontend/src/extensions/<id>/)
@@ -65,6 +71,8 @@ class Extension:
     tagline: str
     upload: UploadPolicy | None = None
     router: APIRouter | None = None
+    # admin-only routes (settings), mounted at /api/admin/x/<id>/ behind require_admin
+    admin_router: APIRouter | None = None
     # runs after a photo is stored; the returned dict is merged into the upload response
     on_upload: Callable[[UploadContext], dict[str, Any]] | None = None
     # the fields on_upload returns, for the API schema (UploadOut lists them)

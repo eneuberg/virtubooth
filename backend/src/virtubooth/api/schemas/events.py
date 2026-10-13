@@ -15,6 +15,7 @@ from pydantic import BaseModel, Field, RootModel
 
 from .admin import AdminPhoto, AdminUser, PauseState, StopState
 from .exports import ExportJob
+from .host_settings import EventSettings
 
 EventId = Annotated[str, Field(description="`<epoch>-<n>`: the SSE `id:` line.")]
 
@@ -65,6 +66,14 @@ class UploadStopData(BaseModel):
 
 class JoinStopData(BaseModel):
     join_stop: StopState
+
+
+class SettingsEventData(BaseModel):
+    event: EventSettings
+
+
+class ExtensionSettingsData(BaseModel):
+    id: str = Field(description="The extension whose settings changed.")
 
 
 class UploadPauseData(BaseModel):
@@ -175,6 +184,22 @@ class JoinStopEvent(BaseModel):
     data: JoinStopData
 
 
+class SettingsEventEvent(BaseModel):
+    """The event name was set or reset."""
+
+    type: Literal["settings.event"]
+    id: EventId
+    data: SettingsEventData
+
+
+class ExtensionSettingsEvent(BaseModel):
+    """An extension's admin settings changed (e.g. the Fotobox filters): refetch them."""
+
+    type: Literal["extension.settings"]
+    id: EventId
+    data: ExtensionSettingsData
+
+
 class ExportUpdatedEvent(BaseModel):
     """A job was created or changed status or progress (progress at most every
     5 % or second)."""
@@ -219,6 +244,8 @@ AnyAdminEvent = Annotated[
     | UploadStopEvent
     | UploadPauseEvent
     | JoinStopEvent
+    | SettingsEventEvent
+    | ExtensionSettingsEvent
     | ExportUpdatedEvent
     | ExportDeletedEvent
     | InstagramDoneEvent
@@ -245,6 +272,8 @@ ADMIN_EVENT_TYPES: tuple[str, ...] = (
     "settings.upload_stop",
     "settings.upload_pause",
     "settings.join_stop",
+    "settings.event",
+    "extension.settings",
     "export.updated",
     "export.deleted",
     "instagram.done",

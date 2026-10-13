@@ -18,6 +18,7 @@ from . import (
     dashboard,
     events,
     exports,
+    host_settings,
     instagram,
     overview,
     photos,
@@ -36,3 +37,4 @@ for _module in (
     photos, users, bans, overview, events, upload_controls, exports, instagram, dashboard,
 ):  # fmt: skip
     router.include_router(_module.router)
+router.include_router(host_settings.router)

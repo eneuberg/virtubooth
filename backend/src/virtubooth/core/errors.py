@@ -36,6 +36,12 @@ ErrorCode = Literal[
     "invalid_cursor",
     "no_fingerprint",
     "restore_required",
+    # admin settings
+    "invalid_event_name",
+    "password_too_short",
+    "password_unchanged",
+    "no_filter_enabled",
+    "unknown_filter",
     # admin exports
     "export_not_ready",
     "export_running",
