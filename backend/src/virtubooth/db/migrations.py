@@ -108,10 +108,32 @@ CREATE TABLE settings (
 );
 """
 
+# v3: export jobs the admin starts (archive, timelapse, QR codes). One worker
+# runs them one at a time; the files live in <data>/exports/. `options` is the
+# job's JSON options, `progress` 0..1 (NULL while queued).
+SCHEMA_V3 = """
+CREATE TABLE export_jobs (
+    id           TEXT    PRIMARY KEY,
+    kind         TEXT    NOT NULL,
+    status       TEXT    NOT NULL,
+    options      TEXT    NOT NULL DEFAULT '{}',
+    progress     REAL,
+    created_at   TEXT    NOT NULL,
+    created_by   TEXT    NOT NULL DEFAULT '',
+    started_at   TEXT,
+    finished_at  TEXT,
+    error        TEXT,
+    file_name    TEXT,
+    bytes        INTEGER
+);
+CREATE INDEX export_jobs_status ON export_jobs(status);
+"""
+
 # (version, script): each step upgrades the database from the version before.
 MIGRATIONS: tuple[tuple[int, str], ...] = (
     (1, SCHEMA),
     (2, SCHEMA_V2),
+    (3, SCHEMA_V3),
 )
 SCHEMA_VERSION = MIGRATIONS[-1][0]
 

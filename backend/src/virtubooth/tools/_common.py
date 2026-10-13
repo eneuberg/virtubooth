@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import os
+import shutil
 import sys
 from collections.abc import Callable, Iterator, Sequence
 from contextlib import contextmanager
@@ -21,11 +22,15 @@ PAGE_SIZE = 1000
 
 
 class ToolError(Exception):
-    """A problem the user can fix. Printed without a traceback."""
+    """A problem the user can fix. Printed without a traceback.
 
-    def __init__(self, message: str, code: int = 1) -> None:
+    `user_message`: the same in German, for the admin UI's export jobs (which
+    run these functions in the server); None = the job shows a generic text."""
+
+    def __init__(self, message: str, code: int = 1, *, user_message: str | None = None) -> None:
         super().__init__(message)
         self.code = code
+        self.user_message = user_message
 
 
 def run(fn: Callable[[argparse.Namespace], int], parser: argparse.ArgumentParser,
@@ -85,6 +90,18 @@ def scratch_parent(data_dir: Path, out: Path) -> Path:
         if os.access(candidate, os.W_OK):
             return candidate
     raise ToolError(f"neither {exports_dir(data_dir)} nor {out.parent} is writable")
+
+
+def check_free_space(folder: Path, needed: int) -> None:
+    """Refuse to start writing `needed` bytes (plus a margin) into `folder`."""
+    free = shutil.disk_usage(folder).free
+    if free < needed * 1.05 + 10_000_000:
+        raise ToolError(
+            f"not enough disk space at {folder}: need ~{human_size(needed)}, "
+            f"{human_size(free)} free (use --out elsewhere)",
+            user_message=f"Nicht genug Speicherplatz auf dem Server: gebraucht etwa "
+            f"{human_size(needed)}, frei {human_size(free)}.",
+        )
 
 
 def timestamp() -> str:

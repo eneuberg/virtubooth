@@ -11,6 +11,8 @@ from .admin_sessions import AdminSessionsRepo
 from .app_settings import AppSettingsRepo
 from .audit import AuditRepo
 from .bans import FingerprintBansRepo
+from .exports import ExportJobsRepo
+from .instagram import InstagramRepo
 from .photos import PhotosRepo
 from .users import UsersRepo
 
@@ -25,6 +27,8 @@ class Repositories:
     admin_sessions: AdminSessionsRepo
     audit: AuditRepo
     read_models: AdminReadModels
+    exports: ExportJobsRepo
+    instagram: InstagramRepo
 
     @classmethod
     def create(cls, db: Database, data_dir: Path) -> Repositories:
@@ -37,4 +41,6 @@ class Repositories:
             admin_sessions=AdminSessionsRepo(db),
             audit=AuditRepo(db),
             read_models=AdminReadModels(db),
+            exports=ExportJobsRepo(db),
+            instagram=InstagramRepo(db),
         )

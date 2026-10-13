@@ -7,6 +7,7 @@ import logging
 from collections.abc import AsyncIterator, Sequence
 from contextlib import asynccontextmanager
 
+from anyio import to_thread
 from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse, Response
@@ -34,13 +35,19 @@ def create_app(settings: Settings, *, extensions: Sequence[Extension] | None = N
         validate_extension(ext)
     web = WebFrontend.from_settings(settings)
     core = Core.create(settings, exts, web)
+    # export jobs a stopped server left queued or running have failed
+    core.services.exports.recover()
 
     @asynccontextmanager
     async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
         core.bus.bind_loop(asyncio.get_running_loop())
         # after uvicorn configured logging, so the filter isn't replaced
         install_access_log_filter()
-        yield
+        core.services.exports.attach()
+        try:
+            yield
+        finally:
+            await to_thread.run_sync(core.services.exports.detach)
 
     # runtime docs stay off; `virtubooth export-openapi` writes the schema
     app = FastAPI(

@@ -118,3 +118,113 @@ all admin queries → on error keep today's behaviour (check
 HTML is no longer part of the API package: see `web-serving.md`. Gone:
 `/static/*`, `/admin/assets/*`, and files under `/x/<id>/` (those paths are
 now app routes that return `index.html`).
+
+## 6. Exports and the Instagram board (wave 2, BE-features)
+
+Owner: BE-features. PLAN §3 "New endpoints" items 2–3. All routes are admin
+routes: admin session, CSRF origin check on mutations, `X-VB-Event-Id` on every
+answer (the file downloads included), `ErrorBody` errors. Export creation needs
+no budget of its own: admin sessions are exempt from the API budgets.
+
+### 6.1 Endpoints
+
+| Route | Answer |
+|---|---|
+| `GET /api/admin/exports` | `ExportJobsOut {jobs: ExportJob[], public_base_url: string \| null, ffmpeg: bool}`. Jobs newest first. `public_base_url` = `VB_PUBLIC_BASE_URL` (prefill for the QR form), `ffmpeg` = timelapse jobs can run. |
+| `POST /api/admin/exports` | Body `ExportIn {kind, options?}` (a union discriminated by `kind`). New job: **202** `ExportCreatedOut {job, created: true}`. A job of the same kind already queued or running: **200** `{job: <that job>, created: false}`; nothing new is queued and the request's options are ignored. 400 `base_url_required` / `invalid_base_url` (qr), 422 `invalid_request` (unknown kind or option, out-of-range value). |
+| `GET /api/admin/exports/{id}/download` | The file as an attachment: `application/zip` (archive, qr) or `video/mp4` (timelapse), `Content-Disposition: attachment; filename="<file_name>"`, Range requests work. 409 `export_not_ready` while queued or running ("Der Export ist noch nicht fertig.") or when it failed; 404 `not_found` for an unknown id or a file that is gone. |
+| `DELETE /api/admin/exports/{id}` | `ExportDeletedOut {ok: true, id}`: record and file are gone. Deleting a **queued** job cancels it. 409 `export_running` while it runs; 404 `not_found`. |
+| `GET /api/admin/instagram` | unchanged, plus `done: bool` per handle. |
+| `POST /api/admin/instagram/{handle}/done` | Body `{done: bool}` → `InstagramDoneOut {handle, done, changed}`. `handle` is normalized like the guests' input (lower case, leading `@` dropped, so `@Anna.Party` = `anna.party`); the answer has the normalized one. 400 `invalid_instagram`, 404 `not_found` when no guest gave that handle. `changed: false` when it already was in that state (no audit entry, no event). |
+| `GET /api/admin/instagram/{handle}/photos.zip` | A zip, streamed: `Content-Disposition: attachment; filename="fotos-<handle>.zip"`. Entries `0001-<activity>-<photo id>.jpg`, … in upload order (stored, not deflated): the handle's photos that are not hidden and not deleted, of guests who are not banned (a banned guest's photo stays out even when an admin un-hid it). 404 `not_found` when there is none, 400 `invalid_instagram`. |
+
+Ids of export jobs are server-generated (`[A-Za-z0-9_-]{16}`, the shape of
+photo ids; anything else is 422). Downloads only ever serve files directly in
+`<data>/exports/`.
+
+### 6.2 `ExportJob`
+
+```
+{id, kind: "archive" | "timelapse" | "qr",
+ status: "queued" | "running" | "done" | "failed",
+ progress: number | null,      // null while queued, 0..1 while running, 1 when done,
+                               // a failed job keeps its last value
+ created_at, started_at, finished_at,   // ISO-8601 UTC; null until reached
+ error: string | null,         // German, shown as-is (failed jobs)
+ file_name: string | null,     // set when done, e.g. "archiv-20261013-2215-AbC_x-9z.zip"
+ bytes: number | null,         // set when done
+ download_url: string | null,  // "/api/admin/exports/<id>/download" when done
+ options}                      // what it runs with, defaults filled in (qr: the URL used)
+```
+
+Options (all optional; unknown keys are 422):
+
+| kind | options (default) | output |
+|---|---|---|
+| `archive` | `include_hidden` (false), `include_db` (false) | `archiv-<YYYYMMDD-HHMM>-<id8>.zip`, one top folder named like the file: `photos/<activity>/<seq>_<file>.jpg` (hidden ones under `photos/<activity>/hidden/`), `photos.csv`, `users.csv`, `instagram.csv` (as the CLI export), `manifest.json` (`format: "virtubooth-archive/1"`, party name, options, counts, one entry per photo with its `file`), `README.txt`, and with `include_db` `virtubooth.db`: a consistent copy made with SQLite's backup API (never the live file). |
+| `timelapse` | `extension` ("beer", an activity id), `fps` (12, photos per second, 1–30), `crossfade` (false), `include_hidden` (false) | `zeitraffer-<extension>-<YYYYMMDD-HHMM>-<id8>.mp4`: H.264, 1080×1440, the last photo held 2 s, as `python -m virtubooth.tools.timelapse` makes it. With `crossfade` the video runs at 30 fps (60 when `fps` is 30). |
+| `qr` | `base_url` (`VB_PUBLIC_BASE_URL`; neither → 400 `base_url_required`, malformed → 400 `invalid_base_url`) | `qr-codes-<YYYYMMDD-HHMM>-<id8>.zip`, one top folder: `qr-sheet.html` (self-contained: inline CSS and SVG, no scripts, no external files; party name on it; one A4 page per code) plus `qr-home.svg/.png` and `qr-<activity>.svg/.png` for every activity on the home page. The codes carry the party token. |
+
+A job fails (status `failed`, German `error`) for example when ffmpeg is
+missing ("Für den Zeitraffer fehlt ffmpeg auf dem Server. …"), when the
+activity has no (visible) photos, when the disk is too full, or with
+"Server wurde neu gestartet." (see 6.4). Anything unexpected: "Der Export ist
+fehlgeschlagen. Details stehen im Server-Log."
+
+### 6.3 Errors and events added
+
+| Code | Status | Where |
+|---|---|---|
+| `export_not_ready` | 409 | download of a queued, running or failed job |
+| `export_running` | 409 | delete of a running job |
+| `base_url_required` | 400 | qr job without `base_url` and without `VB_PUBLIC_BASE_URL` |
+| `invalid_base_url` | 400 | qr `base_url` not `http(s)://host[/path]` or with `?`/`#` |
+
+Admin events (in the `AdminEvent` union):
+
+- `export.updated {job: ExportJob}`: created (queued), started (running),
+  progress (at most every 5 % or every second), done, failed.
+- `export.deleted {id}`: deleted by an admin, or pruned (6.4).
+- `instagram.done {handle, done}`: the mark changed.
+
+Audit vocabulary: `export.create` / `export.delete` with target
+`export:<id>` (details: kind and options / kind, status and file name);
+`instagram.done` / `instagram.undone` with target `instagram:<handle>`.
+Each is written in the same transaction as the change.
+
+### 6.4 Runtime and persistence (decision)
+
+- **Job state lives in a new table `export_jobs`** (migration step 3, appended
+  to `db.MIGRATIONS`), not in the settings KV: jobs are a list of records whose
+  status and progress a worker thread updates, the worker claims the oldest
+  queued job atomically (`UPDATE … WHERE status='queued'`), and deleting a
+  queued job must race safely with that claim. The KV holds small singleton
+  JSON values and would need a read-modify-write of one blob per progress
+  step. The Instagram marks, a small set, do live in the KV
+  (`settings.instagram_done = {"handles": {<handle>: {at, by}}}`).
+- One worker thread runs the jobs one at a time, oldest first. It starts and
+  stops with the app's lifespan; stopping cancels the running job.
+- On start, jobs left `queued` or `running` become `failed` with
+  "Server wurde neu gestartet." (their partial files are removed).
+- At most one queued or running job per kind (see `POST` above).
+- Files go to `<data>/exports/` (written as `.<id>.part`, renamed when done;
+  scratch dirs `.vb-job-<id>-*` there too, never `/tmp`). The newest 10 done
+  jobs keep their files; older done jobs are deleted with their file
+  (`export.deleted`). The newest 10 failed records are kept.
+- The CLI tools (`python -m virtubooth.tools.qr|timelapse|export`) are
+  unchanged and still write their own files next to these.
+
+### 6.5 For the admin UI
+
+- Start: `POST /api/admin/exports` with `{kind, options}`. Read `created`
+  (or the status code) to tell "started" from "already running".
+- Progress: listen for `export.updated` on the event stream you already have
+  and replace the job by `id`; `export.deleted` removes it. Without the
+  stream, poll `GET /api/admin/exports` (e.g. every 2 s while any job is
+  `queued` or `running`).
+- Download: a plain link to `download_url` (`<a href download>`); it is a GET
+  with the admin cookie, so no CSRF header is needed. The same for the
+  Instagram zip: `/api/admin/instagram/<handle>/photos.zip`.
+- QR form: prefill `base_url` with `public_base_url`; when that is null the
+  field is required (else 400 `base_url_required`). Timelapse form: disable it
+  with a hint when `ffmpeg` is false; `fps` 1–30 (default 12).

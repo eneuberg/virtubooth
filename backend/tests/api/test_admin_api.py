@@ -40,6 +40,12 @@ ROUTES = [
     ("GET", "/api/admin/upload-pause", None),
     ("POST", "/api/admin/upload-pause", {"enabled": False, "restore": True}),
     ("POST", "/api/admin/users/1/uploads", {"paused": True}),
+    ("GET", "/api/admin/exports", None),
+    ("POST", "/api/admin/exports", {"kind": "archive"}),
+    ("GET", f"/api/admin/exports/{PHOTO}/download", None),
+    ("DELETE", f"/api/admin/exports/{PHOTO}", None),
+    ("POST", "/api/admin/instagram/anna/done", {"done": True}),
+    ("GET", "/api/admin/instagram/anna/photos.zip", None),
 ]
 
 

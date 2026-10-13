@@ -151,6 +151,8 @@ def app_requests(app, token: str, web_dirs: Sequence[Path] = ()) -> list[Request
                 .replace("{photo_id}", photo)
                 .replace("{user_id}", "17")
                 .replace("{fp_hash}", fp_hash)
+                .replace("{job_id}", photo)  # export jobs: same id shape
+                .replace("{handle}", "anna.party")
             )
             for method in sorted(methods - {"HEAD"}):
                 add(p, "xmlhttprequest", method)
