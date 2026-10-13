@@ -39,7 +39,15 @@ from typing import Any
 
 import pytest
 import uvicorn
-from playwright.sync_api import Browser, BrowserContext, Page, Playwright, sync_playwright
+from playwright.sync_api import (
+    Browser,
+    BrowserContext,
+    Locator,
+    Page,
+    Playwright,
+    expect,
+    sync_playwright,
+)
 
 from virtubooth.app import create_app
 from virtubooth.extensions.sdk import Extension
@@ -533,3 +541,68 @@ def guest_page(page: Page, live: LiveServer) -> Page:
     accept_consent_in_browser(page)
     page.get_by_test_id("start").wait_for()
     return page
+
+
+# ------------------------------------------------ the toast and what is under it
+
+# A tap that lands within this is a tap that did not wait for the toast to go
+# (5-7 s): Playwright retries a click while another element covers the target.
+QUICK_TAP_MS = 1500
+
+COVERED_CONTROLS = """() => {
+    const toast = [...document.querySelectorAll('[data-tone]')].at(-1);
+    const layer = [...document.querySelectorAll('.vb-scrim:not([data-exiting])')].at(-1);
+    if (!toast || !layer) return null;
+    const t = toast.getBoundingClientRect();
+    const controls = 'button, a[href], input, select, textarea, [role=switch], [role=slider], [role=checkbox], [role=tab]';
+    const out = [];
+    for (const el of layer.querySelectorAll(controls)) {
+        const r = el.getBoundingClientRect();
+        if (!r.width || !r.height) continue;
+        if (r.left < t.right && r.right > t.left && r.top < t.bottom && r.bottom > t.top)
+            out.push((el.getAttribute('aria-label') || el.textContent || el.tagName).trim());
+    }
+    return out;
+}"""
+
+
+def settle_toast(page: Page) -> None:
+    """Wait until the toast has slid in and ended any move (it measures what is under
+    it a frame after the page changes, then glides there), at most ~2 s."""
+    page.evaluate(
+        """async () => {
+            const frame = () => new Promise((resolve) => requestAnimationFrame(() => resolve(null)));
+            await frame();
+            await frame();
+            const region = [...document.querySelectorAll('[data-tone]')].at(-1)?.closest('[role=region]');
+            const busy = () => !!region && region.getAnimations({subtree: true})
+                .some((a) => a.playState === 'running');
+            for (let i = 0; i < 120 && busy(); i++) await frame();
+        }"""
+    )
+
+
+def covered_by_toast(page: Page, *targets: Locator) -> list[str]:
+    """What the visible toast covers: of `targets`, or with none given, every control
+    in the open sheet, dialog or viewer. [] means all of them can be tapped now."""
+    toast = page.locator("[data-tone]").last
+    expect(toast).to_be_visible()
+    settle_toast(page)
+    if not targets:
+        covered = page.evaluate(COVERED_CONTROLS)
+        assert covered is not None, "no toast, or no sheet or viewer open"
+        return list(covered)
+    t = toast.bounding_box()
+    assert t is not None
+    out = []
+    for target in targets:
+        b = target.bounding_box()
+        assert b is not None, f"{target} is not shown"
+        if (
+            b["x"] < t["x"] + t["width"]
+            and b["x"] + b["width"] > t["x"]
+            and b["y"] < t["y"] + t["height"]
+            and b["y"] + b["height"] > t["y"]
+        ):
+            out.append(str(target))
+    return out

@@ -14,7 +14,14 @@ from playwright.sync_api import Page, expect
 
 from virtubooth.domain.models import PhotoQuery
 
-from ..conftest import LiveServer, accept_consent_in_browser, join_via_api, shot
+from ..conftest import (
+    QUICK_TAP_MS,
+    LiveServer,
+    accept_consent_in_browser,
+    covered_by_toast,
+    join_via_api,
+    shot,
+)
 from .conftest import errors_besides, no_horizontal_scroll, only_user, reload, upload
 
 pytestmark = pytest.mark.e2e
@@ -74,6 +81,10 @@ def test_deine_bilder_shows_only_own_visible_photos(guest_page: Page, live: Live
         save.click()
     assert info.value.suggested_filename == f"beer-{c['seq']:05d}.jpg"
     expect(page.get_by_text("Gespeichert")).to_be_visible()
+    # the toast moves above the sheet: Speichern and the arrows take the next tap at once
+    assert covered_by_toast(page) == []
+    with page.expect_download():
+        save.tap(timeout=QUICK_TAP_MS)
     # arrow keys walk through the photos
     expect(viewer.get_by_role("img")).to_have_attribute("src", c["url"])
     page.keyboard.press("ArrowRight")
