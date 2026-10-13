@@ -12,6 +12,12 @@ import type { FilterImpl, RenderState, UniformValue } from './filters';
 
 export type RendererKind = 'webgl' | 'canvas2d';
 
+/** Another filter and overlay for one snapshot, leaving the preview's as they are. */
+export interface Look {
+  filter: FilterImpl;
+  overlay: HTMLCanvasElement | null;
+}
+
 export interface Renderer {
   readonly kind: RendererKind;
   readonly canvas: HTMLCanvasElement;
@@ -25,8 +31,11 @@ export interface Renderer {
   redraw(): void;
   /** the last rendered frame at 1080×1440 in the shared capture canvas (valid until the next capture) */
   capture(): HTMLCanvasElement;
-  /** the last rendered frame at any 3:4 size, in a fresh canvas (filter swatches) */
-  snapshot(width: number, height: number): HTMLCanvasElement;
+  /**
+   * the last rendered frame at any 3:4 size, in a fresh canvas (filter swatches); with
+   * `look`, through that filter and overlay instead of the preview's (which stay set)
+   */
+  snapshot(width: number, height: number, look?: Look): HTMLCanvasElement;
   /**
    * sets the backing store from the on-screen width (DPR ≤ 2, capped); the picture on
    * it stays the same frame (a frozen preview never picks up a newer video frame)
@@ -281,8 +290,12 @@ class GLRenderer implements Renderer {
     this.program(filter); // compile now: errors surface here, not mid-frame
     this.filter = filter;
     this.overlay = overlay;
+    this.uploadOverlay(this.overlayTex, overlay);
+  }
+
+  private uploadOverlay(texture: WebGLTexture | null, overlay: HTMLCanvasElement | null): void {
     const gl = this.gl;
-    gl.bindTexture(gl.TEXTURE_2D, this.overlayTex);
+    gl.bindTexture(gl.TEXTURE_2D, texture);
     if (overlay) {
       gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, true);
       gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, overlay);
@@ -305,10 +318,16 @@ class GLRenderer implements Renderer {
     return this.videoSize[0] > 0;
   }
 
-  private draw(width: number, height: number, flipY: number): void {
+  private draw(
+    width: number,
+    height: number,
+    flipY: number,
+    look?: { filter: FilterImpl; overlayTex: WebGLTexture | null },
+  ): void {
     const gl = this.gl;
-    if (!this.filter) return;
-    const p = this.program(this.filter);
+    const filter = look ? look.filter : this.filter;
+    if (!filter) return;
+    const p = this.program(filter);
     gl.useProgram(p.prog);
     gl.viewport(0, 0, width, height);
     gl.bindBuffer(gl.ARRAY_BUFFER, this.quad);
@@ -318,7 +337,7 @@ class GLRenderer implements Renderer {
     gl.bindTexture(gl.TEXTURE_2D, this.videoTex);
     gl.uniform1i(p.u.video, 0);
     gl.activeTexture(gl.TEXTURE1);
-    gl.bindTexture(gl.TEXTURE_2D, this.overlayTex);
+    gl.bindTexture(gl.TEXTURE_2D, look ? look.overlayTex : this.overlayTex);
     gl.uniform1i(p.u.overlay, 1);
     gl.activeTexture(gl.TEXTURE0);
     const [vw, vh] = this.videoSize;
@@ -328,7 +347,7 @@ class GLRenderer implements Renderer {
     gl.uniform1f(p.u.time, this.state.time);
     gl.uniform2f(p.u.px, 1 / Math.max(1, crop.w * vw), 1 / Math.max(1, crop.h * vh));
     gl.uniform1f(p.u.flipY, flipY);
-    const uniforms = this.filter.uniforms ?? {};
+    const uniforms = filter.uniforms ?? {};
     for (const [name, location] of p.custom) {
       const value = uniforms[name];
       if (value === undefined) continue;
@@ -350,10 +369,21 @@ class GLRenderer implements Renderer {
     if (!this.lost && this.filter && this.hasFrame) this.draw(this.canvas.width, this.canvas.height, 1);
   }
 
-  /** Renders the last frame at w×h into a framebuffer and reads it back (rows top-down). */
-  private readFrame(w: number, h: number): ImageData {
+  /**
+   * Renders the last frame at w×h into a framebuffer and reads it back (rows top-down).
+   * A `look` brings its own overlay texture for this one pass: the preview's stays, so
+   * a row of swatches doesn't re-upload the 1080×1440 overlay after every one.
+   */
+  private readFrame(w: number, h: number, look?: Look): ImageData {
     if (this.lost) throw new Error('WebGL context lost');
     const gl = this.gl;
+    let pass: { filter: FilterImpl; overlayTex: WebGLTexture | null } | undefined;
+    if (look) {
+      this.program(look.filter);
+      const overlayTex = this.texture();
+      this.uploadOverlay(overlayTex, look.overlay);
+      pass = { filter: look.filter, overlayTex };
+    }
     const target = gl.createTexture();
     gl.bindTexture(gl.TEXTURE_2D, target);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
@@ -370,12 +400,13 @@ class GLRenderer implements Renderer {
         throw new Error('framebuffer incomplete');
       }
       // flipY = -1: readPixels returns rows bottom-up, so draw upside down
-      this.draw(w, h, -1);
+      this.draw(w, h, -1, pass);
       gl.readPixels(0, 0, w, h, gl.RGBA, gl.UNSIGNED_BYTE, pixels);
     } finally {
       gl.bindFramebuffer(gl.FRAMEBUFFER, null);
       gl.deleteFramebuffer(fb);
       gl.deleteTexture(target);
+      if (pass) gl.deleteTexture(pass.overlayTex);
       gl.viewport(0, 0, this.canvas.width, this.canvas.height);
     }
     return new ImageData(pixels, w, h);
@@ -387,11 +418,11 @@ class GLRenderer implements Renderer {
     return out;
   }
 
-  snapshot(width: number, height: number): HTMLCanvasElement {
+  snapshot(width: number, height: number, look?: Look): HTMLCanvasElement {
     const out = document.createElement('canvas');
     out.width = width;
     out.height = height;
-    context2d(out).putImageData(this.readFrame(width, height), 0, 0);
+    context2d(out).putImageData(this.readFrame(width, height, look), 0, 0);
     return out;
   }
 
@@ -444,9 +475,11 @@ class CanvasRenderer implements Renderer {
     return !!this.video;
   }
 
-  private paint(ctx: CanvasRenderingContext2D, width: number, height: number): void {
+  private paint(ctx: CanvasRenderingContext2D, width: number, height: number, look?: Look): void {
     const video = this.video;
-    if (!video || !this.filter) return;
+    const filter = look ? look.filter : this.filter;
+    const overlay = look ? look.overlay : this.overlay;
+    if (!video || !filter) return;
     const vw = video.videoWidth;
     const vh = video.videoHeight;
     const crop = coverCrop(vw, vh);
@@ -457,8 +490,8 @@ class CanvasRenderer implements Renderer {
     }
     ctx.drawImage(video, crop.x * vw, crop.y * vh, crop.w * vw, crop.h * vh, 0, 0, width, height);
     ctx.restore();
-    this.filter.cpu?.(ctx, width, height);
-    if (this.overlay) ctx.drawImage(this.overlay, 0, 0, width, height);
+    filter.cpu?.(ctx, width, height);
+    if (overlay) ctx.drawImage(overlay, 0, 0, width, height);
   }
 
   render(video: HTMLVideoElement, state: RenderState): boolean {
@@ -479,11 +512,11 @@ class CanvasRenderer implements Renderer {
     return out;
   }
 
-  snapshot(width: number, height: number): HTMLCanvasElement {
+  snapshot(width: number, height: number, look?: Look): HTMLCanvasElement {
     const out = document.createElement('canvas');
     out.width = width;
     out.height = height;
-    this.paint(context2d(out, true), width, height);
+    this.paint(context2d(out, true), width, height, look);
     return out;
   }
 

@@ -85,12 +85,15 @@ export function FilterStrip({ filters, selectedId, onSelect, swatches, isDisable
               )}
             >
               {url ? (
+                // fades in (opacity only): ten "develop" filter animations at once next to
+                // the live WebGL preview crashed WebKit's renderer (WPE, e2e), and at this
+                // size the contrast part is invisible anyway. Prints still develop.
                 <img
                   src={url}
                   alt=""
                   width={52}
                   height={70}
-                  className="pointer-events-none size-full object-cover motion-ok:animate-develop"
+                  className="pointer-events-none size-full object-cover motion-ok:animate-fade-in"
                 />
               ) : (
                 <span aria-hidden="true" className="grid size-full place-items-center text-xl">

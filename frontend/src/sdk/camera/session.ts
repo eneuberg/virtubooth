@@ -400,12 +400,8 @@ export class CameraSession {
   ): HTMLCanvasElement {
     const renderer = this.renderer;
     if (!renderer || !renderer.hasFrame) throw new Error('no frame yet');
-    renderer.setFilter(filter, overlay);
-    try {
-      return renderer.snapshot(width, height);
-    } finally {
-      renderer.setFilter(this.filter, this.overlay);
-    }
+    // the preview keeps its filter and overlay (no re-upload after every swatch)
+    return renderer.snapshot(width, height, { filter, overlay });
   }
 
   /** Cancels rAF, stops the tracks, releases WebGL and the canvas. Safe to call twice. */
