@@ -38,10 +38,19 @@ SCREENSHOT_DIR = os.environ.get("VB_SCREENSHOT_DIR")
 # ---------------------------------------------------------------- guests
 
 
+def fonts_ready(page: Page) -> None:
+    """Wait for the web fonts in flight: Firefox logs a font download that a navigation
+    aborts as a console error (NS_BINDING_ABORTED), which is not the page's fault."""
+    if page.get_by_test_id("start").count():  # Start: the beer counter brings the Doto font
+        page.get_by_test_id("beer-count").wait_for()
+    page.evaluate("() => document.fonts.ready.then(() => null)")
+
+
 @pytest.fixture
 def guest(page: Page, live: LiveServer) -> Page:
-    """A joined guest on "/"."""
+    """A joined guest on "/" (fonts loaded, so the next navigation aborts nothing)."""
     join_via_api(page, live)
+    fonts_ready(page)
     return page
 
 
@@ -51,20 +60,25 @@ def pc(browser, live: LiveServer) -> Iterator[Page]:
     ctx = new_context(browser, "desktop")
     page = track_errors(ctx.new_page())
     join_via_api(page, live)
+    fonts_ready(page)
     yield page
     ctx.close()
 
 
 def open_beer(page: Page, live: LiveServer, query: str = "") -> None:
+    fonts_ready(page)
     page.goto(live.url(f"/x/beer/{query}"))
     expect(page.get_by_test_id("beer-app")).to_have_attribute("data-ready", "1", timeout=READY)
     expect(page.get_by_test_id("shutter")).to_be_enabled()
+    fonts_ready(page)
 
 
 def open_booth(page: Page, live: LiveServer, query: str = "") -> None:
+    fonts_ready(page)
     page.goto(live.url(f"/x/booth/{query}"))
     expect(page.get_by_test_id("booth")).to_have_attribute("data-ready", "1", timeout=READY)
     expect(page.get_by_test_id("filter-strip")).to_be_visible()
+    fonts_ready(page)
 
 
 def select_filter(page: Page, filter_id: str) -> None:
@@ -96,7 +110,7 @@ def reload(page: Page) -> None:
     """page.reload() once the fonts are in: Firefox logs a font download that the
     navigation aborts as an error (NS_BINDING_ABORTED), not the page's fault (GP's
     helper in tests/e2e/guest/conftest.py does the same)."""
-    page.evaluate("() => document.fonts.ready.then(() => null)")
+    fonts_ready(page)
     page.reload()
 
 

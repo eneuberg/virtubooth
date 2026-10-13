@@ -20,7 +20,7 @@ from playwright.sync_api import Page, Route, expect
 
 from virtubooth.extensions.booth import FILTERS
 
-from ..conftest import BROWSER_NAME, LiveServer, accept_consent_in_browser, chromium_only
+from ..conftest import BROWSER_NAME, LiveServer, accept_consent_in_browser
 from .conftest import (
     READY,
     Admin,
@@ -226,6 +226,7 @@ def test_strip_centres_the_selected_filter(
     guest.set_viewport_size({"width": viewport[0], "height": viewport[1]})
     open_booth(guest, live)
     strip = guest.get_by_test_id("filter-strip")
+
     def offset(fid: str) -> float:
         s = strip.bounding_box()
         c = guest.get_by_test_id(f"filter-{fid}").bounding_box()
@@ -288,7 +289,7 @@ def test_party_frame_differs_at_the_border(guest: Page, live: LiveServer):
     assert page.js_errors == []
 
 
-@chromium_only  # WebKit/Firefox screenshots of a paused WebGL canvas are not reliable
+@pytest.mark.skipif(BROWSER_NAME == "webkit", reason="WebKit discards a paused WebGL canvas")
 def test_photo_is_exactly_the_preview(guest: Page, live: LiveServer):
     """The capture renders the frozen frame again at 1080×1440: same video frame, same
     mirroring, same overlay. Compare the frozen preview with the stored photo."""
