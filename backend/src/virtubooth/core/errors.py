@@ -20,6 +20,11 @@ ErrorCode = Literal[
     "consent_outdated",
     "invalid_instagram",
     "join_closed",
+    # live wall
+    "wall_login_required",
+    "wall_no_password",
+    "wall_password_too_short",
+    "invalid_wall_config",
     # uploads
     "uploads_paused",
     "uploads_stopped",

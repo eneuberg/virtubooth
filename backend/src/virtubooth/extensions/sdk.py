@@ -81,6 +81,14 @@ class Extension:
     show_on_home: bool = True
     # how the admin UI labels meta keys, e.g. {"vessel": "Gefäß"}
     meta_labels: Mapping[str, str] = field(default_factory=dict)
+    # mounted at the root, outside /api/ (e.g. pages and files); its paths must not
+    # start with /api, /admin, /x/, /assets or /media
+    web_router: APIRouter | None = None
+    # called in the app lifespan: on_start after startup, on_stop before shutdown
+    # (in reverse extension order). Sync; may create asyncio tasks on the running
+    # loop. An exception is logged, never fatal.
+    on_start: Callable[[Core], None] | None = None
+    on_stop: Callable[[Core], None] | None = None
 
     @property
     def url(self) -> str:

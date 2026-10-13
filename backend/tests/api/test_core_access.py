@@ -454,7 +454,7 @@ def test_discover_respects_explicit_order():
     assert discover_extensions(list(reversed(everything))) == list(reversed(discover_extensions()))
     assert [e.id for e in discover_extensions(["beer", "beer"])] == ["beer"]
     assert [e.id for e in discover_extensions(["booth", "beer"])] == ["booth", "beer"]
-    assert [e.id for e in discover_extensions()] == ["beer", "booth"]
+    assert [e.id for e in discover_extensions()] == ["beer", "booth", "wall"]
     with pytest.raises(ConfigError):
         discover_extensions(["nope"])
 

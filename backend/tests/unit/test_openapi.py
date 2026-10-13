@@ -73,6 +73,11 @@ def test_every_route_has_a_response_schema(exported):
                     ref = item["properties"]["data"]["contentSchema"]["$ref"]
                     assert ref == "#/components/schemas/AdminEvent"
                     continue
+                if path == "/livewall/api/stream":
+                    item = content["text/event-stream"]["itemSchema"]
+                    ref = item["properties"]["data"]["contentSchema"]["$ref"]
+                    assert ref == "#/components/schemas/WallEvent"
+                    continue
                 body = content["application/json"]["schema"]
                 assert body.get("$ref") or body.get("oneOf") or body.get("anyOf"), (
                     method,
