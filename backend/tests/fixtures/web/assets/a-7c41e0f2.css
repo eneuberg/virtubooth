@@ -1,0 +1,3 @@
+/* stub stylesheet */
+html[data-vb-mode="gate"] .when-notfound,
+html[data-vb-mode="notfound"] .when-gate { display: none; }

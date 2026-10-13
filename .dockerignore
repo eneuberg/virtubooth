@@ -1,11 +1,12 @@
-# Allowlist: the image only needs the lockfile, the project metadata and the
-# package. Everything else (.git, .venv, .worktrees, data/, exports, tests/,
-# docs/, .env and other secrets, caches) stays out of the build context.
+# Allowlist: the image only needs the backend's lockfile, project metadata and
+# package (backend/src). Everything else (.git, .venv, .worktrees, data/,
+# exports, tests, docs/, .env and other secrets, caches) stays out of the
+# build context. TODO(overhaul wave 3): allow frontend/ for the Node stage.
 *
-!pyproject.toml
-!uv.lock
-!README.md
-!virtubooth/
+!backend/pyproject.toml
+!backend/uv.lock
+!backend/README.md
+!backend/src/
 
 # never ship caches or local runtime data that ended up inside the package
 **/__pycache__
