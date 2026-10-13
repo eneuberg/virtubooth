@@ -645,7 +645,7 @@ nennt die Variable. Die Limits stehen unter [Limits](#limits).
 - Im Container: `docker compose exec app python -m virtubooth.tools.<werkzeug> …`.
 - Für Entwickler listet `make help` alle Aufgaben (`setup`, `dev`, `dev-web`,
   `build-web`, `openapi`, `lint`, `typecheck`, `test`, `e2e`, `docker-smoke`,
-  `check` u. a.).
+  `check`, `check-all` u. a.).
 
 ### Daten und Backups
 

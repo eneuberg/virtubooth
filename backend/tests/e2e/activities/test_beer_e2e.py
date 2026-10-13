@@ -27,6 +27,7 @@ from .conftest import (
     open_beer,
     photos,
     reload,
+    settled_box,
     shot,
     stored_images,
     wait_kept,
@@ -537,7 +538,7 @@ def test_counter_follows_the_party(guest: Page, live: LiveServer):
 
 def inside(page: Page, testid: str) -> dict:
     """The element is fully on screen, without scrolling."""
-    box = page.get_by_test_id(testid).first.bounding_box()
+    box = settled_box(page.get_by_test_id(testid).first)
     size = page.viewport_size
     assert box and size, testid
     assert box["x"] >= -1 and box["y"] >= -1, (testid, box)

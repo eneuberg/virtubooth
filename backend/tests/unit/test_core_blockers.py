@@ -215,7 +215,8 @@ def full_lists() -> list[tuple[str, str]]:
         try:
             req = urllib.request.Request(url, headers={"User-Agent": "virtubooth-tests"})
             with urllib.request.urlopen(req, timeout=30) as resp:
-                part = target.with_suffix(".part")
+                # one name per process: xdist workers may download the same list at once
+                part = target.with_suffix(f".{os.getpid()}.part")
                 part.write_bytes(resp.read())
                 part.replace(target)
         except OSError:

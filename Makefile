@@ -4,6 +4,8 @@
 #   make dev PORT=8100              backend on :8100
 #   make dev-web PORT=8100 WEB_PORT=5200
 #   make e2e E2E_ARGS="-k beer -x"  extra pytest arguments
+#   make e2e E2E_ARGS=tests/e2e/admin/test_live_e2e.py   one file (paths from backend/)
+#   make e2e E2E_WORKERS=0          browser tests in one process (--pdb, breakpoints)
 #   make docker IMAGE=virtubooth:test
 # Needs uv, pnpm 11 with Node 22 (frontend/.node-version), and Docker for the
 # docker/WebKit targets.
@@ -29,11 +31,34 @@ SMOKE_PORT ?= 8180
 # extra pytest arguments for test / the e2e targets
 PYTEST_ARGS ?=
 E2E_ARGS ?=
+# parallel pytest workers (pytest-xdist; 0 = one process). Every e2e worker runs its
+# own servers and browser: 0.8 (Chromium) to 1 GB (Firefox, WebKit) of RAM each
+E2E_WORKERS ?= 4
+WEBKIT_WORKERS ?= $(E2E_WORKERS)
+TEST_WORKERS ?= 4
+# e2e-changed runs the e2e tests changed since this ref
+BASE ?= main
 
 UV_BACKEND := uv run --project backend
+# pytest arguments for N workers: nothing for 0
+xdist = $(if $(filter-out 0,$(1)),-n $(1) --dist worksteal)
+
+# What `pnpm build` reads: frontend/'s files without node_modules and dist (git knows
+# which), and their folders (deleting a file changes its folder). The e2e targets
+# rebuild frontend/dist only when one of them is newer; `make build-web` always builds.
+WEB_INPUTS := $(shell git ls-files -co --exclude-standard -- frontend 2>/dev/null)
+WEB_INPUTS := $(wildcard $(WEB_INPUTS)) $(patsubst %/,%,$(sort $(dir $(WEB_INPUTS))))
+ifeq ($(strip $(WEB_INPUTS)),)
+WEB_INPUTS := FORCE
+endif
 
 .PHONY: help setup browsers dev dev-web build-web openapi openapi-check lint \
-        typecheck test e2e e2e-firefox e2e-webkit docker docker-smoke check clean
+        typecheck test e2e e2e-firefox e2e-webkit e2e-changed docker docker-smoke \
+        check check-all clean FORCE
+# a failed build leaves no frontend/dist/index.html that looks up to date
+.DELETE_ON_ERROR:
+# check-all's steps one after the other even under -j (each e2e run is parallel itself)
+.NOTPARALLEL: check-all
 
 help: ## list the targets
 	@echo "usage: make <target> [PORT=8000 WEB_PORT=5173 IMAGE=virtubooth:local ...]"
@@ -74,6 +99,11 @@ dev-web: ## Vite dev server on :WEB_PORT (hot reload), proxying /api, /media and
 build-web: ## production frontend build into frontend/dist (+ .br/.gz, blocker name check)
 	cd frontend && pnpm build
 
+frontend/dist/index.html: $(WEB_INPUTS)
+	cd frontend && pnpm build
+
+FORCE:
+
 openapi: ## export the OpenAPI schema to frontend/openapi.json and regenerate src/api/schema.gen.ts
 	cd backend && uv run virtubooth export-openapi -o ../frontend/openapi.json
 	cd frontend && pnpm gen:api
@@ -92,27 +122,42 @@ typecheck: ## mypy --strict (backend, scripts/smoke.py), tsc -b (frontend)
 	$(UV_BACKEND) mypy --strict --python-version 3.12 scripts/smoke.py
 	cd frontend && pnpm typecheck
 
-test: ## unit + API tests (pytest) and frontend unit tests (Vitest)
-	cd backend && uv run pytest -q $(PYTEST_ARGS)
+test: ## unit + API tests (pytest, TEST_WORKERS in parallel) and frontend unit tests (Vitest)
+	cd backend && uv run pytest -q $(call xdist,$(TEST_WORKERS)) $(PYTEST_ARGS)
 	cd frontend && pnpm test
 
-e2e: build-web ## browser tests in Chromium against a fresh frontend/dist
-	cd backend && uv run pytest -m e2e -q $(E2E_ARGS)
+e2e: frontend/dist/index.html ## browser tests in Chromium, E2E_WORKERS in parallel (rebuilds frontend/dist if needed)
+	cd backend && uv run pytest -m e2e -q $(call xdist,$(E2E_WORKERS)) $(E2E_ARGS)
 
-e2e-firefox: build-web ## the browser tests in Firefox
-	cd backend && VB_E2E_BROWSER=firefox uv run pytest -m e2e -q $(E2E_ARGS)
+e2e-firefox: frontend/dist/index.html ## the browser tests in Firefox
+	cd backend && VB_E2E_BROWSER=firefox uv run pytest -m e2e -q $(call xdist,$(E2E_WORKERS)) $(E2E_ARGS)
 
-e2e-webkit: build-web ## the browser tests in WebKit (Safari's engine), inside the Playwright Docker image
-	backend/tests/e2e/run_webkit.sh $(E2E_ARGS)
+e2e-webkit: frontend/dist/index.html ## the browser tests in WebKit (Safari's engine), inside the Playwright Docker image
+	backend/tests/e2e/run_webkit.sh $(call xdist,$(WEBKIT_WORKERS)) $(E2E_ARGS)
 
-docker: ## build the container image (IMAGE)
+e2e-changed: frontend/dist/index.html ## Chromium e2e tests changed since BASE (committed or not); a changed helper runs them all
+	@changed=$$( { git diff --name-only --diff-filter=d $(BASE)... -- backend/tests/e2e; \
+	               git diff --name-only --diff-filter=d HEAD -- backend/tests/e2e; \
+	               git ls-files -o --exclude-standard -- backend/tests/e2e; } | sort -u ); \
+	  tests=$$(grep -E '/test_[^/]*\.py$$' <<<"$$changed" | sed 's|^backend/||' || true); \
+	  if grep -qvE '/test_[^/]*\.py$$|^$$' <<<"$$changed"; then tests=tests/e2e; fi; \
+	  if [ -z "$$tests" ]; then echo "e2e-changed: no e2e test changed since $(BASE)"; exit 0; fi; \
+	  echo "e2e-changed:" $$tests; \
+	  cd backend && uv run pytest -m e2e -q $(call xdist,$(E2E_WORKERS)) $$tests $(E2E_ARGS)
+
+docker: ## build the container image (IMAGE); unchanged layers come from Docker's build cache
 	docker build -t $(IMAGE) .
 
 docker-smoke: docker ## run IMAGE on 127.0.0.1:SMOKE_PORT and check it end to end, then remove it
 	VB_SMOKE_BUILD=0 VB_SMOKE_IMAGE=$(IMAGE) VB_SMOKE_PORT=$(SMOKE_PORT) scripts/docker-smoke.sh
 
-check: lint typecheck test openapi-check e2e e2e-firefox docker-smoke ## everything CI runs
+check: openapi-check ## the everyday gate: OpenAPI drift, lint + typecheck + test side by side, Chromium e2e
+	@$(MAKE) -j3 --output-sync=target lint typecheck test
+	@$(MAKE) e2e
 	@echo "check: all green"
+
+check-all: check e2e-firefox e2e-webkit docker-smoke ## everything: check, then Firefox, WebKit and the Docker smoke test
+	@echo "check-all: all green"
 
 clean: ## remove build outputs and caches (never data/, .env or dependencies)
 	rm -rf frontend/dist frontend/dist-gallery frontend/node_modules/.tmp frontend/node_modules/.vite

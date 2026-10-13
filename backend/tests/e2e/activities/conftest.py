@@ -17,7 +17,7 @@ from typing import Any
 
 import pytest
 from PIL import Image
-from playwright.sync_api import APIRequestContext, Page, Playwright, expect
+from playwright.sync_api import APIRequestContext, FloatRect, Locator, Page, Playwright, expect
 
 from virtubooth.domain.models import Photo, PhotoQuery
 
@@ -43,7 +43,10 @@ def fonts_ready(page: Page) -> None:
     """Wait for the web fonts and Start's requests in flight: Firefox logs a font download
     that a navigation aborts as a console error (NS_BINDING_ABORTED), WebKit an aborted
     fetch ("… due to access control checks"); neither is the page's fault. And a ban that
-    lands while "Deine Bilder" is still loading answers it with a 403."""
+    lands while "Deine Bilder" is still loading answers it with a 403. Firefox also
+    aborts Start's lazy card modules when the page navigates away mid-load, and the
+    app's chunk-reload recovery (lib/boot.ts) then reloads "/" instead: the
+    navigation fails with NS_BINDING_ABORTED."""
     if page.get_by_test_id("start").count():  # Start: the beer counter brings the Doto font
         page.get_by_test_id("beer-count").wait_for()
         expect(page.get_by_test_id("my-photos")).not_to_have_attribute("data-state", "loading")
@@ -83,6 +86,33 @@ def open_booth(page: Page, live: LiveServer, query: str = "") -> None:
     expect(page.get_by_test_id("booth")).to_have_attribute("data-ready", "1", timeout=READY)
     expect(page.get_by_test_id("filter-strip")).to_be_visible()
     fonts_ready(page)
+
+
+def settled_box(locator: Locator) -> FloatRect | None:
+    """The element's bounding box once it stands still. ActivityShell re-measures its
+    layout a frame after the content changes (a ResizeObserver sets --vb-reserve in the
+    next animation frame), so a box read right after a change (the print appears, the
+    status text grows) can be one frame early; on a busy machine that frame comes late.
+    Waits until the box is the same for 3 frames (at most ~2 s). Not right before a
+    screenshot of a WebGL canvas: WebKit then sometimes captures it black."""
+    locator.evaluate(
+        """async (el) => {
+            const frame = () => new Promise((resolve) => requestAnimationFrame(() => resolve(null)));
+            const where = () => { const r = el.getBoundingClientRect(); return [r.x, r.y, r.width, r.height].join(); };
+            const still = async () => {
+                let last = where();
+                for (let i = 0, same = 0; i < 120 && same < 3; i++) {
+                    await frame();
+                    const now = where();
+                    same = now === last ? same + 1 : 0;
+                    last = now;
+                }
+            };
+            // page.evaluate has no timeout of its own
+            await Promise.race([still(), new Promise((resolve) => setTimeout(resolve, 3000))]);
+        }"""
+    )
+    return locator.bounding_box()
 
 
 def select_filter(page: Page, filter_id: str) -> None:

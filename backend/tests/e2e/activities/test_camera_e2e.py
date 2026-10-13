@@ -30,7 +30,15 @@ from ..conftest import (
     join_via_api,
     track_errors,
 )
-from .conftest import READY, open_beer, open_booth, select_filter, shot, stored_images
+from .conftest import (
+    READY,
+    fonts_ready,
+    open_beer,
+    open_booth,
+    select_filter,
+    shot,
+    stored_images,
+)
 
 pytestmark = pytest.mark.e2e
 
@@ -273,6 +281,7 @@ def firefox_guest(browser: Browser, live: LiveServer, path: str, device: dict = 
     page = track_errors(browser.new_context(**device).new_page())
     page.add_init_script(SPY)
     join_via_api(page, live)
+    fonts_ready(page)  # Start's lazy cards are in: leaving now aborts nothing
     assert page.evaluate("() => window.__cameraRequests.length") == 0  # none on "/"
     page.goto(live.url(path))
     return page

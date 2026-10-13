@@ -1,4 +1,4 @@
-# CI: the same checks as `make check`, split into parallel jobs.
+# CI: the checks of `make check-all` except WebKit, split into parallel jobs.
 #
 # Tool versions come from the repo files (keep them in sync when bumping):
 #   Python  backend/.python-version (uv installs it)
@@ -51,9 +51,9 @@ jobs:
         run: |
           (cd backend && uv run mypy)
           uv run --project backend mypy --strict --python-version 3.12 scripts/smoke.py
-      - name: pytest (unit + API)
+      - name: pytest (unit + API, one worker per vCPU)
         working-directory: backend
-        run: uv run pytest -q
+        run: uv run pytest -q -n 4 --dist worksteal
 
   frontend:
     name: frontend (lint, typecheck, test, build, OpenAPI drift)
@@ -140,11 +140,12 @@ jobs:
         run: |
           uv sync
           uv run playwright install --with-deps ${{ matrix.browser }}
+      # 4 workers for the runner's 4 vCPUs and 16 GB (up to 1 GB each, see the Makefile)
       - name: e2e (pytest + Playwright, fake cameras, zero console errors)
         working-directory: backend
         env:
           VB_E2E_BROWSER: ${{ matrix.browser }}
-        run: uv run pytest -m e2e -q
+        run: uv run pytest -m e2e -q -n 4 --dist worksteal
 
   docker:
     name: docker (build + smoke)
