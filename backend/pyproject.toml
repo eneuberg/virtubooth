@@ -25,9 +25,6 @@ dev = [
     "pytest-xdist==3.8.0",
     "httpx2==2.13.1",
     "playwright==1.63.0",
-    # axe-core 4.12.1 for the e2e accessibility scans (tests/e2e/axe.py), injected
-    # with page.evaluate (the CSP refuses inline script tags)
-    "axe-playwright-python==0.1.8",
     "ruff==0.17.0",
     "mypy==2.4.0",
 ]

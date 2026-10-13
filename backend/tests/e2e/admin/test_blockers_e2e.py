@@ -1,8 +1,8 @@
-"""The admin through tests/e2e/audit.py (axe, blockers, leaked React Aria classes) on a
-phone and on the host's laptop: login, live (and its photo viewer), the upload-controls
-sheet, manage (Fotos with the inspector or viewer and the delete question, Gäste,
-Instagram, Sperren, Protokoll, Export), the user page and its ban and unban sheets.
-Serious and critical axe findings fail; `VB_AXE_REPORT=<file>` lists everything."""
+"""Content blockers vs. the rendered admin (guest/blockers.py: the vendored cosmetic
+rules, the full lists with VB_BLOCKLISTS) on a phone and on the host's laptop: login,
+live (and its photo viewer), the upload-controls sheet, manage (Fotos with the
+inspector or viewer and the delete question, Gäste, Instagram, Sperren, Protokoll,
+Export), the user page and its ban and unban sheets."""
 
 from __future__ import annotations
 
@@ -11,8 +11,8 @@ from collections.abc import Callable
 import pytest
 from playwright.sync_api import Browser, expect
 
-from ..audit import Audit
 from ..conftest import LiveServer, settle_dialogs, track_errors
+from ..guest.blockers import assert_survives_blockers
 from .conftest import (
     DESKTOP_VIEWPORT,
     PHONE_VIEWPORT,
@@ -48,7 +48,6 @@ def test_admin_screens(
         troll.id, reason="Spam", fingerprint=True, actor="pytest"
     )
 
-    audit = Audit(f"admin {kind}")
     phone = kind == "phone"
     viewport = PHONE_VIEWPORT if phone else DESKTOP_VIEWPORT
     options = {"is_mobile": True, "has_touch": True} if phone else {}
@@ -57,31 +56,31 @@ def test_admin_screens(
         page = track_errors(ctx.new_page())
         goto(page, live, "/admin/login")
         expect(page.get_by_role("button", name="Anmelden")).to_be_visible()
-        audit.check(page, "login")
+        assert_survives_blockers(page, f"{kind} login")
 
         login_api(page, live)
         goto(page, live, "/admin/live")
         wait_live(page)
         expect(card(page, ids[1])).to_be_visible()
-        audit.check(page, "live")
+        assert_survives_blockers(page, f"{kind} live")
         card(page, ids[1]).click()
         expect(page.get_by_test_id("lightbox")).to_be_visible()
         settle_dialogs(page)
         settle(page)
-        audit.check(page, "live viewer")
+        assert_survives_blockers(page, f"{kind} live viewer")
         page.keyboard.press("Escape")
         expect(page.get_by_test_id("lightbox")).to_have_count(0)
 
         page.get_by_test_id("uploads-chip").click()
         expect(page.get_by_role("dialog", name="Hochladen")).to_be_visible()
         settle_dialogs(page)
-        audit.check(page, "upload controls")
+        assert_survives_blockers(page, f"{kind} upload controls")
         page.keyboard.press("Escape")
         expect(page.get_by_role("dialog", name="Hochladen")).to_have_count(0)
 
         goto(page, live, "/admin/manage")
         expect(card(page, ids[1])).to_be_visible()
-        audit.check(page, "manage fotos")
+        assert_survives_blockers(page, f"{kind} manage fotos")
         card(page, ids[1]).click()
         if phone:  # a tap opens the full-screen viewer
             panel = page.get_by_test_id("lightbox")
@@ -92,11 +91,11 @@ def test_admin_screens(
         expect(panel).to_be_visible()
         settle_dialogs(page)
         settle(page)
-        audit.check(page, "manage fotos, " + ("viewer" if phone else "inspector"))
+        assert_survives_blockers(page, f"{kind} manage fotos, {'viewer' if phone else 'inspector'}")
         delete.click()
         expect(confirm_dialog(page)).to_be_visible()
         settle_dialogs(page)
-        audit.check(page, "delete question")
+        assert_survives_blockers(page, f"{kind} delete question")
         confirm_dialog(page).get_by_role("button", name="Abbrechen").click()
         expect(confirm_dialog(page)).to_have_count(0)
 
@@ -105,16 +104,16 @@ def test_admin_screens(
             expect(page.get_by_role("heading", level=1)).to_be_visible()
             settle(page)
             expect(page.locator("[aria-busy=true]")).to_have_count(0)
-            audit.check(page, f"manage {tab}")
+            assert_survives_blockers(page, f"{kind} manage {tab}")
 
         goto(page, live, f"/admin/user?id={anna.id}")
         expect(page.get_by_test_id("user-name")).to_have_text(anna.name)
-        audit.check(page, "user page")
+        assert_survives_blockers(page, f"{kind} user page")
         page.get_by_test_id("ban").click()
         ban = page.get_by_role("dialog", name=f"„{anna.name}“ sperren?")
         expect(ban).to_be_visible()
         settle_dialogs(page)
-        audit.check(page, "ban sheet")
+        assert_survives_blockers(page, f"{kind} ban sheet")
         ban.get_by_role("button", name="Abbrechen").click()
         expect(ban).to_have_count(0)
 
@@ -122,10 +121,9 @@ def test_admin_screens(
         page.get_by_test_id("unban").click()
         expect(page.get_by_role("dialog")).to_be_visible()
         settle_dialogs(page)
-        audit.check(page, "unban sheet")
+        assert_survives_blockers(page, f"{kind} unban sheet")
         page.keyboard.press("Escape")
 
-        audit.assert_clean()
         assert errors(page) == []
     finally:
         ctx.close()

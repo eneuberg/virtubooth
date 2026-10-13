@@ -34,7 +34,7 @@ exec docker run --rm --ipc=host "${EXTRA[@]}" -e HOST_IDS="$(id -u):$(id -g)" \
   tar -C /src --exclude=./.git --exclude=./.worktrees --exclude=./backend/.venv \
       --exclude=./backend/data --exclude=./frontend/node_modules -cf - . | tar -C /tmp/src -xf -
   cd /tmp/src/backend
-  pip install -q --root-user-action=ignore --break-system-packages -e . pytest httpx2 playwright==1.63.0 axe-playwright-python==0.1.8 >/dev/null
+  pip install -q --root-user-action=ignore --break-system-packages -e . pytest httpx2 playwright==1.63.0 >/dev/null
   status=0
   VB_E2E_BROWSER=webkit python -m pytest -m e2e -q -p no:cacheprovider "$@" || status=$?
   if [ -n "${VB_SCREENSHOT_DIR:-}" ]; then chown -R "$HOST_IDS" /shots; fi
