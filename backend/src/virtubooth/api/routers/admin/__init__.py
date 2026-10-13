@@ -15,6 +15,7 @@ from ....core.errors import error_responses
 from ...deps import require_admin
 from . import (
     bans,
+    codes,
     dashboard,
     events,
     exports,
@@ -32,6 +33,7 @@ router = APIRouter(
     dependencies=[Depends(require_admin)],
     responses=error_responses(*ADMIN_ERROR_STATUSES),
 )
+router.include_router(codes.router)
 for _module in (
     photos, users, bans, overview, events, upload_controls, exports, instagram, dashboard,
 ):  # fmt: skip

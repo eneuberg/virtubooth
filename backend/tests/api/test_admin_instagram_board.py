@@ -85,7 +85,7 @@ def test_done_mark_round_trip(admin, guest, published):
         ("instagram.undone", "instagram:anna.party"),
         ("instagram.done", "instagram:anna.party"),
     ]
-    assert all(e["actor"].startswith("admin:") for e in entries)
+    assert all(e["actor"].startswith("admin:") for e in entries if e["action"] != "code.create")
 
 
 def test_done_mark_survives_a_restart(admin, guest, core, extensions):

@@ -570,7 +570,7 @@ def test_create_and_delete_are_audited(admin, core, base_url):
     # a refused delete (or a repeated create) leaves no entry
     assert admin.delete(f"/api/admin/exports/{created['id']}", headers=ORIGIN).status_code == 404
     assert [e["action"] for e in admin.get("/api/admin/audit").json()["entries"]] == [
-        "export.delete", "export.create", "admin.login",
+        "export.delete", "export.create", "admin.login", "code.create",
     ]  # fmt: skip
 
 

@@ -1,6 +1,7 @@
 """FastAPI dependencies for access control. Use these in every route:
 
 - `require_access` / `AccessDep`: the browser scanned a valid party QR code
+  (see `has_access`)
 - `GuestDep`: ... and accepted the join dialog and is not banned → `User`
   (banned → 403 "Dieses Gerät wurde für Uploads gesperrt.")
 - `MeDep`: the same for everything that isn't an upload (banned → 403
@@ -16,13 +17,7 @@ from typing import Annotated, cast
 from fastapi import Depends, Request, Response
 
 from ..core import errors
-from ..core.security import (
-    ACCESS_COOKIE,
-    ADMIN_COOKIE,
-    UID_COOKIE,
-    access_cookie_value,
-    constant_time_equals,
-)
+from ..core.security import ADMIN_COOKIE, UID_COOKIE
 from ..domain.models import User
 from ..runtime import Core
 from ..services.admin_auth import Admin
@@ -38,10 +33,15 @@ CoreDep = Annotated[Core, Depends(get_core)]
 
 
 def has_access(request: Request, core: Core) -> bool:
-    cookie = request.cookies.get(ACCESS_COOKIE)
-    if not cookie:
-        return False
-    return constant_time_equals(cookie, access_cookie_value(core.settings, core.signer))
+    """The browser may see the party (services/codes.py `access_state`):
+    its access cookie is from an active QR code with its current token, or it
+    is from a code revoked or re-tokened since and the browser is a joined
+    guest (joined guests keep their session; anyone else must scan a valid
+    code again)."""
+    state = core.services.codes.access_state(request)
+    if state == "current":
+        return True
+    return state == "stale" and guest_from_cookie(request, core) is not None
 
 
 def guest_from_cookie(request: Request, core: Core) -> User | None:

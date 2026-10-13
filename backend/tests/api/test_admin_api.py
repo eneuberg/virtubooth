@@ -43,6 +43,12 @@ ROUTES = [
     ("GET", "/api/admin/overview", None),
     ("GET", "/api/admin/join-stop", None),
     ("POST", "/api/admin/join-stop", {"enabled": True}),
+    ("GET", "/api/admin/codes", None),
+    ("POST", "/api/admin/codes", {}),
+    ("GET", "/api/admin/codes/1", None),
+    ("PATCH", "/api/admin/codes/1", {"note": "x"}),
+    ("POST", "/api/admin/codes/1/token", {"token": None}),
+    ("DELETE", "/api/admin/codes/1", None),
     ("GET", "/api/admin/exports", None),
     ("POST", "/api/admin/exports", {"kind": "archive"}),
     ("GET", f"/api/admin/exports/{PHOTO}/download", None),
@@ -637,7 +643,7 @@ def test_audit_log_paged(admin, guest, core):
     assert body["entries"][0]["actor"].startswith("admin:")
     rest = admin.get(f"/api/admin/audit?before={body['next']}").json()
     assert rest["next"] is None
-    assert rest["entries"][-1]["action"] == "admin.login"
+    assert [e["action"] for e in rest["entries"][-2:]] == ["admin.login", "code.create"]
     assert all(e["id"] < body["next"] for e in rest["entries"])
 
 

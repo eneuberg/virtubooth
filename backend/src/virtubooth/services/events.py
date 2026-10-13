@@ -10,7 +10,9 @@ from __future__ import annotations
 from pydantic import BaseModel
 
 from ..api.schemas.admin import AdminPhoto, AdminUser, PauseState, StopState
+from ..api.schemas.codes import AdminCode
 from ..api.schemas.events import (
+    CodeChangedData,
     ExportDeletedData,
     ExportUpdatedData,
     FingerprintBannedData,
@@ -101,3 +103,9 @@ class AdminEvents:
 
     def instagram_done(self, handle: str, done: bool) -> None:
         self._emit("instagram.done", InstagramDoneData(handle=handle, done=done))
+
+    def code_changed(self, code: AdminCode, change: str) -> None:
+        self._emit(
+            "code.changed",
+            CodeChangedData.model_validate({"code": code, "change": change}),
+        )

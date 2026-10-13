@@ -22,6 +22,8 @@ from ..settings import Settings
 LOGIN_FAILURES_GLOBAL = 20
 LOGIN_FAILURES_WINDOW = 15 * 60
 LOGIN_LOCK_SECONDS = 5 * 60
+# wrong QR tokens per address and minute (middleware.py); valid scans are free
+TOKEN_FAILURES_PER_MIN = 60
 
 
 def ip_bucket(ip: str) -> str:
@@ -134,6 +136,7 @@ class Limits:
     login_ip_hourly: RateLimiter
     login_failures_global: RateLimiter
     login_lock: Lockout
+    token_fail_ip: RateLimiter
 
     @classmethod
     def from_settings(cls, s: Settings) -> Limits:
@@ -149,6 +152,9 @@ class Limits:
             # wrong passwords from anywhere; running out trips `login_lock`
             login_failures_global=RateLimiter(LOGIN_FAILURES_GLOBAL, LOGIN_FAILURES_WINDOW),
             login_lock=Lockout(LOGIN_LOCK_SECONDS),
+            # wrong QR tokens (?t=) per address; while it is empty, every
+            # token is answered with the gate unchecked (no guessing oracle)
+            token_fail_ip=IpRateLimiter(TOKEN_FAILURES_PER_MIN, 60),
         )
 
     def reset(self) -> None:

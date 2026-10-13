@@ -16,6 +16,7 @@ export const SECTIONS = [
   'instagram',
   'sperren',
   'protokoll',
+  'qr',
   'export',
   'uebersicht',
 ] as const;
@@ -77,4 +78,10 @@ export function withParams(
 
 export function photoStatusParam(status: PhotoStatus): string | null {
   return status === 'all' ? null : status;
+}
+
+/** `code=<id>`: the QR code whose sheet is open (`?tab=qr&code=2`), else null. */
+export function parseCodeParam(params: URLSearchParams): number | null {
+  const code = params.get('code');
+  return code && ID_RE.test(code) ? Number(code) : null;
 }

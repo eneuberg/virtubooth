@@ -6,6 +6,7 @@
  */
 import type { QueryClient, QueryKey } from '@tanstack/react-query';
 import type { AdminEvent } from '@/api/events';
+import { codesKey, withCode, type CodesList } from '../codes/keys';
 import type {
   AdminPhoto,
   AdminUser,
@@ -180,6 +181,10 @@ export function applyAdminEvent(event: AdminEvent, { qc, invalidate }: EventCont
         ),
       );
       invalidate([qk.audit]);
+      return;
+    case 'code.changed':
+      patchQueries<CodesList>(qc, codesKey, (list) => withCode(list, event.data.code));
+      invalidate([codesKey, qk.audit]);
       return;
     case 'stream.resync':
       // the server could not replay what we missed: refetch everything we show

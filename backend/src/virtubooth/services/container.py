@@ -6,6 +6,7 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 from .admin_auth import AdminAuthService
+from .codes import CodesService
 from .events import AdminEvents
 from .exports import ExportService
 from .identity import IdentityService
@@ -26,6 +27,7 @@ class Services:
     events: AdminEvents
     views: AdminViews
     identity: IdentityService
+    codes: CodesService
     uploads: UploadService
     moderation: ModerationService
     upload_controls: UploadControlsService
@@ -44,6 +46,7 @@ class Services:
             events=events,
             views=views,
             identity=IdentityService(core, db, repos, events),
+            codes=CodesService(core, db, repos, events),
             uploads=UploadService(core, db, repos, events),
             moderation=ModerationService(db, repos, events, views),
             upload_controls=UploadControlsService(db, repos, events, views),

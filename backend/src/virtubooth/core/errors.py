@@ -41,6 +41,12 @@ ErrorCode = Literal[
     "export_running",
     "base_url_required",
     "invalid_base_url",
+    # QR codes
+    "invalid_token",
+    "token_taken",
+    "code_revoked",
+    "invalid_target",
+    "invalid_note",
     # request guards
     "bad_origin",
     "length_required",

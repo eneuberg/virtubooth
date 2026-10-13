@@ -11,6 +11,7 @@ import {
   LayoutGrid,
   LogOut,
   Radio,
+  QrCode,
   ScrollText,
   ShieldBan,
   Upload,
@@ -26,6 +27,7 @@ import { Button, LinkButton } from '@/ui/Button';
 import { cx } from '@/ui/cx';
 import { IconButton } from '@/ui/IconButton';
 import { SidebarNav } from '@/ui/SidebarNav';
+import { CodesSection } from '../codes/CodesSection';
 import { AdminFrame } from '../common/AdminFrame';
 import { ConnectionBadge } from '../common/ConnectionBadge';
 import { OverviewSection } from '../dashboard/OverviewSection';
@@ -51,6 +53,7 @@ const SECTION_VIEW: Record<Section, ComponentType> = {
   instagram: InstagramSection,
   sperren: BansSection,
   protokoll: AuditSection,
+  qr: CodesSection,
   export: ExportSection,
   uebersicht: OverviewSection,
 };
@@ -67,6 +70,7 @@ function navItems(stats: AdminStats | undefined) {
     navItem('instagram', 'Instagram', AtSign, stats?.instagram_handles),
     navItem('sperren', 'Sperren', ShieldBan, stats ? stats.banned + stats.fingerprint_bans : undefined),
     navItem('protokoll', 'Protokoll', ScrollText),
+    navItem('qr', 'QR-Codes', QrCode),
     navItem('export', 'Export', Archive),
   ];
 }

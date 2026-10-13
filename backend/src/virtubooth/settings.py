@@ -7,6 +7,11 @@ the raw value is needed (signing, comparing) and never log it.
 
 Tests build `Settings(...)` directly with `_env_file=None` after clearing every
 `VB_*` variable, so the developer's own environment never leaks in.
+
+VB_PARTY_TOKEN is optional and only read while the database has no QR code
+(the first start, or the first start after the update that brought QR codes):
+it becomes QR code 1's token (services/codes.py). After that the database is
+the only source of tokens; Admin → QR-Codes manages them.
 """
 
 from __future__ import annotations
@@ -70,7 +75,8 @@ class Settings(BaseSettings):
         validate_default=True,
     )
 
-    party_token: SecretStr
+    # only read while the database has no QR code (see the module docstring)
+    party_token: SecretStr | None = None
     admin_password: SecretStr
     secret_key: SecretStr
     data_dir: Path = Path("./data")
@@ -162,7 +168,9 @@ class Settings(BaseSettings):
 
     @field_validator("party_token", mode="after")
     @classmethod
-    def _check_token(cls, value: SecretStr) -> SecretStr:
+    def _check_token(cls, value: SecretStr | None) -> SecretStr | None:
+        if value is None or not value.get_secret_value():
+            return None
         if not TOKEN_RE.match(value.get_secret_value()):
             raise ValueError("VB_PARTY_TOKEN must be 16-128 chars of [A-Za-z0-9_-]")
         return value

@@ -51,9 +51,17 @@ class PresenceService:
         """The browser's visitor id, if it carries a valid one."""
         return self.core.signer.unsign(_VISITOR_PURPOSE, request.cookies.get(VISITOR_COOKIE))
 
-    def enter(self, request: Request, response: Response, *, user: User | None = None) -> str:
+    def enter(
+        self,
+        request: Request,
+        response: Response,
+        *,
+        user: User | None = None,
+        code_id: int | None = None,
+    ) -> str:
         """The browser opened the party (QR link, identify, join): give it a
-        visitor id when it has none, note it as seen, and link it to `user`."""
+        visitor id when it has none, note it as seen, and link it to `user`.
+        `code_id`: it scanned that QR code (counted for the code)."""
         vid = self.visitor_id(request)
         if vid is None:
             vid = secrets.token_urlsafe(12)
@@ -65,7 +73,10 @@ class PresenceService:
                 self.core.signer.sign(_VISITOR_PURPOSE, vid),
                 max_age=GUEST_COOKIE_MAX_AGE,
             )
-        self.repos.presence.visit(vid, at=now_iso(), user_id=user.id if user else None)
+        at = now_iso()
+        self.repos.presence.visit(vid, at=at, user_id=user.id if user else None)
+        if code_id is not None:
+            self.repos.codes.record_visit(code_id, vid, at=at)
         self._remember(f"v:{vid}")
         return vid
 

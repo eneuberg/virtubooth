@@ -14,6 +14,7 @@ from typing import Annotated, Literal
 from pydantic import BaseModel, Field, RootModel
 
 from .admin import AdminPhoto, AdminUser, PauseState, StopState
+from .codes import AdminCode
 from .exports import ExportJob
 
 EventId = Annotated[str, Field(description="`<epoch>-<n>`: the SSE `id:` line.")]
@@ -84,6 +85,11 @@ class ExportDeletedData(BaseModel):
 class InstagramDoneData(BaseModel):
     handle: str
     done: bool
+
+
+class CodeChangedData(BaseModel):
+    code: AdminCode
+    change: Literal["created", "edited", "token", "revoked"]
 
 
 class StreamResyncData(BaseModel):
@@ -198,6 +204,15 @@ class InstagramDoneEvent(BaseModel):
     data: InstagramDoneData
 
 
+class CodeChangedEvent(BaseModel):
+    """A QR code was created, edited, got a new token or was revoked (not
+    sent for scans: the statistics come with `GET /api/admin/codes`)."""
+
+    type: Literal["code.changed"]
+    id: EventId
+    data: CodeChangedData
+
+
 class StreamResyncEvent(BaseModel):
     """Not from the bus: sent first on a reconnect the history can't serve."""
 
@@ -222,6 +237,7 @@ AnyAdminEvent = Annotated[
     | ExportUpdatedEvent
     | ExportDeletedEvent
     | InstagramDoneEvent
+    | CodeChangedEvent
     | StreamResyncEvent,
     Field(discriminator="type"),
 ]
@@ -248,4 +264,5 @@ ADMIN_EVENT_TYPES: tuple[str, ...] = (
     "export.updated",
     "export.deleted",
     "instagram.done",
+    "code.changed",
 )

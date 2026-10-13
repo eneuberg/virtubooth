@@ -84,11 +84,12 @@ class Snapshot:
 
 # Emptied in every database copy that goes into an archive: admin sessions
 # (token hashes, password tags, the admins' IPs and browsers), the export
-# jobs (the server's own bookkeeping) and the visitors (the dashboard's live
-# counters: browser ids that are worth nothing after the party). The tables
-# stay, so the copy still opens as a virtubooth database (restoring it logs
-# every admin out).
-SCRUBBED_TABLES = ("admin_sessions", "export_jobs", "visitors")
+# jobs (the server's own bookkeeping), the visitors (the dashboard's live
+# counters: browser ids that are worth nothing after the party) and which of
+# those browser ids opened which QR code (code_visitors). The tables stay, so
+# the copy still opens as a virtubooth database (restoring it logs every admin
+# out).
+SCRUBBED_TABLES = ("admin_sessions", "export_jobs", "visitors", "code_visitors")
 
 
 def scrub_snapshot(path: Path) -> None:

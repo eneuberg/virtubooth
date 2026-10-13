@@ -11,6 +11,7 @@ from .admin_sessions import AdminSessionsRepo
 from .app_settings import AppSettingsRepo
 from .audit import AuditRepo
 from .bans import FingerprintBansRepo
+from .codes import PartyCodesRepo
 from .exports import ExportJobsRepo
 from .instagram import InstagramRepo
 from .overview import OverviewReadModel
@@ -33,6 +34,7 @@ class Repositories:
     instagram: InstagramRepo
     presence: PresenceRepo
     overview: OverviewReadModel
+    codes: PartyCodesRepo
 
     @classmethod
     def create(cls, db: Database, data_dir: Path) -> Repositories:
@@ -49,4 +51,5 @@ class Repositories:
             instagram=InstagramRepo(db),
             presence=PresenceRepo(db),
             overview=OverviewReadModel(db),
+            codes=PartyCodesRepo(db),
         )

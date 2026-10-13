@@ -73,10 +73,11 @@ def test_audit_entry_is_written_with_the_change_or_not_at_all(guest, core, monke
     assert not user.banned
     assert not core.repos.photos.get(photo).hidden
     assert not core.repos.app_settings.upload_stop().enabled
-    assert [e.action for e in core.repos.audit.list()] == []
+    # (QR code 1, seeded at startup, is the only entry)
+    assert [e.action for e in core.repos.audit.list()] == ["code.create"]
     # and it works once the log can be written again
     assert core.services.moderation.ban_user(uid, reason="spam", actor="pytest").changed
-    assert [e.action for e in core.repos.audit.list()] == ["user.ban"]
+    assert [e.action for e in core.repos.audit.list()] == ["user.ban", "code.create"]
 
 
 def test_ban_with_fingerprint_is_one_change(guest, core, monkeypatch):
@@ -238,9 +239,9 @@ def test_full_last_page_of_guests_and_audit_has_no_next(admin, guest):
     assert admin.get("/api/admin/users?limit=3").json()["next_offset"] is None
     assert admin.get("/api/admin/users?limit=2").json()["next_offset"] == 2
     assert admin.get("/api/admin/users?limit=2&offset=2").json()["next_offset"] is None
-    entries = admin.get("/api/admin/audit").json()["entries"]  # just the login
-    assert len(entries) == 1
-    assert admin.get("/api/admin/audit?limit=1").json()["next"] is None
+    entries = admin.get("/api/admin/audit").json()["entries"]  # the login and QR code 1
+    assert len(entries) == 2
+    assert admin.get("/api/admin/audit?limit=2").json()["next"] is None
 
 
 # -------------------------------- 7. PATCH /api/me for a banned guest
