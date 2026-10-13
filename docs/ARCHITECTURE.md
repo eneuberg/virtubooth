@@ -9,8 +9,8 @@ virtubooth/
 ├── app.py            create_app(settings, extensions=None): wires everything
 ├── config.py         Settings (env VB_*)
 ├── context.py        Core: settings, db, repo, bus, signer, limits, extensions
-├── db.py             SQLite schema + locked connection
-├── repo.py           ALL data access: users, photos, bans, sessions, audit
+├── db.py             SQLite schema, step-by-step migrations, locked connection
+├── repo.py           ALL data access: users, photos, bans, upload pauses, settings, sessions, audit
 ├── deps.py           FastAPI dependencies: require_access / require_guest / require_admin
 ├── security.py       cookies, signing, CSRF origin check, security headers
 ├── middleware.py     ?t= token entry, CSRF guard, API rate limit, headers
@@ -23,7 +23,7 @@ virtubooth/
 ├── images.py         JPEG validation + re-encode + thumbnail
 ├── names.py          pseudonyms ("Durstige Giraffe #17")
 ├── static/core/      frontend SDK: vb.js, camera.js, device.js, loader.js, vb.css, home
-├── admin/            admin API (api.py) + admin UI (static/)
+├── admin/            admin API (api.py, upload_controls.py) + admin UI (static/)
 ├── extensions/       one package per activity (beer, booth, …)
 └── tools/            CLI tools: timelapse, qr, export
 ```
@@ -66,6 +66,28 @@ There is no registration. Every page calls `boot()` from the SDK:
    fingerprint are created already banned.
 4. Banning a user hides all their photos (`hidden_reason='ban'`); unbanning
    restores only those.
+
+## Upload pauses
+
+Lighter than a ban: photos stay visible, the guest can browse and edit the
+Instagram handle, only uploads are refused (with a German message the pages
+show). Three independent levels, all persisted in the DB, audit-logged and
+published as events (`admin/upload_controls.py`, under `/api/admin`):
+
+| Level | API | Guest gets |
+|---|---|---|
+| one guest (`users.uploads_paused_*`, source `admin`) | `POST /users/{id}/uploads {paused}` | 403 `uploads_paused` |
+| new guests: whoever joins while it is on starts paused (source `new_guest_lock`, tagged with the lock period). Lifting it needs a choice: `restore` exactly that period's still-paused guests, or keep them paused | `GET/POST /upload-pause {enabled, restore}` | 403 `uploads_paused` |
+| stop all uploads for a while; pauses and the lock stay as they are | `GET/POST /upload-stop {enabled}` | 403 `uploads_stopped` |
+
+A banned guest gets `banned` first, a paused one `uploads_paused` before
+`uploads_stopped`. The switches live in the key/value `settings` table.
+`guest_view()` exposes only `uploads_paused`; `/api/identify` and `/api/join`
+add `uploads_stopped`. The SDK shows the state as a hint on every page.
+
+**Schema changes:** append a step to `db.MIGRATIONS` (never edit a released
+one); each step runs in its own transaction, so existing databases upgrade in
+place (`tests/test_core_db_migration.py` opens a v1 database with data).
 
 ## Extension interface
 
@@ -121,8 +143,10 @@ What core does for an extension:
 Data access goes through `core.repo` (`virtubooth/repo.py`). Events:
 `core.bus.publish(type, data)`; stream them with `events.sse_response()`.
 Core publishes `photo.created` (`{"photo": photo.admin_view()}`) and
-`user.created`; the admin API publishes `photo.hidden|unhidden|deleted` and
-`user.banned|unbanned`.
+`user.created`; the admin API publishes `photo.hidden|unhidden|deleted`,
+`user.banned|unbanned`, `user.uploads_changed` (`{"users": [...], "paused"}`)
+and `settings.upload_pause|upload_stop`. Admin feature modules listen to the
+page's stream with `onAdminEvent(fn)` from `admin.js`.
 
 ## Frontend SDK (`/static/core/vb.js`)
 
@@ -148,7 +172,7 @@ Main API:
 
 | Export | Purpose |
 |---|---|
-| `boot()` | identify device, show consent banner if needed → `{user, banned}`. Call first. |
+| `boot()` | identify device, show consent banner if needed → `{user, banned}`. Call first. Also shows the "uploads paused/stopped" hint (fixed below the top bar, or in `#vb-uploads-slot` if the page has one). |
 | `api(path, {method, json})` | JSON fetch, throws `ApiError` (`.status .code .message`, German message) |
 | `uploadJpeg(extId, blob, {meta, onProgress})` | upload with progress → server JSON |
 | `openCamera(video, {facing})` | camera controller: `.facing .mirrored .canSwitch .switchFacing() .stop() .width .height`. `facing` is a wish: a PC's only webcam is used either way and counts as `'user'` (mirrored); hide the switch button when `!canSwitch` |
