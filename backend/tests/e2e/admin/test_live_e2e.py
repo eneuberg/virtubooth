@@ -184,6 +184,11 @@ def test_viewer_deep_link_and_back_button(
     admin_page.keyboard.press("Escape")
     expect(admin_page.get_by_test_id("lightbox")).to_have_count(0)
     assert admin_page.url == live.url("/admin/live")
+    # from the photo to its guest (the live screen itself never bans)
+    card(admin_page, pid).locator("figure button").first.click()
+    admin_page.get_by_test_id("lightbox").get_by_role("link", name="Gast öffnen").click()
+    admin_page.wait_for_url(re.compile(r"/admin/user\?id=\d+$"))
+    expect(admin_page.get_by_test_id("user-name")).to_be_visible()
     assert errors(admin_page) == []
 
 

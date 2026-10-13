@@ -278,8 +278,10 @@ def test_no_sideways_scrolling(
         login_api(page, live)
         for path in PAGES:
             goto(page, live, path.format(id=g.id))
-            page.wait_for_timeout(150)
-            assert no_horizontal_scroll(page), path
+            # the settled page; while data loads a skeleton may be wider for a moment
+            wait_until(
+                lambda: no_horizontal_scroll(page), timeout=4, what=f"no sideways scroll on {path}"
+            )
         assert errors(page) == []
     finally:
         ctx.close()
