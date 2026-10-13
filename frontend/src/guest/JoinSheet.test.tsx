@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from 'vitest';
 import type { ConsentInfo } from '@/api/types';
 import { UiProvider } from '@/ui/UiProvider';
 import { splitParagraphs, splitPrompt, tidy } from './copy';
-import { JoinSheet } from './JoinSheet';
+import { JoinSheet, SCAN_COUNT_NOTE } from './JoinSheet';
 
 vi.mock('@/sdk/device', () => ({
   getDeviceTraits: () => Promise.resolve({ hash: 'ab'.repeat(32), components: {} }),
@@ -54,6 +54,8 @@ describe('JoinSheet', () => {
     expect(dialog.textContent).toContain('nutze die Fotobox bitte nicht');
     const more = within(dialog).getByRole('button', { name: 'Mehr dazu' });
     expect(more.getAttribute('aria-expanded')).toBe('false');
+    fireEvent.click(more);
+    expect(dialog.textContent).toContain(SCAN_COUNT_NOTE);
     expect(dialog.textContent).toContain('Danach öffnet sich „Beer Cam“.');
   });
 

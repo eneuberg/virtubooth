@@ -30,6 +30,9 @@ export interface JoinSheetProps {
 }
 
 const OUTDATED = 'Die Hinweise haben sich gerade geändert. Lies sie kurz, dann tippe nochmal auf den Knopf.';
+/** The host's overview counts scans (a random id per browser, see api.md §7): said under „Mehr dazu“. */
+export const SCAN_COUNT_NOTE =
+  'Außerdem zählt die Seite anonym, wie viele Geräte den QR-Code geöffnet haben – nur für die Übersicht der Gastgeber.';
 
 /** After joining in a second tab: say who you are (and that the other tab's handle counts). */
 function welcomeBack(): void {
@@ -116,13 +119,12 @@ export function JoinSheet({ join, destination }: JoinSheetProps) {
             {p}
           </p>
         ))}
-        {more.length ? (
-          <HelpDisclosure summary="Mehr dazu" headingLevel={false}>
-            {more.map((p) => (
-              <p key={p}>{p}</p>
-            ))}
-          </HelpDisclosure>
-        ) : null}
+        <HelpDisclosure summary="Mehr dazu" headingLevel={false}>
+          {more.map((p) => (
+            <p key={p}>{p}</p>
+          ))}
+          <p>{SCAN_COUNT_NOTE}</p>
+        </HelpDisclosure>
         <HandleField
           label={prompt.label}
           description={prompt.help}
