@@ -16,6 +16,7 @@ export const SECTIONS = [
   'fotos',
   'gaeste',
   'instagram',
+  'livewall',
   'sperren',
   'protokoll',
   'qr',

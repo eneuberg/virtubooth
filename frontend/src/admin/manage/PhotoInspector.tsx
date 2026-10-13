@@ -10,6 +10,7 @@ import { EmptyState } from '@/ui/EmptyState';
 import { GreaseX } from '@/ui/GreaseMarks';
 import { IconButton } from '@/ui/IconButton';
 import { metaRows, photoLabel } from '../lib/labels';
+import { AnalysisPanel } from '../wall/AnalysisPanel';
 
 export interface PhotoInspectorProps {
   photo: AdminPhoto | null;
@@ -121,6 +122,7 @@ export function PhotoInspector({
           </div>
         ))}
       </dl>
+      <AnalysisPanel photo={photo} />
       <div className="grid gap-2">
         <Button
           size="sm"
