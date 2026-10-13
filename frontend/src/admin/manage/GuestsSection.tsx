@@ -78,7 +78,17 @@ const COLUMNS: ReadonlyArray<DataColumn<AdminUser>> = [
       </time>
     ),
   },
-  { id: 'device', label: 'Gerät', hideBelow: 'md', render: (u) => describeUA(u.user_agent) },
+  {
+    id: 'device',
+    label: 'Gerät',
+    hideBelow: 'md',
+    // an unknown browser shows its raw user agent: cut it off, the full text is the tooltip
+    render: (u) => (
+      <span title={u.user_agent || undefined} className="block max-w-56 truncate">
+        {describeUA(u.user_agent)}
+      </span>
+    ),
+  },
 ];
 
 function compare(column: string, a: AdminUser, b: AdminUser): number {

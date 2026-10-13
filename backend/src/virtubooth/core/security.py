@@ -17,6 +17,8 @@ from ..settings import Settings
 ACCESS_COOKIE = "vb_access"
 UID_COOKIE = "vb_uid"
 ADMIN_COOKIE = "vb_admin"
+# a random id per browser that opened a valid QR link (the dashboard's "Gescannt")
+VISITOR_COOKIE = "vb_vid"
 
 GUEST_COOKIE_MAX_AGE = 30 * 24 * 3600
 

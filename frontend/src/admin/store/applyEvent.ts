@@ -86,7 +86,21 @@ export function removeExportJob(qc: QueryClient, id: string): void {
   );
 }
 
+/** Events that change the dashboard's counters (the overview also polls every 10 s). */
+const OVERVIEW_EVENTS: ReadonlySet<AdminEvent['type']> = new Set([
+  'photo.created',
+  'photo.hidden',
+  'photo.unhidden',
+  'photo.deleted',
+  'user.created',
+  'user.banned',
+  'user.unbanned',
+  'user.uploads_changed',
+  'settings.upload_pause',
+]);
+
 export function applyAdminEvent(event: AdminEvent, { qc, invalidate }: EventContext): void {
+  if (OVERVIEW_EVENTS.has(event.type)) invalidate([qk.overview]);
   switch (event.type) {
     case 'photo.created': {
       const { photo } = event.data;
@@ -144,6 +158,10 @@ export function applyAdminEvent(event: AdminEvent, { qc, invalidate }: EventCont
     case 'settings.upload_pause':
       qc.setQueryData(qk.uploadPause, event.data.upload_pause);
       invalidate([qk.pausedUsers, qk.userLists, qk.userDetails, qk.audit]);
+      return;
+    case 'settings.join_stop':
+      qc.setQueryData(qk.joinStop, event.data.join_stop);
+      invalidate([qk.audit]);
       return;
     case 'export.updated':
       upsertExportJob(qc, event.data.job);

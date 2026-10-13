@@ -6,6 +6,7 @@
 import {
   Archive,
   AtSign,
+  Gauge,
   Images,
   LayoutGrid,
   LogOut,
@@ -27,6 +28,9 @@ import { IconButton } from '@/ui/IconButton';
 import { SidebarNav } from '@/ui/SidebarNav';
 import { AdminFrame } from '../common/AdminFrame';
 import { ConnectionBadge } from '../common/ConnectionBadge';
+import { OverviewSection } from '../dashboard/OverviewSection';
+import { QuickControls } from '../dashboard/QuickControls';
+import { StatusStrip } from '../dashboard/StatusStrip';
 import { DESKTOP, useMediaQuery } from '../lib/browser';
 import { logout } from '../store/actions';
 import { useStats } from '../store/hooks';
@@ -48,6 +52,7 @@ const SECTION_VIEW: Record<Section, ComponentType> = {
   sperren: BansSection,
   protokoll: AuditSection,
   export: ExportSection,
+  uebersicht: OverviewSection,
 };
 
 function navItem(id: Section, label: string, icon: typeof Images, count?: number) {
@@ -56,6 +61,7 @@ function navItem(id: Section, label: string, icon: typeof Images, count?: number
 
 function navItems(stats: AdminStats | undefined) {
   return [
+    navItem('uebersicht', 'Übersicht', Gauge),
     navItem('fotos', 'Fotos', Images, stats?.photos),
     navItem('gaeste', 'Gäste', Users, stats?.guests),
     navItem('instagram', 'Instagram', AtSign, stats?.instagram_handles),
@@ -149,6 +155,7 @@ function ManageShell() {
           }
           footer={
             <>
+              <QuickControls className="mb-1 grid-flow-row" />
               <UploadStatusPill long className="mb-2 w-full" />
               <LinkButton href="/live" variant="quiet" size="xs" icon={Radio} className="justify-start">
                 Live öffnen
@@ -176,10 +183,13 @@ function ManageShell() {
             <UploadStatusPill className="ml-auto" />
             <IconButton label="Abmelden" icon={LogOut} onPress={() => void logout()} data-testid="logout" />
           </div>
+          <QuickControls className="px-3 pb-2" />
+          <StatusStrip />
           <SectionStrip current={section} stats={stats} />
         </header>
       )}
       <main id="main" tabIndex={-1} className="min-w-0 flex-1 outline-none">
+        {desktop ? <StatusStrip className="sticky top-0 z-(--z-sticky)" /> : null}
         <View />
       </main>
       {desktop ? null : (

@@ -84,10 +84,13 @@ class ConsentInfo(BaseModel):
 
 
 class NeedsConsentOut(BaseModel):
-    """Unknown device: show the join dialog."""
+    """Unknown device: show the join dialog. `join_closed`: the host stopped
+    new joins for a moment; show a calm "try again soon" instead of the button
+    (a join would get 403 `join_closed`)."""
 
     state: Literal["needs_consent"]
     consent: ConsentInfo
+    join_closed: bool = False
 
 
 class IdentifiedOut(BaseModel):

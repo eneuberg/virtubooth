@@ -14,6 +14,7 @@
             "photo.deleted": "#/components/schemas/PhotoDeletedEvent",
             "photo.hidden": "#/components/schemas/PhotoHiddenEvent",
             "photo.unhidden": "#/components/schemas/PhotoUnhiddenEvent",
+            "settings.join_stop": "#/components/schemas/JoinStopEvent",
             "settings.upload_pause": "#/components/schemas/UploadPauseEvent",
             "settings.upload_stop": "#/components/schemas/UploadStopEvent",
             "stream.resync": "#/components/schemas/StreamResyncEvent",
@@ -60,6 +61,9 @@
           },
           {
             "$ref": "#/components/schemas/UploadPauseEvent"
+          },
+          {
+            "$ref": "#/components/schemas/JoinStopEvent"
           },
           {
             "$ref": "#/components/schemas/ExportUpdatedEvent"
@@ -969,6 +973,7 @@
               "banned",
               "consent_outdated",
               "invalid_instagram",
+              "join_closed",
               "uploads_paused",
               "uploads_stopped",
               "unsupported_type",
@@ -1954,6 +1959,43 @@
         "title": "JoinOut",
         "type": "object"
       },
+      "JoinStopData": {
+        "properties": {
+          "join_stop": {
+            "$ref": "#/components/schemas/StopState"
+          }
+        },
+        "required": [
+          "join_stop"
+        ],
+        "title": "JoinStopData",
+        "type": "object"
+      },
+      "JoinStopEvent": {
+        "description": "The join stop („Anmeldung stoppen“) was switched on or off.",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/JoinStopData"
+          },
+          "id": {
+            "description": "`<epoch>-<n>`: the SSE `id:` line.",
+            "title": "Id",
+            "type": "string"
+          },
+          "type": {
+            "const": "settings.join_stop",
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "type",
+          "id",
+          "data"
+        ],
+        "title": "JoinStopEvent",
+        "type": "object"
+      },
       "LoginIn": {
         "properties": {
           "password": {
@@ -2017,10 +2059,15 @@
         "type": "object"
       },
       "NeedsConsentOut": {
-        "description": "Unknown device: show the join dialog.",
+        "description": "Unknown device: show the join dialog. `join_closed`: the host stopped\nnew joins for a moment; show a calm \"try again soon\" instead of the button\n(a join would get 403 `join_closed`).",
         "properties": {
           "consent": {
             "$ref": "#/components/schemas/ConsentInfo"
+          },
+          "join_closed": {
+            "default": false,
+            "title": "Join Closed",
+            "type": "boolean"
           },
           "state": {
             "const": "needs_consent",
@@ -2047,6 +2094,218 @@
           "ok"
         ],
         "title": "OkOut",
+        "type": "object"
+      },
+      "OverviewActivity": {
+        "properties": {
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "last_60_min": {
+            "title": "Last 60 Min",
+            "type": "integer"
+          },
+          "photos": {
+            "description": "Photos not deleted.",
+            "title": "Photos",
+            "type": "integer"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          },
+          "visible": {
+            "title": "Visible",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "title",
+          "photos",
+          "visible",
+          "last_60_min"
+        ],
+        "title": "OverviewActivity",
+        "type": "object"
+      },
+      "OverviewGuests": {
+        "properties": {
+          "active_now": {
+            "description": "Guests, not banned, whose page talked to the server in the last 5 minutes.",
+            "title": "Active Now",
+            "type": "integer"
+          },
+          "banned": {
+            "title": "Banned",
+            "type": "integer"
+          },
+          "instagram": {
+            "description": "Guests that gave an Instagram handle.",
+            "title": "Instagram",
+            "type": "integer"
+          },
+          "paused": {
+            "description": "Guests whose own uploads are paused (by hand or new-guest pause).",
+            "title": "Paused",
+            "type": "integer"
+          },
+          "total": {
+            "description": "Every guest (device) that joined.",
+            "title": "Total",
+            "type": "integer"
+          },
+          "uploading_now": {
+            "description": "Distinct guests with an upload in the last 5 minutes.",
+            "title": "Uploading Now",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "total",
+          "active_now",
+          "uploading_now",
+          "instagram",
+          "banned",
+          "paused"
+        ],
+        "title": "OverviewGuests",
+        "type": "object"
+      },
+      "OverviewOut": {
+        "description": "Aggregate, first-party counters for the host's dashboard.",
+        "properties": {
+          "active_minutes": {
+            "description": "The window of „jetzt“ in minutes (5).",
+            "title": "Active Minutes",
+            "type": "integer"
+          },
+          "activities": {
+            "description": "Every loaded activity that takes photos, plus ids that only old photos have.",
+            "items": {
+              "$ref": "#/components/schemas/OverviewActivity"
+            },
+            "title": "Activities",
+            "type": "array"
+          },
+          "at": {
+            "description": "Server time of this snapshot (ISO-8601 UTC).",
+            "title": "At",
+            "type": "string"
+          },
+          "guests": {
+            "$ref": "#/components/schemas/OverviewGuests"
+          },
+          "photos": {
+            "$ref": "#/components/schemas/OverviewPhotos"
+          },
+          "scans": {
+            "$ref": "#/components/schemas/OverviewScans"
+          }
+        },
+        "required": [
+          "at",
+          "active_minutes",
+          "guests",
+          "scans",
+          "photos",
+          "activities"
+        ],
+        "title": "OverviewOut",
+        "type": "object"
+      },
+      "OverviewPhotos": {
+        "properties": {
+          "hidden": {
+            "title": "Hidden",
+            "type": "integer"
+          },
+          "last_15_min": {
+            "description": "Uploads received in the last 15 minutes (hidden or deleted ones too).",
+            "title": "Last 15 Min",
+            "type": "integer"
+          },
+          "last_60_min": {
+            "description": "Uploads received in the last 60 minutes.",
+            "title": "Last 60 Min",
+            "type": "integer"
+          },
+          "last_upload_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Upload At"
+          },
+          "total": {
+            "description": "Photos not deleted.",
+            "title": "Total",
+            "type": "integer"
+          },
+          "visible": {
+            "title": "Visible",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "total",
+          "visible",
+          "hidden",
+          "last_15_min",
+          "last_60_min",
+          "last_upload_at"
+        ],
+        "title": "OverviewPhotos",
+        "type": "object"
+      },
+      "OverviewScans": {
+        "properties": {
+          "joined": {
+            "description": "Of those, the ones that joined (linked to a guest).",
+            "title": "Joined",
+            "type": "integer"
+          },
+          "not_joined": {
+            "description": "Scanned but never joined: `scanned - joined`.",
+            "title": "Not Joined",
+            "type": "integer"
+          },
+          "scanned": {
+            "description": "Browsers that opened a valid QR link (since `since`).",
+            "title": "Scanned",
+            "type": "integer"
+          },
+          "since": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "When counting started (the first visitor). Guests from before have no visitor until their browser comes back.",
+            "title": "Since"
+          },
+          "waiting_now": {
+            "description": "Not joined, and the page talked to the server in the last 5 minutes.",
+            "title": "Waiting Now",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "scanned",
+          "joined",
+          "not_joined",
+          "waiting_now",
+          "since"
+        ],
+        "title": "OverviewScans",
         "type": "object"
       },
       "PauseIn": {
@@ -3396,7 +3655,7 @@
                 }
               }
             },
-            "description": "Forbidden: banned, paused, stopped or a foreign Origin (CSRF)"
+            "description": "Forbidden: banned, paused, stopped, joining closed or a foreign Origin (CSRF)"
           },
           "404": {
             "content": {
@@ -3497,7 +3756,7 @@
                 }
               }
             },
-            "description": "Forbidden: banned, paused, stopped or a foreign Origin (CSRF)"
+            "description": "Forbidden: banned, paused, stopped, joining closed or a foreign Origin (CSRF)"
           },
           "404": {
             "content": {
@@ -3611,7 +3870,7 @@
                 }
               }
             },
-            "description": "Forbidden: banned, paused, stopped or a foreign Origin (CSRF)"
+            "description": "Forbidden: banned, paused, stopped, joining closed or a foreign Origin (CSRF)"
           },
           "404": {
             "content": {
@@ -3773,7 +4032,7 @@
                 }
               }
             },
-            "description": "Forbidden: banned, paused, stopped or a foreign Origin (CSRF)"
+            "description": "Forbidden: banned, paused, stopped, joining closed or a foreign Origin (CSRF)"
           },
           "404": {
             "content": {
@@ -3875,7 +4134,7 @@
                 }
               }
             },
-            "description": "Forbidden: banned, paused, stopped or a foreign Origin (CSRF)"
+            "description": "Forbidden: banned, paused, stopped, joining closed or a foreign Origin (CSRF)"
           },
           "404": {
             "content": {
@@ -4005,7 +4264,7 @@
                 }
               }
             },
-            "description": "Forbidden: banned, paused, stopped or a foreign Origin (CSRF)"
+            "description": "Forbidden: banned, paused, stopped, joining closed or a foreign Origin (CSRF)"
           },
           "404": {
             "content": {
@@ -4129,7 +4388,7 @@
                 }
               }
             },
-            "description": "Forbidden: banned, paused, stopped or a foreign Origin (CSRF)"
+            "description": "Forbidden: banned, paused, stopped, joining closed or a foreign Origin (CSRF)"
           },
           "404": {
             "content": {
@@ -4260,7 +4519,7 @@
                 }
               }
             },
-            "description": "Forbidden: banned, paused, stopped or a foreign Origin (CSRF)"
+            "description": "Forbidden: banned, paused, stopped, joining closed or a foreign Origin (CSRF)"
           },
           "404": {
             "content": {
@@ -4372,7 +4631,7 @@
                 }
               }
             },
-            "description": "Forbidden: banned, paused, stopped or a foreign Origin (CSRF)"
+            "description": "Forbidden: banned, paused, stopped, joining closed or a foreign Origin (CSRF)"
           },
           "404": {
             "content": {
@@ -4474,7 +4733,7 @@
                 }
               }
             },
-            "description": "Forbidden: banned, paused, stopped or a foreign Origin (CSRF)"
+            "description": "Forbidden: banned, paused, stopped, joining closed or a foreign Origin (CSRF)"
           },
           "404": {
             "content": {
@@ -4599,7 +4858,7 @@
                 }
               }
             },
-            "description": "Forbidden: banned, paused, stopped or a foreign Origin (CSRF)"
+            "description": "Forbidden: banned, paused, stopped, joining closed or a foreign Origin (CSRF)"
           },
           "404": {
             "content": {
@@ -4715,7 +4974,7 @@
                 }
               }
             },
-            "description": "Forbidden: banned, paused, stopped or a foreign Origin (CSRF)"
+            "description": "Forbidden: banned, paused, stopped, joining closed or a foreign Origin (CSRF)"
           },
           "404": {
             "content": {
@@ -4774,6 +5033,217 @@
         ]
       }
     },
+    "/api/admin/join-stop": {
+      "get": {
+        "operationId": "get_join_stop_api_admin_join_stop_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StopState"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Invalid input (see `error`)"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Needs consent or an admin session"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Forbidden: banned, paused, stopped, joining closed or a foreign Origin (CSRF)"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Not found, or no party access (`scan_qr`)"
+          },
+          "411": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Content-Length required"
+          },
+          "413": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Request too large"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Request validation failed (`invalid_request`)"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Rate limited (`Retry-After` header)"
+          }
+        },
+        "summary": "Get Join Stop",
+        "tags": [
+          "admin"
+        ]
+      },
+      "post": {
+        "description": "Stop (or reopen) joining: new devices get 403 `join_closed`. Guests who\njoined already are not affected.",
+        "operationId": "set_join_stop_api_admin_join_stop_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StopIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StopOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Invalid input (see `error`)"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Needs consent or an admin session"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Forbidden: banned, paused, stopped, joining closed or a foreign Origin (CSRF)"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Not found, or no party access (`scan_qr`)"
+          },
+          "411": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Content-Length required"
+          },
+          "413": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Request too large"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Request validation failed (`invalid_request`)"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Rate limited (`Retry-After` header)"
+          }
+        },
+        "summary": "Set Join Stop",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
     "/api/admin/login": {
       "post": {
         "description": "Sets the `vb_admin` session cookie (HttpOnly, SameSite=Strict).\n401 `wrong_password`; 429 `rate_limited` or `login_locked` with Retry-After.",
@@ -4817,7 +5287,7 @@
                 }
               }
             },
-            "description": "Forbidden: banned, paused, stopped or a foreign Origin (CSRF)"
+            "description": "Forbidden: banned, paused, stopped, joining closed or a foreign Origin (CSRF)"
           },
           "411": {
             "content": {
@@ -4888,7 +5358,7 @@
                 }
               }
             },
-            "description": "Forbidden: banned, paused, stopped or a foreign Origin (CSRF)"
+            "description": "Forbidden: banned, paused, stopped, joining closed or a foreign Origin (CSRF)"
           },
           "411": {
             "content": {
@@ -4934,6 +5404,108 @@
         "summary": "Logout",
         "tags": [
           "admin-auth"
+        ]
+      }
+    },
+    "/api/admin/overview": {
+      "get": {
+        "description": "Live counters: guests active and uploading now, scans and joins, photos\nin the last 15/60 minutes, per activity. Cheap; poll it every ~10 s.",
+        "operationId": "overview_api_admin_overview_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OverviewOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Invalid input (see `error`)"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Needs consent or an admin session"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Forbidden: banned, paused, stopped, joining closed or a foreign Origin (CSRF)"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Not found, or no party access (`scan_qr`)"
+          },
+          "411": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Content-Length required"
+          },
+          "413": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Request too large"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Request validation failed (`invalid_request`)"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Rate limited (`Retry-After` header)"
+          }
+        },
+        "summary": "Overview",
+        "tags": [
+          "admin"
         ]
       }
     },
@@ -5085,7 +5657,7 @@
                 }
               }
             },
-            "description": "Forbidden: banned, paused, stopped or a foreign Origin (CSRF)"
+            "description": "Forbidden: banned, paused, stopped, joining closed or a foreign Origin (CSRF)"
           },
           "404": {
             "content": {
@@ -5197,7 +5769,7 @@
                 }
               }
             },
-            "description": "Forbidden: banned, paused, stopped or a foreign Origin (CSRF)"
+            "description": "Forbidden: banned, paused, stopped, joining closed or a foreign Origin (CSRF)"
           },
           "404": {
             "content": {
@@ -5311,7 +5883,7 @@
                 }
               }
             },
-            "description": "Forbidden: banned, paused, stopped or a foreign Origin (CSRF)"
+            "description": "Forbidden: banned, paused, stopped, joining closed or a foreign Origin (CSRF)"
           },
           "404": {
             "content": {
@@ -5422,7 +5994,7 @@
                 }
               }
             },
-            "description": "Forbidden: banned, paused, stopped or a foreign Origin (CSRF)"
+            "description": "Forbidden: banned, paused, stopped, joining closed or a foreign Origin (CSRF)"
           },
           "404": {
             "content": {
@@ -5536,7 +6108,7 @@
                 }
               }
             },
-            "description": "Forbidden: banned, paused, stopped or a foreign Origin (CSRF)"
+            "description": "Forbidden: banned, paused, stopped, joining closed or a foreign Origin (CSRF)"
           },
           "404": {
             "content": {
@@ -5650,7 +6222,7 @@
                 }
               }
             },
-            "description": "Forbidden: banned, paused, stopped or a foreign Origin (CSRF)"
+            "description": "Forbidden: banned, paused, stopped, joining closed or a foreign Origin (CSRF)"
           },
           "404": {
             "content": {
@@ -5731,7 +6303,7 @@
                 }
               }
             },
-            "description": "Forbidden: banned, paused, stopped or a foreign Origin (CSRF)"
+            "description": "Forbidden: banned, paused, stopped, joining closed or a foreign Origin (CSRF)"
           },
           "411": {
             "content": {
@@ -5822,7 +6394,7 @@
                 }
               }
             },
-            "description": "Forbidden: banned, paused, stopped or a foreign Origin (CSRF)"
+            "description": "Forbidden: banned, paused, stopped, joining closed or a foreign Origin (CSRF)"
           },
           "404": {
             "content": {
@@ -5923,7 +6495,7 @@
                 }
               }
             },
-            "description": "Forbidden: banned, paused, stopped or a foreign Origin (CSRF)"
+            "description": "Forbidden: banned, paused, stopped, joining closed or a foreign Origin (CSRF)"
           },
           "404": {
             "content": {
@@ -6033,7 +6605,7 @@
                 }
               }
             },
-            "description": "Forbidden: banned, paused, stopped or a foreign Origin (CSRF)"
+            "description": "Forbidden: banned, paused, stopped, joining closed or a foreign Origin (CSRF)"
           },
           "404": {
             "content": {
@@ -6134,7 +6706,7 @@
                 }
               }
             },
-            "description": "Forbidden: banned, paused, stopped or a foreign Origin (CSRF)"
+            "description": "Forbidden: banned, paused, stopped, joining closed or a foreign Origin (CSRF)"
           },
           "404": {
             "content": {
@@ -6244,7 +6816,7 @@
                 }
               }
             },
-            "description": "Forbidden: banned, paused, stopped or a foreign Origin (CSRF)"
+            "description": "Forbidden: banned, paused, stopped, joining closed or a foreign Origin (CSRF)"
           },
           "404": {
             "content": {
@@ -6428,7 +7000,7 @@
                 }
               }
             },
-            "description": "Forbidden: banned, paused, stopped or a foreign Origin (CSRF)"
+            "description": "Forbidden: banned, paused, stopped, joining closed or a foreign Origin (CSRF)"
           },
           "404": {
             "content": {
@@ -6543,7 +7115,7 @@
                 }
               }
             },
-            "description": "Forbidden: banned, paused, stopped or a foreign Origin (CSRF)"
+            "description": "Forbidden: banned, paused, stopped, joining closed or a foreign Origin (CSRF)"
           },
           "404": {
             "content": {
@@ -6668,7 +7240,7 @@
                 }
               }
             },
-            "description": "Forbidden: banned, paused, stopped or a foreign Origin (CSRF)"
+            "description": "Forbidden: banned, paused, stopped, joining closed or a foreign Origin (CSRF)"
           },
           "404": {
             "content": {
@@ -6800,7 +7372,7 @@
                 }
               }
             },
-            "description": "Forbidden: banned, paused, stopped or a foreign Origin (CSRF)"
+            "description": "Forbidden: banned, paused, stopped, joining closed or a foreign Origin (CSRF)"
           },
           "404": {
             "content": {
@@ -6925,7 +7497,7 @@
                 }
               }
             },
-            "description": "Forbidden: banned, paused, stopped or a foreign Origin (CSRF)"
+            "description": "Forbidden: banned, paused, stopped, joining closed or a foreign Origin (CSRF)"
           },
           "404": {
             "content": {
@@ -7007,7 +7579,7 @@
                 }
               }
             },
-            "description": "Forbidden: banned, paused, stopped or a foreign Origin (CSRF)"
+            "description": "Forbidden: banned, paused, stopped, joining closed or a foreign Origin (CSRF)"
           },
           "404": {
             "content": {
@@ -7115,7 +7687,7 @@
                 }
               }
             },
-            "description": "Forbidden: banned, paused, stopped or a foreign Origin (CSRF)"
+            "description": "Forbidden: banned, paused, stopped, joining closed or a foreign Origin (CSRF)"
           },
           "404": {
             "content": {
@@ -7176,7 +7748,7 @@
     },
     "/api/join": {
       "post": {
-        "description": "Accept the join dialog: a new pseudonymous guest (201). A device that\njoined already keeps its identity (200, `already_joined`).",
+        "description": "Accept the join dialog: a new pseudonymous guest (201). A device that\njoined already keeps its identity (200, `already_joined`). While the host\nstopped joining, a new device gets 403 `join_closed`.",
         "operationId": "join_api_join_post",
         "requestBody": {
           "content": {
@@ -7227,7 +7799,7 @@
                 }
               }
             },
-            "description": "Forbidden: banned, paused, stopped or a foreign Origin (CSRF)"
+            "description": "Forbidden: banned, paused, stopped, joining closed or a foreign Origin (CSRF)"
           },
           "404": {
             "content": {
@@ -7349,7 +7921,7 @@
                 }
               }
             },
-            "description": "Forbidden: banned, paused, stopped or a foreign Origin (CSRF)"
+            "description": "Forbidden: banned, paused, stopped, joining closed or a foreign Origin (CSRF)"
           },
           "404": {
             "content": {
@@ -7441,7 +8013,7 @@
                 }
               }
             },
-            "description": "Forbidden: banned, paused, stopped or a foreign Origin (CSRF)"
+            "description": "Forbidden: banned, paused, stopped, joining closed or a foreign Origin (CSRF)"
           },
           "404": {
             "content": {
@@ -7731,7 +8303,7 @@
                 }
               }
             },
-            "description": "Forbidden: banned, paused, stopped or a foreign Origin (CSRF)"
+            "description": "Forbidden: banned, paused, stopped, joining closed or a foreign Origin (CSRF)"
           },
           "404": {
             "content": {
