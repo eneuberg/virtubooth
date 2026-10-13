@@ -92,11 +92,23 @@ function useReserve(hold: boolean) {
       current = next;
       root.current?.style.setProperty('--vb-reserve', `${next}px`);
     };
-    const observer = new ResizeObserver(measure);
+    // measure in the next frame, not inside the observer's callback: the new
+    // --vb-reserve resizes observed boxes again, which Safari reports as an error
+    // ("ResizeObserver loop completed with undelivered notifications")
+    let frame = 0;
+    const observer = new ResizeObserver(() => {
+      frame ||= requestAnimationFrame(() => {
+        frame = 0;
+        measure();
+      });
+    });
     for (const el of els) if (el) observer.observe(el);
     observer.observe(root.current);
     measure();
-    return () => observer.disconnect();
+    return () => {
+      observer.disconnect();
+      cancelAnimationFrame(frame);
+    };
   }, []);
   return { root, header, film, lower, lowerInner };
 }

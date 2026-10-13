@@ -41,6 +41,9 @@ def test_gate_for_a_wrong_token_and_a_deep_link(page: Page, live: LiveServer):
 
 def test_not_found_with_access_leads_back_to_start(page: Page, live: LiveServer):
     page.goto(live.entry("/"))
+    # let the app's first requests finish: WebKit logs a request that a navigation
+    # aborts as an error ("… due to access control checks")
+    page.wait_for_load_state("networkidle")
     response = page.goto(live.url("/nowhere"))
     assert response is not None and response.status == 404
     expect(page.locator("html")).to_have_attribute("data-vb-mode", "notfound")

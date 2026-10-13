@@ -106,13 +106,12 @@ def test_the_end_of_the_session_leads_to_the_login(
     monkeypatch.setattr(events_router, "SESSION_RECHECK_SECONDS", 0.0)
     goto(admin_page, live, "/admin/live")
     wait_live(admin_page)
-    other = admin_page.context.new_page()
-    other.goto(live.url("/admin/login"))
-    assert (
-        other.evaluate("async () => (await fetch('/api/admin/logout', {method: 'POST'})).status")
-        == 200
+    # another tab of the same browser logs out (the context's request API shares the
+    # cookies; a page on /admin/login would forward to /admin/live mid-request)
+    answer = admin_page.context.request.post(
+        live.url("/api/admin/logout"), headers={"Origin": live.base_url}
     )
-    other.close()
+    assert answer.status == 200, answer.text()
     admin_page.wait_for_url(re.compile(r"/admin/login\?next=%2Fadmin%2Flive$"), timeout=20_000)
     # the refused stream (401) is logged by the browser: expected here, nothing else
     assert [e for e in errors(admin_page, 401) if "/api/admin/events" not in e] == []

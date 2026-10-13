@@ -10,6 +10,9 @@
  *    (gone → login page), otherwise reopen after 4 s from the last event seen.
  * 5. Back on the tab (`visibilitychange`) or back online: reopen if needed, then resync,
  *    because phones freeze background tabs and the stream may be dead without an error.
+ * 6. Leaving the page (`pagehide`): close the stream first, so the browser doesn't log
+ *    the request it aborts as an error (Safari: "EventSource cannot load … due to access
+ *    control checks"). A page restored from the back/forward cache reopens and resyncs.
  */
 import type { QueryClient } from '@tanstack/react-query';
 import type { AdminEventsHandle, AdminEventsOptions, StreamStatus } from '@/api/events';
@@ -145,6 +148,25 @@ export function startAdminEvents(qc: QueryClient, deps: StreamDeps): () => void 
   doc.addEventListener('visibilitychange', wake);
   win.addEventListener('online', wake);
 
+  // 6. leaving the page, and coming back from the back/forward cache
+  const leave = () => {
+    if (stopped || !handle) return;
+    generation += 1; // its "closed" means nothing: no session check, no polling
+    if (reopen !== null) clearTimeout(reopen);
+    reopen = null;
+    stopPolling();
+    handle.close();
+    handle = null;
+  };
+  const back = (e: Event) => {
+    // PageTransitionEvent.persisted: restored from the back/forward cache
+    if (stopped || handle || !('persisted' in e && e.persisted === true)) return;
+    open();
+    resync();
+  };
+  win.addEventListener('pagehide', leave);
+  win.addEventListener('pageshow', back);
+
   return () => {
     stopped = true;
     generation += 1;
@@ -156,5 +178,7 @@ export function startAdminEvents(qc: QueryClient, deps: StreamDeps): () => void 
     invalidator.dispose();
     doc.removeEventListener('visibilitychange', wake);
     win.removeEventListener('online', wake);
+    win.removeEventListener('pagehide', leave);
+    win.removeEventListener('pageshow', back);
   };
 }

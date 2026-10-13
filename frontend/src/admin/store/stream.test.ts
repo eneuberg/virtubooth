@@ -89,6 +89,28 @@ describe('startAdminEvents', () => {
     });
   });
 
+  it('closes the stream when the page goes (no error, no polling) and reopens from the bfcache', () => {
+    const { qc, opened, closed, statuses, win, stop } = setup();
+    noteEventId('abcd1234-1');
+    opened[0]?.onStatus?.('live');
+    opened[0]?.onEvent({ type: 'stream.resync', data: { reason: 'gap' }, id: 'abcd1234-5' });
+    const spy = vi.spyOn(qc, 'invalidateQueries');
+    win.dispatchEvent(new Event('pagehide'));
+    expect(closed).toEqual([1]);
+    opened[0]?.onStatus?.('closed'); // what the old handle says while closing
+    vi.advanceTimersByTime(POLL_MS * 2 + REOPEN_MS);
+    expect(opened).toHaveLength(1);
+    expect(statuses.at(-1)).toBe('live');
+    spy.mockClear();
+    win.dispatchEvent(new Event('pageshow')); // a normal load: nothing to do
+    expect(opened).toHaveLength(1);
+    win.dispatchEvent(Object.assign(new Event('pageshow'), { persisted: true }));
+    expect(opened).toHaveLength(2);
+    expect(opened[1]?.since).toBe('abcd1234-5');
+    expect(spy).toHaveBeenCalledWith({ queryKey: qk.all, refetchType: 'active' });
+    stop();
+  });
+
   it('polls while the stream is down and stops once it is live again', () => {
     const { qc, opened, statuses, stop } = setup();
     noteEventId('abcd1234-1');

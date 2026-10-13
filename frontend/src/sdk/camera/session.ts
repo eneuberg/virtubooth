@@ -115,6 +115,7 @@ export class CameraSession {
   private startSeq = 0;
   private wakeLock: WakeLockSentinel | null = null;
   private resizeObserver: ResizeObserver | null = null;
+  private sizeFrame = 0;
   private filter: FilterImpl = NORMAL;
   private overlay: HTMLCanvasElement | null = null;
 
@@ -259,7 +260,14 @@ export class CameraSession {
     }
     this.sizeCanvas();
     if (typeof ResizeObserver !== 'undefined') {
-      this.resizeObserver = new ResizeObserver(() => this.sizeCanvas());
+      // resize in the next frame, not inside the callback: the canvas' new size can
+      // resize the mount again, which Safari reports as an error (ResizeObserver loop)
+      this.resizeObserver = new ResizeObserver(() => {
+        this.sizeFrame ||= requestAnimationFrame(() => {
+          this.sizeFrame = 0;
+          this.sizeCanvas();
+        });
+      });
       this.resizeObserver.observe(mount);
     }
   }
@@ -409,6 +417,8 @@ export class CameraSession {
     document.removeEventListener('visibilitychange', this.onVisibility);
     this.resizeObserver?.disconnect();
     this.resizeObserver = null;
+    cancelAnimationFrame(this.sizeFrame);
+    this.sizeFrame = 0;
     stopTracks(this.stream);
     this.stream = null;
     const { video } = this.options;
