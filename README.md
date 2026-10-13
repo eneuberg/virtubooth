@@ -35,11 +35,12 @@ as extensions.
 - **No token, no entry.** The printed QR codes carry the party token
   (`https://<host>/?t=<token>`). Without it every page shows "Scan den
   QR-Code" (HTTP 404) and the API answers 404.
-- **Join sheet.** On the first visit a sheet says "Willkommen bei
-  <party name>!", explains what happens with the photos (stored, maybe posted
-  on Instagram, device recognition) and takes an optional Instagram name. It
-  has one button, "Alles klar, los geht’s!", and no "no": declining means not
-  using the booth. Each device gets a pseudonym such as "Hüpfendes Alpaka #2".
+- **Join sheet.** On the first visit a sheet welcomes the guest ("Willkommen
+  bei Lenas 30.!", from `VB_PARTY_NAME`), explains what happens with the
+  photos (stored, maybe posted on Instagram, device recognition) and takes an
+  optional Instagram name. It has one button, "Alles klar, los geht’s!", and
+  no "no": declining means not using the booth. Each device gets a pseudonym
+  such as "Hüpfendes Alpaka #2".
 - **Start.** The party's name, one film-strip card per activity with a live
   line (the Beer Cam counter, Fotobox sample frames), and **"Deine Bilder"**:
   the guest's own visible photos, each opening large with "Speichern" (the
