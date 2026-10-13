@@ -280,23 +280,28 @@ def test_origin_normalization():
         allowed_origins=("https://alias.example",),
     )
 
-    def req(host: str, origin: str) -> Request:
+    def req(host: str, origin: str, scheme: str = "http") -> Request:
         return Request(
             {
                 "type": "http",
                 "method": "POST",
+                "scheme": scheme,
                 "path": "/",
                 "headers": [(b"host", host.encode()), (b"origin", origin.encode())],
             }
         )
 
-    assert origin_allowed(req("party.example", "https://party.example"), s)
-    assert origin_allowed(req("party.example:443", "https://party.example"), s)
+    assert origin_allowed(req("party.example", "https://party.example", "https"), s)
+    assert origin_allowed(req("party.example:443", "https://party.example", "https"), s)
+    assert origin_allowed(req("PARTY.example", "https://party.example:443", "https"), s)
     assert origin_allowed(req("localhost:8000", "http://localhost:8000"), s)
     assert not origin_allowed(req("localhost:8000", "http://localhost:9000"), s)
-    assert not origin_allowed(req("party.example", "https://party.example.evil.com"), s)
+    assert not origin_allowed(req("party.example", "https://party.example.evil.com", "https"), s)
     assert not origin_allowed(req("party.example", "null"), s)
     assert origin_allowed(req("internal:8000", "https://alias.example"), s)
+    # SEC-04: the scheme counts (more cases in test_security_fixes.py)
+    assert not origin_allowed(req("party.example", "http://party.example", "https"), s)
+    assert not origin_allowed(req("localhost:8000", "https://localhost:8000"), s)
 
 
 def test_security_headers(client):

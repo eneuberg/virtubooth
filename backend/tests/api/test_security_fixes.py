@@ -4,8 +4,11 @@ section "Resolution"), one section per finding (SEC-xx)."""
 from __future__ import annotations
 
 import logging
+from pathlib import Path
+from typing import Any
 
 import pytest
+from fastapi.testclient import TestClient
 from starlette.requests import Request
 
 from virtubooth.app import create_app_from_env
@@ -19,8 +22,8 @@ from virtubooth.core.ratelimit import (
     RateLimiter,
     ip_bucket,
 )
-from virtubooth.core.security import is_direct_loopback
-from virtubooth.settings import admin_password_warnings
+from virtubooth.core.security import is_direct_loopback, origin_allowed
+from virtubooth.settings import Settings, admin_password_warnings
 
 from ..conftest import ADMIN_PASSWORD, ORIGIN, PARTY_TOKEN, SECRET_KEY
 
@@ -167,3 +170,133 @@ def test_startup_logs_the_password_warning(tmp_path, web_dir, monkeypatch, caplo
     text = caplog.text
     assert "VB_ADMIN_PASSWORD has only 14 characters" in text and "gen-env" in text
     assert "Sommerfest2026" not in text
+
+
+# ============================================================ SEC-04 CSRF
+
+
+def csrf_settings(**changes: Any) -> Settings:
+    return Settings(
+        _env_file=None,
+        party_token=PARTY_TOKEN,
+        admin_password=ADMIN_PASSWORD,
+        secret_key=SECRET_KEY,
+        data_dir=Path("/tmp"),
+        **changes,
+    )
+
+
+def csrf_request(
+    host: str, origin: str, *, scheme: str = "http", header: str = "origin", **headers: str
+) -> Request:
+    raw = [(b"host", host.encode()), (header.encode(), origin.encode())]
+    raw += [(k.replace("_", "-").encode(), v.encode()) for k, v in headers.items()]
+    return Request(
+        {"type": "http", "method": "POST", "scheme": scheme, "path": "/", "headers": raw}
+    )
+
+
+LOCAL = csrf_settings()
+PUBLIC_HTTPS = csrf_settings(public_base_url="https://party.example")
+# a .env made by gen-env and never edited: the public URL points at localhost
+GEN_ENV_DEFAULT = csrf_settings(public_base_url="http://localhost:8000")
+COOKIE_SECURE = csrf_settings(cookie_secure="true")
+COOLIFY = csrf_settings(public_base_url="https://vb.example.org")
+ALIAS = csrf_settings(allowed_origins=("https://alias.example", "http://kiosk.lan:8080"))
+
+XFP = {"x_forwarded_proto": "https"}
+
+
+@pytest.mark.parametrize(
+    ("settings", "request_", "allowed"),
+    [
+        # plain http on a laptop or in the LAN (no proxy)
+        (LOCAL, csrf_request("localhost:8000", "http://localhost:8000"), True),
+        (LOCAL, csrf_request("127.0.0.1:8210", "http://127.0.0.1:8210"), True),
+        # the review's PoC: an https origin for an http server
+        (LOCAL, csrf_request("127.0.0.1:8210", "https://127.0.0.1:8210"), False),
+        (LOCAL, csrf_request("localhost:8000", "http://localhost:9000"), False),
+        (LOCAL, csrf_request("localhost:8000", "https://evil.example"), False),
+        (LOCAL, csrf_request("localhost:8000", "http://localhost:8000.evil.example"), False),
+        (LOCAL, csrf_request("localhost:8000", "null"), False),
+        (LOCAL, csrf_request("localhost:8000", "ftp://localhost:8000"), False),
+        (LOCAL, csrf_request("localhost:8000", "http://user@localhost:8000"), False),
+        # compose + Caddy/Traefik/nginx, VB_FORWARDED_ALLOW_IPS covers the proxy:
+        # uvicorn applied X-Forwarded-Proto, the app sees https
+        (
+            PUBLIC_HTTPS,
+            csrf_request("party.example", "https://party.example", scheme="https"),
+            True,
+        ),
+        (LOCAL, csrf_request("party.example", "https://party.example", scheme="https"), True),
+        (LOCAL, csrf_request("party.example", "http://party.example", scheme="https"), False),
+        (
+            PUBLIC_HTTPS,
+            csrf_request("party.example", "http://party.example", scheme="https"),
+            False,
+        ),
+        # ... the same proxy NOT trusted: the app sees http, the proxy's header is there
+        (PUBLIC_HTTPS, csrf_request("party.example", "https://party.example", **XFP), True),
+        (GEN_ENV_DEFAULT, csrf_request("party.example", "https://party.example", **XFP), True),
+        (LOCAL, csrf_request("party.example", "https://party.example", **XFP), True),
+        (LOCAL, csrf_request("party.example", "http://party.example", **XFP), False),
+        (GEN_ENV_DEFAULT, csrf_request("party.example", "http://party.example", **XFP), False),
+        (LOCAL, csrf_request("party.example", "https://evil.example", **XFP), False),
+        # ... and a proxy that sends no X-Forwarded-Proto at all
+        (PUBLIC_HTTPS, csrf_request("party.example", "https://party.example"), True),
+        (COOKIE_SECURE, csrf_request("party.example", "https://party.example"), True),
+        (PUBLIC_HTTPS, csrf_request("party.example", "http://party.example"), False),
+        (PUBLIC_HTTPS, csrf_request("party.example:8080", "http://party.example:8080"), False),
+        (GEN_ENV_DEFAULT, csrf_request("party.example", "https://party.example"), False),
+        # Coolify: Traefik in the trusted RFC 1918 range, public URL = SERVICE_URL_APP
+        (COOLIFY, csrf_request("vb.example.org", "https://vb.example.org", scheme="https"), True),
+        (COOLIFY, csrf_request("vb.example.org", "http://vb.example.org", scheme="https"), False),
+        (COOLIFY, csrf_request("vb.example.org", "https://evil.example", scheme="https"), False),
+        # a proxy that rewrites Host: the public URL still matches exactly
+        (PUBLIC_HTTPS, csrf_request("app:8000", "https://party.example", scheme="https"), True),
+        (PUBLIC_HTTPS, csrf_request("app:8000", "https://party.example"), True),
+        # the host on the server (ssh tunnel) while the public URL is https
+        (PUBLIC_HTTPS, csrf_request("localhost:8000", "http://localhost:8000"), True),
+        (COOLIFY, csrf_request("127.0.0.1:8000", "http://127.0.0.1:8000"), True),
+        # VB_ALLOWED_ORIGINS: exact, and the only way to allow an http origin over TLS
+        (ALIAS, csrf_request("internal:8000", "https://alias.example"), True),
+        (ALIAS, csrf_request("internal:8000", "http://alias.example"), False),
+        (ALIAS, csrf_request("x.example", "http://kiosk.lan:8080", scheme="https"), True),
+        # Referer instead of Origin: only its origin counts, the scheme too
+        (
+            LOCAL,
+            csrf_request("localhost:8000", "http://localhost:8000/x/beer/", header="referer"),
+            True,
+        ),
+        (LOCAL, csrf_request("localhost:8000", "https://localhost:8000/", header="referer"), False),
+        (
+            PUBLIC_HTTPS,
+            csrf_request("party.example", "http://party.example/", header="referer", **XFP),
+            False,
+        ),
+    ],
+)
+def test_origin_rules(settings, request_, allowed):
+    assert origin_allowed(request_, settings) is allowed
+
+
+def test_an_https_origin_is_refused_on_a_plain_http_server(admin, guest):
+    g = guest()
+    r = g.patch("/api/me", json={"instagram": "anna"}, headers={"Origin": "https://testserver"})
+    assert r.status_code == 403 and r.json()["error"] == "bad_origin"
+    r = admin.post(
+        "/api/admin/exports", json={"kind": "archive"}, headers={"Origin": "https://testserver"}
+    )
+    assert r.status_code == 403
+    assert g.patch("/api/me", json={"instagram": "anna"}, headers=ORIGIN).status_code == 200
+
+
+def test_an_http_origin_is_refused_over_tls(app, admin):
+    with TestClient(app, base_url="https://party.example", follow_redirects=False) as tls:
+        tls.cookies.set("vb_admin", admin.cookies.get("vb_admin"))
+        r = tls.post("/api/admin/logout", headers={"Origin": "http://party.example"})
+        assert r.status_code == 403 and r.json()["error"] == "bad_origin"
+        assert tls.get("/api/admin/session").json()["authenticated"]
+        r = tls.post("/api/admin/logout", headers={"Origin": "https://party.example"})
+        assert r.status_code == 200
+        assert not tls.get("/api/admin/session").json()["authenticated"]
