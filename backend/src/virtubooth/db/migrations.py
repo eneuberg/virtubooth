@@ -129,11 +129,32 @@ CREATE TABLE export_jobs (
 CREATE INDEX export_jobs_status ON export_jobs(status);
 """
 
+# v4: the dashboard's live overview. `visitors` has one row per browser that
+# opened a valid QR link: the random id of its `vb_vid` cookie, when it was
+# first and last seen, and the guest it became once it joined (NULL: never
+# joined). Only random ids and timestamps: no IP, no user agent. Guests from
+# before v4 have no row until their browser comes back. The indexes serve the
+# "last N minutes" counters (users.last_seen_at is refreshed, throttled, on
+# guest API requests).
+SCHEMA_V4 = """
+CREATE TABLE visitors (
+    id             TEXT    PRIMARY KEY,
+    first_seen_at  TEXT    NOT NULL,
+    last_seen_at   TEXT    NOT NULL,
+    user_id        INTEGER REFERENCES users(id) ON DELETE SET NULL
+);
+CREATE INDEX visitors_user ON visitors(user_id);
+CREATE INDEX visitors_last_seen ON visitors(last_seen_at);
+CREATE INDEX users_last_seen ON users(last_seen_at);
+CREATE INDEX photos_created ON photos(created_at);
+"""
+
 # (version, script): each step upgrades the database from the version before.
 MIGRATIONS: tuple[tuple[int, str], ...] = (
     (1, SCHEMA),
     (2, SCHEMA_V2),
     (3, SCHEMA_V3),
+    (4, SCHEMA_V4),
 )
 SCHEMA_VERSION = MIGRATIONS[-1][0]
 

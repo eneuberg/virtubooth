@@ -10,7 +10,9 @@ from .events import AdminEvents
 from .exports import ExportService
 from .identity import IdentityService
 from .instagram import InstagramService
+from .join_controls import JoinControlsService
 from .moderation import ModerationService
+from .presence import PresenceService
 from .upload_controls import UploadControlsService
 from .uploads import UploadService
 from .views import AdminViews
@@ -30,6 +32,8 @@ class Services:
     admin_auth: AdminAuthService
     exports: ExportService
     instagram: InstagramService
+    join_controls: JoinControlsService
+    presence: PresenceService
 
     @classmethod
     def create(cls, core: Core) -> Services:
@@ -46,4 +50,6 @@ class Services:
             admin_auth=AdminAuthService(core, db, repos),
             exports=ExportService(core, db, repos, events),
             instagram=InstagramService(db, repos, events),
+            join_controls=JoinControlsService(db, repos, events),
+            presence=PresenceService(core, repos),
         )

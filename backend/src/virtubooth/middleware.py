@@ -1,8 +1,9 @@
 """Pure ASGI middlewares (no BaseHTTPMiddleware: keeps SSE streaming intact).
 
 GuardMiddleware, in order:
-1. `?t=<party token>` on a page URL: valid → set the access cookie and redirect
-   to the same URL without the token; invalid → the "scan the QR code" page.
+1. `?t=<party token>` on a page URL: valid → set the access cookie (and a
+   visitor id, if the browser has none) and redirect to the same URL without
+   the token; invalid → the "scan the QR code" page.
 2. state-changing requests must carry a same-origin Origin/Referer (CSRF).
 3. request bodies: uploads stream through (they enforce their own cap), every
    other body must declare a Content-Length of at most MAX_JSON_BODY.
@@ -19,6 +20,7 @@ from __future__ import annotations
 import re
 from urllib.parse import urlencode
 
+from starlette.concurrency import run_in_threadpool
 from starlette.datastructures import MutableHeaders
 from starlette.requests import Request
 from starlette.responses import JSONResponse, RedirectResponse, Response
@@ -65,7 +67,9 @@ class GuardMiddleware:
             and "t" in request.query_params
             and not path.startswith(_NO_TOKEN_PREFIXES)
         ):
-            await self._token_entry(request)(scope, receive, send)
+            # a thread: a valid entry writes the visitor row (services/presence.py)
+            response = await run_in_threadpool(self._token_entry, request)
+            await response(scope, receive, send)
             return
 
         if request.method in UNSAFE_METHODS and not origin_allowed(request, core.settings):
@@ -124,6 +128,8 @@ class GuardMiddleware:
             access_cookie_value(core.settings, core.signer),
             max_age=GUEST_COOKIE_MAX_AGE,
         )
+        # the dashboard's "Gescannt": a random visitor id, kept when it has one
+        core.services.presence.enter(request, response)
         return response
 
 

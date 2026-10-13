@@ -227,6 +227,28 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/admin/join-stop": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Join Stop */
+        get: operations["get_join_stop_api_admin_join_stop_get"];
+        put?: never;
+        /**
+         * Set Join Stop
+         * @description Stop (or reopen) joining: new devices get 403 `join_closed`. Guests who
+         *     joined already are not affected.
+         */
+        post: operations["set_join_stop_api_admin_join_stop_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/admin/login": {
         parameters: {
             query?: never;
@@ -259,6 +281,27 @@ export interface paths {
         put?: never;
         /** Logout */
         post: operations["logout_api_admin_logout_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/overview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Overview
+         * @description Live counters: guests active and uploading now, scans and joins, photos
+         *     in the last 15/60 minutes, per activity. Cheap; poll it every ~10 s.
+         */
+        get: operations["overview_api_admin_overview_get"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -595,7 +638,8 @@ export interface paths {
         /**
          * Join
          * @description Accept the join dialog: a new pseudonymous guest (201). A device that
-         *     joined already keeps its identity (200, `already_joined`).
+         *     joined already keeps its identity (200, `already_joined`). While the host
+         *     stopped joining, a new device gets 403 `join_closed`.
          */
         post: operations["join_api_join_post"];
         delete?: never;
@@ -775,7 +819,7 @@ export interface components {
          * AdminEvent
          * @description One message of the admin event stream, discriminated by `type`.
          */
-        AdminEvent: components["schemas"]["PhotoCreatedEvent"] | components["schemas"]["PhotoHiddenEvent"] | components["schemas"]["PhotoUnhiddenEvent"] | components["schemas"]["PhotoDeletedEvent"] | components["schemas"]["UserCreatedEvent"] | components["schemas"]["UserBannedEvent"] | components["schemas"]["UserUnbannedEvent"] | components["schemas"]["FingerprintBannedEvent"] | components["schemas"]["FingerprintUnbannedEvent"] | components["schemas"]["UploadsChangedEvent"] | components["schemas"]["UploadStopEvent"] | components["schemas"]["UploadPauseEvent"] | components["schemas"]["ExportUpdatedEvent"] | components["schemas"]["ExportDeletedEvent"] | components["schemas"]["InstagramDoneEvent"] | components["schemas"]["StreamResyncEvent"];
+        AdminEvent: components["schemas"]["PhotoCreatedEvent"] | components["schemas"]["PhotoHiddenEvent"] | components["schemas"]["PhotoUnhiddenEvent"] | components["schemas"]["PhotoDeletedEvent"] | components["schemas"]["UserCreatedEvent"] | components["schemas"]["UserBannedEvent"] | components["schemas"]["UserUnbannedEvent"] | components["schemas"]["FingerprintBannedEvent"] | components["schemas"]["FingerprintUnbannedEvent"] | components["schemas"]["UploadsChangedEvent"] | components["schemas"]["UploadStopEvent"] | components["schemas"]["UploadPauseEvent"] | components["schemas"]["JoinStopEvent"] | components["schemas"]["ExportUpdatedEvent"] | components["schemas"]["ExportDeletedEvent"] | components["schemas"]["InstagramDoneEvent"] | components["schemas"]["StreamResyncEvent"];
         /** AdminExtension */
         AdminExtension: {
             /** Emoji */
@@ -1122,7 +1166,7 @@ export interface components {
              * @description Machine-readable error code.
              * @enum {string}
              */
-            error: "scan_qr" | "needs_consent" | "banned" | "consent_outdated" | "invalid_instagram" | "uploads_paused" | "uploads_stopped" | "unsupported_type" | "too_large" | "invalid_meta" | "empty_upload" | "invalid_image" | "admin_required" | "wrong_password" | "login_locked" | "invalid_filter" | "invalid_cursor" | "no_fingerprint" | "restore_required" | "export_not_ready" | "export_running" | "base_url_required" | "invalid_base_url" | "bad_origin" | "length_required" | "rate_limited" | "invalid_request" | "not_found" | "http_404" | "http_405";
+            error: "scan_qr" | "needs_consent" | "banned" | "consent_outdated" | "invalid_instagram" | "join_closed" | "uploads_paused" | "uploads_stopped" | "unsupported_type" | "too_large" | "invalid_meta" | "empty_upload" | "invalid_image" | "admin_required" | "wrong_password" | "login_locked" | "invalid_filter" | "invalid_cursor" | "no_fingerprint" | "restore_required" | "export_not_ready" | "export_running" | "base_url_required" | "invalid_base_url" | "bad_origin" | "length_required" | "rate_limited" | "invalid_request" | "not_found" | "http_404" | "http_405";
             /**
              * Message
              * @description German text for the guest or admin, shown as-is.
@@ -1546,6 +1590,27 @@ export interface components {
             uploads_stopped: boolean;
             user: components["schemas"]["GuestUser"];
         };
+        /** JoinStopData */
+        JoinStopData: {
+            join_stop: components["schemas"]["StopState"];
+        };
+        /**
+         * JoinStopEvent
+         * @description The join stop („Anmeldung stoppen“) was switched on or off.
+         */
+        JoinStopEvent: {
+            data: components["schemas"]["JoinStopData"];
+            /**
+             * Id
+             * @description `<epoch>-<n>`: the SSE `id:` line.
+             */
+            id: string;
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            type: "settings.join_stop";
+        };
         /** LoginIn */
         LoginIn: {
             /** Password */
@@ -1573,10 +1638,17 @@ export interface components {
         };
         /**
          * NeedsConsentOut
-         * @description Unknown device: show the join dialog.
+         * @description Unknown device: show the join dialog. `join_closed`: the host stopped
+         *     new joins for a moment; show a calm "try again soon" instead of the button
+         *     (a join would get 403 `join_closed`).
          */
         NeedsConsentOut: {
             consent: components["schemas"]["ConsentInfo"];
+            /**
+             * Join Closed
+             * @default false
+             */
+            join_closed: boolean;
             /**
              * @description discriminator enum property added by openapi-typescript
              * @enum {string}
@@ -1590,6 +1662,128 @@ export interface components {
              * @constant
              */
             ok: true;
+        };
+        /** OverviewActivity */
+        OverviewActivity: {
+            /** Id */
+            id: string;
+            /** Last 60 Min */
+            last_60_min: number;
+            /**
+             * Photos
+             * @description Photos not deleted.
+             */
+            photos: number;
+            /** Title */
+            title: string;
+            /** Visible */
+            visible: number;
+        };
+        /** OverviewGuests */
+        OverviewGuests: {
+            /**
+             * Active Now
+             * @description Guests, not banned, whose page talked to the server in the last 5 minutes.
+             */
+            active_now: number;
+            /** Banned */
+            banned: number;
+            /**
+             * Instagram
+             * @description Guests that gave an Instagram handle.
+             */
+            instagram: number;
+            /**
+             * Paused
+             * @description Guests whose own uploads are paused (by hand or new-guest pause).
+             */
+            paused: number;
+            /**
+             * Total
+             * @description Every guest (device) that joined.
+             */
+            total: number;
+            /**
+             * Uploading Now
+             * @description Distinct guests with an upload in the last 5 minutes.
+             */
+            uploading_now: number;
+        };
+        /**
+         * OverviewOut
+         * @description Aggregate, first-party counters for the host's dashboard.
+         */
+        OverviewOut: {
+            /**
+             * Active Minutes
+             * @description The window of „jetzt“ in minutes (5).
+             */
+            active_minutes: number;
+            /**
+             * Activities
+             * @description Every loaded activity that takes photos, plus ids that only old photos have.
+             */
+            activities: components["schemas"]["OverviewActivity"][];
+            /**
+             * At
+             * @description Server time of this snapshot (ISO-8601 UTC).
+             */
+            at: string;
+            guests: components["schemas"]["OverviewGuests"];
+            photos: components["schemas"]["OverviewPhotos"];
+            scans: components["schemas"]["OverviewScans"];
+        };
+        /** OverviewPhotos */
+        OverviewPhotos: {
+            /** Hidden */
+            hidden: number;
+            /**
+             * Last 15 Min
+             * @description Uploads received in the last 15 minutes (hidden or deleted ones too).
+             */
+            last_15_min: number;
+            /**
+             * Last 60 Min
+             * @description Uploads received in the last 60 minutes.
+             */
+            last_60_min: number;
+            /** Last Upload At */
+            last_upload_at: string | null;
+            /**
+             * Total
+             * @description Photos not deleted.
+             */
+            total: number;
+            /** Visible */
+            visible: number;
+        };
+        /** OverviewScans */
+        OverviewScans: {
+            /**
+             * Joined
+             * @description Of those, the ones that joined (linked to a guest).
+             */
+            joined: number;
+            /**
+             * Not Joined
+             * @description Scanned but never joined: `scanned - joined`.
+             */
+            not_joined: number;
+            /**
+             * Scanned
+             * @description Browsers that opened a valid QR link (since `since`).
+             */
+            scanned: number;
+            /**
+             * Since
+             * @description When counting started (the first visitor). Guests from before have no visitor until their browser comes back.
+             */
+            since: string | null;
+            /**
+             * Waiting Now
+             * @description Not joined, and the page talked to the server in the last 5 minutes.
+             */
+            waiting_now: number;
         };
         /** PauseIn */
         PauseIn: {
@@ -2167,7 +2361,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorBody"];
                 };
             };
-            /** @description Forbidden: banned, paused, stopped or a foreign Origin (CSRF) */
+            /** @description Forbidden: banned, paused, stopped, joining closed or a foreign Origin (CSRF) */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -2259,7 +2453,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorBody"];
                 };
             };
-            /** @description Forbidden: banned, paused, stopped or a foreign Origin (CSRF) */
+            /** @description Forbidden: banned, paused, stopped, joining closed or a foreign Origin (CSRF) */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -2353,7 +2547,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorBody"];
                 };
             };
-            /** @description Forbidden: banned, paused, stopped or a foreign Origin (CSRF) */
+            /** @description Forbidden: banned, paused, stopped, joining closed or a foreign Origin (CSRF) */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -2450,7 +2644,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorBody"];
                 };
             };
-            /** @description Forbidden: banned, paused, stopped or a foreign Origin (CSRF) */
+            /** @description Forbidden: banned, paused, stopped, joining closed or a foreign Origin (CSRF) */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -2542,7 +2736,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorBody"];
                 };
             };
-            /** @description Forbidden: banned, paused, stopped or a foreign Origin (CSRF) */
+            /** @description Forbidden: banned, paused, stopped, joining closed or a foreign Origin (CSRF) */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -2656,7 +2850,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorBody"];
                 };
             };
-            /** @description Forbidden: banned, paused, stopped or a foreign Origin (CSRF) */
+            /** @description Forbidden: banned, paused, stopped, joining closed or a foreign Origin (CSRF) */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -2759,7 +2953,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorBody"];
                 };
             };
-            /** @description Forbidden: banned, paused, stopped or a foreign Origin (CSRF) */
+            /** @description Forbidden: banned, paused, stopped, joining closed or a foreign Origin (CSRF) */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -2863,7 +3057,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorBody"];
                 };
             };
-            /** @description Forbidden: banned, paused, stopped or a foreign Origin (CSRF) */
+            /** @description Forbidden: banned, paused, stopped, joining closed or a foreign Origin (CSRF) */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -2964,7 +3158,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorBody"];
                 };
             };
-            /** @description Forbidden: banned, paused, stopped or a foreign Origin (CSRF) */
+            /** @description Forbidden: banned, paused, stopped, joining closed or a foreign Origin (CSRF) */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -3056,7 +3250,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorBody"];
                 };
             };
-            /** @description Forbidden: banned, paused, stopped or a foreign Origin (CSRF) */
+            /** @description Forbidden: banned, paused, stopped, joining closed or a foreign Origin (CSRF) */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -3154,7 +3348,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorBody"];
                 };
             };
-            /** @description Forbidden: banned, paused, stopped or a foreign Origin (CSRF) */
+            /** @description Forbidden: banned, paused, stopped, joining closed or a foreign Origin (CSRF) */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -3248,7 +3442,195 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorBody"];
                 };
             };
-            /** @description Forbidden: banned, paused, stopped or a foreign Origin (CSRF) */
+            /** @description Forbidden: banned, paused, stopped, joining closed or a foreign Origin (CSRF) */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Not found, or no party access (`scan_qr`) */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Content-Length required */
+            411: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Request too large */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Request validation failed (`invalid_request`) */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Rate limited (`Retry-After` header) */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    get_join_stop_api_admin_join_stop_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StopState"];
+                };
+            };
+            /** @description Invalid input (see `error`) */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Needs consent or an admin session */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Forbidden: banned, paused, stopped, joining closed or a foreign Origin (CSRF) */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Not found, or no party access (`scan_qr`) */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Content-Length required */
+            411: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Request too large */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Request validation failed (`invalid_request`) */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Rate limited (`Retry-After` header) */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    set_join_stop_api_admin_join_stop_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["StopIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StopOut"];
+                };
+            };
+            /** @description Invalid input (see `error`) */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Needs consent or an admin session */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Forbidden: banned, paused, stopped, joining closed or a foreign Origin (CSRF) */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -3335,7 +3717,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorBody"];
                 };
             };
-            /** @description Forbidden: banned, paused, stopped or a foreign Origin (CSRF) */
+            /** @description Forbidden: banned, paused, stopped, joining closed or a foreign Origin (CSRF) */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -3400,8 +3782,100 @@ export interface operations {
                     "application/json": components["schemas"]["OkOut"];
                 };
             };
-            /** @description Forbidden: banned, paused, stopped or a foreign Origin (CSRF) */
+            /** @description Forbidden: banned, paused, stopped, joining closed or a foreign Origin (CSRF) */
             403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Content-Length required */
+            411: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Request too large */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Request validation failed (`invalid_request`) */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Rate limited (`Retry-After` header) */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    overview_api_admin_overview_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OverviewOut"];
+                };
+            };
+            /** @description Invalid input (see `error`) */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Needs consent or an admin session */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Forbidden: banned, paused, stopped, joining closed or a foreign Origin (CSRF) */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Not found, or no party access (`scan_qr`) */
+            404: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -3493,7 +3967,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorBody"];
                 };
             };
-            /** @description Forbidden: banned, paused, stopped or a foreign Origin (CSRF) */
+            /** @description Forbidden: banned, paused, stopped, joining closed or a foreign Origin (CSRF) */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -3589,7 +4063,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorBody"];
                 };
             };
-            /** @description Forbidden: banned, paused, stopped or a foreign Origin (CSRF) */
+            /** @description Forbidden: banned, paused, stopped, joining closed or a foreign Origin (CSRF) */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -3683,7 +4157,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorBody"];
                 };
             };
-            /** @description Forbidden: banned, paused, stopped or a foreign Origin (CSRF) */
+            /** @description Forbidden: banned, paused, stopped, joining closed or a foreign Origin (CSRF) */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -3777,7 +4251,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorBody"];
                 };
             };
-            /** @description Forbidden: banned, paused, stopped or a foreign Origin (CSRF) */
+            /** @description Forbidden: banned, paused, stopped, joining closed or a foreign Origin (CSRF) */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -3871,7 +4345,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorBody"];
                 };
             };
-            /** @description Forbidden: banned, paused, stopped or a foreign Origin (CSRF) */
+            /** @description Forbidden: banned, paused, stopped, joining closed or a foreign Origin (CSRF) */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -3965,7 +4439,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorBody"];
                 };
             };
-            /** @description Forbidden: banned, paused, stopped or a foreign Origin (CSRF) */
+            /** @description Forbidden: banned, paused, stopped, joining closed or a foreign Origin (CSRF) */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -4039,7 +4513,7 @@ export interface operations {
                     "application/json": components["schemas"]["SessionOut"];
                 };
             };
-            /** @description Forbidden: banned, paused, stopped or a foreign Origin (CSRF) */
+            /** @description Forbidden: banned, paused, stopped, joining closed or a foreign Origin (CSRF) */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -4122,7 +4596,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorBody"];
                 };
             };
-            /** @description Forbidden: banned, paused, stopped or a foreign Origin (CSRF) */
+            /** @description Forbidden: banned, paused, stopped, joining closed or a foreign Origin (CSRF) */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -4214,7 +4688,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorBody"];
                 };
             };
-            /** @description Forbidden: banned, paused, stopped or a foreign Origin (CSRF) */
+            /** @description Forbidden: banned, paused, stopped, joining closed or a foreign Origin (CSRF) */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -4310,7 +4784,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorBody"];
                 };
             };
-            /** @description Forbidden: banned, paused, stopped or a foreign Origin (CSRF) */
+            /** @description Forbidden: banned, paused, stopped, joining closed or a foreign Origin (CSRF) */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -4402,7 +4876,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorBody"];
                 };
             };
-            /** @description Forbidden: banned, paused, stopped or a foreign Origin (CSRF) */
+            /** @description Forbidden: banned, paused, stopped, joining closed or a foreign Origin (CSRF) */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -4498,7 +4972,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorBody"];
                 };
             };
-            /** @description Forbidden: banned, paused, stopped or a foreign Origin (CSRF) */
+            /** @description Forbidden: banned, paused, stopped, joining closed or a foreign Origin (CSRF) */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -4599,7 +5073,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorBody"];
                 };
             };
-            /** @description Forbidden: banned, paused, stopped or a foreign Origin (CSRF) */
+            /** @description Forbidden: banned, paused, stopped, joining closed or a foreign Origin (CSRF) */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -4693,7 +5167,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorBody"];
                 };
             };
-            /** @description Forbidden: banned, paused, stopped or a foreign Origin (CSRF) */
+            /** @description Forbidden: banned, paused, stopped, joining closed or a foreign Origin (CSRF) */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -4791,7 +5265,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorBody"];
                 };
             };
-            /** @description Forbidden: banned, paused, stopped or a foreign Origin (CSRF) */
+            /** @description Forbidden: banned, paused, stopped, joining closed or a foreign Origin (CSRF) */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -4889,7 +5363,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorBody"];
                 };
             };
-            /** @description Forbidden: banned, paused, stopped or a foreign Origin (CSRF) */
+            /** @description Forbidden: banned, paused, stopped, joining closed or a foreign Origin (CSRF) */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -4987,7 +5461,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorBody"];
                 };
             };
-            /** @description Forbidden: banned, paused, stopped or a foreign Origin (CSRF) */
+            /** @description Forbidden: banned, paused, stopped, joining closed or a foreign Origin (CSRF) */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -5061,7 +5535,7 @@ export interface operations {
                     "application/json": components["schemas"]["ExtensionsOut"];
                 };
             };
-            /** @description Forbidden: banned, paused, stopped or a foreign Origin (CSRF) */
+            /** @description Forbidden: banned, paused, stopped, joining closed or a foreign Origin (CSRF) */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -5139,7 +5613,7 @@ export interface operations {
                     "application/json": components["schemas"]["NeedsConsentOut"] | components["schemas"]["IdentifiedOut"];
                 };
             };
-            /** @description Forbidden: banned, paused, stopped or a foreign Origin (CSRF) */
+            /** @description Forbidden: banned, paused, stopped, joining closed or a foreign Origin (CSRF) */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -5235,7 +5709,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorBody"];
                 };
             };
-            /** @description Forbidden: banned, paused, stopped or a foreign Origin (CSRF) */
+            /** @description Forbidden: banned, paused, stopped, joining closed or a foreign Origin (CSRF) */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -5340,7 +5814,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorBody"];
                 };
             };
-            /** @description Forbidden: banned, paused, stopped or a foreign Origin (CSRF) */
+            /** @description Forbidden: banned, paused, stopped, joining closed or a foreign Origin (CSRF) */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -5423,7 +5897,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorBody"];
                 };
             };
-            /** @description Forbidden: banned, paused, stopped or a foreign Origin (CSRF) */
+            /** @description Forbidden: banned, paused, stopped, joining closed or a foreign Origin (CSRF) */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -5665,7 +6139,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorBody"];
                 };
             };
-            /** @description Forbidden: banned, paused, stopped or a foreign Origin (CSRF) */
+            /** @description Forbidden: banned, paused, stopped, joining closed or a foreign Origin (CSRF) */
             403: {
                 headers: {
                     [name: string]: unknown;

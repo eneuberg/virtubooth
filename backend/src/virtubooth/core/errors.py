@@ -19,6 +19,7 @@ ErrorCode = Literal[
     "banned",
     "consent_outdated",
     "invalid_instagram",
+    "join_closed",
     # uploads
     "uploads_paused",
     "uploads_stopped",
@@ -116,6 +117,13 @@ def uploads_stopped() -> ApiError:
     )
 
 
+def join_closed() -> ApiError:
+    """The host stopped new joins for a moment (already joined guests are not affected)."""
+    return ApiError(
+        403, "join_closed", "Gerade kann niemand neu beitreten. Versuch es gleich noch mal."
+    )
+
+
 def rate_limited(retry_after: int) -> ApiError:
     return ApiError(
         429,
@@ -150,7 +158,7 @@ def invalid_request() -> ApiError:
 _DESCRIPTIONS = {
     400: "Invalid input (see `error`)",
     401: "Needs consent or an admin session",
-    403: "Forbidden: banned, paused, stopped or a foreign Origin (CSRF)",
+    403: "Forbidden: banned, paused, stopped, joining closed or a foreign Origin (CSRF)",
     404: "Not found, or no party access (`scan_qr`)",
     405: "Method not allowed",
     409: "Conflict",

@@ -173,6 +173,8 @@ class IdentityService:
     ) -> JoinResult:
         if existing is not None:
             return self._rejoin(existing, instagram)
+        if self.repos.app_settings.join_stop().enabled:
+            raise errors.join_closed()
         if version != self.core.settings.consent_version:
             raise errors.ApiError(
                 409, "consent_outdated", "Die Hinweise wurden gerade aktualisiert. Bitte neu laden."
