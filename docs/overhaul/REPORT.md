@@ -24,7 +24,8 @@ bis zum Merge `01960c7`, dann die Nacharbeiten (Branches `fin/*`), alle in das l
   WebKit, Docker) 7:26 min.
 - Sicherheitsreview: 0 kritisch, 0 hoch, 1 mittel, 5 niedrig, 9 Info. Der mittlere
   und alle niedrigen Befunde sind behoben.
-- Dringend: SEC-13 heute ab 18:30 Uhr erledigen (siehe Todos).
+- SEC-13 ist erledigt: Die Ausnahmen vom Mindestalter der Pakete sind am Abend des
+  13.10. raus.
 
 ## Was gemacht wurde
 
@@ -210,7 +211,7 @@ Behoben, jeweils mit Regressionstest:
 
 Akzeptiert mit Begründung: der Rest von SEC-10 (das Gerätemerkmal ist nur ein Hinweis),
 SEC-11 (`uid_token` ohne Ablauf), SEC-12 (Exporte können die Platte füllen; es gibt
-Platzprüfung und Aufräumen). Offen: SEC-13 (siehe Todos). Details:
+Platzprüfung und Aufräumen). SEC-13 ist am Abend erledigt worden (siehe Todos). Details:
 `docs/overhaul/SECURITY_REVIEW.md`.
 
 ## Tests
@@ -304,9 +305,9 @@ Firefox geprüft und ist im Testlauf unten enthalten.
 
 ## Offene Punkte / Todos
 
-1. **SEC-13, heute:** Nach dem 13.10.2026, 16:30 UTC (18:30 Uhr deutscher Zeit), in
-   `frontend/pnpm-workspace.yaml` den Block `minimumReleaseAgeExclude` samt Kommentar
-   löschen und `cd frontend && pnpm install --frozen-lockfile` ausführen.
+1. **SEC-13: erledigt** am 13.10.2026 um 18:53 UTC. Der Block `minimumReleaseAgeExclude`
+   ist aus `frontend/pnpm-workspace.yaml` entfernt. `pnpm install --frozen-lockfile` lief
+   sauber durch: Lockfile unverändert, Supply-Chain-Prüfung bestanden.
 2. **WebKit läuft nicht in der CI.** Das Playwright-Image ist 3,5 GB groß. Lokal:
    `make e2e-webkit` oder alles mit `make check-all`.
 3. **Coolify braucht Zugriff auf das Repo.** Es ist privat, und Coolify hat nur die

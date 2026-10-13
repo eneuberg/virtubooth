@@ -8,14 +8,6 @@ peerDependencyRules:
   allowedVersions:
     openapi-typescript>typescript: '6'
 
-# pnpm 11 refuses versions younger than its minimumReleaseAge (1 day). These pins
-# (analysis/stack.md, 2026-10-13) were that fresh when the frontend was scaffolded.
-minimumReleaseAgeExclude:
-  - '@vitest/mocker@5.0.4'
-  - '@vitest/spy@5.0.4'
-  - vitest@5.0.4
-  - zod@4.6.7
-
 # No dependency needs an install script (pnpm 11 blocks them unless listed in allowBuilds).
 
 # React Aria injects two <style> elements at runtime (usePress, and usePreventScroll on

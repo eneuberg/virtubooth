@@ -637,7 +637,7 @@ finding (two pairs share one); the regression tests are in
 | SEC-10 | partly fixed, rest accepted | `4adf95d` | At most 20 fingerprint rows per guest (banned ones are kept). Evasion and poisoning are accepted (see below). |
 | SEC-11 | accepted | – | See below. |
 | SEC-12 | accepted | – | See below. |
-| SEC-13 | deferred (time) | – | The pins are not a day old yet; see below. |
+| SEC-13 | fixed | 2026-10-13 18:53 UTC | The exclusions are removed once the pins were a day old; see below. |
 | SEC-14 | fixed | `d042502` | At most 100 scans per JPEG. The size is checked from the header before decoding (verified, with a test). |
 | SEC-15 | fixed | `fa9082a` | `*` in `VB_FORWARDED_ALLOW_IPS` / `--forwarded-allow-ips` is a config error. No compose file or `.env.example` uses `*`. |
 
@@ -795,7 +795,9 @@ recovered from it.
 
 ### Deferred
 
-- **SEC-13 (`minimumReleaseAgeExclude`).** Checked on 2026-10-13 at
+- **SEC-13 (`minimumReleaseAgeExclude`), done on 2026-10-13 at 18:53 UTC:** the block is
+  removed and `pnpm install --frozen-lockfile` passes (lockfile unchanged, supply-chain
+  policies pass). The original note: checked on 2026-10-13 at
   07:17 UTC with `npm view <pkg> time --json`:
 
   | Package | Published (UTC) |
