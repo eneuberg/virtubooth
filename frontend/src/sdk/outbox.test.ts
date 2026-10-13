@@ -18,7 +18,7 @@ import {
   type OutboxStore,
 } from './outbox';
 
-vi.mock('./session', () => ({ refreshSession: () => Promise.resolve() }));
+vi.mock('./session', () => ({ noteUploadAnswer: () => undefined }));
 
 /** An in-memory stand-in for the IndexedDB store (same records). */
 class MemoryStore implements OutboxStore {

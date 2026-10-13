@@ -26,9 +26,13 @@ export function isCameraError(err: unknown): err is CameraError {
 /** The title of the full-screen camera error (one wording for every activity). */
 export const CAMERA_ERROR_TITLE = 'Die Kamera geht nicht';
 
-/** Instagram, Facebook, TikTok & co.: no address bar, often no camera. Send the guest out. */
+/**
+ * Instagram, WhatsApp, Facebook & co. open links in their own browser, often without a
+ * camera. "Open in browser" would lose the party access (the token is gone from the
+ * address), so: scan the QR code with the camera app (GP's advice on Start, too).
+ */
 export const IN_APP_HINT =
-  'In dieser App geht die Kamera nicht. Öffne die Seite über das ⋯-Menü in deinem Browser (Safari oder Chrome).';
+  'Im Browser dieser App geht die Kamera oft nicht. Öffne die Kamera-App deines Handys und scanne den QR-Code damit: Dann öffnet sich die Seite im richtigen Browser.';
 
 export const CAMERA_TEXT = {
   insecure: 'Die Kamera funktioniert nur über eine sichere Verbindung (https).',

@@ -9,13 +9,13 @@
  * camera. The result is a print that develops, with "Speichern" and "Neues Foto"; its
  * upload state lives on the film edge. A failed upload waits in the outbox.
  */
-import { Check, Download, Camera, SwitchCamera, Timer } from 'lucide-react';
+import { Camera, Check, Download, Share2, SwitchCamera, Timer } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { ToggleButton } from 'react-aria-components';
 import { formatPercent, NBSP } from '@/lib/format';
 import { msg, t } from '@/lib/messages.de';
-import { BlockedHint, FilmRetry, InAppHint, OutboxLine } from '@/sdk/camera/CameraHints';
-import { BannedScreen, CameraErrorScreen, FatalScreen } from '@/sdk/camera/CameraScreens';
+import { CameraStatus, FilmRetry } from '@/sdk/camera/CameraHints';
+import { CameraErrorScreen, FatalScreen } from '@/sdk/camera/CameraScreens';
 import { CameraStage, PREVIEW_CANVAS_CLASS } from '@/sdk/camera/CameraStage';
 import { PHOTO_H, PHOTO_W, STREAM_SIZE } from '@/sdk/camera/capture';
 import { buildFilterList, NORMAL, type Filter } from '@/sdk/camera/filters';
@@ -25,9 +25,15 @@ import { useCameraSession } from '@/sdk/camera/useCameraSession';
 import { shotErrorText, useNow, useOutboxToasts, useShot } from '@/sdk/camera/useShot';
 import { ActivityMenu } from '@/sdk/components/ActivityMenu';
 import { ActivityShell } from '@/sdk/components/ActivityShell';
+import { GuestPass } from '@/sdk/components/GuestPass';
+import { StatusSheet } from '@/sdk/components/StatusSlot';
 import type { ExtensionPageProps } from '@/sdk/extension';
 import { flash, vibrate } from '@/sdk/feedback';
 import { flushOutbox, subscribeOutboxEvents, useOutbox } from '@/sdk/outbox';
+import { canUpload, useSession } from '@/sdk/session';
+import { isIOS } from '@/sdk/platform';
+import { canShareFiles, saveImage, shareImage } from '@/sdk/share';
+import { useGuestStatus } from '@/sdk/status';
 import { Button, buttonStyles } from '@/ui/Button';
 import { Countdown } from '@/ui/Countdown';
 import { cx } from '@/ui/cx';
@@ -35,9 +41,6 @@ import { FilmEdge, type FilmEdgeState } from '@/ui/FilmEdge';
 import { IconButton } from '@/ui/IconButton';
 import { Shutter, type ShutterState } from '@/ui/Shutter';
 import { clearToasts, showToast } from '@/ui/Toast';
-import { GuestPass } from '../_bridge/GuestPass';
-import { canUpload, useSession } from '../_bridge/session';
-import { saveImage } from '../_bridge/share';
 import { FilterStrip } from './FilterStrip';
 import { useCatalogue } from './useCatalogue';
 import { useSwatches } from './useSwatches';
@@ -60,13 +63,9 @@ function prefer(): 'canvas2d' | null {
   return new URLSearchParams(location.search).get('renderer') === 'canvas2d' ? 'canvas2d' : null;
 }
 
+/** Rendered inside GP's session gate: the guest has joined (banned/error never get here). */
 export default function BoothPage({ id }: ExtensionPageProps) {
-  const session = useSession();
-  const catalogue = useCatalogue(session.status === 'ready');
-  if (session.status === 'banned') return <BannedScreen />;
-  if (session.status === 'error') {
-    return <FatalScreen error={session.error} fallback="Die Fotobox konnte nicht starten." />;
-  }
+  const catalogue = useCatalogue(true);
   if (catalogue.status === 'error') {
     return <FatalScreen error={catalogue.error} fallback="Die Fotobox konnte nicht starten." />;
   }
@@ -84,7 +83,6 @@ function Fotobox({
   const gate = canUpload(session);
   const joined = session.status === 'ready';
   const blocked = joined && !gate.ok;
-  const blockedMessage = gate.ok ? '' : gate.message;
   const [renderer] = useState(prefer);
   const {
     videoRef,
@@ -169,13 +167,11 @@ function Fotobox({
   };
 
   // ------------------------------------------------------------ uploads allowed again
+  // (the guest app says so): send what waited
   const wasBlocked = useRef(false);
   useEffect(() => {
     if (!joined) return;
-    if (wasBlocked.current && !blocked) {
-      showToast({ message: 'Du kannst wieder hochladen.', tone: 'success' });
-      void flushOutbox({ force: true });
-    }
+    if (wasBlocked.current && !blocked) void flushOutbox({ force: true });
     wasBlocked.current = blocked;
   }, [blocked, joined]);
 
@@ -192,10 +188,12 @@ function Fotobox({
   useLeaveGuard(outbox.atRisk > 0);
 
   // ------------------------------------------------------------ shooting
-  const [nudge, setNudge] = useState(0);
+  // the locked shutter explains: the status sheet ("Hochladen pausiert" …)
+  const status = useGuestStatus();
+  const [whyOpen, setWhyOpen] = useState(false);
   const explainBlocked = () => {
     vibrate([20, 40, 20]);
-    setNudge((n) => n + 1);
+    setWhyOpen(true);
   };
 
   const runCountdown = () =>
@@ -276,6 +274,21 @@ function Fotobox({
     } catch {
       showToast({
         message: 'Speichern hat nicht geklappt. Halte das Foto gedrückt und sichere es so.',
+        tone: 'error',
+      });
+    }
+  };
+
+  // iOS shares on "Speichern" already ("Bild sichern"); elsewhere "Teilen" is extra
+  const [offerShare] = useState(() => !isIOS() && canShareFiles());
+  const share = async () => {
+    if (!shot) return;
+    const n = shot.result?.booth_number ?? shot.result?.photo.seq;
+    try {
+      await shareImage(shot.blob, `fotobox-${n ?? 'foto'}.jpg`);
+    } catch {
+      showToast({
+        message: 'Teilen hat nicht geklappt. Speichere das Foto und teile es dann.',
         tone: 'error',
       });
     }
@@ -456,12 +469,8 @@ function Fotobox({
         )}
       </div>
     );
-  } else if (blocked) {
-    hint = <BlockedHint message={blockedMessage} nudge={nudge} />;
-  } else if (outbox.pending > 0) {
-    hint = <OutboxLine pending={outbox.pending} onSend={() => void sendOutbox()} sending={sendingOutbox} />;
-  } else {
-    hint = <InAppHint />;
+  } else if (status.kind !== 'ok') {
+    hint = <CameraStatus onSend={() => void sendOutbox()} sending={sendingOutbox} />;
   }
 
   const controls = shot ? (
@@ -472,11 +481,30 @@ function Fotobox({
         icon={saved ? Check : Download}
         data-testid="save"
         data-saved={saved ? '1' : undefined}
+        className="flex-1"
         onPress={() => void save()}
       >
         {saved ? msg.saved : t.save}
       </Button>
-      <Button variant="secondary" size="lg" icon={Camera} data-testid="again" onPress={() => void again()}>
+      {offerShare ? (
+        <IconButton
+          label="Teilen"
+          icon={Share2}
+          variant="camera"
+          size="lg"
+          data-testid="share"
+          className="size-14"
+          onPress={() => void share()}
+        />
+      ) : null}
+      <Button
+        variant="secondary"
+        size="lg"
+        icon={Camera}
+        data-testid="again"
+        className="flex-1"
+        onPress={() => void again()}
+      >
         {t.newPhoto}
       </Button>
     </>
@@ -594,6 +622,7 @@ function Fotobox({
       holdLayout={!!shot}
     >
       {cam.status === 'error' && cam.error ? <CameraErrorScreen error={cam.error} /> : null}
+      <StatusSheet status={status} isOpen={whyOpen} onOpenChange={setWhyOpen} />
     </ActivityShell>
   );
 }

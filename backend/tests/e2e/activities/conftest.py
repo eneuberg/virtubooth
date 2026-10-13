@@ -92,6 +92,14 @@ def again(page: Page) -> None:
     expect(page.get_by_test_id("shutter")).to_be_enabled()
 
 
+def reload(page: Page) -> None:
+    """page.reload() once the fonts are in: Firefox logs a font download that the
+    navigation aborts as an error (NS_BINDING_ABORTED), not the page's fault (GP's
+    helper in tests/e2e/guest/conftest.py does the same)."""
+    page.evaluate("() => document.fonts.ready.then(() => null)")
+    page.reload()
+
+
 # ---------------------------------------------------------------- stored photos
 
 

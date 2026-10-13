@@ -1,10 +1,10 @@
 /**
- * Full-screen states of the camera pages: the camera doesn't work, the device is
- * banned, the page couldn't start. OWNER: wave 2 "AC". One wording everywhere
+ * Full-screen states of the camera pages: the camera doesn't work, the page couldn't
+ * start (the Fotobox catalogue). Banned and session errors are GP's session gate. OWNER: wave 2 "AC". One wording everywhere
  * (UX audit §3.1 "Notices"): titles name the problem, buttons say "Seite neu laden"
  * and "Zum Start", never "Ups".
  */
-import { Ban, CameraOff, CircleAlert, WifiOff } from 'lucide-react';
+import { CameraOff, CircleAlert, WifiOff } from 'lucide-react';
 import { fatalCopy, isApiError } from '@/api/errors';
 import { msg, t } from '@/lib/messages.de';
 import { Button, LinkButton } from '@/ui/Button';
@@ -41,15 +41,6 @@ export function CameraErrorScreen({ error }: { error: unknown }) {
   return (
     <Notice icon={CameraOff} title={CAMERA_ERROR_TITLE} data-testid="camera-error" actions={<Actions />}>
       <p>{cameraErrorMessage(error)}</p>
-    </Notice>
-  );
-}
-
-/** The device is banned: no camera, a way back to the start. */
-export function BannedScreen() {
-  return (
-    <Notice icon={Ban} title={msg.bannedTitle} data-testid="banned" actions={<Actions reloadFirst={false} />}>
-      <p>{msg.bannedText}</p>
     </Notice>
   );
 }

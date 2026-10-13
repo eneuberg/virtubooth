@@ -15,8 +15,8 @@ import { SwitchCamera } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { formatCount, formatNumber, formatPercent } from '@/lib/format';
 import { t } from '@/lib/messages.de';
-import { CameraErrorScreen, BannedScreen, FatalScreen } from '@/sdk/camera/CameraScreens';
-import { BlockedHint, FilmRetry, InAppHint, OutboxLine } from '@/sdk/camera/CameraHints';
+import { CameraStatus, FilmRetry } from '@/sdk/camera/CameraHints';
+import { CameraErrorScreen } from '@/sdk/camera/CameraScreens';
 import { CameraStage, PREVIEW_CANVAS_CLASS } from '@/sdk/camera/CameraStage';
 import { STREAM_SIZE } from '@/sdk/camera/capture';
 import { useCameraKeys, useLeaveGuard } from '@/sdk/camera/keys';
@@ -25,17 +25,19 @@ import { useCameraSession } from '@/sdk/camera/useCameraSession';
 import { shotErrorText, useNow, useOutboxToasts, useShot, type Shot } from '@/sdk/camera/useShot';
 import { ActivityMenu } from '@/sdk/components/ActivityMenu';
 import { ActivityShell } from '@/sdk/components/ActivityShell';
+import { GuestPass } from '@/sdk/components/GuestPass';
+import { StatusSheet } from '@/sdk/components/StatusSlot';
 import type { ExtensionPageProps } from '@/sdk/extension';
 import { flash, vibrate } from '@/sdk/feedback';
 import { flushOutbox, useOutbox } from '@/sdk/outbox';
+import { canUpload, useSession } from '@/sdk/session';
+import { useGuestStatus } from '@/sdk/status';
 import { Button } from '@/ui/Button';
 import { FilmEdge, type FilmEdgeState } from '@/ui/FilmEdge';
 import { IconButton } from '@/ui/IconButton';
 import { SegmentedControl } from '@/ui/SegmentedControl';
 import { Shutter, type ShutterState } from '@/ui/Shutter';
 import { clearToasts, showToast } from '@/ui/Toast';
-import { GuestPass } from '../_bridge/GuestPass';
-import { canUpload, useSession } from '../_bridge/session';
 import { useBeerStats } from './useBeerStats';
 import { VESSEL_ICONS } from './vesselIcons';
 
@@ -115,16 +117,8 @@ function beerNumber(shot: Shot): number | null {
   return r.total ?? r.beer_number ?? r.photo.seq;
 }
 
+/** Rendered inside GP's session gate: the guest has joined (banned/error never get here). */
 export default function BeerPage({ id }: ExtensionPageProps) {
-  const session = useSession();
-  if (session.status === 'banned') return <BannedScreen />;
-  if (session.status === 'error') {
-    return <FatalScreen error={session.error} fallback="Die Beer Cam konnte nicht starten." />;
-  }
-  return <BeerCam id={id} />;
-}
-
-function BeerCam({ id }: { id: string }) {
   const session = useSession();
   const gate = canUpload(session);
   const joined = session.status === 'ready';
@@ -154,16 +148,12 @@ function BeerCam({ id }: { id: string }) {
 
   const live = cam.status === 'live' && cam.ready;
   const blocked = joined && !gate.ok;
-  const blockedMessage = gate.ok ? '' : gate.message;
 
-  // uploads allowed again: say so, and send what waited
+  // uploads allowed again (the guest app says so): send what waited
   const wasBlocked = useRef(false);
   useEffect(() => {
     if (!joined) return;
-    if (wasBlocked.current && !blocked) {
-      showToast({ message: 'Du kannst wieder hochladen.', tone: 'success' });
-      void flushOutbox({ force: true });
-    }
+    if (wasBlocked.current && !blocked) void flushOutbox({ force: true });
     wasBlocked.current = blocked;
   }, [blocked, joined]);
 
@@ -175,10 +165,12 @@ function BeerCam({ id }: { id: string }) {
     saveVessel(next);
   };
 
-  const [nudge, setNudge] = useState(0);
+  // the locked shutter explains: the status sheet ("Hochladen pausiert" …)
+  const status = useGuestStatus();
+  const [whyOpen, setWhyOpen] = useState(false);
   const explainBlocked = () => {
     vibrate([20, 40, 20]);
-    setNudge((n) => n + 1);
+    setWhyOpen(true);
   };
 
   const shoot = async () => {
@@ -335,19 +327,10 @@ function BeerCam({ id }: { id: string }) {
         )}
       </div>
     );
-  } else if (blocked) {
-    hint = <BlockedHint message={blockedMessage} nudge={nudge} />;
+  } else if (status.kind !== 'ok') {
+    hint = <CameraStatus onSend={() => void sendOutbox()} sending={sendingOutbox} />;
   } else {
-    hint = (
-      <div className="grid gap-1">
-        <InAppHint />
-        {outbox.pending > 0 ? (
-          <OutboxLine pending={outbox.pending} onSend={() => void sendOutbox()} sending={sendingOutbox} />
-        ) : (
-          <p data-testid="hint">{VESSEL_SHAPES[vessel].hint}</p>
-        )}
-      </div>
-    );
+    hint = <p data-testid="hint">{VESSEL_SHAPES[vessel].hint}</p>;
   }
 
   // ------------------------------------------------------------ controls
@@ -356,7 +339,7 @@ function BeerCam({ id }: { id: string }) {
       variant="primary"
       size="lg"
       block
-      className="col-span-2"
+      className="flex-1"
       data-testid="again"
       onPress={() => void again()}
     >
@@ -452,6 +435,7 @@ function BeerCam({ id }: { id: string }) {
       holdLayout={!!shot}
     >
       {cam.status === 'error' && cam.error ? <CameraErrorScreen error={cam.error} /> : null}
+      <StatusSheet status={status} isOpen={whyOpen} onOpenChange={setWhyOpen} />
     </ActivityShell>
   );
 }

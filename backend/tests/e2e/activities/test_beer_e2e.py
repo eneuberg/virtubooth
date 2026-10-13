@@ -13,7 +13,7 @@ import re
 import pytest
 from playwright.sync_api import Page, Route, expect
 
-from ..conftest import BROWSER_NAME, MOBILE, LiveServer, join_via_api, new_context, track_errors
+from ..conftest import BROWSER_NAME, MOBILE, LiveServer
 from .conftest import (
     READY,
     Admin,
@@ -26,6 +26,7 @@ from .conftest import (
     network_errors_only,
     open_beer,
     photos,
+    reload,
     shot,
     stored_images,
     wait_kept,
@@ -140,11 +141,11 @@ def test_vessel_choice_is_remembered(guest: Page, live: LiveServer):
     page = guest
     open_beer(page, live)
     vessel(page, "cup").click()
-    page.reload()
+    reload(page)
     expect(page.get_by_test_id("shutter")).to_be_enabled(timeout=READY)
     expect(page.get_by_test_id("overlay")).to_have_attribute("data-vessel", "cup")
     vessel(page, "bottle").click()
-    page.reload()
+    reload(page)
     expect(page.get_by_test_id("shutter")).to_be_enabled(timeout=READY)
     expect(page.get_by_test_id("overlay")).to_have_attribute("data-vessel", "bottle")
     assert page.js_errors == []
@@ -283,17 +284,28 @@ def test_paused_guest_cannot_shoot_but_is_told_why(guest: Page, live: LiveServer
     expect(page.get_by_test_id("beer-app")).to_have_attribute("data-ready", "1", timeout=READY)
     shutter = page.get_by_test_id("shutter")
     expect(shutter).to_have_attribute("data-state", "blocked")
-    expect(page.get_by_test_id("blocked-hint")).to_contain_text("pausiert")
+    status = page.get_by_test_id("status-slot")
+    expect(status).to_have_attribute("data-kind", "paused")
+    expect(status).to_contain_text("Hochladen pausiert")
+    expect(page.get_by_test_id("hint")).to_have_count(0)
     shot(page, "beer-blocked-paused")
-    shutter.click()  # explains (the line pops, is read again) instead of shooting
-    expect(page.get_by_test_id("blocked-hint")).to_have_attribute("data-nudge", "1")
-    page.keyboard.press("Space")
-    page.wait_for_timeout(400)
+    shutter.click()  # explains instead of shooting and throwing the beer away
+    why = page.get_by_test_id("status-info")
+    expect(why).to_be_visible()
+    expect(why).to_contain_text("pausiert")
+    shot(page, "beer-blocked-why", 400)
+    why.get_by_role("button", name="Alles klar").click()
+    expect(why).to_have_count(0)
+    page.evaluate("() => document.activeElement && document.activeElement.blur()")
+    page.keyboard.press("Space")  # opens the explanation again, never a photo
+    expect(why).to_be_visible()
+    page.keyboard.press("Escape")
+    page.wait_for_timeout(300)
     assert uploads == []
     expect(page.get_by_test_id("result-photo")).to_have_count(0)
 
     admin.pause(admin.user_id(), paused=False)
-    page.reload()
+    reload(page)
     expect(page.get_by_test_id("shutter")).to_have_attribute("data-state", "ready", timeout=READY)
     page.get_by_test_id("shutter").click()
     expect_counted(page, 1)
@@ -306,9 +318,10 @@ def test_stopped_uploads_lock_the_shutter(guest: Page, live: LiveServer, admin: 
     page.goto(live.url("/x/beer/"))
     expect(page.get_by_test_id("beer-app")).to_have_attribute("data-ready", "1", timeout=READY)
     expect(page.get_by_test_id("shutter")).to_have_attribute("data-state", "blocked")
-    expect(page.get_by_test_id("blocked-hint")).to_contain_text("kurz angehalten")
+    expect(page.get_by_test_id("status-slot")).to_have_attribute("data-kind", "stopped")
+    expect(page.get_by_test_id("status-slot")).to_contain_text("kurz angehalten")
     admin.stop(enabled=False)
-    page.reload()
+    reload(page)
     expect(page.get_by_test_id("shutter")).to_have_attribute("data-state", "ready", timeout=READY)
     assert page.js_errors == []
 
@@ -333,11 +346,11 @@ def test_paused_between_check_and_upload_keeps_the_beer(
     expect(page.get_by_test_id("shutter")).to_have_attribute(
         "data-state", "blocked"
     )  # now it knows
-    expect(page.get_by_test_id("blocked-hint")).to_be_visible()
+    expect(page.get_by_test_id("status-slot")).to_have_attribute("data-kind", "paused")
 
     # the host frees the guest: the next visit sends the waiting beer
     admin.pause(admin.user_id(), paused=False)
-    page.reload()
+    reload(page)
     expect(
         page.get_by_role("region").get_by_text("Dein Bier von vorhin ist jetzt gezählt.")
     ).to_be_visible(timeout=READY)
@@ -359,9 +372,9 @@ def test_banned_guest_sees_a_screen_and_no_camera(guest: Page, live: LiveServer,
     expect(page.get_by_test_id("shutter")).to_have_count(0)
     assert page.evaluate("() => window.__gum") == 0  # the camera never opened
     shot(page, "beer-banned")
-    screen.get_by_role("link", name="Zum Start").click()
-    page.wait_for_url(live.url("/"))
-    assert page.js_errors == []
+    expect(screen.get_by_role("button", name="Seite neu laden")).to_be_visible()  # GP's gate
+    # Start ("/", where the guest joined) may refetch "Deine Bilder" right after the ban
+    assert errors_except(page, "/api/me/photos") == []
 
 
 def test_banned_while_on_the_page(guest: Page, live: LiveServer, admin: Admin):
@@ -414,7 +427,6 @@ def test_boot_failure_offers_a_reload(guest: Page, live: LiveServer):
     page.goto(live.url("/x/beer/"))
     screen = page.get_by_test_id("fatal")
     expect(screen).to_contain_text(re.compile("Keine (Antwort|Verbindung)"), timeout=READY)
-    expect(screen.get_by_role("link", name="Zum Start")).to_be_visible()
     page.unroute("**/api/identify")
     screen.get_by_role("button", name="Seite neu laden").click()
     expect(page.get_by_test_id("shutter")).to_be_enabled(timeout=READY)
@@ -469,25 +481,6 @@ def test_shortcuts_wait_while_a_dialog_is_open(guest: Page, live: LiveServer):
     page.keyboard.press("Space")
     expect_counted(page, 1)
     assert len(uploads) == 1
-
-
-def test_in_app_browser_hint(browser, live: LiveServer):  # type: ignore[no-untyped-def]
-    ctx = new_context(browser, user_agent=MOBILE["user_agent"] + " Instagram 300.0.0.0")
-    try:
-        page = track_errors(ctx.new_page())
-        join_via_api(page, live)
-        open_beer(page, live)
-        hint = page.get_by_test_id("inapp-hint")
-        expect(hint).to_be_visible()
-        expect(hint).to_contain_text("Safari oder Chrome")
-        hint.get_by_role("button", name="Hinweis schließen").click()
-        expect(hint).to_have_count(0)
-        page.reload()
-        expect(page.get_by_test_id("shutter")).to_be_enabled(timeout=READY)
-        expect(page.get_by_test_id("inapp-hint")).to_have_count(0)  # dismissed for good
-        assert page.js_errors == []
-    finally:
-        ctx.close()
 
 
 def test_the_number_is_the_board_count(guest: Page, live: LiveServer, admin: Admin):

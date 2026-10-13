@@ -20,7 +20,7 @@ from playwright.sync_api import Page, Route, expect
 
 from virtubooth.extensions.booth import FILTERS
 
-from ..conftest import BROWSER_NAME, LiveServer, chromium_only
+from ..conftest import BROWSER_NAME, LiveServer, accept_consent_in_browser, chromium_only
 from .conftest import (
     READY,
     Admin,
@@ -33,6 +33,7 @@ from .conftest import (
     network_errors_only,
     open_booth,
     photos,
+    reload,
     select_filter,
     shoot,
     shot,
@@ -134,6 +135,22 @@ def test_preview_runs_on_webgl_with_the_catalogue(guest: Page, live: LiveServer)
     assert guest.js_errors == []
 
 
+def test_new_guest_joins_before_the_camera(page: Page, live: LiveServer):
+    """Straight from the QR code: the join sheet first, and no camera prompt behind it."""
+    page.add_init_script(
+        "window.__gum = 0; const g = MediaDevices.prototype.getUserMedia;"
+        "MediaDevices.prototype.getUserMedia = function (c) { window.__gum++; return g.call(this, c); };"
+    )
+    page.goto(live.entry("/x/booth/"))
+    page.get_by_test_id("join").wait_for()
+    assert page.evaluate("() => window.__gum") == 0
+    expect(page.get_by_test_id("booth")).to_have_count(0)
+    accept_consent_in_browser(page)
+    expect(booth(page)).to_have_attribute("data-ready", "1", timeout=READY)
+    assert page.evaluate("() => window.__gum") == 1
+    assert page.js_errors == []  # type: ignore[attr-defined]
+
+
 def test_every_filter_compiles_and_renders(guest: Page, live: LiveServer):
     open_booth(guest, live)
     for fid in IDS:
@@ -209,13 +226,18 @@ def test_strip_centres_the_selected_filter(
     guest.set_viewport_size({"width": viewport[0], "height": viewport[1]})
     open_booth(guest, live)
     strip = guest.get_by_test_id("filter-strip")
-    for fid in ("vhs", "colorpop", "normal", "comic"):
-        select_filter(guest, fid)
-        guest.wait_for_timeout(700)  # smooth scrolling
+    def offset(fid: str) -> float:
         s = strip.bounding_box()
         c = guest.get_by_test_id(f"filter-{fid}").bounding_box()
         assert s and c
-        assert abs((c["x"] + c["width"] / 2) - (s["x"] + s["width"] / 2)) < 4, fid
+        return abs((c["x"] + c["width"] / 2) - (s["x"] + s["width"] / 2))
+
+    for fid in ("vhs", "colorpop", "normal", "comic"):
+        select_filter(guest, fid)
+        deadline = time.monotonic() + 4  # smooth scrolling (slow on a busy CI machine)
+        while offset(fid) >= 4 and time.monotonic() < deadline:
+            guest.wait_for_timeout(100)
+        assert offset(fid) < 4, fid
     box = guest.get_by_test_id("preview").bounding_box()
     assert box and abs(box["width"] / box["height"] - 0.75) < 0.01
     assert box["width"] > min(viewport) * 0.7, box
@@ -317,7 +339,7 @@ def test_countdown(guest: Page, live: LiveServer):
     toggle.click()
     expect(toggle).to_have_attribute("aria-pressed", "true")
     expect(toggle).to_contain_text(re.compile(r"3\s+s"))
-    page.reload()  # remembered
+    reload(page)  # remembered
     expect(booth(page)).to_have_attribute("data-ready", "1", timeout=READY)
     expect(page.get_by_test_id("countdown-toggle")).to_have_attribute("aria-pressed", "true")
 
@@ -467,13 +489,17 @@ def test_offline_shot_waits_survives_a_reload_and_is_sent(guest: Page, live: Liv
     shot(page, "booth-result-offline", 300)
     again(page)
     outbox = page.get_by_test_id("outbox")
-    expect(outbox).to_contain_text(re.compile(r"1\s+Foto wartet"))
+    expect(outbox).to_have_text("Erneut senden")
+    status = page.get_by_test_id("status-slot")
+    expect(status).to_have_attribute("data-kind", "waiting")
+    expect(status).to_contain_text(re.compile(r"1\s+Foto wartet"))
     shot(page, "booth-outbox", 300)
 
     # reload while still offline: the photo is still waiting
-    page.reload()
+    reload(page)
     expect(booth(page)).to_have_attribute("data-ready", "1", timeout=READY)
-    expect(outbox).to_contain_text(re.compile(r"1\s+Foto wartet"), timeout=READY)
+    expect(status).to_contain_text(re.compile(r"1\s+Foto wartet"), timeout=READY)
+    expect(outbox).to_be_visible()
     assert stored_images(live, "booth") == []
 
     # back online: the browser says so, the outbox sends it on its own
@@ -483,6 +509,7 @@ def test_offline_shot_waits_survives_a_reload_and_is_sent(guest: Page, live: Liv
         page.get_by_role("region").get_by_text(re.compile("von vorhin ist jetzt hochgeladen"))
     ).to_be_visible(timeout=READY)
     expect(outbox).to_have_count(0)
+    expect(status).to_have_count(0)
     [(meta, img)] = stored_images(live, "booth")
     assert meta == {"filter": "normal", "facing": "user"} and img.size == (1080, 1440)
     wait_kept(page, 0)
@@ -501,7 +528,7 @@ def test_erneut_senden_from_the_outbox_line(guest: Page, live: LiveServer):
         )
         again(page)
     outbox = page.get_by_test_id("outbox")
-    expect(outbox).to_contain_text(re.compile(r"2\s+Fotos warten"))
+    expect(page.get_by_test_id("status-slot")).to_contain_text(re.compile(r"2\s+Fotos warten"))
     wait_kept(page, 2)
     net.offline = False
     outbox.click()
@@ -551,7 +578,7 @@ def test_reload_mid_upload_loses_nothing(guest: Page, live: LiveServer):
     wait_kept(page, 1)
     assert not leaving_is_blocked(page)
     page.unroute("**/api/x/booth/upload")
-    page.reload()
+    reload(page)
     wait_for_photos(live, "booth", 1)
     wait_kept(page, 0)
 
@@ -576,15 +603,14 @@ def test_filter_catalogue_failure_offers_a_reload(guest: Page, live: LiveServer)
     expect(screen.get_by_role("button", name="Seite neu laden")).to_be_visible(timeout=READY)
 
 
-def test_banned_guest_gets_a_way_home(guest: Page, live: LiveServer, admin: Admin):
+def test_banned_guest_sees_no_camera(guest: Page, live: LiveServer, admin: Admin):
     page = guest
     admin.ban(admin.user_id())
     page.goto(live.url("/x/booth/"))
     screen = page.get_by_test_id("banned")
     expect(screen).to_contain_text("Gesperrt")
     expect(page.get_by_test_id("shutter")).to_have_count(0)
-    screen.get_by_role("link", name="Zum Start").click()
-    page.wait_for_url(live.url("/"))
+    expect(screen.get_by_role("button", name="Seite neu laden")).to_be_visible()  # GP's gate
     assert page.js_errors == []
 
 
@@ -592,20 +618,22 @@ def test_paused_and_stopped_lock_the_shutter(guest: Page, live: LiveServer, admi
     page = guest
     uploads: list[str] = []
     page.on("request", lambda r: uploads.append(r.url) if r.url.endswith("/upload") else None)
-    for lock, text in (
-        (lambda on: admin.pause(admin.user_id(), on), "pausiert"),
-        (admin.stop, "angehalten"),
+    for lock, kind in (
+        (lambda on: admin.pause(admin.user_id(), on), "paused"),
+        (admin.stop, "stopped"),
     ):
         lock(True)
         open_booth(page, live)
         shutter = page.get_by_test_id("shutter")
         expect(shutter).to_have_attribute("data-state", "blocked")
-        expect(page.get_by_test_id("blocked-hint")).to_contain_text(text)
-        shutter.click()
+        expect(page.get_by_test_id("status-slot")).to_have_attribute("data-kind", kind)
+        if kind == "paused":
+            shot(page, "booth-blocked", 0)
+        shutter.click()  # the reason, not a photo
+        expect(page.get_by_test_id("status-info")).to_be_visible()
+        page.keyboard.press("Escape")
         page.wait_for_timeout(300)
         assert uploads == []
-        if text == "pausiert":
-            shot(page, "booth-blocked", 0)
         lock(False)
     open_booth(page, live)
     expect(page.get_by_test_id("shutter")).to_have_attribute("data-state", "ready")

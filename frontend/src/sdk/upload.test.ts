@@ -11,15 +11,15 @@ import {
   UPLOAD_TIMEOUT_MS,
 } from './upload';
 
-const refresh = vi.hoisted(() => vi.fn<() => Promise<void>>(() => Promise.resolve()));
-vi.mock('./session', () => ({ refreshSession: refresh }));
+const note = vi.hoisted(() => vi.fn<(code: string) => void>());
+vi.mock('./session', () => ({ noteUploadAnswer: note }));
 
 const blob = new Blob([new Uint8Array([0xff, 0xd8, 0xff, 0xe0])], { type: 'image/jpeg' });
 
 beforeEach(() => {
   FakeXhr.reset();
   vi.stubGlobal('XMLHttpRequest', FakeXhr);
-  refresh.mockClear();
+  note.mockClear();
 });
 
 afterEach(() => {
@@ -89,22 +89,19 @@ describe('uploadPhoto', () => {
       'Langsam! Zu viele Anfragen. Warte kurz (in 2 s nochmal).',
     );
     expect(retryAfterSeconds(err)).toBe(2);
-    expect(refresh).not.toHaveBeenCalled();
+    expect(note).toHaveBeenCalledWith('rate_limited');
   });
 
-  it.each(['uploads_paused', 'uploads_stopped', 'banned'])(
-    'refreshes the session on 403 %s',
-    async (code) => {
-      const answers: string[] = [];
-      const off = subscribeUploadAnswers((a) => answers.push(a));
-      const done = uploadPhoto('beer', blob);
-      xhr().respond(403, { error: code, message: 'Nein.' });
-      await expect(done).rejects.toMatchObject({ status: 403, code, message: 'Nein.' });
-      expect(refresh).toHaveBeenCalledTimes(1);
-      expect(answers).toEqual([code]);
-      off();
-    },
-  );
+  it.each(['uploads_paused', 'uploads_stopped', 'banned'])('tells the session about 403 %s', async (code) => {
+    const answers: string[] = [];
+    const off = subscribeUploadAnswers((a) => answers.push(a));
+    const done = uploadPhoto('beer', blob);
+    xhr().respond(403, { error: code, message: 'Nein.' });
+    await expect(done).rejects.toMatchObject({ status: 403, code, message: 'Nein.' });
+    expect(note).toHaveBeenCalledWith(code);
+    expect(answers).toEqual([code]);
+    off();
+  });
 
   it('tells listeners about a success too', async () => {
     const answers: string[] = [];

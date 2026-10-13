@@ -38,7 +38,8 @@ export interface ActivityShellProps {
   /** camera: [left] [shutter] [right]; actions: buttons side by side */
   controls: ReactNode;
   controlsLayout?: 'camera' | 'actions';
-  /** keep the stage size while true (the result print replaces the strip: no jump) */
+  /** keep the stage size while true (the result print replaces the strip: no jump);
+   * it only shrinks if the result needs more room than the camera did */
   holdLayout?: boolean;
   /** extra content outside the grid (dialogs) */
   children?: ReactNode;
@@ -73,8 +74,8 @@ function useReserve(hold: boolean) {
   useEffect(() => {
     const els = [header.current, film.current, lower.current, lowerInner.current];
     if (!root.current || typeof ResizeObserver === 'undefined') return undefined;
+    let current = 0;
     const measure = () => {
-      if (holding.current) return;
       const bar = header.current;
       const overlaid = bar ? getComputedStyle(bar).position === 'absolute' : true;
       let px = overlaid || !bar ? 0 : bar.getBoundingClientRect().height;
@@ -84,7 +85,11 @@ function useReserve(hold: boolean) {
         px += lowerInner.current.getBoundingClientRect().height;
         px += Number.parseFloat(style.paddingTop) + Number.parseFloat(style.paddingBottom);
       }
-      root.current?.style.setProperty('--vb-reserve', `${Math.ceil(px)}px`);
+      const next = Math.ceil(px);
+      // while holding (a print is shown) the stage may shrink to fit more, never grow
+      if (holding.current && next <= current) return;
+      current = next;
+      root.current?.style.setProperty('--vb-reserve', `${next}px`);
     };
     const observer = new ResizeObserver(measure);
     for (const el of els) if (el) observer.observe(el);
@@ -200,7 +205,7 @@ export function ActivityShell({
               'px-4',
               controlsLayout === 'camera'
                 ? 'grid grid-cols-[1fr_auto_1fr] items-center gap-3 [&>:first-child]:justify-self-start [&>:last-child]:justify-self-end'
-                : 'grid w-full max-w-[32rem] grid-cols-2 gap-3 landscape-phone:max-w-[30rem]',
+                : 'flex w-full max-w-[32rem] gap-3 landscape-phone:max-w-[30rem]',
             )}
           >
             {controls}

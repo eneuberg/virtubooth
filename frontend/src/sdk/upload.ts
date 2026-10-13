@@ -5,14 +5,13 @@
  * only when meta is non-empty, a 60 s timeout, errors through errorFromResponse()
  * (Retry-After included) and unreachable().
  *
- * Every answer is reported to the upload-answer listeners (the session keeps its
- * paused/stopped state in sync without a round trip, like vb.js noteUploadAnswer), and
- * a 403 paused/stopped/banned also asks the session to re-identify.
+ * Every answer goes to the session (`noteUploadAnswer`: paused/stopped change at once,
+ * a 403 re-identifies, like vb.js) and to the upload-answer listeners (the outbox).
  */
 import { ApiError, errorFromResponse, unreachable } from '@/api/errors';
 import type { UploadResponse } from '@/api/types';
 import { msg } from '@/lib/messages.de';
-import { refreshSession } from './session';
+import { noteUploadAnswer } from './session';
 
 export type UploadMeta = Record<string, string | number | boolean | null>;
 
@@ -63,16 +62,17 @@ export function subscribeUploadAnswers(listener: (answer: UploadAnswer) => void)
 export const GATE_CODES: ReadonlySet<string> = new Set(['uploads_paused', 'uploads_stopped', 'banned']);
 
 function noteAnswer(answer: UploadAnswer): void {
+  try {
+    noteUploadAnswer(answer);
+  } catch {
+    // the session's bug must not break the upload
+  }
   for (const listener of answerListeners) {
     try {
       listener(answer);
     } catch {
       // a listener's bug must not break the upload
     }
-  }
-  if (answer !== 'ok' && (GATE_CODES.has(answer) || answer === 'needs_consent')) {
-    // GP's session re-identifies (and shows the join sheet again after needs_consent)
-    refreshSession().catch(() => undefined);
   }
 }
 
