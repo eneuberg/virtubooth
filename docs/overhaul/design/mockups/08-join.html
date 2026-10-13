@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="de" class="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Mockup: Beitreten</title>
+<link rel="stylesheet" href="kb.css">
+<style>
+  body { overflow: hidden; }
+  .behind { padding: 72px 16px; }
+  .sheet .body { display: grid; gap: 14px; }
+  .more { display: inline-flex; align-items: center; gap: 6px; color: var(--ink); background: none; border: 0; font: inherit; font-size: 15px; font-weight: 600; height: 44px; padding: 0; text-decoration: underline; text-decoration-color: var(--line-strong); text-underline-offset: 4px; }
+  .dest { font-size: 13px; color: var(--papier-muted); text-align: center; margin-bottom: 8px; }
+  @media (orientation: landscape) and (max-height: 500px) {
+    .sheet { left: 50%; right: auto; translate: -50% 0; width: 560px; max-height: 96vh; }
+    .sheet .body { gap: 8px; }
+  }
+</style>
+</head>
+<body>
+<div class="behind" aria-hidden="true"><p class="t44 w7">Eriks Geburtstag</p></div>
+<div class="scrim"></div>
+<section class="sheet" role="dialog" aria-labelledby="join-t" data-testid="join">
+  <div class="grab"></div>
+  <div class="body">
+    <h2 id="join-t" class="t27 w7 balance">Willkommen bei Eriks Geburtstag</h2>
+    <p class="t17">Deine Fotos sehen die Gastgeber, und sie dürfen sie auf <span translate="no">@eriks.party</span> posten. Wenn du das nicht willst, mach hier bitte keine Fotos.</p>
+    <button class="more" type="button"><i data-i="chevron-right" class="s16"></i>Mehr dazu</button>
+    <div class="field">
+      <label for="ig">Instagram (freiwillig)</label>
+      <div class="input"><span class="prefix">@</span><span class="muted">deinname</span></div>
+      <p class="help">Dann können wir dich markieren.</p>
+    </div>
+  </div>
+  <div class="foot">
+    <p class="dest">Gleich geht’s zur Beer Cam.</p>
+    <button class="btn l primary block" type="button">Los geht’s</button>
+  </div>
+</section>
+<script src="icons.js"></script>
+</body>
+</html>

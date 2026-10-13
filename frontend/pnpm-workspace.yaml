@@ -1,0 +1,25 @@
+# pnpm 11 reads its settings from here (not from .npmrc).
+
+# Exact versions only: `pnpm add` writes "1.2.3", never "^1.2.3".
+savePrefix: ''
+
+# TypeScript 6 is newer than what some tools declare as a peer.
+peerDependencyRules:
+  allowedVersions:
+    openapi-typescript>typescript: '6'
+
+# pnpm 11 refuses versions younger than its minimumReleaseAge (1 day). These pins
+# (analysis/stack.md, 2026-10-13) were that fresh when the frontend was scaffolded.
+minimumReleaseAgeExclude:
+  - '@vitest/mocker@5.0.4'
+  - '@vitest/spy@5.0.4'
+  - vitest@5.0.4
+  - zod@4.6.7
+
+# No dependency needs an install script (pnpm 11 blocks them unless listed in allowBuilds).
+
+# React Aria injects two <style> elements at runtime (usePress, and usePreventScroll on
+# iOS), which the strict CSP (style-src 'self') blocks. The patch moves both rules into
+# src/styles/app.css. Re-check on every react-aria update.
+patchedDependencies:
+  react-aria@3.53.1: patches/react-aria@3.53.1.patch

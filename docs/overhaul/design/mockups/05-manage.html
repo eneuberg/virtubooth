@@ -1,0 +1,110 @@
+<!doctype html>
+<html lang="de" class="light">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Mockup: Verwaltung</title>
+<link rel="stylesheet" href="kb.css">
+<style>
+  body { overflow: hidden; }
+  .app { height: 100vh; display: grid; grid-template-columns: 248px 1fr 304px; grid-template-rows: auto auto 1fr auto; }
+  aside.side { grid-row: 1 / -1; background: var(--weiss); border-right: 1px solid var(--line); display: flex; flex-direction: column; padding: 20px 12px 16px; gap: 20px; }
+  .side .party { padding: 0 8px; display: grid; gap: 4px; }
+  .side nav { display: grid; gap: 2px; }
+  .side nav a { display: flex; align-items: center; gap: 10px; height: 40px; padding: 0 10px; border-radius: 8px; color: var(--ink); text-decoration: none; font-size: 15px; position: relative; }
+  .side nav a .n { margin-left: auto; color: var(--muted); font-size: 13px; }
+  .side nav a.on { background: var(--sunk); font-weight: 600; }
+  .side nav a.on::before { content: ''; position: absolute; left: -12px; top: 8px; bottom: 8px; width: 3px; background: var(--negativ); border-radius: 0 2px 2px 0; }
+  .side .foot { margin-top: auto; display: grid; gap: 4px; }
+  .side .foot a, .side .foot button.lnk { display: flex; align-items: center; gap: 10px; height: 40px; padding: 0 10px; color: var(--ink); text-decoration: none; font-size: 15px; background: none; border: 0; font-family: inherit; border-radius: 8px; }
+  .side .pill { width: 100%; justify-content: space-between; background: var(--weiss); }
+  .head { grid-column: 2 / 4; padding: 20px 24px 12px; display: flex; align-items: baseline; gap: 12px; }
+  .filters { grid-column: 2 / 4; padding: 0 24px 12px; display: flex; gap: 8px; align-items: center; border-bottom: 1px solid var(--line); }
+  .select { display: inline-flex; align-items: center; gap: 8px; height: 40px; padding: 0 10px 0 12px; border: 1px solid var(--line-strong); border-radius: var(--r); background: var(--weiss); font-size: 15px; }
+  .select .k { color: var(--muted); }
+  .search { margin-left: auto; width: 240px; height: 40px; }
+  .grid { grid-column: 2; overflow: auto; padding: 20px 24px 24px; display: grid; grid-template-columns: repeat(auto-fill, minmax(104px, 1fr)); gap: 16px 12px; align-content: start; }
+  .tile .cb { position: absolute; top: 6px; left: 6px; width: 24px; height: 24px; border-radius: 6px; background: rgb(255 255 255 / 0.9); box-shadow: inset 0 0 0 1.5px var(--negativ-muted); display: grid; place-items: center; opacity: 0; }
+  .tile.selected .cb, .grid:hover .tile .cb { opacity: 1; }
+  .tile .cb.on { background: var(--negativ); box-shadow: none; color: #fff; }
+  .tile.focusd .ph { outline: 2px solid var(--negativ); outline-offset: 3px; }
+  .inspector { grid-column: 3; grid-row: 3; border-left: 1px solid var(--line); background: var(--weiss); overflow: auto; padding: 20px; display: grid; gap: 16px; align-content: start; }
+  .inspector img { width: 100%; max-height: 46vh; aspect-ratio: 3/4; object-fit: cover; display: block; }
+  dl { display: grid; grid-template-columns: auto 1fr; gap: 6px 16px; font-size: 15px; }
+  dt { color: var(--muted); }
+  .inspector .acts { display: grid; gap: 8px; }
+  .selbar { grid-column: 2 / 4; display: flex; align-items: center; gap: 8px; padding: 10px 24px; background: var(--negativ); color: var(--leuchttisch); }
+  .selbar .btn.secondary { border-color: rgb(244 246 248 / 0.4); color: var(--leuchttisch); }
+  .selbar .btn.danger-outline { border-color: #ff9a8a; color: #ffb3a7; }
+  .selbar .btn.quiet { margin-left: auto; color: var(--leuchttisch); }
+</style>
+</head>
+<body>
+<div class="app">
+  <aside class="side">
+    <div class="party"><p class="t17 w7">Eriks Geburtstag</p><span class="conn">verbunden</span></div>
+    <nav aria-label="Bereiche">
+      <a class="on" href="#" aria-current="page"><i data-i="images"></i>Fotos<span class="n">49</span></a>
+      <a href="#"><i data-i="users"></i>Gäste<span class="n">13</span></a>
+      <a href="#"><i data-i="at-sign"></i>Instagram<span class="n">8</span></a>
+      <a href="#"><i data-i="shield-ban"></i>Sperren<span class="n">3</span></a>
+      <a href="#"><i data-i="scroll-text"></i>Protokoll</a>
+      <a href="#"><i data-i="archive"></i>Export</a>
+    </nav>
+    <div class="foot">
+      <button class="pill" type="button">Hochladen: an <i data-i="chevron-down" class="s16"></i></button>
+      <a href="#"><i data-i="radio"></i>Live öffnen</a>
+      <button class="lnk" type="button"><i data-i="log-out"></i>Abmelden</button>
+    </div>
+  </aside>
+  <div class="head"><h1 class="t27 w7">Fotos</h1><p class="t15 muted">49, davon 6 ausgeblendet</p></div>
+  <div class="filters">
+    <span class="select"><span class="k">Aktivität</span>Alle<i data-i="chevron-down" class="s16"></i></span>
+    <span class="select"><span class="k">Gast</span>Alle<i data-i="chevron-down" class="s16"></i></span>
+    <span class="seg"><span class="on">Alle</span><span>Sichtbar</span><span>Ausgeblendet</span></span>
+    <span class="input search"><i data-i="search" class="s16"></i>&nbsp;<span class="muted t15">Name oder Nr. suchen…</span></span>
+  </div>
+  <main class="grid" aria-label="Fotos">
+<figure class="tile"><div class="ph"><img src="img/beer-1.jpg" alt=""><span class="cb"></span></div><figcaption class="cap"><b>0032</b><span>Mutiger Krake</span></figcaption></figure>
+<figure class="tile selected focusd"><div class="ph"><img src="img/booth-6.jpg" alt=""><span class="cb on"><i data-i="check" class="s16"></i></span></div><svg class="circle" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true"><path d="M52 4 C 20 3, 6 22, 7 50 C 8 80, 28 97, 54 96 C 82 95, 95 74, 94 47 C 93 22, 76 6, 46 7" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" vector-effect="non-scaling-stroke"/></svg><figcaption class="cap"><b>0017</b><span>Hüpfendes Alpaka #2</span></figcaption></figure>
+<figure class="tile hidden"><div class="ph"><img src="img/booth-4.jpg" alt=""><svg class="x" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true"><path d="M8 10 C 35 38, 62 66, 92 91" fill="none" stroke="currentColor" stroke-width="4" stroke-linecap="round" vector-effect="non-scaling-stroke"/><path d="M90 8 C 64 36, 38 64, 9 93" fill="none" stroke="currentColor" stroke-width="4" stroke-linecap="round" vector-effect="non-scaling-stroke"/></svg><span class="cb"></span></div><figcaption class="cap"><b>0018</b><span>Hüpfendes Alpaka #2</span></figcaption></figure>
+<figure class="tile"><div class="ph"><img src="img/beer-2.jpg" alt=""><span class="cb"></span></div><figcaption class="cap"><b>0031</b><span>Singende Giraffe #5</span></figcaption></figure>
+<figure class="tile selected"><div class="ph"><img src="img/booth-2.jpg" alt=""><span class="cb on"><i data-i="check" class="s16"></i></span></div><svg class="circle" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true"><path d="M52 4 C 20 3, 6 22, 7 50 C 8 80, 28 97, 54 96 C 82 95, 95 74, 94 47 C 93 22, 76 6, 46 7" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" vector-effect="non-scaling-stroke"/></svg><figcaption class="cap"><b>0016</b><span>Verrückte Ente</span></figcaption></figure>
+<figure class="tile"><div class="ph"><img src="img/beer-3.jpg" alt=""><span class="cb"></span></div><figcaption class="cap"><b>0030</b><span>Mutiger Krake</span></figcaption></figure>
+<figure class="tile"><div class="ph"><img src="img/booth-7.jpg" alt=""><span class="cb"></span></div><figcaption class="cap"><b>0015</b><span>Cooler Igel #7</span></figcaption></figure>
+<figure class="tile"><div class="ph"><img src="img/beer-4.jpg" alt=""><span class="cb"></span></div><figcaption class="cap"><b>0029</b><span>Cooler Igel #7</span></figcaption></figure>
+<figure class="tile selected"><div class="ph"><img src="img/booth-1.jpg" alt=""><span class="cb on"><i data-i="check" class="s16"></i></span></div><svg class="circle" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true"><path d="M52 4 C 20 3, 6 22, 7 50 C 8 80, 28 97, 54 96 C 82 95, 95 74, 94 47 C 93 22, 76 6, 46 7" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" vector-effect="non-scaling-stroke"/></svg><figcaption class="cap"><b>0014</b><span>Verrückte Ente</span></figcaption></figure>
+<figure class="tile"><div class="ph"><img src="img/booth-5.jpg" alt=""><span class="cb"></span></div><figcaption class="cap"><b>0013</b><span>Lustiger Otter #3</span></figcaption></figure>
+<figure class="tile"><div class="ph"><img src="img/beer-1.jpg" alt=""><span class="cb"></span></div><figcaption class="cap"><b>0028</b><span>Lustiger Otter #3</span></figcaption></figure>
+<figure class="tile hidden"><div class="ph"><img src="img/booth-8.jpg" alt=""><svg class="x" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true"><path d="M8 10 C 35 38, 62 66, 92 91" fill="none" stroke="currentColor" stroke-width="4" stroke-linecap="round" vector-effect="non-scaling-stroke"/><path d="M90 8 C 64 36, 38 64, 9 93" fill="none" stroke="currentColor" stroke-width="4" stroke-linecap="round" vector-effect="non-scaling-stroke"/></svg><span class="cb"></span></div><figcaption class="cap"><b>0012</b><span>Mutiger Krake</span></figcaption></figure>
+<figure class="tile"><div class="ph"><img src="img/beer-2.jpg" alt=""><span class="cb"></span></div><figcaption class="cap"><b>0027</b><span>Singende Giraffe #5</span></figcaption></figure>
+<figure class="tile"><div class="ph"><img src="img/booth-3.jpg" alt=""><span class="cb"></span></div><figcaption class="cap"><b>0011</b><span>Hüpfendes Alpaka #2</span></figcaption></figure>
+<figure class="tile"><div class="ph"><img src="img/booth-6.jpg" alt=""><span class="cb"></span></div><figcaption class="cap"><b>0010</b><span>Wilde Hummel #9</span></figcaption></figure>
+<figure class="tile"><div class="ph"><img src="img/beer-3.jpg" alt=""><span class="cb"></span></div><figcaption class="cap"><b>0026</b><span>Wilde Hummel #9</span></figcaption></figure>
+<figure class="tile"><div class="ph"><img src="img/booth-2.jpg" alt=""><span class="cb"></span></div><figcaption class="cap"><b>0009</b><span>Cooler Igel #7</span></figcaption></figure>
+<figure class="tile"><div class="ph"><img src="img/beer-4.jpg" alt=""><span class="cb"></span></div><figcaption class="cap"><b>0025</b><span>Mutiger Krake</span></figcaption></figure>
+<figure class="tile"><div class="ph"><img src="img/booth-1.jpg" alt=""><span class="cb"></span></div><figcaption class="cap"><b>0008</b><span>Lustiger Otter #3</span></figcaption></figure>
+<figure class="tile"><div class="ph"><img src="img/booth-7.jpg" alt=""><span class="cb"></span></div><figcaption class="cap"><b>0007</b><span>Verrückte Ente</span></figcaption></figure>
+<figure class="tile"><div class="ph"><img src="img/beer-1.jpg" alt=""><span class="cb"></span></div><figcaption class="cap"><b>0024</b><span>Wilde Hummel #9</span></figcaption></figure>
+  </main>
+  <aside class="inspector" aria-label="Ausgewählt">
+    <img src="img/booth-6.jpg" alt="Foto 0017">
+    <div><h2 class="t21 w7">Foto 0017</h2><p class="t15"><a href="#" style="color: inherit">Hüpfendes Alpaka #2</a></p></div>
+    <dl><dt>Instagram</dt><dd>ohne</dd><dt>Aufgenommen</dt><dd>vor 3 Min., 22:41</dd><dt>Filter</dt><dd>Neon</dd><dt>Kamera</dt><dd>Selfie</dd></dl>
+    <div class="acts">
+      <button class="btn s secondary" type="button"><i data-i="eye-off"></i>Ausblenden</button>
+      <button class="btn s secondary" type="button"><i data-i="download"></i>Herunterladen</button>
+      <button class="btn s danger-outline" type="button"><i data-i="trash"></i>Löschen…</button>
+    </div>
+  </aside>
+  <div class="selbar" role="region" aria-label="Auswahl">
+    <span class="t15 w6">3 ausgewählt</span>
+    <button class="btn s secondary" type="button">Ausblenden</button>
+    <button class="btn s secondary" type="button">Einblenden</button>
+    <button class="btn s danger-outline" type="button">Löschen…</button>
+    <button class="btn s quiet" type="button">Auswahl aufheben</button>
+  </div>
+</div>
+<script src="icons.js"></script>
+</body>
+</html>

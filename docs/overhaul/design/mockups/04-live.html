@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="de" class="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Mockup: Admin Live</title>
+<link rel="stylesheet" href="kb.css">
+<style>
+  body { overflow: hidden; }
+  .app { height: 100dvh; display: grid; grid-template-rows: auto 1fr auto; }
+  header { display: flex; align-items: center; gap: 12px; padding: 8px 12px 8px 16px; border-bottom: 1px solid var(--line); }
+  header .t { display: grid; gap: 0; min-width: 0; }
+  header .t .r1 { display: flex; align-items: baseline; gap: 10px; }
+  header .pill { margin-left: auto; }
+  .grid { overflow: auto; padding: 8px 8px 96px; display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px 8px; align-content: start; }
+  .newpill { position: absolute; top: 72px; left: 50%; translate: -50% 0; }
+  nav.bottom { display: grid; grid-template-columns: repeat(3, 1fr); height: 64px; border-top: 1px solid var(--line); background: var(--rot-950); padding-bottom: env(safe-area-inset-bottom); }
+  nav.bottom a { display: grid; justify-items: center; align-content: center; gap: 2px; font-size: 13px; font-weight: 600; color: var(--muted); text-decoration: none; position: relative; }
+  nav.bottom a.on { color: var(--safelight); }
+  nav.bottom a.on::before { content: ''; position: absolute; top: 0; left: 30%; right: 30%; height: 3px; background: var(--safelight); }
+  .toastwrap { position: fixed; left: 8px; right: 8px; bottom: 72px; }
+  .tile .cap { padding: 0 2px; }
+  .tile.hidden .cap b { color: var(--mark); }
+  /* landscape phones: the bottom bar turns into a left rail, the grid gets 5-6 columns */
+  @media (orientation: landscape) and (max-height: 600px) {
+    .app { grid-template-columns: 76px 1fr; grid-template-rows: auto 1fr; }
+    nav.bottom { grid-column: 1; grid-row: 1 / -1; grid-template-columns: 1fr; grid-template-rows: repeat(3, 72px); height: auto; border-top: 0; border-right: 1px solid var(--line); padding: env(safe-area-inset-left) 0 0; align-content: start; }
+    nav.bottom a.on::before { top: 12px; bottom: 12px; left: 0; right: auto; width: 3px; height: auto; }
+    header, .grid { grid-column: 2; }
+    header { padding-top: 4px; padding-bottom: 4px; }
+    .grid { grid-template-columns: repeat(auto-fill, minmax(128px, 1fr)); padding-bottom: 72px; }
+    .toastwrap { left: auto; width: 420px; bottom: 12px; right: 12px; }
+  }
+</style>
+</head>
+<body>
+<div class="app">
+  <header>
+    <div class="t">
+      <div class="r1"><h1 class="t21 w7">Live</h1><span class="conn">verbunden</span></div>
+      <p class="t13 muted">49 Fotos, 6 ausgeblendet</p>
+    </div>
+    <button class="pill" type="button">Hochladen an <i data-i="chevron-down" class="s16"></i></button>
+  </header>
+  <main class="grid">
+    <figure class="tile"><div class="ph"><img src="img/beer-1.jpg" alt=""><button class="eyebtn" aria-label="Ausblenden"><i data-i="eye"></i></button></div><figcaption class="cap"><b>Bier 0032</b><span>Mutiger Krake</span></figcaption></figure>
+    <figure class="tile hidden"><div class="ph"><img src="img/booth-4.jpg" alt="">
+      <svg class="x" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true"><path d="M8 10 C 35 38, 62 66, 92 91" fill="none" stroke="currentColor" stroke-width="5" stroke-linecap="round" vector-effect="non-scaling-stroke"/><path d="M90 8 C 64 36, 38 64, 9 93" fill="none" stroke="currentColor" stroke-width="5" stroke-linecap="round" vector-effect="non-scaling-stroke"/></svg>
+      <button class="eyebtn" aria-label="Einblenden"><i data-i="eye-off"></i></button></div><figcaption class="cap"><b>Ausgeblendet</b><span>Foto 0018</span></figcaption></figure>
+    <figure class="tile"><div class="ph"><img src="img/booth-6.jpg" alt=""><button class="eyebtn" aria-label="Ausblenden"><i data-i="eye"></i></button></div><figcaption class="cap"><b>Foto 0017</b><span>Hüpfendes Alpaka #2</span></figcaption></figure>
+    <figure class="tile"><div class="ph"><img src="img/beer-2.jpg" alt=""><button class="eyebtn" aria-label="Ausblenden"><i data-i="eye"></i></button></div><figcaption class="cap"><b>Bier 0031</b><span>Singende Giraffe #5</span></figcaption></figure>
+    <figure class="tile"><div class="ph"><img src="img/booth-2.jpg" alt=""><button class="eyebtn" aria-label="Ausblenden"><i data-i="eye"></i></button></div><figcaption class="cap"><b>Foto 0016</b><span>Verrückte Ente</span></figcaption></figure>
+    <figure class="tile"><div class="ph"><img src="img/beer-3.jpg" alt=""><button class="eyebtn" aria-label="Ausblenden"><i data-i="eye"></i></button></div><figcaption class="cap"><b>Bier 0030</b><span>Mutiger Krake</span></figcaption></figure>
+    <figure class="tile"><div class="ph"><img src="img/booth-7.jpg" alt=""><button class="eyebtn" aria-label="Ausblenden"><i data-i="eye"></i></button></div><figcaption class="cap"><b>Foto 0015</b><span>Cooler Igel #7</span></figcaption></figure>
+    <figure class="tile"><div class="ph"><img src="img/beer-4.jpg" alt=""><button class="eyebtn" aria-label="Ausblenden"><i data-i="eye"></i></button></div><figcaption class="cap"><b>Bier 0029</b><span>Cooler Igel #7</span></figcaption></figure>
+  </main>
+  <div class="toastwrap"><div class="toast" role="status">Foto 0018 ausgeblendet <button class="act" type="button">Rückgängig</button></div></div>
+  <nav class="bottom" aria-label="Bereiche">
+    <a class="on" href="#" aria-current="page"><i data-i="images" class="s24"></i>Live</a>
+    <a href="#"><i data-i="upload" class="s24"></i>Hochladen</a>
+    <a href="#"><i data-i="layout-grid" class="s24"></i>Verwaltung</a>
+  </nav>
+</div>
+<script src="icons.js"></script>
+</body>
+</html>

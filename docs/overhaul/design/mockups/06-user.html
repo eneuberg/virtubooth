@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="de" class="light">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Mockup: Gast</title>
+<link rel="stylesheet" href="kb.css">
+<style>
+  .page { max-width: 1080px; margin: 0 auto; padding: 16px 16px 48px; display: grid; gap: 28px; }
+  .back { display: inline-flex; align-items: center; gap: 4px; height: 44px; color: var(--ink); text-decoration: none; font-size: 15px; font-weight: 600; margin-left: -8px; padding: 0 8px; }
+  .who { display: grid; gap: 6px; }
+  .status { display: flex; align-items: center; gap: 8px; font-size: 17px; }
+  .status .dot { width: 10px; height: 10px; border-radius: 50%; background: var(--gruen); }
+  .acts { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; }
+  .sw-row { display: inline-flex; align-items: center; gap: 12px; height: 48px; padding: 0 14px 0 16px; border: 1px solid var(--line-strong); border-radius: var(--r); background: var(--weiss); font-weight: 600; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(132px, 1fr)); gap: 20px 16px; }
+  details { border-top: 1px solid var(--line); padding-top: 12px; }
+  summary { display: flex; align-items: center; gap: 8px; height: 44px; font-weight: 600; font-size: 17px; cursor: pointer; list-style: none; }
+  dl { display: grid; grid-template-columns: 180px 1fr; gap: 8px 16px; font-size: 15px; padding: 8px 0; }
+  dt { color: var(--muted); }
+  .h2 { display: flex; align-items: baseline; gap: 10px; margin-bottom: 12px; }
+  @media (max-width: 600px) { dl { grid-template-columns: 1fr; gap: 2px; } dd { margin-bottom: 8px; } .grid { grid-template-columns: repeat(3, 1fr); gap: 14px 8px; } }
+</style>
+</head>
+<body>
+<main class="page">
+  <a class="back" href="#"><i data-i="chevron-left"></i>Gäste</a>
+  <header class="who">
+    <h1 class="t34 w7" translate="no">Hüpfendes Alpaka #2</h1>
+    <p class="t17"><a href="#" style="color: inherit" translate="no">@hupf.alpaka</a> <span class="muted">, seit 21:07 dabei</span></p>
+    <p class="status"><span class="dot"></span>Darf hochladen. 14 Fotos, davon 2 ausgeblendet.</p>
+  </header>
+  <div class="acts">
+    <span class="sw-row">Hochladen pausieren <span class="switch"></span></span>
+    <button class="btn danger-outline" type="button"><i data-i="ban"></i>Sperren…</button>
+  </div>
+  <section>
+    <div class="h2"><h2 class="t21 w7">Fotos</h2><span class="muted">14</span></div>
+    <div class="grid">
+      <figure class="tile"><div class="ph"><img src="img/booth-6.jpg" alt=""></div><figcaption class="cap"><b>Foto 0017</b><span>22:41</span></figcaption></figure>
+      <figure class="tile hidden"><div class="ph"><img src="img/booth-4.jpg" alt=""><svg class="x" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true"><path d="M8 10 C 35 38, 62 66, 92 91" fill="none" stroke="currentColor" stroke-width="4" stroke-linecap="round" vector-effect="non-scaling-stroke"/><path d="M90 8 C 64 36, 38 64, 9 93" fill="none" stroke="currentColor" stroke-width="4" stroke-linecap="round" vector-effect="non-scaling-stroke"/></svg></div><figcaption class="cap"><b>Foto 0018</b><span>Ausgeblendet</span></figcaption></figure>
+      <figure class="tile"><div class="ph"><img src="img/beer-2.jpg" alt=""></div><figcaption class="cap"><b>Bier 0031</b><span>22:30</span></figcaption></figure>
+      <figure class="tile"><div class="ph"><img src="img/booth-3.jpg" alt=""></div><figcaption class="cap"><b>Foto 0011</b><span>22:02</span></figcaption></figure>
+      <figure class="tile"><div class="ph"><img src="img/beer-3.jpg" alt=""></div><figcaption class="cap"><b>Bier 0020</b><span>21:48</span></figcaption></figure>
+      <figure class="tile"><div class="ph"><img src="img/booth-1.jpg" alt=""></div><figcaption class="cap"><b>Foto 0004</b><span>21:15</span></figcaption></figure>
+    </div>
+  </section>
+  <details>
+    <summary><i data-i="chevron-right"></i>Technische Details</summary>
+  </details>
+  <details open>
+    <summary><i data-i="chevron-down"></i>Technische Details (offen)</summary>
+    <dl>
+      <dt>Gerät</dt><dd>Android 14, Pixel 7, Chrome 140</dd>
+      <dt>Gerätemerkmale</dt><dd>2, eines teilt sie mit „Lustiger Otter #3“</dd>
+      <dt>IP-Adresse</dt><dd>192.168.1.41</dd>
+      <dt>Zuletzt gesehen</dt><dd>vor 2 Min.</dd>
+    </dl>
+  </details>
+</main>
+<script src="icons.js"></script>
+</body>
+</html>

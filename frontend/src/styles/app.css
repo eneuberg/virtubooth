@@ -1,0 +1,527 @@
+/*
+ * virtubooth design tokens: "Kontaktbogen" (docs/overhaul/design/DESIGN.md).
+ *
+ * Two surfaces, chosen per app or area (never a user toggle):
+ *   data-surface="dark"  "Rotlicht"/camera: guest pages, admin live (default on :root)
+ *   data-surface="light" "Leuchttisch":     admin manage, user page, login
+ * Components only use the semantic colours (surface, ink, line, accent, danger, …),
+ * so the same component reads right on both.
+ *
+ * CSP: this file is the only stylesheet. No runtime <style>; React `style={{}}` is fine
+ * (CSSOM). Class names stay neutral (content blockers hide .modal, .banner, .notice, …).
+ */
+@import 'tailwindcss';
+@import '@fontsource-variable/bricolage-grotesque/opsz.css';
+@import '@fontsource-variable/doto/full.css';
+@plugin 'tailwindcss-react-aria-components';
+
+/* the gallery and tests are scanned too; dist/ and docs never */
+@source not '../../dist';
+@source not '../../dist-gallery';
+
+@custom-variant short (@media (max-height: 700px));
+@custom-variant landscape-phone (@media (orientation: landscape) and (max-height: 600px));
+@custom-variant fine (@media (pointer: fine));
+@custom-variant coarse (@media (pointer: coarse));
+@custom-variant motion-ok (@media (prefers-reduced-motion: no-preference));
+
+@theme static {
+  /* ---------------------------------------------------------- palette (raw) */
+  --color-*: initial;
+  --color-transparent: transparent;
+  --color-current: currentColor;
+  --color-black: #000;
+  --color-white: #fff;
+
+  --color-kamera: #000; /* camera stage only */
+  --color-rot-950: #1c0806; /* film base, sunk areas on Rotlicht */
+  --color-rot-900: #2b0f0c; /* Rotlicht: the dark surface */
+  --color-rot-800: #3b1712; /* raised: sheets, guest pass */
+  --color-rot-700: #4d2019; /* hover / pressed on raised */
+  --color-papier: #fbefe9; /* ink on dark */
+  --color-papier-muted: #c9b8b0; /* secondary ink on dark */
+  --color-safelight: #ffa630; /* primary action, shutter ring, counters */
+  --color-safelight-hi: #ffbb5c; /* hover */
+  --color-fettstift: #c62a22; /* grease pencil: destructive fill, marks on light */
+  --color-fettstift-hell: #ff7a66; /* grease pencil on dark */
+  --color-fettstift-tief: #9e1f18; /* hover on fills, action text on paper */
+  --color-leuchttisch: #f4f6f8; /* the light-table surface */
+  --color-leuchttisch-weiss: #fff; /* panels on the light table */
+  --color-leuchttisch-sunk: #e7ebf0;
+  --color-leuchttisch-hover: #eef1f5;
+  --color-negativ: #16203a; /* ink on light */
+  --color-negativ-muted: #5a6272; /* secondary ink on light */
+  --color-negativ-line: #d3d9e0; /* hairlines on light */
+  --color-negativ-field: #8a94a3; /* input borders on light (3:1) */
+  --color-gruen-hell: #84d49b; /* "verbunden", "Hochgeladen" on dark */
+  --color-gruen: #1d7a44; /* the same on light */
+  --color-bernstein: #8a5300; /* amber as text on light */
+  --color-bernstein-hell: #ffd9a3; /* amber as text on Negativ */
+
+  /* ------------------------------------------------- type: 13/15/17/21/27/34/44 */
+  --font-*: initial;
+  --font-sans: 'Bricolage Grotesque Variable', ui-sans-serif, system-ui, sans-serif;
+  /* Doto: large numerals only (counters, countdown, frame number on prints), never < 22px */
+  --font-dots: 'Doto Variable', ui-monospace, monospace;
+
+  --text-*: initial;
+  --text-xs: 0.8125rem;
+  --text-xs--line-height: 1.125rem;
+  --text-sm: 0.9375rem;
+  --text-sm--line-height: 1.375rem;
+  --text-md: 1.0625rem;
+  --text-md--line-height: 1.5rem;
+  --text-lg: 1.3125rem;
+  --text-lg--line-height: 1.625rem;
+  --text-xl: 1.6875rem;
+  --text-xl--line-height: 2rem;
+  --text-xl--letter-spacing: -0.01em;
+  --text-2xl: 2.125rem;
+  --text-2xl--line-height: 2.375rem;
+  --text-2xl--letter-spacing: -0.015em;
+  --text-3xl: 2.75rem;
+  --text-3xl--line-height: 2.875rem;
+  --text-3xl--letter-spacing: -0.02em;
+  --text-dots-sm: 1.375rem;
+  --text-dots-sm--line-height: 1.5rem;
+  --text-dots-md: 1.75rem;
+  --text-dots-md--line-height: 1.875rem;
+  --text-dots-xl: 10rem;
+  --text-dots-xl--line-height: 1;
+
+  --font-weight-*: initial;
+  --font-weight-normal: 400;
+  --font-weight-semibold: 600;
+  --font-weight-bold: 760;
+
+  /* ------------------------------------- spacing 4/8/12/16/24/32/48 = 1/2/3/4/6/8/12 */
+  --spacing: 0.25rem;
+
+  /* ------------------------------------------------------------------ radii */
+  --radius-*: initial;
+  --radius-hole: 2px; /* sprocket holes */
+  --radius-small: 6px; /* elements under 28px: checkbox, badge, monogram */
+  --radius-control: 10px; /* buttons, fields, sheets */
+  --radius-full: 9999px; /* shutter and toggles only; photos and prints stay square */
+
+  --shadow-*: initial;
+  --shadow-float: 0 10px 30px rgb(0 0 0 / 0.35);
+
+  /* ---------------------------------------------------------------- z-layers */
+  --z-raised: 10; /* overlays inside a tile */
+  --z-sticky: 20; /* sticky headers, selection bar */
+  --z-bar: 30; /* bottom bar / rail */
+  --z-sheet: 40; /* sheet + scrim, confirm dialog */
+  --z-toast: 50; /* the single toast slot */
+  --z-screen: 60; /* full-screen Notice */
+  --z-boot: 70; /* boot-check.js "page does not start" */
+  --z-debug: 80; /* ?debug=1 panel */
+
+  /* ------------------------------------------------------------------ motion */
+  --duration-press: 80ms;
+  --duration-quick: 180ms; /* grease pencil stroke, toggles */
+  --duration-base: 250ms; /* sheets, frame advance */
+  --duration-develop: 700ms; /* a print developing */
+  --ease-*: initial;
+  --ease-out: cubic-bezier(0.2, 0.8, 0.2, 1);
+  --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
+
+  --animate-*: initial;
+  --animate-spin: spin 0.9s linear infinite;
+  --animate-develop: develop var(--duration-develop) var(--ease-out) both;
+  --animate-sheet-in: sheet-in var(--duration-base) var(--ease-out) both;
+  --animate-sheet-out: sheet-out var(--duration-quick) ease-in both;
+  --animate-dialog-in: dialog-in var(--duration-base) var(--ease-out) both;
+  --animate-fade-in: fade-in var(--duration-base) var(--ease-out) both;
+  --animate-fade-out: fade-out var(--duration-quick) ease-in both;
+  --animate-toast-in: toast-in var(--duration-base) var(--ease-out) both;
+  --animate-advance: advance var(--duration-base) var(--ease-out) both;
+  --animate-pencil: pencil var(--duration-quick) var(--ease-out) both;
+  --animate-shimmer: shimmer 1.4s ease-in-out infinite;
+  --animate-pop: pop var(--duration-base) var(--ease-out) both;
+
+  @keyframes spin {
+    to {
+      transform: rotate(360deg);
+    }
+  }
+  /* black → image: opacity and contrast only */
+  @keyframes develop {
+    from {
+      opacity: 0;
+      filter: contrast(0.4) brightness(0.4);
+    }
+    60% {
+      opacity: 1;
+    }
+    to {
+      opacity: 1;
+      filter: none;
+    }
+  }
+  @keyframes sheet-in {
+    from {
+      transform: translateY(100%);
+    }
+  }
+  @keyframes sheet-out {
+    to {
+      transform: translateY(100%);
+    }
+  }
+  @keyframes dialog-in {
+    from {
+      opacity: 0;
+      transform: translateY(8px) scale(0.98);
+    }
+  }
+  @keyframes fade-in {
+    from {
+      opacity: 0;
+    }
+  }
+  @keyframes fade-out {
+    to {
+      opacity: 0;
+    }
+  }
+  @keyframes toast-in {
+    from {
+      opacity: 0;
+      transform: translateY(12px);
+    }
+  }
+  /* the sprocket row moves one hole pitch (14px) when a frame is exposed */
+  @keyframes advance {
+    from {
+      transform: translateX(14px);
+    }
+  }
+  /* grease pencil: SVG paths with pathLength=1 */
+  @keyframes pencil {
+    from {
+      stroke-dashoffset: 1;
+    }
+    to {
+      stroke-dashoffset: 0;
+    }
+  }
+  @keyframes shimmer {
+    50% {
+      opacity: 0.55;
+    }
+  }
+  @keyframes pop {
+    from {
+      transform: scale(1.15);
+      opacity: 0;
+    }
+  }
+}
+
+/* --------------------------------------------------- semantic colours per surface */
+@theme inline {
+  --color-surface: var(--s-surface);
+  --color-surface-raised: var(--s-raised);
+  --color-surface-hover: var(--s-hover);
+  --color-surface-sunk: var(--s-sunk);
+  --color-ink: var(--s-ink);
+  --color-ink-muted: var(--s-ink-muted);
+  --color-line: var(--s-line);
+  --color-line-strong: var(--s-line-strong);
+  --color-field: var(--s-field);
+  --color-field-bg: var(--s-field-bg);
+  --color-accent: var(--color-safelight);
+  --color-accent-hover: var(--color-safelight-hi);
+  --color-on-accent: var(--s-on-accent);
+  --color-accent-ink: var(--s-accent-ink);
+  --color-accent-tint: var(--s-accent-tint);
+  --color-danger: var(--s-danger);
+  --color-danger-fill: var(--color-fettstift);
+  --color-danger-fill-hover: var(--color-fettstift-tief);
+  --color-on-danger: var(--color-white);
+  --color-ok: var(--s-ok);
+  --color-focus: var(--s-focus);
+  --color-mark: var(--s-mark);
+  --color-scrim: var(--s-scrim);
+  --color-toast: var(--s-toast);
+  --color-on-toast: var(--s-on-toast);
+  --color-toast-action: var(--s-toast-action);
+  /* the film edge is always black film base with paper-coloured holes */
+  --color-film: var(--color-kamera);
+  --color-film-hole: rgb(251 239 233 / 0.22);
+  --color-film-label: var(--color-papier-muted);
+}
+
+@layer base {
+  :root,
+  [data-surface='dark'] {
+    --s-surface: var(--color-rot-900);
+    --s-raised: var(--color-rot-800);
+    --s-hover: var(--color-rot-700);
+    --s-sunk: var(--color-rot-950);
+    --s-ink: var(--color-papier);
+    --s-ink-muted: var(--color-papier-muted);
+    --s-line: rgb(251 239 233 / 0.14);
+    --s-line-strong: rgb(251 239 233 / 0.3);
+    --s-field: rgb(251 239 233 / 0.42);
+    --s-field-bg: var(--color-rot-950);
+    --s-on-accent: var(--color-rot-900);
+    --s-accent-ink: var(--color-safelight);
+    --s-accent-tint: rgb(255 166 48 / 0.16);
+    --s-danger: var(--color-fettstift-hell);
+    --s-ok: var(--color-gruen-hell);
+    --s-focus: var(--color-safelight);
+    --s-mark: var(--color-fettstift-hell);
+    --s-scrim: rgb(15 4 3 / 0.7);
+    --s-toast: var(--color-papier);
+    --s-on-toast: var(--color-rot-900);
+    --s-toast-action: var(--color-fettstift-tief);
+    color-scheme: dark;
+  }
+  [data-surface='light'] {
+    --s-surface: var(--color-leuchttisch);
+    --s-raised: var(--color-leuchttisch-weiss);
+    --s-hover: var(--color-leuchttisch-hover);
+    --s-sunk: var(--color-leuchttisch-sunk);
+    --s-ink: var(--color-negativ);
+    --s-ink-muted: var(--color-negativ-muted);
+    --s-line: var(--color-negativ-line);
+    --s-line-strong: #aeb7c2;
+    --s-field: var(--color-negativ-field);
+    --s-field-bg: var(--color-leuchttisch-weiss);
+    --s-on-accent: var(--color-negativ);
+    --s-accent-ink: var(--color-bernstein);
+    --s-accent-tint: rgb(255 166 48 / 0.18);
+    --s-danger: var(--color-fettstift);
+    --s-ok: var(--color-gruen);
+    --s-focus: var(--color-negativ);
+    --s-mark: var(--color-fettstift);
+    --s-scrim: rgb(22 32 58 / 0.45);
+    --s-toast: var(--color-negativ);
+    --s-on-toast: var(--color-leuchttisch);
+    --s-toast-action: var(--color-safelight);
+    color-scheme: light;
+  }
+  /* a surface also paints itself, so nested areas switch cleanly */
+  [data-surface] {
+    background-color: var(--s-surface);
+    color: var(--s-ink);
+  }
+
+  html {
+    font-family: var(--font-sans);
+    font-optical-sizing: auto;
+    font-size: 100%;
+    line-height: var(--text-sm--line-height);
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    -webkit-tap-highlight-color: transparent;
+  }
+  body {
+    min-height: 100dvh;
+    font-size: var(--text-sm);
+    line-height: var(--text-sm--line-height);
+    background-color: var(--s-surface);
+    color: var(--s-ink);
+  }
+  /* rubber-band only off for mouse users: phones keep pull-to-refresh */
+  @media (pointer: fine) {
+    html {
+      overscroll-behavior: none;
+    }
+  }
+  button,
+  a,
+  [role='button'],
+  input,
+  select,
+  textarea,
+  label {
+    touch-action: manipulation;
+  }
+  /* React Aria used to inject these as runtime <style> (CSP); see patches/react-aria@3.53.1.patch */
+  [data-react-aria-pressable] {
+    touch-action: pan-x pan-y pinch-zoom;
+  }
+  [data-vb-scroll-lock] * {
+    overscroll-behavior: contain;
+  }
+  :focus-visible {
+    outline: 2px solid var(--s-focus);
+    outline-offset: 2px;
+  }
+  ::selection {
+    background-color: var(--color-safelight);
+    color: var(--color-rot-900);
+  }
+  h1,
+  h2,
+  h3 {
+    text-wrap: balance;
+  }
+  p {
+    text-wrap: pretty;
+  }
+  img,
+  svg,
+  video,
+  canvas {
+    display: block;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    :root {
+      --duration-press: 0ms;
+      --duration-quick: 0ms;
+      --duration-base: 0ms;
+      --duration-develop: 0ms;
+    }
+    *,
+    ::before,
+    ::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
+  }
+}
+
+/*
+ * Plain classes for markup that is not React: public/boot-check.js and gate.html.
+ * The React <Notice> renders the same classes, so all full-screen states look alike.
+ * (Never name these notice/banner/modal/popup: content blockers hide those.)
+ */
+@layer components {
+  .vb-screen {
+    position: fixed;
+    inset: 0;
+    z-index: var(--z-screen);
+    display: grid;
+    align-content: center;
+    overflow-y: auto;
+    padding: max(2rem, env(safe-area-inset-top)) max(1.5rem, env(safe-area-inset-right))
+      max(2rem, env(safe-area-inset-bottom)) max(1.5rem, env(safe-area-inset-left));
+    background-color: var(--s-surface);
+    color: var(--s-ink);
+  }
+  .vb-screen--boot {
+    z-index: var(--z-boot);
+  }
+  /* in the page flow (a section, the gallery); add min-h-dvh for a whole page */
+  .vb-screen--static {
+    position: static;
+  }
+  .vb-screen-inner {
+    display: grid;
+    gap: 1rem;
+    width: 100%;
+    max-width: 32rem;
+    margin-inline: auto;
+  }
+  .vb-screen-icon {
+    width: 3rem;
+    height: 3rem;
+    color: var(--s-accent-ink);
+    margin-bottom: 0.5rem;
+  }
+  .vb-screen-title {
+    font-size: var(--text-2xl);
+    line-height: var(--text-2xl--line-height);
+    letter-spacing: var(--text-2xl--letter-spacing);
+    font-weight: var(--font-weight-bold);
+    text-wrap: balance;
+  }
+  .vb-screen-text {
+    font-size: var(--text-md);
+    line-height: var(--text-md--line-height);
+  }
+  .vb-screen-hint {
+    color: var(--s-ink-muted);
+  }
+  .vb-screen-actions {
+    display: grid;
+    gap: 0.75rem;
+    margin-top: 0.75rem;
+  }
+  .vb-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    min-height: 3.5rem;
+    padding: 0 1.5rem;
+    border: 1px solid var(--s-line-strong);
+    border-radius: var(--radius-control);
+    background: transparent;
+    color: var(--s-ink);
+    font: inherit;
+    font-size: var(--text-md);
+    font-weight: var(--font-weight-semibold);
+    text-decoration: none;
+    cursor: pointer;
+    transition-property: background-color, transform;
+    transition-duration: var(--duration-quick);
+  }
+  .vb-btn:hover {
+    background-color: var(--s-hover);
+  }
+  .vb-btn:active {
+    transform: scale(0.98);
+  }
+  .vb-btn--primary {
+    border-color: transparent;
+    background-color: var(--color-safelight);
+    color: var(--s-on-accent);
+  }
+  .vb-btn--primary:hover {
+    background-color: var(--color-safelight-hi);
+  }
+
+  /* gate.html: the server rewrites <html data-vb-mode="gate|notfound">; CSS picks the copy */
+  [data-vb-mode] .vb-mode-gate,
+  [data-vb-mode] .vb-mode-notfound {
+    display: none;
+  }
+  [data-vb-mode='gate'] .vb-mode-gate,
+  [data-vb-mode='notfound'] .vb-mode-notfound {
+    display: contents;
+  }
+}
+
+/* utilities the components share */
+@utility tabular {
+  font-variant-numeric: tabular-nums;
+}
+@utility dots {
+  font-family: var(--font-dots);
+  font-weight: 900;
+  font-variation-settings: 'ROND' 0;
+  letter-spacing: 0.02em;
+  font-variant-numeric: tabular-nums;
+}
+@utility dots-round {
+  font-variation-settings: 'ROND' 60;
+}
+@utility scroll-contain {
+  overscroll-behavior: contain;
+}
+/* horizontal scrollers show a shadow on the side that has more content */
+@utility scroll-shadows-x {
+  background:
+    linear-gradient(to right, var(--s-surface) 30%, transparent) left / 2rem 100% no-repeat local,
+    linear-gradient(to left, var(--s-surface) 30%, transparent) right / 2rem 100% no-repeat local,
+    radial-gradient(farthest-side at 0 50%, rgb(0 0 0 / 0.25), transparent) left / 0.75rem 100% no-repeat
+      scroll,
+    radial-gradient(farthest-side at 100% 50%, rgb(0 0 0 / 0.25), transparent) right / 0.75rem 100% no-repeat
+      scroll;
+}
+@utility safe-bottom {
+  padding-bottom: env(safe-area-inset-bottom);
+}
+@utility safe-top {
+  padding-top: env(safe-area-inset-top);
+}
