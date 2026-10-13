@@ -12,8 +12,8 @@ from contextlib import contextmanager
 from pathlib import Path
 from typing import Any
 
-SCHEMA_VERSION = 1
-
+# v1: the original schema. Never edit a released step: add a new one to
+# MIGRATIONS below, so existing databases (local, production) upgrade in place.
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS users (
     id               INTEGER PRIMARY KEY,
@@ -91,6 +91,43 @@ CREATE TABLE IF NOT EXISTS audit_log (
 );
 """
 
+# v2: upload pauses. A guest's uploads can be paused by an admin ('admin') or,
+# while the new-guest lock is on, from the moment they join ('new_guest_lock',
+# tagged with the lock period that paused them). Global switches live in
+# `settings` (JSON values).
+SCHEMA_V2 = """
+ALTER TABLE users ADD COLUMN uploads_paused_at TEXT;
+ALTER TABLE users ADD COLUMN uploads_paused_source TEXT;
+ALTER TABLE users ADD COLUMN uploads_lock_period INTEGER;
+CREATE INDEX users_lock_period ON users(uploads_lock_period)
+    WHERE uploads_lock_period IS NOT NULL;
+
+CREATE TABLE settings (
+    key         TEXT PRIMARY KEY,
+    value       TEXT NOT NULL,
+    updated_at  TEXT NOT NULL
+);
+"""
+
+# (version, script): each step upgrades the database from the version before.
+MIGRATIONS: tuple[tuple[int, str], ...] = (
+    (1, SCHEMA),
+    (2, SCHEMA_V2),
+)
+SCHEMA_VERSION = MIGRATIONS[-1][0]
+
+
+def _statements(script: str) -> Iterator[str]:
+    """Split an SQL script into complete statements (comments stay attached)."""
+    buf = ""
+    for line in script.splitlines(keepends=True):
+        buf += line
+        if sqlite3.complete_statement(buf):
+            yield buf.strip()
+            buf = ""
+    if buf.strip():
+        raise ValueError(f"incomplete SQL statement: {buf.strip()[:80]}")
+
 
 class Database:
     def __init__(self, path: Path) -> None:
@@ -109,11 +146,28 @@ class Database:
         self._migrate()
 
     def _migrate(self) -> None:
+        """Upgrade the schema step by step up to SCHEMA_VERSION.
+
+        Each step runs in its own write transaction and re-reads the version
+        inside it, so a failing step leaves the database at the version before
+        it, and a second process (a CLI tool next to the server) never runs a
+        step twice. A newer database than this code knows is left alone.
+        """
         with self._lock:
-            version = self._conn.execute("PRAGMA user_version").fetchone()[0]
-            if version < SCHEMA_VERSION:
-                self._conn.executescript(SCHEMA)
-                self._conn.execute(f"PRAGMA user_version={SCHEMA_VERSION}")
+            if self._conn.execute("PRAGMA user_version").fetchone()[0] >= SCHEMA_VERSION:
+                return
+            for target, script in MIGRATIONS:
+                self._conn.execute("BEGIN IMMEDIATE")
+                try:
+                    version = self._conn.execute("PRAGMA user_version").fetchone()[0]
+                    if version < target:
+                        for statement in _statements(script):
+                            self._conn.execute(statement)
+                        self._conn.execute(f"PRAGMA user_version={target}")
+                except BaseException:
+                    self._conn.execute("ROLLBACK")
+                    raise
+                self._conn.execute("COMMIT")
 
     @contextmanager
     def tx(self) -> Iterator[sqlite3.Connection]:
