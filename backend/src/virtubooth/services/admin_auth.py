@@ -2,7 +2,8 @@
 
 Sessions are random 256-bit tokens; the DB stores only their SHA-256. The
 cookie is HttpOnly + SameSite=Strict, sessions expire after
-VB_ADMIN_SESSION_HOURS and die when the password changes.
+VB_ADMIN_SESSION_HOURS and die when the password changes. Logging out ends the
+session's open event streams at once.
 
 Login attempts are rate limited per IP (IPv6: per /64) and globally: after
 LOGIN_FAILURES_GLOBAL wrong passwords within LOGIN_FAILURES_WINDOW, every login
@@ -125,3 +126,5 @@ class AdminAuthService:
         with self.db.tx():
             self.repos.admin_sessions.delete(admin.session_hash)
             self.repos.audit.log(admin.actor, "admin.logout", at=now_iso())
+            # its open event streams end now, not at their next session check
+            self.db.on_commit(lambda: self.core.bus.end_session(admin.session_hash))

@@ -3,9 +3,12 @@
 Wire format: first `retry: 3000`, then per event `event: <type>`, `data: <json>`,
 `id: <epoch>-<n>`; `: ping` after 15 s without events (FastAPI's keep-alive).
 
-- The stream ends once the admin session is gone (logout, expiry, password
-  change; checked at most every SESSION_RECHECK_SECONDS); the browser then
-  reconnects, gets 401 and goes to the login page.
+- The stream ends once the admin session is gone: at once on logout (the bus
+  closes the session's streams), else (expiry, password change) at the next
+  check, at most every SESSION_RECHECK_SECONDS. The browser then reconnects,
+  gets 401 and goes to the login page.
+- A session keeps at most `EventBus.per_session` (4) streams open; a fifth
+  closes its oldest, whose browser tab reconnects and replays what it missed.
 - It also ends when the client falls more than 256 events behind; the browser
   reconnects with `Last-Event-ID` and the missed events are replayed.
 - Resuming: `Last-Event-ID` (sent by the browser on reconnects) or `?since=`
@@ -28,9 +31,9 @@ from fastapi import APIRouter, Header, Query, Request
 from fastapi.sse import EventSourceResponse, ServerSentEvent
 
 from ....core.errors import json_error_responses
-from ....core.events import Event, EventBus, Overflowed, Resync
+from ....core.events import Closed, Event, EventBus, Resync
 from ....runtime import Core
-from ...deps import CoreDep, admin_from_cookie
+from ...deps import AdminDep, CoreDep, admin_from_cookie
 from ...schemas.events import AdminEvent
 from ._params import ADMIN_ERROR_STATUSES
 
@@ -56,11 +59,17 @@ def _resync(reason: Resync) -> ServerSentEvent:
 
 
 async def admin_event_stream(
-    request: Request, core: Core, cursor: int | Resync | None
+    request: Request, core: Core, cursor: int | Resync | None, *, session: str | None = None
 ) -> AsyncIterator[ServerSentEvent]:
     bus = core.bus
-    sub = bus.subscribe(cursor)
+    sub = bus.subscribe(cursor, session=session)
     try:
+        if (
+            session is not None
+            and await to_thread.run_sync(admin_from_cookie, request, core) is None
+        ):
+            # logged out between the auth check and subscribe(): end_session() missed us
+            return
         yield ServerSentEvent(retry=RETRY_MS)
         if sub.resync is not None:
             yield _resync(sub.resync)
@@ -75,8 +84,10 @@ async def admin_event_stream(
                 )
             except TimeoutError:
                 item = None
-            except Overflowed:
-                return  # the browser reconnects and catches up from the history
+            except Closed:
+                # overflowed: the browser reconnects and catches up from the history;
+                # logged out: the reconnect gets 401; replaced: it reconnects too
+                return
             now = time.monotonic()
             if now - checked >= recheck:
                 checked = now
@@ -98,6 +109,7 @@ async def admin_event_stream(
 async def events(
     request: Request,
     core: CoreDep,
+    admin: AdminDep,
     last_event_id: Annotated[str | None, Header(max_length=64)] = None,
     since: Annotated[
         str | None, Query(max_length=64, description="Resume after this event id.")
@@ -105,7 +117,7 @@ async def events(
 ) -> AsyncIterator[AdminEvent]:
     """The admin live stream (see the module docs for resuming and resync)."""
     cursor = core.bus.parse_cursor(last_event_id if last_event_id else since)
-    async for message in admin_event_stream(request, core, cursor):
+    async for message in admin_event_stream(request, core, cursor, session=admin.session_hash):
         # FastAPI writes ServerSentEvent items as they are; `AdminEvent` only
         # documents the messages (type, id, data) in the OpenAPI schema
         yield message  # type: ignore[misc]

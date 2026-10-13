@@ -4,13 +4,20 @@ section "Resolution"), one section per finding (SEC-xx)."""
 from __future__ import annotations
 
 import logging
+import socket
+import threading
+import time
+from collections.abc import Iterator
 from pathlib import Path
 from typing import Any
 
 import pytest
+import uvicorn
+from fastapi import FastAPI
 from fastapi.testclient import TestClient
 from starlette.requests import Request
 
+from virtubooth.api.routers.admin import events as events_router
 from virtubooth.app import create_app_from_env
 from virtubooth.core import errors
 from virtubooth.core import ratelimit as ratelimit_module
@@ -22,10 +29,11 @@ from virtubooth.core.ratelimit import (
     RateLimiter,
     ip_bucket,
 )
-from virtubooth.core.security import is_direct_loopback, origin_allowed
+from virtubooth.core.security import is_direct_loopback, origin_allowed, sha256_hex
 from virtubooth.settings import Settings, admin_password_warnings
 
 from ..conftest import ADMIN_PASSWORD, ORIGIN, PARTY_TOKEN, SECRET_KEY
+from .test_admin_events import Live, Stream, admin_client
 
 # ===================================================== SEC-01 login guessing
 
@@ -300,3 +308,125 @@ def test_an_http_origin_is_refused_over_tls(app, admin):
         r = tls.post("/api/admin/logout", headers={"Origin": "https://party.example"})
         assert r.status_code == 200
         assert not tls.get("/api/admin/session").json()["authenticated"]
+
+
+# ================================================== SEC-06 event streams
+
+
+@pytest.fixture
+def live(app: FastAPI, unused_port: int) -> Iterator[Live]:
+    """A real server (TestClient can't stream SSE), as in test_admin_events."""
+    config = uvicorn.Config(
+        app, host="127.0.0.1", port=unused_port, log_level="warning", timeout_graceful_shutdown=1
+    )
+    server = uvicorn.Server(config)
+    thread = threading.Thread(target=server.run, daemon=True)
+    thread.start()
+    deadline = time.monotonic() + 10
+    while not server.started:
+        assert time.monotonic() < deadline, "uvicorn did not start"
+        time.sleep(0.02)
+    yield Live(f"http://127.0.0.1:{unused_port}", app.state.core)
+    server.should_exit = True
+    thread.join(5)
+
+
+@pytest.fixture
+def unused_port() -> int:
+    with socket.socket() as s:
+        s.bind(("127.0.0.1", 0))
+        port: int = s.getsockname()[1]
+        return port
+
+
+def test_logout_ends_the_sessions_streams_at_once(live: Live):
+    admin, other = admin_client(live), admin_client(live)
+    mine = [Stream(admin, "/api/admin/events") for _ in range(2)]
+    theirs = Stream(other, "/api/admin/events")
+    try:
+        for s in (*mine, theirs):
+            assert s.wait_for(lambda line: line.startswith("retry:"))
+        started = time.monotonic()
+        r = admin.post("/api/admin/logout", headers={"Origin": live.base_url})
+        assert r.status_code == 200
+        for s in mine:
+            # no event needed and no 30 s session check: the stream ends now
+            assert s.wait_for(lambda line: False, timeout=3) is None
+        assert time.monotonic() - started < 3
+        # the browser's reconnect gets 401 and goes to the login page
+        assert admin.get("/api/admin/events").status_code == 401
+        # another session's stream is untouched
+        assert live.core.bus.subscriber_count == 1
+        live.core.bus.publish("photo.hidden", {"probe": 1})
+        assert theirs.wait_for(lambda line: line == "event: photo.hidden")
+    finally:
+        for s in (*mine, theirs):
+            s.close()
+        admin.close()
+        other.close()
+
+
+def test_a_session_keeps_at_most_four_streams(live: Live):
+    admin = admin_client(live)
+    streams: list[Stream] = []
+    try:
+        for _ in range(5):
+            s = Stream(admin, "/api/admin/events")
+            assert s.wait_for(lambda line: line.startswith("retry:"))
+            streams.append(s)
+        # the fifth closed the oldest; its tab reconnects and replays what it missed
+        assert streams[0].wait_for(lambda line: False, timeout=3) is None
+        session = sha256_hex(admin.cookies["vb_admin"])
+        assert live.core.bus.session_count(session) == 4
+        live.core.bus.publish("photo.hidden", {"probe": 1})
+        for s in streams[1:]:  # still open
+            assert s.wait_for(lambda line: line == "event: photo.hidden")
+    finally:
+        for s in streams:
+            s.close()
+        admin.close()
+
+
+def test_a_logout_between_auth_and_subscribe_still_ends_the_stream(core):
+    import asyncio
+
+    token = core.services.admin_auth.login(ADMIN_PASSWORD, ip="10.0.0.1", user_agent="pytest")
+    admin = core.services.admin_auth.session(token)
+    request = Request(
+        {
+            "type": "http",
+            "method": "GET",
+            "path": "/api/admin/events",
+            "headers": [(b"cookie", f"vb_admin={token}".encode())],
+        }
+    )
+
+    async def scenario() -> list[Any]:
+        core.bus.bind_loop(asyncio.get_running_loop())
+        core.services.admin_auth.logout(admin)  # end_session() runs before subscribe
+        await asyncio.sleep(0.01)
+        stream = events_router.admin_event_stream(request, core, None, session=admin.session_hash)
+        return [m async for m in stream]
+
+    assert asyncio.run(scenario()) == []
+    assert core.bus.subscriber_count == 0
+
+
+def test_end_session_wakes_a_waiting_stream_from_another_thread():
+    import asyncio
+
+    from virtubooth.core.events import Closed, EventBus
+
+    async def scenario() -> float:
+        bus = EventBus()
+        bus.bind_loop(asyncio.get_running_loop())
+        sub = bus.subscribe(None, session="abc")
+        other = bus.subscribe(None, session="def")
+        started = time.monotonic()
+        threading.Timer(0.1, bus.end_session, args=("abc",)).start()
+        with pytest.raises(Closed):
+            await asyncio.wait_for(sub.get(), 5)
+        assert bus.subscriber_count == 1 and not other.closed
+        return time.monotonic() - started
+
+    assert asyncio.run(scenario()) < 1
