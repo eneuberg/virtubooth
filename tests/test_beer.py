@@ -228,3 +228,12 @@ def test_page_is_csp_clean():
         source = js.read_text(encoding="utf-8")
         assert "innerHTML" not in source, js.name
         assert not re.search(r"https?://(?!www\.w3\.org/2000/svg)", source), js.name
+
+
+def test_every_element_the_page_script_looks_up_exists():
+    """beer.js grabs its elements by id once at startup; a missing one breaks the page."""
+    static = beer.extension.static_dir
+    ids = set(re.findall(r'\bid="([^"]+)"', (static / "index.html").read_text(encoding="utf-8")))
+    wanted = set(re.findall(r"\$\('([^']+)'\)", (static / "beer.js").read_text(encoding="utf-8")))
+    assert {"goal-long", "goal-short", "retry", "success-num"} <= wanted
+    assert wanted <= ids, wanted - ids
