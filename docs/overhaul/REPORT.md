@@ -310,9 +310,9 @@ Firefox geprüft und ist im Testlauf unten enthalten.
    sauber durch: Lockfile unverändert, Supply-Chain-Prüfung bestanden.
 2. **WebKit läuft nicht in der CI.** Das Playwright-Image ist 3,5 GB groß. Lokal:
    `make e2e-webkit` oder alles mit `make check-all`.
-3. **Coolify braucht Zugriff auf das Repo.** Es ist privat, und Coolify hat nur die
-   Quelle „Public GitHub“. Nötig ist die GitHub App oder ein Deploy Key (siehe
-   `docs/DEPLOY.md`, Abschnitt Coolify).
+3. **Coolify und Repo-Zugriff:** Das Repo ist inzwischen öffentlich (Stand 13.10. abends),
+   damit reicht in Coolify die Quelle „Public GitHub“. Wird es wieder privat, braucht
+   Coolify die GitHub App oder einen Deploy Key (siehe `docs/DEPLOY.md`, Abschnitt Coolify).
 4. **Admin-Kontaktbogen:** Solange Fotos ausgewählt sind, wählt ein Klick aus, statt das
    Foto zu öffnen.
 5. **Firefox:** Wird ein fokussiertes Element aus einem Sheet entfernt, fällt der Fokus
@@ -327,8 +327,11 @@ Firefox geprüft und ist im Testlauf unten enthalten.
    gemergten Branches können weg.
 10. **Reste des alten Layouts:** der Ordner `virtubooth/` im Repo-Root (nur noch
     `__pycache__`) und das `.venv` im Root können gelöscht werden.
-11. **Screenshots** unter `docs/overhaul/design/shots/wave2-gp/` zeigen einen echten
-    Partynamen und Handle. Solange das Repo privat ist, ist das in Ordnung. Die
+11. **Vor einem Push, weil das Repo jetzt öffentlich ist:** Die Screenshots unter
+    `docs/overhaul/design/shots/wave2-gp/` (20 Bilder) zeigen einen echten Partynamen und
+    Handle. Sie stecken in der lokalen Git-Historie, ein Löschen per Commit reicht also
+    nicht. Entweder die Historie vor dem ersten Push umschreiben (z. B. `git filter-repo`,
+    geht, solange nichts davon gepusht ist) oder das Repo wieder privat stellen. Die
     README-Bilder in `docs/assets/` nutzen nur Demodaten.
 12. **Datenschutz-Text:** Zu jedem beigetretenen Gast speichert die App (wie schon vor
     der Überarbeitung) erste und letzte IP-Adresse und den Browser-Typ, für die
