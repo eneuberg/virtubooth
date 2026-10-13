@@ -1,6 +1,7 @@
 import type { LucideIcon } from 'lucide-react';
 import { Button as AriaButton, Link } from 'react-aria-components';
 import { cx } from './cx';
+import { toastAvoid } from './toastPlacement';
 
 export type BottomBarItem = {
   id: string;
@@ -33,6 +34,7 @@ export function BottomBar({ label, items, currentId, className }: BottomBarProps
   return (
     <nav
       aria-label={label}
+      {...toastAvoid}
       className={cx(
         'fixed inset-x-0 bottom-0 z-(--z-bar) border-t border-line bg-surface-sunk pb-[env(safe-area-inset-bottom)]',
         'landscape-phone:inset-x-auto landscape-phone:top-0 landscape-phone:left-0 landscape-phone:border-t-0 landscape-phone:border-r landscape-phone:pb-0 landscape-phone:pl-[env(safe-area-inset-left)]',

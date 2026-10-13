@@ -20,7 +20,13 @@ from playwright.sync_api import Page, Route, expect
 
 from virtubooth.extensions.booth import FILTERS
 
-from ..conftest import BROWSER_NAME, LiveServer, accept_consent_in_browser
+from ..conftest import (
+    BROWSER_NAME,
+    QUICK_TAP_MS,
+    LiveServer,
+    accept_consent_in_browser,
+    covered_by_toast,
+)
 from .conftest import (
     READY,
     Admin,
@@ -547,6 +553,10 @@ def test_offline_shot_waits_survives_a_reload_and_is_sent(guest: Page, live: Liv
     expect(
         page.get_by_role("region").get_by_text(re.compile("von vorhin ist jetzt hochgeladen"))
     ).to_be_visible(timeout=READY)
+    # the toast stands above the filter strip and the controls: the next shot needs no wait
+    shutter = page.get_by_test_id("shutter")
+    assert covered_by_toast(page, page.get_by_test_id("filter-strip"), shutter) == []
+    shutter.tap(trial=True, timeout=QUICK_TAP_MS)
     expect(outbox).to_have_count(0)
     expect(status).to_have_count(0)
     [(meta, img)] = stored_images(live, "booth")

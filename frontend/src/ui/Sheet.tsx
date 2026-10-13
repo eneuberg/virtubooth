@@ -4,6 +4,7 @@ import { Dialog, Heading, Modal, ModalOverlay } from 'react-aria-components';
 import { cx } from './cx';
 import { IconButton } from './IconButton';
 import { useSurface } from './Surface';
+import { toastAvoid } from './toastPlacement';
 
 export interface SheetProps {
   isOpen?: boolean;
@@ -55,6 +56,8 @@ function useMoreBelow() {
  * Bottom sheet on phones, centred dialog from 640px. Focus is trapped and starts on the
  * dialog itself (so a phone keyboard does not pop up over the text); the footer stays
  * visible while the body scrolls. Built on React Aria Modal/Dialog with our own classes.
+ * A toast never covers it: it moves above the sheet, or above the footer when the sheet
+ * is as tall as the screen.
  */
 export function Sheet({
   isOpen,
@@ -104,6 +107,7 @@ export function Sheet({
       >
         <Dialog
           role={role}
+          {...toastAvoid}
           className={cx(
             'vb-sheet flex max-h-full w-full flex-col rounded-t-control border-t border-line bg-surface-raised text-ink outline-none sm:rounded-control sm:border',
             className,
@@ -138,6 +142,7 @@ export function Sheet({
               </div>
               {footer ? (
                 <div
+                  {...toastAvoid}
                   data-more={more || undefined}
                   className="shrink-0 border-t border-transparent px-5 pt-3 pb-[max(1rem,env(safe-area-inset-bottom))] data-more:border-line"
                 >

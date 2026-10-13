@@ -8,6 +8,7 @@ import { Button, LinkButton } from '@/ui/Button';
 import { cx } from '@/ui/cx';
 import { GreaseX } from '@/ui/GreaseMarks';
 import { IconButton } from '@/ui/IconButton';
+import { toastAvoid } from '@/ui/toastPlacement';
 import { metaRows, photoLabel } from '../lib/labels';
 
 export interface PhotoViewerProps {
@@ -121,7 +122,10 @@ export function PhotoViewer({
         >
           {photo ? (
             <>
-              <div className="flex items-center gap-2 px-2 pt-[max(0.5rem,env(safe-area-inset-top))] pb-2 lg:col-span-2">
+              <div
+                {...toastAvoid}
+                className="flex items-center gap-2 px-2 pt-[max(0.5rem,env(safe-area-inset-top))] pb-2 lg:col-span-2"
+              >
                 <Button
                   variant="quiet"
                   size="sm"
@@ -166,8 +170,10 @@ export function PhotoViewer({
               >
                 <ViewerImage key={photo.id} photo={photo} />
               </div>
+              {/* a toast (Rückgängig) moves above this panel on phones, never over a button */}
               <section
                 aria-label="Details"
+                {...toastAvoid}
                 className="grid max-h-[42dvh] content-start gap-3 overflow-y-auto overscroll-contain border-t border-white/10 px-4 pt-3 pb-[max(1rem,env(safe-area-inset-bottom))] lg:max-h-none lg:border-t-0 lg:border-l lg:pt-1"
               >
                 <div className="flex flex-wrap items-center gap-2">
@@ -199,7 +205,7 @@ export function PhotoViewer({
                     </div>
                   ))}
                 </dl>
-                <div className="grid gap-2">
+                <div className="grid gap-2" {...toastAvoid}>
                   {renderActions(photo)}
                   <LinkButton
                     href={`/user?id=${photo.user.id}`}

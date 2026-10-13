@@ -13,7 +13,7 @@ import re
 import pytest
 from playwright.sync_api import Page, Route, expect
 
-from ..conftest import BROWSER_NAME, MOBILE, LiveServer
+from ..conftest import BROWSER_NAME, MOBILE, LiveServer, covered_by_toast
 from .conftest import (
     READY,
     Admin,
@@ -355,6 +355,9 @@ def test_paused_between_check_and_upload_keeps_the_beer(
     expect(
         page.get_by_role("region").get_by_text("Dein Bier von vorhin ist jetzt gezählt.")
     ).to_be_visible(timeout=READY)
+    # the toast stands above the camera controls, never on the shutter
+    controls = [page.get_by_test_id(x) for x in ("vessel", "shutter", "switch-camera")]
+    assert covered_by_toast(page, *controls) == []
     wait_kept(page, 0)
     assert len(photos(live, "beer")) == 1
     assert errors_except(page, "403") == []

@@ -198,7 +198,7 @@ Every component wraps React Aria with our own classes. Every RAC element gets a 
 | `IconButton` | plain, camera, overlay (round, over photos); 44/48 | tooltip on desktop; aria-label is required (`label`) |
 | `Sheet` | bottom sheet on phones, centred dialog from 640 px; sm/md/lg; title lg/xl | dismissable (close button, Esc, scrim) or not (join); sticky footer with an edge when the body scrolls; focus trapped and starting on the dialog; `overscroll-contain`; `vb-scrim` on the root, never "modal"/"backdrop" |
 | `ConfirmDialog` | danger, neutral | focus starts on "Abbrechen"; busy while `onConfirm` resolves; inline error |
-| `Toast` (`showToast`, `clearToasts`, `<ToastSlot>`) | info, success, error; optional action (Rückgängig, Erneut senden) | One slot: a new toast replaces the old one. 5/6/7 s. The only file using `UNSTABLE_Toast`. |
+| `Toast` (`showToast`, `clearToasts`, `<ToastSlot>`) | info, success, error; optional action (Rückgängig, Erneut senden) | One slot: a new toast replaces the old one. 5/6/7 s. Never covers an action area: it moves up above it (`toastPlacement.ts`). The only file using `UNSTABLE_Toast`. |
 | `Notice` | full screen (fixed) or `inline` | role alert or status; CSS class `vb-screen`, shared with `public/boot-check.js` |
 | `Switch` | plain, row, emergency (red when on) | on, off, pending (blocked, pulsing), disabled; `role=switch`; state in words via `description` |
 | `SegmentedControl` | tone surface/camera, md 48 / sm 40, iconOnly true/"narrow" | selected, focus, disabled; it is a radiogroup |
@@ -230,7 +230,7 @@ Every component wraps React Aria with our own classes. Every RAC element gets a 
    - examples: `vb-screen` for the full-screen state, `vb-scrim` for overlays, `vb-sheet`, `vb-film`, `vb-activity`.
    
    `pnpm build` fails on blocker-prone asset names or CSS selectors (`scripts/check-names.mjs`).
-4. **One toast slot per page.** Position it with `ToastSlot className` (ActivityShell already places it above the controls), and call `clearToasts()` when the state it reported changes.
+4. **One toast slot per page.** Position it with `ToastSlot className` (ActivityShell already places it above the controls), and call `clearToasts()` when the state it reported changes. The toast never covers a control someone needs next: spread `toastAvoid` (`data-toast-avoid`) on fixed action areas (bars, button rows, a panel). While the toast shows, it takes the lowest free slot: its own place, or just above such an area of the topmost layer (the open sheet, dialog or viewer, else the page). `Sheet` (panel and footer), the admin viewer, the selection bar, `BottomBar` and the camera rows are marked already. On a phone the toast then sits above the open sheet or the viewer's panel; a sheet as tall as the screen keeps only its footer free. On desktop it stays in its corner unless a bar lies under it.
 5. **Typography.** Use `src/lib/format.ts` for every number, date and frame label, and the glossary in `src/lib/messages.de.ts` for words.
 6. **Photos** are `PhotoTile` with real `width`/`height`, `loading="lazy"` below the fold, square corners, and the grease marks for state.
 7. **Design references** for each screen are in `mockups/` and `shots/final/`.
