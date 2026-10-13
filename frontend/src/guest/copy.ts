@@ -45,12 +45,6 @@ export function splitPrompt(prompt: string): { label: string; help: string | nul
   return { label: m[1], help: m[2] };
 }
 
-/** Our own copy for the known activities (the server's taglines predate the design). */
-export const ACTIVITY_COPY: Record<string, { tagline: string }> = {
-  beer: { tagline: 'Fotografier dein Getränk im Umriss.' },
-  booth: { tagline: 'Selfie mit Filter und Countdown.' },
-};
-
 /**
  * "Was passiert mit meinen Fotos?" for a guest whose accepted texts are not stored on
  * this device (joined before this version, or storage blocked). Says the same as

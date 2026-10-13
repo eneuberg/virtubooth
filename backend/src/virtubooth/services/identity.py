@@ -116,17 +116,17 @@ class IdentityService:
         insta = f" ({s.instagram_account})" if s.instagram_account else ""
         return ConsentInfo(
             version=s.consent_version,
-            title=f"Willkommen bei {s.party_name}! 🎉",
+            title=f"Willkommen bei {s.party_name}!",
             paragraphs=[
-                "Kurz bevor's losgeht: Wenn du hier Fotos machst, speichern wir sie "
+                "Kurz bevor’s losgeht: Wenn du hier Fotos machst, speichern wir sie "
                 f"und dürfen sie auf Instagram{insta} posten.",
                 "Damit wir Missbrauch verhindern können, erkennt die Seite dein Gerät "
                 "wieder: eine anonyme Geräte-ID, kein Name. Bei Ärger können wir einzelne "
                 "Geräte sperren.",
-                "Wenn du das nicht möchtest, nutze die Fotobox bitte nicht.",
+                "Wenn du das nicht möchtest, mach hier bitte keine Fotos.",
             ],
-            instagram_prompt="Dein Instagram (freiwillig). Dann markieren wir dich!",
-            accept_label="Alles klar, los geht's! 🍻",
+            instagram_prompt="Instagram-Name (freiwillig). Dann können wir dich markieren.",
+            accept_label="Alles klar, los geht’s!",
             party_name=s.party_name,
             instagram_account=s.instagram_account,
         )
