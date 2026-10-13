@@ -335,6 +335,7 @@ walks through a complete, working example.
 
 | File | What |
 |---|---|
+| [docs/FEATURES.md](docs/FEATURES.md) | every feature, in German: for guests, the host and operators, with the screen it is on, the limits and the settings |
 | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | backend layers, request flow, events, web serving, frontend apps, SDK, design system, adding an activity, testing, security model, stack |
 | [docs/DEPLOY.md](docs/DEPLOY.md) | Docker, Compose, Coolify, reverse proxy and HTTPS, every `VB_*` variable, backups, updates, exports, troubleshooting |
 | [backend/README.md](backend/README.md) | backend commands, package layout, rules of thumb |
