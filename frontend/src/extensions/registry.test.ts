@@ -17,11 +17,9 @@ describe('extension registry', () => {
   });
 
   it('beer and booth bring their own live line for Start (the lazy card slot)', async () => {
-    for (const id of ['beer', 'booth']) {
-      const card = getExtension(id)?.card;
-      expect(card, id).toBeTypeOf('function');
-      const mod = await card?.();
-      expect(mod?.default, id).toBeTypeOf('function');
-    }
+    const loaders = ['beer', 'booth'].map((id) => getExtension(id)?.card);
+    for (const load of loaders) expect(load).toBeTypeOf('function');
+    const modules = await Promise.all(loaders.map((load) => (load ? load() : Promise.resolve(null))));
+    for (const mod of modules) expect(mod?.default).toBeTypeOf('function');
   });
 });

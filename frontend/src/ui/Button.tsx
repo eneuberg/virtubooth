@@ -1,5 +1,5 @@
 import type { LucideIcon } from 'lucide-react';
-import type { ReactNode } from 'react';
+import { useEffect, useId, type ReactNode } from 'react';
 import {
   Button as AriaButton,
   Link as AriaLink,
@@ -76,6 +76,31 @@ function Label({
 }
 
 /**
+ * React Aria announces a focused button going pending (and back) by reference: a node
+ * in its live region with `aria-labelledby` = the button's id, kept for 7 s. When the
+ * button goes away meanwhile (the join sheet closes once the guest is in, a confirm
+ * dialog after its action), that node points at nothing: an unnamed image for
+ * assistive tech (axe: role-img-alt, serious). It was read out when it was added, so
+ * it goes with the button: now, and once more a moment later, because React Aria adds
+ * its very first announcement 100 ms late (it creates the live region first).
+ */
+function dropAnnouncements(id: string): void {
+  for (const node of document.querySelectorAll('[data-live-announcer] [aria-labelledby]')) {
+    if (node.getAttribute('aria-labelledby')?.split(' ').includes(id)) node.remove();
+  }
+}
+
+function useDropAnnouncementsOnUnmount(id: string): void {
+  useEffect(
+    () => () => {
+      dropAnnouncements(id);
+      window.setTimeout(() => dropAnnouncements(id), 250);
+    },
+    [id],
+  );
+}
+
+/**
  * A button: verb label, optional icon, never emoji. `isPending` keeps the width and
  * shows a spinner (React Aria keeps focus and blocks presses meanwhile).
  */
@@ -88,10 +113,14 @@ export function Button({
   block,
   pendingLabel = 'Lädt…',
   className,
+  id: idProp,
   ...props
 }: ButtonProps) {
+  const fallbackId = useId();
+  const id = idProp ?? fallbackId;
+  useDropAnnouncementsOnUnmount(id);
   return (
-    <AriaButton {...props} className={buttonStyles({ variant, size, block, class: className })}>
+    <AriaButton {...props} id={id} className={buttonStyles({ variant, size, block, class: className })}>
       {({ isPending }) => (
         <>
           <span className={cx('inline-flex items-center gap-2', isPending && 'invisible')}>

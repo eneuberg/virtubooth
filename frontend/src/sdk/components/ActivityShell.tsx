@@ -67,7 +67,7 @@ function useReserve(hold: boolean) {
   useLayoutEffect(() => {
     holding.current = hold;
   }, [hold]);
-  const root = useRef<HTMLDivElement | null>(null);
+  const root = useRef<HTMLElement | null>(null);
   const header = useRef<HTMLElement | null>(null);
   const film = useRef<HTMLDivElement | null>(null);
   const lower = useRef<HTMLDivElement | null>(null);
@@ -133,7 +133,8 @@ export function ActivityShell({
 }: ActivityShellProps) {
   const { root, header, film, lower, lowerInner } = useReserve(holdLayout);
   return (
-    <div
+    // the page's main landmark: an activity is the whole page
+    <main
       ref={root}
       data-surface="dark"
       {...rootProps}
@@ -228,6 +229,6 @@ export function ActivityShell({
 
       <ToastSlot className="bottom-[calc(7.25rem+env(safe-area-inset-bottom))] landscape-phone:right-4 landscape-phone:left-auto landscape-phone:mx-0 landscape-phone:w-[min(100%-2rem,26rem)] fine:bottom-[calc(8.5rem+env(safe-area-inset-bottom))]" />
       {children}
-    </div>
+    </main>
   );
 }

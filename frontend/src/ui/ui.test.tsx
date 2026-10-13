@@ -30,6 +30,11 @@ describe('UiProvider', () => {
   });
 });
 
+/** React Aria's live-region nodes that announce an element by reference */
+function announcementsByReference(): number {
+  return document.querySelectorAll('[data-live-announcer] [aria-labelledby]').length;
+}
+
 describe('Button', () => {
   it('keeps its label (and width) while pending and announces the pending text', () => {
     render(
@@ -45,6 +50,15 @@ describe('Button', () => {
   it('passes no default react-aria class through', () => {
     render(<Button>Speichern</Button>);
     expect(screen.getByRole('button').className).not.toMatch(/react-aria-/);
+  });
+
+  it('takes its pending announcement along when it goes away (no reference to nothing)', async () => {
+    const view = render(<Button isPending={false}>Los</Button>);
+    act(() => screen.getByRole('button').focus());
+    view.rerender(<Button isPending>Los</Button>);
+    await vi.waitFor(() => expect(announcementsByReference()).toBe(1));
+    view.unmount();
+    await vi.waitFor(() => expect(announcementsByReference()).toBe(0));
   });
 });
 
