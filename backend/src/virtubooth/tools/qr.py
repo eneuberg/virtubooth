@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import argparse
 import html
+import io
 import os
 from collections.abc import Sequence
 from dataclasses import dataclass
@@ -98,15 +99,22 @@ def make_qr(url: str) -> segno.QRCode:
     return segno.make_qr(url, error=ERROR_LEVEL, boost_error=False)
 
 
+def render_codes(card: Card) -> list[tuple[str, bytes]]:
+    """[(file name, content)]: the card's code as qr-<key>.svg and qr-<key>.png."""
+    qr = make_qr(card.url)
+    svg, png = io.BytesIO(), io.BytesIO()
+    qr.save(svg, kind="svg", scale=10, border=4, dark="#000", light="#fff")
+    modules = qr.symbol_size(scale=1, border=4)[0]
+    qr.save(png, kind="png", scale=-(-PNG_MIN_PX // modules), border=4)
+    return [(f"qr-{card.key}.svg", svg.getvalue()), (f"qr-{card.key}.png", png.getvalue())]
+
+
 def write_codes(cards: Sequence[Card], out_dir: Path) -> list[Path]:
     written = []
     for card in cards:
-        qr = make_qr(card.url)
-        svg, png = out_dir / f"qr-{card.key}.svg", out_dir / f"qr-{card.key}.png"
-        qr.save(str(svg), kind="svg", scale=10, border=4, dark="#000", light="#fff")
-        modules = qr.symbol_size(scale=1, border=4)[0]
-        qr.save(str(png), kind="png", scale=-(-PNG_MIN_PX // modules), border=4)
-        written += [svg, png]
+        for name, data in render_codes(card):
+            (out_dir / name).write_bytes(data)
+            written.append(out_dir / name)
     return written
 
 

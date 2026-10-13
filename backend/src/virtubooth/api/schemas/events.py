@@ -14,6 +14,7 @@ from typing import Annotated, Literal
 from pydantic import BaseModel, Field, RootModel
 
 from .admin import AdminPhoto, AdminUser, PauseState, StopState
+from .exports import ExportJob
 
 EventId = Annotated[str, Field(description="`<epoch>-<n>`: the SSE `id:` line.")]
 
@@ -66,6 +67,19 @@ class UploadPauseData(BaseModel):
     upload_pause: PauseState
     restored: list[int]
     kept: list[int]
+
+
+class ExportUpdatedData(BaseModel):
+    job: ExportJob
+
+
+class ExportDeletedData(BaseModel):
+    id: str
+
+
+class InstagramDoneData(BaseModel):
+    handle: str
+    done: bool
 
 
 class StreamResyncData(BaseModel):
@@ -149,6 +163,29 @@ class UploadPauseEvent(BaseModel):
     data: UploadPauseData
 
 
+class ExportUpdatedEvent(BaseModel):
+    """A job was created or changed status or progress (progress at most every
+    5 % or second)."""
+
+    type: Literal["export.updated"]
+    id: EventId
+    data: ExportUpdatedData
+
+
+class ExportDeletedEvent(BaseModel):
+    """A job and its file are gone (deleted by an admin, or pruned)."""
+
+    type: Literal["export.deleted"]
+    id: EventId
+    data: ExportDeletedData
+
+
+class InstagramDoneEvent(BaseModel):
+    type: Literal["instagram.done"]
+    id: EventId
+    data: InstagramDoneData
+
+
 class StreamResyncEvent(BaseModel):
     """Not from the bus: sent first on a reconnect the history can't serve."""
 
@@ -169,6 +206,9 @@ AnyAdminEvent = Annotated[
     | UploadsChangedEvent
     | UploadStopEvent
     | UploadPauseEvent
+    | ExportUpdatedEvent
+    | ExportDeletedEvent
+    | InstagramDoneEvent
     | StreamResyncEvent,
     Field(discriminator="type"),
 ]
@@ -191,4 +231,7 @@ ADMIN_EVENT_TYPES: tuple[str, ...] = (
     "user.uploads_changed",
     "settings.upload_stop",
     "settings.upload_pause",
+    "export.updated",
+    "export.deleted",
+    "instagram.done",
 )

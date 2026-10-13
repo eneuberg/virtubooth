@@ -14,7 +14,12 @@ from virtubooth.__main__ import main
 from virtubooth.api.schemas.events import ADMIN_EVENT_TYPES
 from virtubooth.core.errors import ErrorCode
 
-BINARY = {("get", "/media/{public_id}")}  # a JPEG, documented as binary
+# files, documented as binary: (method, path) -> media types
+BINARY = {
+    ("get", "/media/{public_id}"): {"image/jpeg"},
+    ("get", "/api/admin/exports/{job_id}/download"): {"application/zip", "video/mp4"},
+    ("get", "/api/admin/instagram/{handle}/photos.zip"): {"application/zip"},
+}
 
 
 @pytest.fixture(scope="module")
@@ -58,7 +63,9 @@ def test_every_route_has_a_response_schema(exported):
             for code, response in ok.items():
                 content = response.get("content", {})
                 if (method, path) in BINARY:
-                    assert "image/jpeg" in content
+                    assert set(content) == BINARY[method, path], (method, path)
+                    for media in content.values():
+                        assert media["schema"] == {"type": "string", "format": "binary"}
                     continue
                 if path == "/api/admin/events":
                     item = content["text/event-stream"]["itemSchema"]
@@ -114,6 +121,22 @@ def test_new_endpoints_are_documented(exported):
     me_photos = schema["paths"]["/api/me/photos"]["get"]["responses"]["200"]
     assert me_photos["content"]["application/json"]["schema"]["$ref"].endswith("/MyPhotosOut")
     assert "/api/x/booth/filters" in schema["paths"]
+    # wave 2: exports and the Instagram board
+    paths = schema["paths"]
+    create = paths["/api/admin/exports"]["post"]
+    assert {"200", "202", "409"} <= set(create["responses"])
+    assert create["requestBody"]["content"]["application/json"]["schema"]["$ref"].endswith(
+        "/ExportIn"
+    )
+    export_in = schema["components"]["schemas"]["ExportIn"]
+    assert set(export_in["discriminator"]["mapping"]) == {"archive", "timelapse", "qr"}
+    assert "409" in paths["/api/admin/exports/{job_id}"]["delete"]["responses"]
+    assert "post" in paths["/api/admin/instagram/{handle}/done"]
+    handle = schema["components"]["schemas"]["InstagramHandleOut"]
+    assert "done" in handle["required"]
+    job = schema["components"]["schemas"]["ExportJob"]
+    assert {"id", "kind", "status", "progress", "created_at", "started_at", "finished_at",
+            "error", "file_name", "bytes", "options", "download_url"} <= set(job["required"])  # fmt: skip
     # pages are not part of the API
     assert not any(p.startswith(("/admin", "/assets", "/x/")) for p in schema["paths"])
     assert "/" not in schema["paths"]

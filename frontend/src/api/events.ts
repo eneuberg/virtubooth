@@ -6,7 +6,6 @@
  * on CLOSED, resync on visibilitychange) belongs to wave-2's `useAdminEvents()` hook.
  */
 import type { components } from './schema.gen';
-import type { ExportJob } from './types';
 
 type SchemaEvent = components['schemas']['AdminEvent'];
 /** The schema variant without its required `id`: `stream.resync` has none on the wire. */
@@ -17,10 +16,7 @@ type WireEvent<E> = E extends { type: infer T; data: infer D } ? { type: T; data
  * `id` the SSE id (`<epoch>-<n>`, absent on `stream.resync`). Typed from the OpenAPI
  * union (contracts/api.md §4).
  */
-export type AdminEvent =
-  | WireEvent<SchemaEvent>
-  // TODO(wave 2 merge): comes from the schema once BE-features' exports land.
-  | { type: 'export.updated'; data: { job: ExportJob }; id?: string };
+export type AdminEvent = WireEvent<SchemaEvent>;
 
 export type AdminEventType = AdminEvent['type'];
 
@@ -41,6 +37,8 @@ export const ADMIN_EVENT_TYPES = [
   'settings.upload_stop',
   'settings.upload_pause',
   'export.updated',
+  'export.deleted',
+  'instagram.done',
   'stream.resync',
 ] as const satisfies readonly AdminEventType[];
 

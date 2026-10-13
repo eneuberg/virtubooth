@@ -39,11 +39,11 @@ unless `VB_DEV=1`.
 | `db/` | `Database` (one connection, nested transactions, on-commit hooks), `migrations.py` (append only) |
 | `domain/` | dataclasses (`User`, `Photo`, ...), constants, pseudonyms |
 | `repositories/` | one per aggregate (users, photos, bans, app_settings, admin_sessions, audit) + admin read models; SQL only |
-| `services/` | identity, uploads, moderation, upload controls, admin auth, admin views, typed events |
+| `services/` | identity, uploads, moderation, upload controls, admin auth, admin views, typed events, export jobs (one worker thread, `export_runners.py`), Instagram board |
 | `api/` | `deps.py` (Annotated dependencies), `schemas/` (pydantic In/Out, events), `routers/` |
 | `web/` | serving `VB_WEB_DIR`: HTML entries, gate/404, `/assets` |
 | `extensions/` | `sdk.py` (Extension, UploadPolicy, discovery), `beer/`, `booth/` (filters.json) |
-| `tools/` | qr, timelapse, export (`python -m virtubooth.tools.<x>`) |
+| `tools/` | qr, timelapse, export (`python -m virtubooth.tools.<x>`); the admin's export jobs reuse their functions |
 
 Rules of thumb:
 

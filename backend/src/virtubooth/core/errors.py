@@ -35,6 +35,11 @@ ErrorCode = Literal[
     "invalid_cursor",
     "no_fingerprint",
     "restore_required",
+    # admin exports
+    "export_not_ready",
+    "export_running",
+    "base_url_required",
+    "invalid_base_url",
     # request guards
     "bad_origin",
     "length_required",
