@@ -385,6 +385,34 @@ def admin_page(context: BrowserContext, live: LiveServer) -> Page:
     return p
 
 
+# ------------------------------------------- guests without the UI (shared)
+
+
+def join_via_api(
+    page: Page, live: LiveServer, instagram: str | None = None, fp_hash: str | None = None
+) -> dict[str, Any]:
+    """Scan the QR code and join through the API (no join sheet): for tests of
+    other areas that need a joined guest. Leaves the page on "/" (reloaded),
+    returns the JSON answer of POST /api/join. Each call with a fresh context is
+    a new guest; `fp_hash` (16..64 hex) sets the device-trait hash."""
+    page.goto(live.entry("/"))
+    answer: dict[str, Any] = page.evaluate(
+        """async ([instagram, fp]) => {
+            const id = await (await fetch('/api/identify', {method: 'POST',
+                headers: {'Content-Type': 'application/json'}, body: JSON.stringify({fp: {hash: fp}})})).json();
+            const version = id.consent ? id.consent.version : null;
+            const res = await fetch('/api/join', {method: 'POST', headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({accept: true, version, instagram, fp: {hash: fp}})});
+            return {status: res.status, ...(await res.json())};
+        }""",
+        [instagram, fp_hash or os.urandom(16).hex()],
+    )
+    assert answer["status"] in (200, 201), answer
+    page.reload()
+    wait_until_ready(page)
+    return answer
+
+
 # ------------------------------------------------- LEGACY (old markup)
 # TODO(wave 2, GP): port to the new join sheet; kept so ported tests have a start.
 
