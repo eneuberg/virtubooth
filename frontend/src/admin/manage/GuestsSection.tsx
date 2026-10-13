@@ -167,6 +167,7 @@ export function GuestsSection() {
         columns={COLUMNS}
         rows={rows}
         getRowId={(u) => u.id}
+        rowProps={(u) => ({ 'data-testid': 'guest-row', 'data-id': u.id, 'data-banned': u.banned })}
         sortDescriptor={sort}
         onSortChange={setSort}
         onRowAction={(id) => navigate(`/user?id=${String(id)}`)}

@@ -2,7 +2,10 @@ import { act, fireEvent, render, screen, within } from '@testing-library/react';
 import { useLocale } from 'react-aria-components';
 import { describe, expect, it, vi } from 'vitest';
 import { Button } from './Button';
+import { ConnectionIndicator } from './ConnectionIndicator';
+import { DataTable } from './DataTable';
 import { FilmEdge } from './FilmEdge';
+import { HelpDisclosure } from './HelpDisclosure';
 import { Notice } from './Notice';
 import { PhotoTile } from './PhotoTile';
 import { SegmentedControl } from './SegmentedControl';
@@ -144,6 +147,69 @@ describe('FilmEdge', () => {
     render(<FilmEdge frame={19} state="uploading" progress={0.4} />);
     const bar = screen.getByRole('progressbar', { name: 'Wird hochgeladen…' });
     expect(bar.getAttribute('aria-valuenow')).toBe('40');
+  });
+
+  it('puts data-* props on its root (no wrapper needed); a caller data-state wins', () => {
+    render(
+      <FilmEdge frame={2} state="error" data-testid="upload-status" data-state="failed" data-total={7} />,
+    );
+    const root = screen.getByTestId('upload-status');
+    expect(root.classList.contains('vb-film')).toBe(true);
+    expect(root.dataset['state']).toBe('failed');
+    expect(root.dataset['total']).toBe('7');
+  });
+});
+
+describe('ConnectionIndicator', () => {
+  it('takes a test id and data-* on the output itself', () => {
+    render(<ConnectionIndicator status="polling" data-testid="conn" data-state="polling" />);
+    const el = screen.getByTestId('conn');
+    expect(el.tagName).toBe('OUTPUT');
+    expect(el.dataset['status']).toBe('polling');
+    expect(el.textContent).toBe('nur Abfrage');
+  });
+});
+
+describe('DataTable', () => {
+  it('gives rows (and the scroll box) data-* attributes', () => {
+    const rows = [
+      { id: 1, name: 'Ente #1' },
+      { id: 2, name: 'Giraffe #2' },
+    ];
+    render(
+      <DataTable
+        aria-label="Gäste"
+        data-testid="guests"
+        columns={[{ id: 'name', label: 'Name', isRowHeader: true, render: (r) => r.name }]}
+        rows={rows}
+        getRowId={(r) => r.id}
+        rowProps={(r) => ({ 'data-testid': 'guest-row', 'data-id': r.id })}
+      />,
+    );
+    const box = screen.getByTestId('guests');
+    const found = within(box).getAllByTestId('guest-row');
+    expect(found.map((r) => r.dataset['id'])).toEqual(['1', '2']);
+    expect(found[0]?.getAttribute('role')).toBe('row');
+  });
+});
+
+describe('HelpDisclosure', () => {
+  it('wraps the trigger in a heading by default', () => {
+    render(<HelpDisclosure summary="Was passiert dabei?">Text</HelpDisclosure>);
+    expect(screen.getByRole('heading', { level: 3, name: 'Was passiert dabei?' })).toBeTruthy();
+  });
+
+  it('headingLevel false: a plain toggle, no heading', () => {
+    render(
+      <HelpDisclosure summary="Mehr dazu" headingLevel={false}>
+        Details
+      </HelpDisclosure>,
+    );
+    expect(screen.queryByRole('heading')).toBeNull();
+    const toggle = screen.getByRole('button', { name: 'Mehr dazu' });
+    expect(toggle.getAttribute('aria-expanded')).toBe('false');
+    fireEvent.click(toggle);
+    expect(toggle.getAttribute('aria-expanded')).toBe('true');
   });
 });
 

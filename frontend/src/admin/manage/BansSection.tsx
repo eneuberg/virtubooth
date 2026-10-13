@@ -193,6 +193,11 @@ export function BansSection() {
           columns={userColumns}
           rows={users.data ?? []}
           getRowId={(u) => u.id}
+          rowProps={(u) => ({
+            'data-testid': 'banned-user-row',
+            'data-id': u.id,
+            'data-auto': u.auto_banned,
+          })}
           isLoading={users.isPending}
           maxHeightClass="max-h-none"
           emptyState={
@@ -223,6 +228,7 @@ export function BansSection() {
           columns={banColumns}
           rows={bans.data ?? []}
           getRowId={(b) => b.fp_hash}
+          rowProps={() => ({ 'data-testid': 'fp-ban-row' })}
           isLoading={bans.isPending}
           maxHeightClass="max-h-none"
           emptyState={

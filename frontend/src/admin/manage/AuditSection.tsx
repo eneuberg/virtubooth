@@ -82,21 +82,22 @@ export function AuditSection() {
           Wer hat wann was gemacht. Jede Admin-Sitzung hat eine eigene Kennung.
         </p>
       </header>
-      <div data-testid="audit" className="min-w-0">
-        <DataTable
-          aria-label="Protokoll"
-          columns={COLUMNS}
-          rows={entries}
-          getRowId={(e) => e.id}
-          isLoading={audit.isPending}
-          maxHeightClass="max-h-none"
-          emptyState={
-            <div className="px-4">
-              <EmptyState icon={ScrollText} title="Noch nichts passiert" />
-            </div>
-          }
-        />
-      </div>
+      <DataTable
+        data-testid="audit"
+        aria-label="Protokoll"
+        columns={COLUMNS}
+        rows={entries}
+        getRowId={(e) => e.id}
+        rowProps={(e) => ({ 'data-testid': 'audit-row', 'data-action': e.action })}
+        isLoading={audit.isPending}
+        maxHeightClass="max-h-none"
+        className="min-w-0"
+        emptyState={
+          <div className="px-4">
+            <EmptyState icon={ScrollText} title="Noch nichts passiert" />
+          </div>
+        }
+      />
       {audit.hasNextPage ? (
         <div className="grid place-items-center">
           <Button

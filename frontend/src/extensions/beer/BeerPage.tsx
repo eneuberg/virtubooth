@@ -243,15 +243,15 @@ export default function BeerPage({ id }: ExtensionPageProps) {
   let film;
   if (!shot) {
     film = (
-      <div data-testid="counter" data-total={stats.total ?? ''}>
-        <FilmEdge
-          label="Nächstes Bier"
-          {...(next === undefined ? {} : { frame: next })}
-          end={<>Ziel {formatCount(stats.goal)}</>}
-          state={outbox.pending > 0 ? 'waiting' : 'idle'}
-          advanceKey={stats.total ?? 0}
-        />
-      </div>
+      <FilmEdge
+        data-testid="counter"
+        data-total={stats.total ?? ''}
+        label="Nächstes Bier"
+        {...(next === undefined ? {} : { frame: next })}
+        end={<>Ziel {formatCount(stats.goal)}</>}
+        state={outbox.pending > 0 ? 'waiting' : 'idle'}
+        advanceKey={stats.total ?? 0}
+      />
     );
   } else {
     const filmState: FilmEdgeState =
@@ -277,17 +277,18 @@ export default function BeerPage({ id }: ExtensionPageProps) {
         <span className="font-semibold text-danger">Nicht hochgeladen</span>
       );
     film = (
-      <div data-testid="upload-status" data-state={shot.status}>
-        <FilmEdge
-          label="Bier"
-          {...(number === null ? {} : { frame: number })}
-          end={end}
-          state={filmState}
-          progress={shot.progress}
-          progressLabel={t.uploading}
-          {...(number === null ? {} : { advanceKey: number })}
-        />
-      </div>
+      // data-state: the shot's upload status (uploading, done, waiting, held, failed)
+      <FilmEdge
+        data-testid="upload-status"
+        data-state={shot.status}
+        label="Bier"
+        {...(number === null ? {} : { frame: number })}
+        end={end}
+        state={filmState}
+        progress={shot.progress}
+        progressLabel={t.uploading}
+        {...(number === null ? {} : { advanceKey: number })}
+      />
     );
   }
 

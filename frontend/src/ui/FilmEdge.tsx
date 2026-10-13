@@ -1,10 +1,12 @@
 import { useId, type Key, type ReactNode } from 'react';
 import { formatFrame } from '@/lib/format';
 import { cx } from './cx';
+import { dataAttributes, type DataAttributes } from './dataAttributes';
 
 export type FilmEdgeState = 'idle' | 'uploading' | 'done' | 'waiting' | 'error';
 
-export interface FilmEdgeProps {
+/** `data-*` props land on the root (a caller's `data-state` replaces the film state's). */
+export interface FilmEdgeProps extends DataAttributes {
   /** small text before the frame number: "Nächstes Bier", "Foto" */
   label?: ReactNode;
   /** the frame number, printed in Doto (numbers are zero-padded to 4 digits) */
@@ -96,6 +98,7 @@ export function FilmEdge({
   size = 'md',
   advanceKey,
   className,
+  ...rest
 }: FilmEdgeProps) {
   const id = useId().replace(/:/g, '');
   const clamped = Math.min(1, Math.max(0, progress));
@@ -112,7 +115,12 @@ export function FilmEdge({
         }
       : {};
   return (
-    <div data-state={state} className={cx('vb-film bg-film text-papier', className)} {...progressProps}>
+    <div
+      data-state={state}
+      className={cx('vb-film bg-film text-papier', className)}
+      {...progressProps}
+      {...dataAttributes(rest)}
+    >
       {holes !== 'bottom' ? (
         <div className="pt-1">
           <Holes

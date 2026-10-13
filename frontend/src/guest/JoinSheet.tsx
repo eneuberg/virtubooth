@@ -107,7 +107,7 @@ export function JoinSheet({ join, destination }: JoinSheetProps) {
           </p>
         ))}
         {more.length ? (
-          <HelpDisclosure summary="Mehr dazu">
+          <HelpDisclosure summary="Mehr dazu" headingLevel={false}>
             {more.map((p) => (
               <p key={p}>{p}</p>
             ))}

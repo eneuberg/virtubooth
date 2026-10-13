@@ -11,6 +11,7 @@ import {
   type SortDescriptor,
 } from 'react-aria-components';
 import { cx } from './cx';
+import { dataAttributes, type DataAttributes } from './dataAttributes';
 
 export interface DataColumn<T> {
   id: string;
@@ -27,7 +28,8 @@ export interface DataColumn<T> {
   hideBelow?: 'sm' | 'md' | 'lg';
 }
 
-export interface DataTableProps<T> {
+/** `data-*` props land on the scroll box around the table. */
+export interface DataTableProps<T> extends DataAttributes {
   'aria-label': string;
   columns: ReadonlyArray<DataColumn<T>>;
   rows: ReadonlyArray<T>;
@@ -36,6 +38,8 @@ export interface DataTableProps<T> {
   onSortChange?: (descriptor: SortDescriptor) => void;
   /** row → detail page (Gäste → user page) */
   onRowAction?: (id: Key) => void;
+  /** `data-*` attributes per row (test ids, states): `(u) => ({ 'data-testid': 'guest-row' })` */
+  rowProps?: (row: T) => DataAttributes;
   /** shown when there are no rows and nothing is loading */
   emptyState?: ReactNode;
   isLoading?: boolean;
@@ -60,6 +64,7 @@ export function DataTable<T>({
   sortDescriptor,
   onSortChange,
   onRowAction,
+  rowProps,
   emptyState,
   isLoading = false,
   maxHeightClass = 'max-h-[75dvh]',
@@ -69,6 +74,7 @@ export function DataTable<T>({
   const skeleton = isLoading && rows.length === 0;
   return (
     <div
+      {...dataAttributes(rest)}
       aria-busy={isLoading || undefined}
       className={cx(
         'overflow-auto overscroll-x-contain rounded-control border border-line bg-surface-raised scroll-shadows-x',
@@ -138,6 +144,7 @@ export function DataTable<T>({
               <Row
                 key={String(id)}
                 id={id}
+                {...rowProps?.(row)}
                 className={cx(
                   'outline-none focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-focus',
                   onRowAction && 'cursor-pointer hover:bg-surface-hover',

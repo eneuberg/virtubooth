@@ -5,8 +5,11 @@ import { useConnection } from '../store/connection';
 export function ConnectionBadge({ className }: { className?: string }) {
   const status = useConnection((s) => s.status);
   return (
-    <span data-testid="conn" data-state={status} className={className}>
-      <ConnectionIndicator status={status} />
-    </span>
+    <ConnectionIndicator
+      status={status}
+      data-testid="conn"
+      data-state={status}
+      {...(className ? { className } : {})}
+    />
   );
 }
