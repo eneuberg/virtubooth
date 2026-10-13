@@ -34,7 +34,15 @@ if [ "${VB_SMOKE_BUILD:-1}" = 1 ]; then
   docker build -t "$IMAGE" "$ROOT"
 fi
 size=$(docker image inspect -f '{{.Size}}' "$IMAGE")
-echo "== image $IMAGE: $((size / 1000000)) MB"
+echo "== image $IMAGE: $((size / 1000000)) MB (compressed)"
+# the image itself: unprivileged, no dev mode baked in (security review SEC-08)
+[ "$(docker image inspect -f '{{.Config.User}}' "$IMAGE")" = 10001:10001 ] \
+  || { echo "FAIL  the image must run as USER 10001:10001" >&2; exit 1; }
+if docker image inspect -f '{{range .Config.Env}}{{println .}}{{end}}' "$IMAGE" | grep -q '^VB_DEV='; then
+  echo "FAIL  the image sets VB_DEV" >&2
+  exit 1
+fi
+echo "  ok  image: USER 10001:10001, no VB_DEV"
 
 # fresh secrets; the QR codes point at this test instance
 docker run --rm "$IMAGE" virtubooth gen-env \
@@ -65,6 +73,11 @@ done
 echo "  ok  container healthy (Docker HEALTHCHECK)"
 [ "$(docker exec "$NAME" id -u)" = 10001 ] || { echo "FAIL  not running as uid 10001" >&2; exit 1; }
 echo "  ok  runs as uid 10001 on a read-only root filesystem"
+[ "$(docker exec "$NAME" ls -A /app)" = web ] \
+  || { echo "FAIL  /app holds more than the frontend build" >&2; exit 1; }
+docker exec "$NAME" sh -c 'test -z "$(find /app /opt/venv -name .env -o -name "*.env" | head -1)"' \
+  || { echo "FAIL  an .env file ended up in the image" >&2; exit 1; }
+echo "  ok  /app holds only the frontend build; no .env in the image"
 
 shots=()
 if [ -n "${VB_SMOKE_SCREENSHOTS:-}" ]; then shots=(--screenshots "$VB_SMOKE_SCREENSHOTS"); fi

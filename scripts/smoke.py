@@ -20,7 +20,9 @@ import http.cookiejar
 import io
 import json
 import re
+import sqlite3
 import sys
+import tempfile
 import time
 import urllib.parse
 import urllib.request
@@ -180,7 +182,8 @@ def check_pages(base: str, token: str) -> Client:
     expect(res.status == 303, f"/?t=: {res.status}")
     expect(res.header("Location") == "/", f"/?t= redirects to {res.header('Location')!r}")
     expect(guest.cookie("vb_access"), "no vb_access cookie after the token entry")
-    ok("/?t=<token>: 303 to / with the vb_access cookie")
+    expect("no-store" in res.header("Cache-Control"), "the token redirect must be no-store")
+    ok("/?t=<token>: 303 to / with the vb_access cookie, no-store")
     expect(Client(base).get("/?t=wrong-token-0123456789").status == 404, "a wrong token got in")
     ok("/?t=<wrong>: 404")
 
@@ -188,7 +191,8 @@ def check_pages(base: str, token: str) -> Client:
     html = res.text()
     expect(res.status == 200, f"/ with access: {res.status}")
     expect(res.header("Content-Type").startswith("text/html"), "index is not HTML")
-    expect("no-cache" in res.header("Cache-Control"), "HTML must be no-cache")
+    cache = res.header("Cache-Control")
+    expect("private" in cache and "no-cache" in cache, f"HTML must be private, no-cache: {cache!r}")
     expect('<script src="/boot-check.js" defer' in html, "boot-check.js missing")
     assets = re.findall(r'(?:src|href)="(/assets/[^"]+)"', html)
     expect(
@@ -217,6 +221,12 @@ def check_pages(base: str, token: str) -> Client:
     ok("Accept-Encoding: br serves the .br sibling (gzip too), Vary set")
     expect(guest.get("/.vite/manifest.json").status == 404, "the Vite manifest is served")
     ok("/.vite/manifest.json is not served")
+    res = anon.get("/boot-check.js")
+    expect(res.status == 200 and "max-age=300" in res.header("Cache-Control"), "boot-check.js")
+    for client, name in ((anon, "without"), (guest, "with")):
+        for path in ("/index.html", "/index.html.br", "/admin.html.gz", "/gate.html.br"):
+            expect(client.get(path).status == 404, f"{path} is served {name} access")
+    ok("root files are an allow-list: boot-check.js public, the HTML and its .br/.gz are 404")
 
     for path in ("/x/beer/", "/x/booth/"):
         res = guest.get(path)
@@ -356,11 +366,31 @@ def check_admin(base: str, password: str, photos: list[dict[str, Any]]) -> None:
             expect(res.header("Content-Type") == "video/mp4", res.header("Content-Type"))
             expect(res.body[4:8] == b"ftyp", "the timelapse is not an MP4")
         else:
-            names = zipfile.ZipFile(io.BytesIO(res.body)).namelist()
+            archive = zipfile.ZipFile(io.BytesIO(res.body))
+            names = archive.namelist()
             want = ("manifest.json", "virtubooth.db") if kind == "archive" else ("qr-sheet.html",)
             for name in want:
                 expect(any(n.endswith("/" + name) for n in names), f"{kind} zip lacks {name}")
+            if kind == "archive":
+                check_db_copy(archive.read(next(n for n in names if n.endswith("/virtubooth.db"))))
         ok(f"{kind} export done and downloaded: {job['file_name']} ({job['bytes']:,} bytes)")
+
+
+def check_db_copy(data: bytes) -> None:
+    """The archive's database copy: the guests and photos, no admin sessions or jobs."""
+    with tempfile.TemporaryDirectory() as tmp:
+        path = Path(tmp) / "copy.db"
+        path.write_bytes(data)
+        db = sqlite3.connect(path)
+        try:
+            count = {
+                table: db.execute(f"SELECT count(*) FROM {table}").fetchone()[0]
+                for table in ("users", "photos", "admin_sessions", "export_jobs")
+            }
+        finally:
+            db.close()
+    expect(count["users"] >= 1 and count["photos"] >= 2, f"the DB copy lacks data: {count}")
+    expect(count["admin_sessions"] == 0 and count["export_jobs"] == 0, f"DB copy: {count}")
 
 
 def take_screenshots(base: str, token: str, password: str, out: Path) -> None:
