@@ -6,7 +6,7 @@ Serves frontend/dist on 127.0.0.1:<port> with a fresh data dir, 14 guests, ~40 p
 (the synthetic mockup images, scaled to 1080x1440), hidden photos, a banned guest with a
 banned device trait plus an automatically banned twin, a paused guest, the new-guest
 pause with one affected guest, two Instagram names marked done and a slow export job
-(it runs for about a minute, so its progress can be seen). Admin password: "admin-admin-1".
+(it runs for about five minutes, so its progress can be seen). Admin password: "admin-admin-1".
 Runs until Ctrl-C; prints SEEDED when ready.
 """
 
@@ -27,6 +27,7 @@ import uvicorn
 from PIL import Image
 
 from virtubooth.app import create_app
+from virtubooth.core.ratelimit import RateLimiter
 from virtubooth.settings import Settings
 
 ROOT = Path(__file__).resolve().parents[3]
@@ -120,6 +121,9 @@ def main() -> None:
     while not server.started:
         time.sleep(0.05)
     core = app.state.core
+    # screenshot runs log in and out a lot
+    core.limits.login_ip = RateLimiter(10_000, 60)
+    core.limits.login_ip_hourly = RateLimiter(10_000, 3600)
     base = f"http://127.0.0.1:{args.port}"
 
     beer = [photo_bytes(f"beer-{i}.jpg") for i in range(1, 5)]
@@ -162,8 +166,8 @@ def main() -> None:
     original = svc.runners["archive"]
 
     def slow(ctx):  # type: ignore[no-untyped-def]
-        for step in range(60):
-            ctx.progress(step / 100)
+        for step in range(300):
+            ctx.progress(0.2 + step / 600)
             time.sleep(1)
         original(ctx)
 

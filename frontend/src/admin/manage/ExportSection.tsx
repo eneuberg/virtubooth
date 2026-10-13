@@ -74,7 +74,9 @@ function JobStatus({ job }: { job: ExportJob }) {
     case 'done':
       return (
         <span className="text-sm text-ink-muted tabular">
-          <span translate="no">{job.file_name}</span>
+          <span translate="no" className="break-all">
+            {job.file_name}
+          </span>
           {job.bytes !== null ? `, ${formatBytes(job.bytes)}` : ''}
         </span>
       );
@@ -182,47 +184,49 @@ export function ExportSection() {
                 data-testid="export-job"
                 data-status={job.status}
                 data-kind={job.kind}
-                className="flex flex-wrap items-center gap-x-4 gap-y-2 border-b border-line py-3"
+                className="grid gap-x-4 gap-y-2 border-b border-line py-3 sm:flex sm:items-center"
               >
                 <div className="grid min-w-0 flex-1 gap-1">
                   <span className="font-semibold">{jobTitle(job)}</span>
                   <JobStatus job={job} />
                 </div>
-                {job.status === 'done' && job.download_url ? (
-                  <LinkButton
-                    size="xs"
-                    variant="primary"
-                    icon={Download}
-                    href={job.download_url}
-                    download={job.file_name ?? ''}
-                    data-testid="export-download"
-                  >
-                    Herunterladen
-                  </LinkButton>
-                ) : null}
-                {job.status === 'queued' ? (
-                  <Button
-                    size="xs"
-                    variant="quiet"
-                    icon={X}
-                    onPress={() => void cancel(job)}
-                    data-testid="export-cancel"
-                  >
-                    Abbrechen
-                  </Button>
-                ) : job.status === 'running' ? null : (
-                  <IconButton
-                    label={`${KIND_LABEL[job.kind]} löschen`}
-                    icon={Trash2}
-                    onPress={() => setDeleting(job)}
-                    data-testid="export-delete"
-                  />
-                )}
-                {job.finished_at ? (
-                  <time dateTime={job.finished_at} className="w-full text-xs text-ink-muted sm:w-auto">
-                    fertig {formatRelative(job.finished_at)}
-                  </time>
-                ) : null}
+                <div className="flex items-center gap-2">
+                  {job.status === 'done' && job.download_url ? (
+                    <LinkButton
+                      size="xs"
+                      variant="primary"
+                      icon={Download}
+                      href={job.download_url}
+                      download={job.file_name ?? ''}
+                      data-testid="export-download"
+                    >
+                      Herunterladen
+                    </LinkButton>
+                  ) : null}
+                  {job.status === 'queued' ? (
+                    <Button
+                      size="xs"
+                      variant="quiet"
+                      icon={X}
+                      onPress={() => void cancel(job)}
+                      data-testid="export-cancel"
+                    >
+                      Abbrechen
+                    </Button>
+                  ) : job.status === 'running' ? null : (
+                    <IconButton
+                      label={`${KIND_LABEL[job.kind]} löschen`}
+                      icon={Trash2}
+                      onPress={() => setDeleting(job)}
+                      data-testid="export-delete"
+                    />
+                  )}
+                  {job.finished_at ? (
+                    <time dateTime={job.finished_at} className="ml-auto text-xs text-ink-muted sm:ml-2">
+                      fertig {formatRelative(job.finished_at)}
+                    </time>
+                  ) : null}
+                </div>
               </li>
             ))}
           </ul>

@@ -7,6 +7,7 @@ import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { isApiError } from '@/api/client';
 import { msg } from '@/lib/messages.de';
 import { Button } from '@/ui/Button';
+import { FilmEdge } from '@/ui/FilmEdge';
 import { TextField } from '@/ui/TextField';
 import { useMediaQuery } from '../lib/browser';
 import { safeNext } from '../lib/nav';
@@ -71,10 +72,17 @@ export function LoginPage() {
 
   return (
     <main className="mx-auto grid min-h-dvh w-full max-w-[24rem] content-center gap-6 px-6 py-10">
-      <div className="grid gap-3">
-        <LockKeyhole aria-hidden="true" className="size-8 text-accent" strokeWidth={1.75} />
-        <h1 className="text-2xl font-bold">Admin</h1>
-        <p className="text-md text-ink-muted">Moderation für die Party: Fotos ausblenden, Gäste verwalten.</p>
+      <div className="grid gap-4">
+        <FilmEdge label="Kontaktbogen" end="nur für Gastgeber" holes="both" className="-mx-6 sm:mx-0" />
+        <div className="grid gap-2">
+          <h1 className="flex items-center gap-2.5 text-2xl font-bold">
+            <LockKeyhole aria-hidden="true" className="size-7 text-accent" strokeWidth={2} />
+            Admin
+          </h1>
+          <p className="text-md text-ink-muted">
+            Moderation für die Party: Fotos ausblenden, Gäste verwalten.
+          </p>
+        </div>
       </div>
       <form noValidate onSubmit={(e) => void submit(e)} className="grid gap-4" data-testid="login-form">
         <TextField

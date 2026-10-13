@@ -61,7 +61,7 @@ function LiveHeader({ desktop }: { desktop: boolean }) {
           <h1 className="text-lg font-bold">Live</h1>
           <ConnectionBadge />
         </div>
-        <p className="truncate text-sm text-ink-muted tabular" aria-live="off">
+        <p className="truncate text-sm text-ink-muted tabular max-[380px]:text-xs" aria-live="off">
           {stats ? (
             <>
               <span data-testid="stat-photos">{formatNumber(stats.photos)}</span>

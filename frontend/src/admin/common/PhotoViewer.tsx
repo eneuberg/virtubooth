@@ -24,28 +24,35 @@ export interface PhotoViewerProps {
 
 function ViewerImage({ photo }: { photo: AdminPhoto }) {
   const [loaded, setLoaded] = useState(false);
+  // a 3:4 box as tall as the stage (flex: its percentage height resolves), the photo
+  // contained in it, the grease X on top of the photo
   return (
-    <div className="relative grid size-full place-items-center">
-      <img
-        src={photo.thumb_url}
-        alt=""
-        width={photo.width}
-        height={photo.height}
-        className={cx('absolute max-h-full max-w-full object-contain', loaded && 'invisible')}
-      />
-      <img
-        src={photo.url}
-        alt={photoLabel(photo)}
-        width={photo.width}
-        height={photo.height}
-        onLoad={() => setLoaded(true)}
-        data-testid="lightbox-img"
-        className={cx(
-          'relative max-h-full max-w-full object-contain transition-[opacity,filter] duration-(--duration-quick)',
-          loaded ? 'opacity-100' : 'opacity-0',
-          photo.hidden && 'opacity-45 grayscale-[0.6]',
-        )}
-      />
+    <div className="absolute inset-x-2 inset-y-0 flex items-center justify-center">
+      <div className="relative aspect-[3/4] h-full max-w-full">
+        <img
+          src={photo.thumb_url}
+          alt=""
+          width={photo.width}
+          height={photo.height}
+          className={cx('absolute inset-0 size-full object-contain', loaded && 'invisible')}
+        />
+        <img
+          src={photo.url}
+          alt={photoLabel(photo)}
+          width={photo.width}
+          height={photo.height}
+          onLoad={() => setLoaded(true)}
+          data-testid="lightbox-img"
+          className={cx(
+            'absolute inset-0 size-full object-contain transition-[opacity,filter] duration-(--duration-quick)',
+            loaded ? 'opacity-100' : 'opacity-0',
+            photo.hidden && 'opacity-45 grayscale-[0.6]',
+          )}
+        />
+        {photo.hidden ? (
+          <GreaseX className="pointer-events-none absolute inset-[8%] size-[84%] text-fettstift-hell" />
+        ) : null}
+      </div>
     </div>
   );
 }
@@ -142,7 +149,7 @@ export function PhotoViewer({
                 />
               </div>
               <div
-                className="relative min-h-0 touch-pan-y px-2"
+                className="relative min-h-0 touch-pan-y"
                 onPointerDown={(e) => {
                   swipe.current = { x: e.clientX, y: e.clientY };
                 }}
@@ -158,9 +165,6 @@ export function PhotoViewer({
                 }}
               >
                 <ViewerImage key={photo.id} photo={photo} />
-                {photo.hidden ? (
-                  <GreaseX className="pointer-events-none absolute inset-[10%] size-[80%] text-fettstift-hell" />
-                ) : null}
               </div>
               <section
                 aria-label="Details"

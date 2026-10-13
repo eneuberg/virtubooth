@@ -20,6 +20,7 @@ PASSWORD = "admin-admin-1"
 VIEWPORTS = {
     "phone": {"viewport": {"width": 390, "height": 844}, "device_scale_factor": 2, "is_mobile": True, "has_touch": True},
     "land": {"viewport": {"width": 844, "height": 390}, "device_scale_factor": 2, "is_mobile": True, "has_touch": True},
+    "small": {"viewport": {"width": 360, "height": 640}, "device_scale_factor": 2, "is_mobile": True, "has_touch": True},
     "desk": {"viewport": {"width": 1440, "height": 900}},
 }
 
@@ -49,9 +50,9 @@ def first_user(page: Page, base: str, banned: bool = False) -> int:
 def shot_live(page: Page, base: str) -> None:
     page.goto(base + "/admin/live")
     settle(page)
-    toggle = page.locator("[data-testid=photo-card] [data-testid=toggle]").nth(1)
-    toggle.click()
-    page.wait_for_timeout(600)
+    # hide a visible photo: the undo toast says "… ausgeblendet"
+    page.locator("[data-testid=photo-card] [data-testid=toggle][data-action=hide]").nth(1).click()
+    page.wait_for_timeout(900)
 
 
 def shot_live_viewer(page: Page, base: str) -> None:

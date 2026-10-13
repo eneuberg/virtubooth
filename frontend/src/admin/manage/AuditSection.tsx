@@ -5,7 +5,7 @@ import { formatDateTime } from '@/lib/format';
 import { Button } from '@/ui/Button';
 import { DataTable, type DataColumn } from '@/ui/DataTable';
 import { EmptyState } from '@/ui/EmptyState';
-import { auditAction, auditActor, auditDetails, auditTarget, shortHash } from '../lib/labels';
+import { auditAction, auditActor, auditDetails, auditTarget, clock, shortHash } from '../lib/labels';
 import { useAudit } from '../store/hooks';
 
 const LINK =
@@ -43,8 +43,12 @@ const COLUMNS: ReadonlyArray<DataColumn<AuditEntry>> = [
   {
     id: 'at',
     label: 'Zeit',
-    width: 'w-44',
-    render: (e) => <time dateTime={e.at}>{formatDateTime(e.at)}</time>,
+    width: 'w-28',
+    render: (e) => (
+      <time dateTime={e.at} title={formatDateTime(e.at)}>
+        {clock(e.at)}
+      </time>
+    ),
   },
   { id: 'action', label: 'Aktion', isRowHeader: true, render: (e) => auditAction(e.action) },
   { id: 'target', label: 'Ziel', render: (e) => <Target entry={e} /> },
