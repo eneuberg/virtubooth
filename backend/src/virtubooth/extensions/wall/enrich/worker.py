@@ -32,7 +32,7 @@ from ....core.clock import now_iso
 from ....repositories.container import Repositories
 from ....tools._common import open_repos
 from . import jobs, models
-from .analyzers import BY_NAME, create_all, ml_installed
+from .analyzers import create_all, ml_installed
 from .pipeline import FRAME_SIDE, Analyzer, AnalyzerInfo, Frame, PhotoInfo, Pipeline
 
 log = logging.getLogger("virtubooth.wall.enrich")
@@ -169,14 +169,13 @@ class Worker:
         if not force and now - self._last_beat < self.beat_s:
             return
         self._last_beat = now
-        disabled = jobs.disabled_analyzers(repos.app_settings)
-        wanted = [m for name, info in BY_NAME.items() if name not in disabled for m in info.models]
         beat_at = now_iso()
         value = {
             "pid": os.getpid(),
             "beat_at": beat_at,
             "ml": ml_installed(),
-            "models_missing": models.missing(wanted, self.data_dir),
+            # all of them, also of disabled analyzers (the admin sees it before enabling)
+            "models_missing": models.missing([m.name for m in models.REGISTRY], self.data_dir),
             "load_errors": dict(self._pipeline.load_errors) if self._pipeline else {},
             "processed": self.processed,
             "rss_mb": round(rss_mb()),
@@ -224,8 +223,8 @@ class Worker:
                 self._watch_parent()
             return self._loop(once=once, limit=limit, report=report)
         finally:
-            for sig, old in handlers.items():
-                signal.signal(sig, old)
+            for signum, old in handlers.items():
+                signal.signal(signum, old)
 
     def _loop(self, *, once: bool, limit: int | None,
               report: Callable[[str], None] | None) -> int:  # fmt: skip

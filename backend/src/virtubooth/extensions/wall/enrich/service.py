@@ -210,9 +210,14 @@ class EnrichmentService:
             message = "Der Analyse-Prozess ist ausgeschaltet (VB_WALL_WORKER=off)."
         elif not ml:
             message = "Ohne KI-Paket: nur Bildwerte (Helligkeit, Farbe, Schärfe)."
-        elif fresh and beat.get("models_missing"):
+        elif fresh and self._missing_for_enabled(beat):
             message = "Modelle fehlen – auf dem Server „models fetch“ ausführen."
         return WorkerStatus(state=state, ml=ml, message=message, last_beat_at=beat.get("beat_at"))
+
+    def _missing_for_enabled(self, beat: Mapping[str, Any]) -> bool:
+        missing = set(beat.get("models_missing") or [])
+        disabled = self.disabled()
+        return any(m in missing for i in INFOS if i.name not in disabled for m in i.models)
 
     def status(self) -> AnalysisStatus:
         counts = jobs.counts(self.core.db)
