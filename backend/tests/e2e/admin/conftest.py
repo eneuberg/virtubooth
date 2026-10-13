@@ -225,9 +225,16 @@ def upload_from_page(page: Page, shade: int = 0) -> dict[str, Any]:
 
 
 def settle(page: Page) -> None:
-    """Wait until running animations (sheets sliding in, toasts) are done."""
+    """Wait until running animations (sheets sliding in, toasts) are done. Endless ones
+    (spinners, skeleton shimmer) never finish: they don't count, and 5 s is the limit
+    (page.evaluate itself never times out)."""
     page.evaluate(
-        "() => Promise.all(document.getAnimations().map((a) => a.finished.catch(() => null)))"
+        """() => Promise.race([
+            Promise.all(document.getAnimations()
+                .filter((a) => a.effect && a.effect.getComputedTiming().endTime !== Infinity)
+                .map((a) => a.finished.catch(() => null))),
+            new Promise((resolve) => setTimeout(resolve, 5000)),
+        ]).then(() => null)"""
     )
 
 

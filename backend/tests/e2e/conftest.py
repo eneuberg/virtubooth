@@ -432,12 +432,20 @@ def settle_dialogs(page: Page) -> None:
             const inScrim = (a) => a.effect && a.effect.target && a.effect.target.closest
                 && a.effect.target.closest('.vb-scrim');
             const busy = () => !!document.querySelector('.vb-scrim[data-entering], .vb-scrim [data-entering]')
-                || document.getAnimations().some((a) => inScrim(a) && a.playState === 'running');
+                || document.getAnimations().some((a) => inScrim(a) && a.playState === 'running'
+                    && a.effect.getComputedTiming().endTime !== Infinity);
             const frame = () => new Promise((resolve) => requestAnimationFrame(() => resolve(null)));
             await frame();
             await frame();
             for (let i = 0; i < 120 && busy(); i++) await frame();
-            await Promise.all(document.getAnimations().filter(inScrim).map((a) => a.finished.catch(() => null)));
+            // endless animations (a pending button's spinner) never finish: skip them,
+            // and never wait longer than 5 s (page.evaluate has no timeout of its own)
+            const finite = (a) => a.effect && a.effect.getComputedTiming().endTime !== Infinity;
+            await Promise.race([
+                Promise.all(document.getAnimations().filter((a) => inScrim(a) && finite(a))
+                    .map((a) => a.finished.catch(() => null))),
+                new Promise((resolve) => setTimeout(resolve, 5000)),
+            ]);
         }"""
     )
 
