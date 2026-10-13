@@ -708,7 +708,7 @@ function Overlays() {
         data-testid="join"
         footer={
           <div className="grid gap-2">
-            <p className="text-center text-xs text-ink-muted">Gleich geht’s zur Beer Cam.</p>
+            <p className="text-center text-xs text-ink-muted">Danach öffnet sich „Beer Cam“.</p>
             <Button variant="primary" size="lg" block onPress={() => setJoin(false)}>
               Los geht’s
             </Button>

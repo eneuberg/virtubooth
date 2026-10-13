@@ -25,7 +25,7 @@ import { splitParagraphs, splitPrompt, tidy } from './copy';
 
 export interface JoinSheetProps {
   join: JoinInfo;
-  /** the activity the guest is on its way to ("Beer Cam"), from the URL */
+  /** the activity the guest is on its way to ("Beer Cam"), from the URL; shown quoted, so any title fits */
   destination?: string | null;
 }
 
@@ -99,7 +99,7 @@ export function JoinSheet({ join, destination }: JoinSheetProps) {
             </p>
           ) : destination ? (
             <p className="text-center text-xs text-ink-muted">
-              Gleich geht’s zur <span translate="no">{destination}</span>.
+              Danach öffnet sich <span translate="no">{quoted(destination)}</span>.
             </p>
           ) : null}
           {closed ? null : (
