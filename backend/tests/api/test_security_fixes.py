@@ -20,6 +20,8 @@ from fastapi.testclient import TestClient
 from PIL import Image
 from starlette.requests import Request
 
+from virtubooth.__main__ import check_forwarded_allow_ips
+from virtubooth.__main__ import main as cli_main
 from virtubooth.api.routers.admin import events as events_router
 from virtubooth.app import create_app_from_env
 from virtubooth.core import errors
@@ -37,7 +39,7 @@ from virtubooth.core.security import is_direct_loopback, origin_allowed, sha256_
 from virtubooth.db.database import Database
 from virtubooth.repositories.users import MAX_FINGERPRINTS
 from virtubooth.services.images import MAX_SCANS, process_jpeg
-from virtubooth.settings import Settings, admin_password_warnings
+from virtubooth.settings import ConfigError, Settings, admin_password_warnings
 from virtubooth.tools.export import SCRUBBED_TABLES, snapshot_db, take_snapshot
 
 from ..conftest import ADMIN_PASSWORD, JPEG, ORIGIN, PARTY_TOKEN, SECRET_KEY, scan
@@ -696,3 +698,31 @@ def test_fingerprint_rows_per_guest_are_capped(guest, core):
     assert len(hashes) == MAX_FINGERPRINTS + 1
     assert hashes[:MAX_FINGERPRINTS] == [f"{i:064x}" for i in range(39, 39 - MAX_FINGERPRINTS, -1)]
     assert first in hashes
+
+
+# ====================================== SEC-15 VB_FORWARDED_ALLOW_IPS
+
+
+@pytest.mark.parametrize("value", ["*", " * ", "127.0.0.1,*", "10.0.0.0/8, *"])
+def test_trusting_every_proxy_is_refused(value):
+    with pytest.raises(ConfigError, match=r"must not be '\*'.*proxy's address"):
+        check_forwarded_allow_ips(value)
+
+
+@pytest.mark.parametrize("value", ["127.0.0.1", "172.16.0.0/12", "10.0.0.0/8,172.16.0.0/12"])
+def test_proxy_addresses_are_accepted(value):
+    assert check_forwarded_allow_ips(value) == value
+
+
+def test_serve_refuses_a_wildcard_before_starting(monkeypatch, capsys):
+    def no_server(*_a: Any, **_k: Any) -> None:
+        raise AssertionError("uvicorn must not start")
+
+    monkeypatch.setattr("uvicorn.run", no_server)
+    with pytest.raises(SystemExit) as exc:
+        cli_main(["serve", "--forwarded-allow-ips", "*"])
+    assert exc.value.code == 2
+    assert "VB_FORWARDED_ALLOW_IPS must not be '*'" in capsys.readouterr().err
+    monkeypatch.setenv("VB_FORWARDED_ALLOW_IPS", "*")
+    with pytest.raises(SystemExit):
+        cli_main(["serve"])
