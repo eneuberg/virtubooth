@@ -1,0 +1,166 @@
+# CI: the same checks as `make check`, split into parallel jobs.
+#
+# Tool versions come from the repo files (keep them in sync when bumping):
+#   Python  backend/.python-version (uv installs it)
+#   uv      the Dockerfile's UV_IMAGE tag
+#   Node    frontend/.node-version
+#   pnpm    frontend/package.json "packageManager" (installed with npm: corepack
+#           cannot run pnpm 11)
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  UV_VERSION: "0.12.18"
+  PNPM_VERSION: "11.28.5"
+  # uv: fail instead of re-locking when backend/uv.lock is out of date
+  UV_LOCKED: "1"
+  FORCE_COLOR: "1"
+
+jobs:
+  backend:
+    name: backend (ruff, mypy, pytest)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          version: ${{ env.UV_VERSION }}
+          enable-cache: true
+          cache-dependency-glob: backend/uv.lock
+      - name: Install Python and the backend's dependencies
+        working-directory: backend
+        run: uv sync
+      - name: ruff check (every Python file; ruff.toml extends backend/pyproject.toml)
+        run: uv run --project backend ruff check .
+      - name: ruff format --check (Python files and Python snippets in Markdown)
+        run: uv run --project backend ruff format --check .
+      - name: mypy --strict
+        run: |
+          (cd backend && uv run mypy)
+          uv run --project backend mypy --strict --python-version 3.12 scripts/smoke.py
+      - name: pytest (unit + API)
+        working-directory: backend
+        run: uv run pytest -q
+
+  frontend:
+    name: frontend (lint, typecheck, test, build, OpenAPI drift)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: frontend/.node-version
+      - name: Install pnpm
+        run: npm install --global --no-fund --no-audit "pnpm@${PNPM_VERSION}"
+      - name: Locate the pnpm store
+        id: pnpm
+        working-directory: frontend
+        run: echo "store=$(pnpm store path)" >> "$GITHUB_OUTPUT"
+      - uses: actions/cache@v4
+        with:
+          path: ${{ steps.pnpm.outputs.store }}
+          key: pnpm-${{ runner.os }}-${{ hashFiles('frontend/pnpm-lock.yaml', 'frontend/patches/**') }}
+          restore-keys: pnpm-${{ runner.os }}-
+      - name: pnpm install (applies the react-aria CSP patch)
+        working-directory: frontend
+        run: pnpm install --frozen-lockfile
+      - name: lint (oxlint type-aware + prettier)
+        working-directory: frontend
+        run: pnpm lint
+      - name: typecheck (tsc -b)
+        working-directory: frontend
+        run: pnpm typecheck
+      - name: test (Vitest)
+        working-directory: frontend
+        run: pnpm test
+      - name: build (vite build, precompress, content-blocker name check)
+        working-directory: frontend
+        run: pnpm build
+      - uses: astral-sh/setup-uv@v6
+        with:
+          version: ${{ env.UV_VERSION }}
+          enable-cache: true
+          cache-dependency-glob: backend/uv.lock
+      - name: OpenAPI drift (schema and generated client types are committed)
+        run: |
+          (cd backend && uv run virtubooth export-openapi -o ../frontend/openapi.json)
+          (cd frontend && pnpm gen:api)
+          git diff --exit-code frontend/openapi.json frontend/src/api/schema.gen.ts
+
+  e2e:
+    name: e2e (${{ matrix.browser }})
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        browser: [chromium, firefox]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: frontend/.node-version
+      - name: Install pnpm
+        run: npm install --global --no-fund --no-audit "pnpm@${PNPM_VERSION}"
+      - name: Locate the pnpm store
+        id: pnpm
+        working-directory: frontend
+        run: echo "store=$(pnpm store path)" >> "$GITHUB_OUTPUT"
+      - uses: actions/cache@v4
+        with:
+          path: ${{ steps.pnpm.outputs.store }}
+          key: pnpm-${{ runner.os }}-${{ hashFiles('frontend/pnpm-lock.yaml', 'frontend/patches/**') }}
+          restore-keys: pnpm-${{ runner.os }}-
+      - name: Build frontend/dist (the e2e server serves it)
+        working-directory: frontend
+        run: |
+          pnpm install --frozen-lockfile
+          pnpm build
+      - uses: astral-sh/setup-uv@v6
+        with:
+          version: ${{ env.UV_VERSION }}
+          enable-cache: true
+          cache-dependency-glob: backend/uv.lock
+      - name: Install Python, the backend's dependencies and ${{ matrix.browser }}
+        working-directory: backend
+        run: |
+          uv sync
+          uv run playwright install --with-deps ${{ matrix.browser }}
+      - name: e2e (pytest + Playwright, fake cameras, zero console errors)
+        working-directory: backend
+        env:
+          VB_E2E_BROWSER: ${{ matrix.browser }}
+        run: uv run pytest -m e2e -q
+
+  docker:
+    name: docker (build + smoke)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          version: ${{ env.UV_VERSION }}
+          enable-cache: true
+          cache-dependency-glob: backend/uv.lock
+      - name: Build the image
+        run: docker build -t virtubooth:ci .
+      - name: Smoke test (gate, assets, guest upload, admin, export jobs, clean stop)
+        env:
+          VB_SMOKE_BUILD: "0"
+          VB_SMOKE_IMAGE: virtubooth:ci
+        run: scripts/docker-smoke.sh
