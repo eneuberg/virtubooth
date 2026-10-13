@@ -347,7 +347,7 @@ export function guestUploadsPanel(u, { onChanged = () => {} } = {}) {
     const paused = u.uploads_paused;
     panel.classList.toggle('is-paused', paused);
     panel.replaceChildren(
-      h('h2', {}, '📤 Uploads'),
+      h('h2', {}, '📤 Hochladen'),
       h('div', { class: 'adm-stack' },
         h('div', { class: 'adm-uploads-guest-status' },
           paused
