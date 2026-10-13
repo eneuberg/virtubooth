@@ -18,6 +18,7 @@ export const SECTIONS = [
   'protokoll',
   'qr',
   'export',
+  'plakat',
   'uebersicht',
   'einstellungen',
 ] as const;

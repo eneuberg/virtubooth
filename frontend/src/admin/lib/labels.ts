@@ -161,6 +161,9 @@ export const AUDIT_LABELS: Record<string, string> = {
   'instagram.undone': 'Instagram-Name wieder offen',
   'export.create': 'Export gestartet',
   'export.delete': 'Export gelöscht',
+  'poster.template': 'Plakat-Vorlage hochgeladen',
+  'poster.layout': 'QR-Feld auf dem Plakat gesetzt',
+  'poster.template_delete': 'Plakat-Vorlage entfernt',
 };
 
 export function auditAction(action: string): string {
@@ -240,6 +243,9 @@ const DETAIL_LABELS: Record<string, string> = {
   crossfade: 'Überblenden',
   extension: 'Aktivität',
   status: 'Status',
+  bytes: 'Größe',
+  page: 'Seite',
+  pages: 'Seiten',
   file_name: 'Datei',
   period: 'Pause Nr.',
   restore: 'freigeschaltet',

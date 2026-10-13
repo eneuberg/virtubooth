@@ -10,6 +10,7 @@ import {
   Images,
   LayoutGrid,
   LogOut,
+  Printer,
   Radio,
   QrCode,
   ScrollText,
@@ -35,6 +36,7 @@ import { OverviewSection } from '../dashboard/OverviewSection';
 import { QuickControls } from '../dashboard/QuickControls';
 import { StatusStrip } from '../dashboard/StatusStrip';
 import { DESKTOP, useMediaQuery } from '../lib/browser';
+import { PosterSection } from '../poster/PosterSection';
 import { logout } from '../store/actions';
 import { useStats } from '../store/hooks';
 import { useDocumentSurface } from '../surface';
@@ -57,6 +59,7 @@ const SECTION_VIEW: Record<Section, ComponentType> = {
   protokoll: AuditSection,
   qr: CodesSection,
   export: ExportSection,
+  plakat: PosterSection,
   uebersicht: OverviewSection,
   einstellungen: SettingsSection,
 };
@@ -75,6 +78,7 @@ function navItems(stats: AdminStats | undefined) {
     navItem('protokoll', 'Protokoll', ScrollText),
     navItem('qr', 'QR-Codes', QrCode),
     navItem('export', 'Export', Archive),
+    navItem('plakat', 'Plakat', Printer),
   ];
 }
 

@@ -17,6 +17,7 @@ from . import __version__
 from .api.deps import require_admin
 from .api.routers import guest, health, media, uploads
 from .api.routers.admin import auth as admin_auth
+from .api.routers.admin import poster as admin_poster
 from .api.routers.admin import router as admin_router
 from .core import errors
 from .core.logs import install_access_log_filter
@@ -87,6 +88,7 @@ def create_app(settings: Settings, *, extensions: Sequence[Extension] | None = N
     app.include_router(guest.router)
     app.include_router(admin_auth.router)
     app.include_router(admin_router)
+    app.include_router(admin_poster.router)
     app.include_router(uploads.build_router(exts))
     app.include_router(media.router)
     for ext in exts:

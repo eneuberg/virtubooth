@@ -44,7 +44,8 @@ from .runtime import Core
 
 UNSAFE_METHODS = {"POST", "PUT", "PATCH", "DELETE"}
 MAX_JSON_BODY = 64 * 1024
-_UPLOAD_PATH = re.compile(r"^/api/x/[a-z][a-z0-9-]{1,30}/upload$")
+# bodies that stream with their own cap: activity uploads and the poster template
+_STREAMED_PATH = re.compile(r"^(?:/api/x/[a-z][a-z0-9-]{1,30}/upload|/api/admin/poster/template)$")
 # paths where ?t= is never interpreted as a party token
 _NO_TOKEN_PREFIXES = ("/api/", "/admin", "/assets/", "/media/", "/healthz")
 
@@ -76,7 +77,7 @@ class GuardMiddleware:
             await _error(errors.bad_origin(), scope, receive, send)
             return
 
-        if request.method in UNSAFE_METHODS and not _UPLOAD_PATH.match(path):
+        if request.method in UNSAFE_METHODS and not _STREAMED_PATH.match(path):
             # no Content-Length and no Transfer-Encoding means no body (HTTP/1.1);
             # a chunked body of unknown length is refused
             declared = request.headers.get("content-length", "0")

@@ -6,7 +6,7 @@ import { join } from 'node:path';
 import { brotliCompressSync, constants, gzipSync } from 'node:zlib';
 
 const root = process.argv[2] ?? 'dist';
-const COMPRESSIBLE = /\.(?:js|css|html|svg|json|txt|map)$/;
+const COMPRESSIBLE = /\.(?:js|mjs|css|html|svg|json|txt|map)$/;
 const MIN_BYTES = 512;
 
 /** @param {string} dir @returns {string[]} */
