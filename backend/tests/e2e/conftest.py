@@ -422,11 +422,21 @@ JOIN_ACCEPT = "[data-testid=join] button[type=submit]"
 
 def settle_dialogs(page: Page) -> None:
     """Wait until the open sheets' entry animations are done (`.vb-scrim` and
-    everything in it), so clicks and screenshots see the final position."""
+    everything in it), so clicks and screenshots see the final position. The
+    animation class lands a frame after the sheet mounts, so wait two frames
+    first, then while anything in a scrim is entering or animating (max ~2 s)."""
     page.evaluate(
-        """() => Promise.all(document.getAnimations()
-            .filter((a) => a.effect && a.effect.target && a.effect.target.closest && a.effect.target.closest('.vb-scrim'))
-            .map((a) => a.finished.catch(() => null)))"""
+        """async () => {
+            const inScrim = (a) => a.effect && a.effect.target && a.effect.target.closest
+                && a.effect.target.closest('.vb-scrim');
+            const busy = () => !!document.querySelector('.vb-scrim[data-entering], .vb-scrim [data-entering]')
+                || document.getAnimations().some((a) => inScrim(a) && a.playState === 'running');
+            const frame = () => new Promise((resolve) => requestAnimationFrame(() => resolve(null)));
+            await frame();
+            await frame();
+            for (let i = 0; i < 120 && busy(); i++) await frame();
+            await Promise.all(document.getAnimations().filter(inScrim).map((a) => a.finished.catch(() => null)));
+        }"""
     )
 
 

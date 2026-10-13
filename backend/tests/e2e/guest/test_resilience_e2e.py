@@ -12,7 +12,7 @@ import pytest
 from playwright.sync_api import Page, expect
 
 from ..conftest import WEB_DIR, LiveServer, accept_consent_in_browser, settle_dialogs, shot
-from .conftest import errors_besides, only_user
+from .conftest import errors_besides, only_user, reload
 
 pytestmark = pytest.mark.e2e
 
@@ -63,11 +63,11 @@ def test_blocked_identify_offers_a_reload(page: Page, live: LiveServer):
     expect(fatal).to_contain_text("Keine Antwort")
     expect(fatal).to_contain_text("Blocker")
     expect(fatal).not_to_contain_text("Keine Verbindung")
-    reload = fatal.get_by_role("button", name="Seite neu laden")
-    expect(reload).to_be_focused()
+    again = fatal.get_by_role("button", name="Seite neu laden")
+    expect(again).to_be_focused()
     shot(page, "identify_blocked")
     page.unroute("**/api/identify")
-    reload.click()
+    again.click()
     accept_consent_in_browser(page)
     expect(page.get_by_test_id("start")).to_be_visible()
     expect(page.get_by_test_id("fatal")).to_have_count(0)
@@ -87,6 +87,9 @@ def test_offline_phone_is_told_so(page: Page, live: LiveServer):
 
 def test_offline_while_on_start_shows_in_the_status_slot(guest_page: Page):
     page = guest_page
+    # fonts in first: a download cut by going offline is logged as an error (Firefox)
+    expect(page.get_by_test_id("beer-count")).to_be_visible()
+    page.evaluate("() => document.fonts.ready.then(() => null)")
     page.context.set_offline(True)
     page.evaluate("() => window.dispatchEvent(new Event('offline'))")
     slot = page.get_by_test_id("status-slot")
@@ -140,7 +143,7 @@ def test_debug_log_lets_taps_through_and_folds(page: Page, live: LiveServer):
     toggle.click()
     expect(log).to_be_hidden()
     expect(toggle).to_have_attribute("aria-expanded", "false")
-    page.reload()
+    reload(page)
     expect(page.get_by_test_id("debug-toggle")).to_be_visible()
     expect(page.locator(".vb-debug-log")).to_be_hidden()  # stays folded for the tab
     page.get_by_test_id("debug-toggle").click()

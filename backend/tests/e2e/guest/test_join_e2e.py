@@ -19,7 +19,7 @@ from ..conftest import (
     shot,
     track_errors,
 )
-from .conftest import errors_besides, only_user
+from .conftest import errors_besides, only_user, reload
 
 pytestmark = pytest.mark.e2e
 
@@ -64,7 +64,7 @@ def test_qr_entry_join_then_start(page: Page, live: LiveServer):
     assert not user.fp_components.get("fallback")
     assert page.evaluate("() => localStorage.getItem('vb_uid')")  # the uid_token fallback copy
     # second visit: no sheet, the same guest
-    page.reload()
+    reload(page)
     expect(page.get_by_test_id("start")).to_be_visible()
     expect(page.get_by_test_id("join")).to_have_count(0)
     assert len(live.core.repos.users.list()) == 1
@@ -78,7 +78,7 @@ def test_lost_cookie_comes_back_through_the_stored_uid(page: Page, live: LiveSer
     accept_consent_in_browser(page)
     name = only_user(live).name
     page.context.clear_cookies(name="vb_uid")
-    page.reload()
+    reload(page)
     expect(page.get_by_test_id("start")).to_be_visible()
     expect(page.get_by_test_id("join")).to_have_count(0)
     expect(page.get_by_test_id("guest-pass")).to_contain_text(name.rsplit(" #", 1)[0])

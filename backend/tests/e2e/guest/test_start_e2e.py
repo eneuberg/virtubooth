@@ -13,7 +13,7 @@ import pytest
 from playwright.sync_api import Page, expect
 
 from ..conftest import LiveServer, accept_consent_in_browser, join_via_api, shot
-from .conftest import errors_besides, no_horizontal_scroll, only_user, upload
+from .conftest import errors_besides, no_horizontal_scroll, only_user, reload, upload
 
 pytestmark = pytest.mark.e2e
 
@@ -33,7 +33,7 @@ def test_activity_strips_with_live_lines(guest_page: Page, live: LiveServer):
     expect(beer).to_contain_text("von 1 Mio. Bieren")
     expect(booth).to_contain_text("10 Filter")
     upload(page, "beer")
-    page.reload()
+    reload(page)
     expect(page.get_by_test_id("beer-count")).to_have_text("0001")
     expect(beer).to_have_attribute("href", "/x/beer/")
     assert page.js_errors == []  # type: ignore[attr-defined]
@@ -50,7 +50,7 @@ def test_deine_bilder_shows_only_own_visible_photos(guest_page: Page, live: Live
     other = make_page()
     join_via_api(other, live)
     d = upload(other, "beer")["photo"]
-    page.reload()
+    reload(page)
     tiles = page.locator("[data-testid=my-photos] [data-testid^=photo-]")
     expect(tiles).to_have_count(2)
     ids = [t.get_attribute("data-testid") for t in tiles.all()]
@@ -130,7 +130,7 @@ def test_long_handle_ellipsizes_on_a_small_phone(make_page, live: LiveServer):
     page.goto(live.entry("/"))
     accept_consent_in_browser(page)
     live.core.repos.users.set_instagram(only_user(live).id, "a" * 30)
-    page.reload()
+    reload(page)
     passed = page.get_by_test_id("guest-pass")
     expect(passed).to_contain_text("@" + "a" * 30)
     box = passed.bounding_box()
@@ -163,7 +163,7 @@ def test_paused_and_stopped_show_in_the_status_slot(guest_page: Page, live: Live
     # paused wins over stopped (server precedence); unpaused, the stop shows
     controls.set_stop(True, actor="admin")
     controls.set_user_paused(user.id, False, actor="admin")
-    page.reload()
+    reload(page)
     expect(slot).to_have_attribute("data-kind", "stopped")
     expect(slot).to_contain_text("Hochladen ist kurz angehalten")
 
@@ -180,14 +180,14 @@ def test_banned_guest_sees_why_and_can_come_back(guest_page: Page, live: LiveSer
     page = guest_page
     user = only_user(live)
     live.core.services.moderation.ban_user(user.id, reason="Test", actor="admin")
-    page.reload()
+    reload(page)
     banned = page.get_by_test_id("banned")
     expect(banned).to_be_visible()
     expect(banned).to_contain_text("Gesperrt")
     expect(banned).to_contain_text("Dieses Gerät ist gesperrt")
     expect(page.get_by_test_id("start")).to_have_count(0)
-    reload = banned.get_by_role("button", name="Seite neu laden")
-    expect(reload).to_be_focused()
+    again = banned.get_by_role("button", name="Seite neu laden")
+    expect(again).to_be_focused()
     shot(page, "banned")
     # activities stay closed too
     page.goto(live.url("/x/beer/"))
@@ -224,7 +224,7 @@ def test_start_fits_without_sideways_scrolling(make_page, live: LiveServer, view
     accept_consent_in_browser(page)
     expect(page.get_by_test_id("tile-booth")).to_be_visible()
     upload(page, "beer")
-    page.reload()
+    reload(page)
     expect(page.locator("[data-testid=my-photos] [data-testid^=photo-]")).to_have_count(1)
     assert no_horizontal_scroll(page)
     width = page.viewport_size["width"] if page.viewport_size else 0

@@ -110,3 +110,12 @@ def errors_besides(page: Page, *needles: str) -> list[str]:
     """Console errors minus the lines a test caused on purpose (failed requests)."""
     errors: list[str] = page.js_errors  # type: ignore[attr-defined]
     return [e for e in errors if not any(n in e for n in needles)]
+
+
+def reload(page: Page) -> None:
+    """page.reload() once the fonts are in: Firefox logs a font download that a
+    navigation aborts as an error (NS_BINDING_ABORTED), which is not the page's fault."""
+    if page.get_by_test_id("start").count():  # Start: the counter brings the Doto font
+        page.get_by_test_id("beer-count").wait_for()
+    page.evaluate("() => document.fonts.ready.then(() => null)")
+    page.reload()

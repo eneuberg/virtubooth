@@ -24,7 +24,7 @@ from ..conftest import (
     join_via_api,
     settle_dialogs,
 )
-from .conftest import SCREENSHOT_DIR
+from .conftest import SCREENSHOT_DIR, reload
 
 pytestmark = [
     pytest.mark.e2e,
@@ -119,7 +119,7 @@ def test_guest_screens(make_page, live: LiveServer, view: str):
         upload_scene(page, ext, name)
     me = live.core.repos.users.list()[0]  # newest first: this guest
     live.core.repos.users.set_instagram(me.id, "erik.n")
-    page.reload()
+    reload(page)
     expect(page.locator("[data-testid=my-photos] [data-testid^=photo-]")).to_have_count(len(OWN))
     page.evaluate(
         "() => Promise.all([...document.images].map((i) => i.decode().catch(() => null)))"
@@ -139,7 +139,7 @@ def test_guest_screens(make_page, live: LiveServer, view: str):
     page.keyboard.press("Escape")
 
     live.core.services.upload_controls.set_user_paused(me.id, True, actor="admin")
-    page.reload()
+    reload(page)
     expect(page.get_by_test_id("status-slot")).to_be_visible()
     page.evaluate(
         "() => Promise.all([...document.images].map((i) => i.decode().catch(() => null)))"
@@ -147,7 +147,7 @@ def test_guest_screens(make_page, live: LiveServer, view: str):
     snap(page, "start-paused", view, 900)
 
     live.core.services.moderation.ban_user(me.id, actor="admin")
-    page.reload()
+    reload(page)
     expect(page.get_by_test_id("banned")).to_be_visible()
     snap(page, "banned", view, 300)
 

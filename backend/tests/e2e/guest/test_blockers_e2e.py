@@ -11,7 +11,7 @@ from playwright.sync_api import Page, expect
 
 from ..conftest import LiveServer, accept_consent_in_browser, settle_dialogs
 from .blockers import assert_survives_blockers, notice_word_hits, rendered_elements
-from .conftest import upload
+from .conftest import reload, upload
 
 pytestmark = pytest.mark.e2e
 
@@ -45,7 +45,7 @@ def test_start_and_its_sheets_survive_blockers(page: Page, live: LiveServer):
     upload(page, "beer")
     upload(page, "booth")
     live.core.services.upload_controls.set_stop(True, actor="admin")
-    page.reload()
+    reload(page)
     expect(page.locator("[data-testid=my-photos] [data-testid^=photo-]")).to_have_count(2)
     expect(page.get_by_test_id("status-slot")).to_be_visible()
     assert assert_survives_blockers(page, "start") > 80
@@ -79,6 +79,6 @@ def test_gate_and_banned_survive_blockers(page: Page, live: LiveServer):
     accept_consent_in_browser(page)
     [user] = live.core.repos.users.list()
     live.core.services.moderation.ban_user(user.id, actor="admin")
-    page.reload()
+    reload(page)
     expect(page.get_by_test_id("banned")).to_be_visible()
     assert_survives_blockers(page, "banned")

@@ -9,7 +9,7 @@ import pytest
 from playwright.sync_api import Page, expect
 
 from ..conftest import LiveServer, accept_consent_in_browser, shot
-from .conftest import INSTAGRAM_UA, no_horizontal_scroll
+from .conftest import INSTAGRAM_UA, no_horizontal_scroll, reload
 
 pytestmark = pytest.mark.e2e
 
@@ -92,7 +92,7 @@ def test_start_tells_in_app_browsers_what_to_do(make_page, live: LiveServer):
     shot(page, "start_instagram")
     hint.get_by_role("button", name="Verstanden").click()
     expect(hint).to_have_count(0)
-    page.reload()
+    reload(page)
     expect(page.get_by_test_id("start")).to_be_visible()
     expect(page.get_by_test_id("inapp-hint")).to_have_count(0)  # not again in this tab
     assert page.js_errors == []  # type: ignore[attr-defined]
