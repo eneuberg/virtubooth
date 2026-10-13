@@ -1,6 +1,7 @@
 """How the guest app survives content blockers, dead networks and busy servers:
 a blocked device-trait chunk, a blocked entry module (boot-check.js), a blocked or
-offline /api/identify, a 429 with Retry-After, and the ?debug=1 log. Ported from
+offline /api/identify, a 429 with Retry-After, the ?debug=1 log, and lazy chunks
+that fail because the page leaves or a deploy removed them. Ported from
 the pre-overhaul test_core_e2e.py and test_core_ui_e2e.py (same behaviours, new markup)."""
 
 from __future__ import annotations
@@ -9,9 +10,18 @@ import json
 from typing import Any
 
 import pytest
-from playwright.sync_api import Page, expect
+from playwright.sync_api import Page, Route, expect
 
-from ..conftest import WEB_DIR, LiveServer, accept_consent_in_browser, settle_dialogs, shot
+from ..conftest import (
+    LOADED,
+    WEB_DIR,
+    LiveServer,
+    accept_consent_in_browser,
+    join_via_api,
+    settle_dialogs,
+    shot,
+    track_errors,
+)
 from .conftest import errors_besides, only_user, reload
 
 pytestmark = pytest.mark.e2e
@@ -149,3 +159,69 @@ def test_debug_log_lets_taps_through_and_folds(page: Page, live: LiveServer):
     page.get_by_test_id("debug-toggle").click()
     expect(page.locator(".vb-debug-log")).to_be_visible()
     assert page.js_errors == []  # type: ignore[attr-defined]
+
+
+CARDS = ("src/extensions/beer/BeerCard.tsx", "src/extensions/booth/BoothCard.tsx")
+# the HTML of "/" once another build is deployed
+NEW_BUILD = '<!doctype html><script type="module" crossorigin src="/assets/e-new.js"></script>'
+
+
+def fresh_tab(page: Page, live: LiveServer) -> tuple[Page, list[str]]:
+    """A new tab of a joined guest (nothing of an earlier page still loading) and the
+    URLs of the documents it loads."""
+    join_via_api(page, live)
+    page.close()
+    tab = track_errors(page.context.new_page())
+    documents: list[str] = []
+    tab.on("request", lambda r: documents.append(r.url) if r.is_navigation_request() else None)
+    return tab, documents
+
+
+def test_leaving_start_while_its_cards_load_goes_where_asked(page: Page, live: LiveServer):
+    """Firefox and WebKit abort the lazy modules of a page that starts to leave, and
+    Vite reports that like a chunk a deploy removed (vite:preloadError). A reload then
+    would cancel the navigation: the guest would stay on Start (lib/boot.ts)."""
+    tab, documents = fresh_tab(page, live)
+    beer, booth = (f"**/{built_file(source)}" for source in CARDS)
+    held: list[Route] = []  # never answered: the cards are still loading when Start leaves
+    tab.route(beer, lambda route: held.append(route))
+    tab.route(booth, lambda route: held.append(route))
+    with tab.expect_request(beer), tab.expect_request(booth):
+        tab.goto(live.url("/"), wait_until=LOADED)
+    # the rest of Start is in (an aborted fetch or font is an error of its own)
+    expect(tab.get_by_test_id("my-photos")).not_to_have_attribute("data-state", "loading")
+    tab.evaluate("() => document.fonts.ready.then(() => null)")
+    tab.goto(live.url("/x/beer/"), wait_until=LOADED)
+    expect(tab.get_by_test_id("beer-app")).to_be_visible()
+    assert tab.url == live.url("/x/beer/")
+    assert documents == [live.url("/"), live.url("/x/beer/")]  # Start never reloaded
+    tab.unroute_all(behavior="ignoreErrors")
+    assert tab.js_errors == []  # type: ignore[attr-defined]
+
+
+def test_a_new_deploy_reloads_the_page_once(page: Page, live: LiveServer):
+    """The tab runs the old build, the deploy removed its chunks: the app finds another
+    entry script in the page's HTML and reloads once. A chunk that still fails after
+    that shows the error instead of reloading again."""
+    tab, documents = fresh_tab(page, live)
+    tab.route(f"**/{built_file(CARDS[0])}", lambda route: route.fulfill(status=404))
+
+    def html(route: Route) -> None:
+        if route.request.is_navigation_request():
+            route.continue_()
+        else:  # the app's check after the failed chunk
+            route.fulfill(content_type="text/html", body=NEW_BUILD)
+
+    tab.route(live.url("/"), html)
+    loaded: list[str] = []
+    tab.on("domcontentloaded", lambda p: loaded.append(p.url))
+    tab.goto(live.url("/"), wait_until=LOADED)
+    for _ in range(100):  # the reloaded page (at most 5 s)
+        if len(loaded) > 1:
+            break
+        tab.wait_for_timeout(50)
+    expect(tab.get_by_test_id("fatal")).to_be_visible()
+    tab.wait_for_timeout(500)  # its own check finds the new build too: no second reload
+    assert documents == [live.url("/"), live.url("/")]
+    assert tab.evaluate("() => sessionStorage.getItem('vb_chunk_reload')") == "1"
+    # no check of the console: both pages log the failed chunk (Firefox: a bare JSHandle)
