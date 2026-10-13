@@ -2,13 +2,12 @@
  * The QR codes' query key (under ['admin', …], so `stream.resync` refetches it) and
  * the one cache patch the event stream needs (store/applyEvent.ts `code.changed`).
  */
-import type { components } from '@/api/schema.gen';
+import type { AdminCode, CodesList } from '@/api/types';
 import { sortedCopy } from '../lib/browser';
 
 export const codesKey = ['admin', 'codes'] as const;
 
-export type AdminCode = components['schemas']['AdminCode'];
-export type CodesList = components['schemas']['CodesOut'];
+export type { AdminCode, CodesList };
 
 /** `list` with `code` replaced (or added, by number), the counts recomputed. */
 export function withCode(list: CodesList, code: AdminCode): CodesList {

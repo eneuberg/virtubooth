@@ -1,4 +1,4 @@
-import { useQueryClient } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Archive, Download, Film, QrCode, Trash2, X } from 'lucide-react';
 import { useState, type FormEvent, type ReactNode } from 'react';
 import type { ExportJob, ExportKind, ExportRequest } from '@/api/types';
@@ -13,6 +13,8 @@ import { Select } from '@/ui/Select';
 import { Progress, Spinner } from '@/ui/Spinner';
 import { TextField } from '@/ui/TextField';
 import { showToast } from '@/ui/Toast';
+import { fetchCodes } from '../codes/api';
+import { codesKey } from '../codes/keys';
 import { errorText, showError } from '../common/usePhotoActions';
 import { exportJobTitle } from '../lib/labels';
 import { deleteExport, startExport } from '../store/actions';
@@ -99,6 +101,8 @@ export function ExportSection() {
     include_hidden: false,
   });
   const [baseUrl, setBaseUrl] = useState<string | null>(null);
+  const [qrCode, setQrCode] = useState<number | null>(null);
+  const codes = useQuery({ queryKey: codesKey, queryFn: fetchCodes });
   const [starting, setStarting] = useState<ExportKind | null>(null);
   const [errors, setErrors] = useState<Partial<Record<ExportKind, string>>>({});
   const [deleting, setDeleting] = useState<ExportJob | null>(null);
@@ -107,6 +111,9 @@ export function ExportSection() {
   const activities = (extensions ?? []).filter((e) => e.uploads);
   const timelapseExt = timelapse.extension || activities[0]?.id || 'beer';
   const qrUrl = baseUrl ?? data?.public_base_url ?? '';
+  // the active codes; default (and after the chosen one was deleted): the lowest number
+  const activeCodes = (codes.data?.codes ?? []).filter((c) => c.active);
+  const qrCodeId = activeCodes.find((c) => c.id === qrCode)?.id ?? activeCodes[0]?.id ?? null;
   const ffmpeg = data?.ffmpeg ?? true;
 
   const start = async (request: ExportRequest) => {
@@ -329,13 +336,16 @@ export function ExportSection() {
         <Panel
           icon={QrCode}
           title="QR-Bogen"
-          text="Alle QR-Codes zum Ausdrucken: ein Bogen pro Code, dazu die Codes als SVG und PNG."
+          text="Ein Bogen pro Aktivität für den gewählten Code. Einzelne Codes und Plakate gibt es im Tab „QR-Codes“."
           onSubmit={() => {
             if (!qrUrl.trim()) {
               setErrors((e) => ({ ...e, qr: 'Bitte die Adresse der Party angeben.' }));
               return;
             }
-            void start({ kind: 'qr', options: { base_url: qrUrl.trim() } });
+            void start({
+              kind: 'qr',
+              options: { base_url: qrUrl.trim(), ...(qrCodeId !== null ? { code_id: qrCodeId } : {}) },
+            });
           }}
           testid="export-qr"
         >
@@ -352,6 +362,17 @@ export function ExportSection() {
             value={qrUrl}
             onChange={setBaseUrl}
             errorMessage={errors.qr ?? null}
+          />
+          <Select
+            label="QR-Code"
+            size="sm"
+            options={activeCodes.map((c) => ({ id: c.id, label: c.name }))}
+            value={qrCodeId}
+            onChange={setQrCode}
+            placeholder={codes.isPending ? 'Wird geladen…' : 'Kein aktiver QR-Code'}
+            isDisabled={activeCodes.length === 0}
+            data-testid="export-qr-code"
+            className="min-w-0"
           />
           <Button
             type="submit"

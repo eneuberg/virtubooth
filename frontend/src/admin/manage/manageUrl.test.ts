@@ -28,11 +28,17 @@ describe('manage URL state', () => {
   });
 
   it('reads the guest filters (show=paused as in the upload sheet link)', () => {
-    expect(parseGuestFilter(q('tab=gaeste&show=paused'))).toEqual({ search: '', status: 'paused' });
-    expect(parseGuestFilter(q(`q=${'x'.repeat(150)}&show=x`))).toEqual({
+    expect(parseGuestFilter(q('tab=gaeste&show=paused'))).toEqual({
+      search: '',
+      status: 'paused',
+      code: null,
+    });
+    expect(parseGuestFilter(q(`q=${'x'.repeat(150)}&show=x&code=0`))).toEqual({
       search: 'x'.repeat(100),
       status: 'all',
+      code: null,
     });
+    expect(parseGuestFilter(q('tab=gaeste&code=3')).code).toBe(3);
   });
 
   it('writes changes and leaves defaults out', () => {

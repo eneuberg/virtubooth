@@ -19,6 +19,7 @@ const overview: Overview = {
     last_upload_at: SINCE,
   },
   activities: [],
+  codes: [],
 };
 
 describe('dashboard text', () => {

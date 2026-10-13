@@ -1,14 +1,18 @@
 import { Search, Users } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
+import { useEffect, useMemo, useState } from 'react';
 import type { SortDescriptor } from 'react-aria-components';
 import { useLocation, useSearchParams } from 'wouter';
 import type { AdminUser } from '@/api/types';
+import type { SelectOption } from '@/ui/Select';
 import { formatDateTime, formatDuration, formatNumber, formatRelative } from '@/lib/format';
 import { Button } from '@/ui/Button';
 import { DataTable, type DataColumn } from '@/ui/DataTable';
 import { EmptyState } from '@/ui/EmptyState';
 import { Select } from '@/ui/Select';
 import { TextField } from '@/ui/TextField';
+import { fetchCodes } from '../codes/api';
+import { codesKey, type CodesList } from '../codes/keys';
 import { GuestBadges } from '../common/GuestBadges';
 import { sortedCopy } from '../lib/browser';
 import { describeUA, guestCount } from '../lib/labels';
@@ -23,6 +27,20 @@ const STATUS_OPTIONS: ReadonlyArray<{ id: GuestStatus; label: string }> = [
   { id: 'ok', label: 'Nicht gesperrt' },
   { id: 'paused', label: 'Hochladen pausiert' },
 ];
+
+/** The „QR-Code“ filter's choice for every guest. */
+const ALL_CODES = 0;
+
+/** „Alle“, then every code by number; deleted ones marked (their guests stay). */
+function codeOptions(list: CodesList | undefined, current: number | null): SelectOption<number>[] {
+  const codes = (list?.codes ?? []).map((c) => ({
+    id: c.id,
+    label: c.active ? c.name : `${c.name} (gelöscht)`,
+  }));
+  if (current !== null && !codes.some((c) => c.id === current))
+    codes.push({ id: current, label: `#${current}` });
+  return [{ id: ALL_CODES, label: 'Alle' }, ...codes];
+}
 
 /** The visible time added up; a green dot while the page is open right now. */
 function OnlineTime({ user }: { user: AdminUser }) {
@@ -93,6 +111,25 @@ const COLUMNS: ReadonlyArray<DataColumn<AdminUser>> = [
     render: (u) => <OnlineTime user={u} />,
   },
   {
+    id: 'code',
+    label: 'QR-Code',
+    allowsSorting: true,
+    hideBelow: 'md',
+    render: (u) =>
+      u.code ? (
+        <span
+          translate="no"
+          className={u.code.active ? undefined : 'text-ink-muted'}
+          title={u.code.active ? undefined : 'Code gelöscht'}
+          data-testid="guest-code"
+        >
+          {u.code.name}
+        </span>
+      ) : (
+        <span className="text-ink-muted">–</span>
+      ),
+  },
+  {
     id: 'seen',
     label: 'Zuletzt',
     allowsSorting: true,
@@ -124,6 +161,8 @@ function compare(column: string, a: AdminUser, b: AdminUser): number {
       return a.photo_count - b.photo_count;
     case 'online':
       return a.online_seconds - b.online_seconds || Number(a.online_now) - Number(b.online_now);
+    case 'code':
+      return (a.code?.id ?? 0) - (b.code?.id ?? 0);
     case 'seen':
       return a.last_seen_at < b.last_seen_at ? -1 : a.last_seen_at > b.last_seen_at ? 1 : 0;
     default:
@@ -140,6 +179,8 @@ export function GuestsSection() {
   const [sort, setSort] = useState<SortDescriptor>({ column: 'id', direction: 'descending' });
   const list = useGuestList(filter);
   const { data: stats } = useStats();
+  const codes = useQuery({ queryKey: codesKey, queryFn: fetchCodes });
+  const codeChoices = useMemo(() => codeOptions(codes.data, filter.code), [codes.data, filter.code]);
 
   // typing updates the URL (and the query) 250 ms after the last key
   useEffect(() => {
@@ -156,7 +197,7 @@ export function GuestsSection() {
     const order = compare(String(sort.column), a, b);
     return sort.direction === 'descending' ? -order : order;
   });
-  const filtered = filter.search !== '' || filter.status !== 'all';
+  const filtered = filter.search !== '' || filter.status !== 'all' || filter.code !== null;
   const count = filtered
     ? `${formatNumber(users.length)}${list.hasNextPage ? '+' : ''} Treffer`
     : stats
@@ -196,6 +237,20 @@ export function GuestsSection() {
           value={filter.status}
           onChange={(status) => setParams((prev) => withParams(prev, { show: status }), { replace: true })}
           data-testid="guest-filter"
+          className="min-w-0"
+        />
+        <Select
+          label="QR-Code"
+          inlineLabel
+          size="sm"
+          options={codeChoices}
+          value={filter.code ?? ALL_CODES}
+          onChange={(code) =>
+            setParams((prev) => withParams(prev, { code: code === ALL_CODES ? null : code }), {
+              replace: true,
+            })
+          }
+          data-testid="guest-code-filter"
           className="min-w-0"
         />
       </div>

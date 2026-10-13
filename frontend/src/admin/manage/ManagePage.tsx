@@ -58,8 +58,8 @@ const SECTION_VIEW: Record<Section, ComponentType> = {
   sperren: BansSection,
   protokoll: AuditSection,
   qr: CodesSection,
-  export: ExportSection,
   plakat: PosterSection,
+  export: ExportSection,
   uebersicht: OverviewSection,
   einstellungen: SettingsSection,
 };
@@ -77,8 +77,8 @@ function navItems(stats: AdminStats | undefined) {
     navItem('sperren', 'Sperren', ShieldBan, stats ? stats.banned + stats.fingerprint_bans : undefined),
     navItem('protokoll', 'Protokoll', ScrollText),
     navItem('qr', 'QR-Codes', QrCode),
-    navItem('export', 'Export', Archive),
     navItem('plakat', 'Plakat', Printer),
+    navItem('export', 'Export', Archive),
   ];
 }
 

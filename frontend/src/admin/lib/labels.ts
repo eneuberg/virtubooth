@@ -182,6 +182,7 @@ export type AuditTarget =
   | { kind: 'instagram'; handle: string }
   | { kind: 'export'; id: string }
   | { kind: 'code'; id: number }
+  | { kind: 'extension'; id: string }
   | { kind: 'photo'; id: string }
   | { kind: 'device'; hash: string }
   | { kind: 'ip'; ip: string }
@@ -197,32 +198,52 @@ export function auditTarget(target: string): AuditTarget {
   if (kind === 'instagram' && value) return { kind: 'instagram', handle: value };
   if (kind === 'export' && value) return { kind: 'export', id: value };
   if (kind === 'code' && /^\d+$/.test(value)) return { kind: 'code', id: Number(value) };
+  if (kind === 'x' && value) return { kind: 'extension', id: value };
   return { kind: 'text', text: target || '–' };
 }
 
 const KIND_WORDS: Record<string, string> = { archive: 'Archiv', timelapse: 'Zeitraffer', qr: 'QR-Bogen' };
 
-/** "Zeitraffer (Beer Cam) vom 13.10.2026, 22:41": a timelapse names its activity by title. */
+/**
+ * "Zeitraffer (Beer Cam) vom 13.10.2026, 22:41": a timelapse names its activity by
+ * title, a QR-Bogen its code ("QR-Bogen (#2) vom …").
+ */
 export function exportJobTitle(
   job: Pick<ExportJob, 'kind' | 'options' | 'created_at'>,
   extensions?: ReadonlyMap<string, Pick<AdminExtension, 'title'>>,
 ): string {
   const options: Record<string, unknown> = { ...job.options };
   const id = options['extension'];
-  const activity =
-    job.kind === 'timelapse' && typeof id === 'string' ? ` (${extensions?.get(id)?.title ?? id})` : '';
-  return `${KIND_WORDS[job.kind] ?? job.kind}${activity} vom ${formatDateTime(job.created_at)}`;
+  const code = options['code_id'];
+  const what =
+    job.kind === 'timelapse' && typeof id === 'string'
+      ? ` (${extensions?.get(id)?.title ?? id})`
+      : job.kind === 'qr' && typeof code === 'number'
+        ? ` (#${code})`
+        : '';
+  return `${KIND_WORDS[job.kind] ?? job.kind}${what} vom ${formatDateTime(job.created_at)}`;
 }
 
-function detailValue(key: string, v: unknown): string {
+/** How a detail reads: `names` turns ids into names (the booth's filters). */
+interface DetailContext {
+  action?: string;
+  names?: ReadonlyMap<string, string> | undefined;
+}
+
+function detailValue(key: string, v: unknown, ctx: DetailContext = {}): string {
   if (typeof v === 'boolean') return v ? 'ja' : 'nein';
-  if (typeof v === 'string') return (key === 'kind' ? KIND_WORDS[v] : undefined) ?? (v || '–');
-  if (typeof v === 'number') return String(v);
+  if (typeof v === 'string') {
+    if (key === 'kind') return KIND_WORDS[v] ?? (v || '–');
+    if (key === 'disabled') return ctx.names?.get(v) ?? v;
+    return v || '–';
+  }
+  // the poster page is 0-based in the API, „Seite 1“ for people
+  if (typeof v === 'number') return String(key === 'page' && ctx.action?.startsWith('poster.') ? v + 1 : v);
   if (v === null || v === undefined) return '–';
-  if (Array.isArray(v)) return v.map((x) => detailValue(key, x)).join(', ') || '–';
+  if (Array.isArray(v)) return v.map((x) => detailValue(key, x, ctx)).join(', ') || '–';
   if (typeof v === 'object') {
     return Object.entries(v)
-      .map(([k, x]) => `${DETAIL_LABELS[k] ?? k} ${detailValue(k, x)}`)
+      .map(([k, x]) => `${DETAIL_LABELS[k] ?? k} ${detailValue(k, x, ctx)}`)
       .join(', ');
   }
   return '–';
@@ -239,6 +260,7 @@ const DETAIL_LABELS: Record<string, string> = {
   include_hidden: 'Ausgeblendete',
   include_db: 'Datenbank',
   base_url: 'Adresse',
+  code_id: 'QR-Code',
   fps: 'Bilder/s',
   crossfade: 'Überblenden',
   extension: 'Aktivität',
@@ -261,11 +283,17 @@ const DETAIL_LABELS: Record<string, string> = {
   token_end: 'Token endet auf',
 };
 
-export function auditDetails(entry: Pick<AuditEntry, 'details'>): string {
+/** `names`: filter ids to names for the booth's `extension.settings` entries. */
+export function auditDetails(
+  entry: Pick<AuditEntry, 'details'> & { action?: string },
+  names?: ReadonlyMap<string, string>,
+): string {
+  const ctx: DetailContext = { ...(entry.action ? { action: entry.action } : {}), names };
   return Object.entries(entry.details)
     .map(([k, v]) => {
       const label = DETAIL_LABELS[k] ?? k;
-      return label.endsWith(':') ? `${label} ${detailValue(k, v)}` : `${label}: ${detailValue(k, v)}`;
+      const value = detailValue(k, v, ctx);
+      return label.endsWith(':') ? `${label} ${value}` : `${label}: ${value}`;
     })
     .join(', ');
 }

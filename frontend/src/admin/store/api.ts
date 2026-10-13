@@ -80,7 +80,7 @@ export async function fetchExtensions(): Promise<AdminExtension[]> {
 }
 
 export function fetchUsers(filter: GuestFilter, offset: number, limit = 100): Promise<AdminUsersResponse> {
-  const { search, status } = filter;
+  const { search, status, code } = filter;
   return call(
     api.GET('/api/admin/users', {
       params: {
@@ -90,6 +90,7 @@ export function fetchUsers(filter: GuestFilter, offset: number, limit = 100): Pr
           ...(search.trim() ? { search: search.trim() } : {}),
           ...(status === 'banned' ? { banned: 'true' } : status === 'ok' ? { banned: 'false' } : {}),
           ...(status === 'paused' ? { paused: 'true' } : {}),
+          ...(code !== null ? { code } : {}),
         },
       },
     }),

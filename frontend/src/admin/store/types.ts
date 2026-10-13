@@ -32,4 +32,8 @@ export type GuestStatus = 'all' | 'banned' | 'ok' | 'paused';
 export interface GuestFilter {
   search: string;
   status: GuestStatus;
+  /** only guests who joined via this QR code (its number); null: all */
+  code: number | null;
 }
+
+export const ALL_GUESTS: GuestFilter = { search: '', status: 'all', code: null };

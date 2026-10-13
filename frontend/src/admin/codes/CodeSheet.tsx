@@ -1,16 +1,18 @@
 /**
- * One QR code: its link, token, Ziel, Notiz and numbers, and what can be done with it
- * (active codes only): „Token ändern…“, „Bearbeiten…“, „Löschen…“.
+ * One QR code: its link, downloads (PNG, big QR, poster), token, Ziel, Notiz and
+ * numbers, a link to its guests, and what can be done with it (active codes only):
+ * „Token ändern…“, „Bearbeiten…“, „Löschen…“.
  */
-import { Copy, KeyRound, Pencil, Trash2 } from 'lucide-react';
+import { Copy, KeyRound, Pencil, Trash2, Users } from 'lucide-react';
 import type { ReactNode } from 'react';
-import { formatDateTime, formatNumber, formatRelative } from '@/lib/format';
-import { Button } from '@/ui/Button';
+import { formatDateTime, formatDuration, formatNumber, formatRelative } from '@/lib/format';
+import { Button, LinkButton } from '@/ui/Button';
 import { Sheet } from '@/ui/Sheet';
 import { showToast } from '@/ui/Toast';
 import { copyText } from '../lib/browser';
 import { auditActor } from '../lib/labels';
 import type { Activities, AdminCode } from './api';
+import { CodeExports } from './CodeExports';
 import { codeUrl, revokedTitle, scansText, targetLabel } from './codeUrl';
 
 export type CodeAction = 'token' | 'edit' | 'delete';
@@ -120,11 +122,7 @@ export function CodeSheet({
             </div>
           ) : null}
         </section>
-        {/*
-          Exports of this code (integration step): „QR als PNG“, „QR groß (PDF)“,
-          „Plakat (PDF)“ go into this slot.
-        */}
-        <div data-slot="code-exports" className="empty:hidden" />
+        {code.active ? <CodeExports code={code} baseUrl={baseUrl} activities={activities} /> : null}
         <dl className="grid gap-3">
           <Row label="Token" testid="code-token-value">
             <code className="text-sm break-all">{code.token}</code>
@@ -152,9 +150,27 @@ export function CodeSheet({
             <Row label="Noch nicht beigetreten">{formatNumber(stats.not_joined)}</Row>
             <Row label="Fotos">{formatNumber(stats.photos)}</Row>
             <Row label="Aktiv jetzt">{formatNumber(stats.active_now)}</Row>
+            <Row label="Gerade online" testid="code-stat-online-now">
+              {formatNumber(stats.online_now)}
+            </Row>
+            <Row label="Online-Zeit zusammen" testid="code-stat-online">
+              {formatDuration(stats.online_seconds)}
+            </Row>
             <Row label="Zuerst gescannt">{when(stats.first_scan_at)}</Row>
             <Row label="Zuletzt gescannt">{when(stats.last_scan_at, true)}</Row>
           </dl>
+          {stats.guests > 0 ? (
+            <div>
+              <LinkButton
+                href={`/manage?tab=gaeste&code=${code.id}`}
+                size="xs"
+                icon={Users}
+                data-testid="code-guests"
+              >
+                Gäste über diesen Code anzeigen
+              </LinkButton>
+            </div>
+          ) : null}
         </section>
       </div>
     </Sheet>

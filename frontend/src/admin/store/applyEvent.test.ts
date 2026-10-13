@@ -68,6 +68,7 @@ function user(over: Partial<AdminUser> = {}): AdminUser {
     online_seconds: 0,
     online_sessions: 0,
     online_now: false,
+    code: null,
     ...over,
   };
 }
@@ -193,7 +194,7 @@ describe('applyAdminEvent', () => {
       pages: [{ users: [user()], next_offset: null }],
       pageParams: [0],
     };
-    qc.setQueryData(qk.users({ search: '', status: 'all' }), list);
+    qc.setQueryData(qk.users({ search: '', status: 'all', code: null }), list);
     qc.setQueryData(qk.user(1), { user: user(), fingerprints: [], sharing: [], photos: [p], stats: noStats });
     const banned = user({ banned: true, ban_reason: 'Spam' });
     const hidden = { ...p, hidden: true, hidden_reason: 'ban' as const, user: { ...p.user, banned: true } };
@@ -201,7 +202,7 @@ describe('applyAdminEvent', () => {
     const tile = listedPhotos(qc.getQueryData(LIVE))[0];
     expect(tile?.hidden_reason).toBe('ban');
     expect(tile?.user.banned).toBe(true);
-    const table = qc.getQueryData<typeof list>(qk.users({ search: '', status: 'all' }));
+    const table = qc.getQueryData<typeof list>(qk.users({ search: '', status: 'all', code: null }));
     expect(table?.pages[0]?.users[0]?.banned).toBe(true);
     expect(qc.getQueryData<UserDetail>(qk.user(1))?.user.ban_reason).toBe('Spam');
     expect(invalidated()).toEqual(

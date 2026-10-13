@@ -2,9 +2,11 @@
  * The manage area's state in the URL (manageUrl.test.ts). Section names are the
  * pre-overhaul tab names, so old bookmarks keep working:
  *
- *   /admin/manage?tab=fotos|gaeste|instagram|sperren|protokoll|export|uebersicht
+ *   /admin/manage?tab=uebersicht|fotos|gaeste|instagram|sperren|protokoll|qr|plakat|export
+ *   /admin/manage?tab=einstellungen   (sidebar footer / phone header, not in the list)
  *   Fotos: &ext=<activity>&status=visible|hidden&user=<id>&photo=<id>
- *   Gäste: &q=<search>&show=banned|ok|paused
+ *   Gäste: &q=<search>&show=banned|ok|paused&code=<QR code number>
+ *   QR-Codes: &code=<number> (its sheet is open)&deleted=1 (show deleted codes)
  *
  * Defaults are left out, invalid values fall back to them.
  */
@@ -17,8 +19,8 @@ export const SECTIONS = [
   'sperren',
   'protokoll',
   'qr',
-  'export',
   'plakat',
+  'export',
   'uebersicht',
   'einstellungen',
 ] as const;
@@ -53,6 +55,7 @@ export function parseGuestFilter(params: URLSearchParams): GuestFilter {
   return {
     search: (params.get('q') ?? '').slice(0, 100),
     status: GUEST_STATUSES.find((s) => s === show) ?? 'all',
+    code: parseCodeParam(params),
   };
 }
 

@@ -22,7 +22,7 @@ import {
 } from './api';
 import { incomingPhotos, mergeIncoming, type PhotoPages } from './cache';
 import { qk, type PhotoScope } from './keys';
-import type { GuestFilter, PhotoFilter } from './types';
+import { ALL_GUESTS, type GuestFilter, type PhotoFilter } from './types';
 
 export function usePhotoList(scope: PhotoScope, filter: PhotoFilter) {
   return useInfiniteQuery({
@@ -113,7 +113,7 @@ export function useGuestList(filter: GuestFilter) {
 export function useUserOptions(enabled: boolean) {
   return useQuery({
     queryKey: qk.userOptions,
-    queryFn: async () => (await fetchUsers({ search: '', status: 'all' }, 0, 500)).users,
+    queryFn: async () => (await fetchUsers(ALL_GUESTS, 0, 500)).users,
     enabled,
     staleTime: 30_000,
   });
@@ -122,7 +122,7 @@ export function useUserOptions(enabled: boolean) {
 export function usePausedUsers(enabled: boolean) {
   return useQuery({
     queryKey: qk.pausedUsers,
-    queryFn: () => fetchUsers({ search: '', status: 'paused' }, 0, 50),
+    queryFn: () => fetchUsers({ ...ALL_GUESTS, status: 'paused' }, 0, 50),
     enabled,
   });
 }
@@ -139,7 +139,7 @@ export function useUserDetail(id: number | null) {
 export function useBannedUsers() {
   return useQuery({
     queryKey: qk.bannedUsers,
-    queryFn: async () => (await fetchUsers({ search: '', status: 'banned' }, 0, 500)).users,
+    queryFn: async () => (await fetchUsers({ ...ALL_GUESTS, status: 'banned' }, 0, 500)).users,
   });
 }
 
