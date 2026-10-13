@@ -5,19 +5,18 @@ run-once [--data-dir DIR] [--limit N]      analyse what is pending, print timing
 status   [--data-dir DIR]                 counts, worker heartbeat, analyzers
 models fetch [--with-age] [--dest DIR]    download the models (SHA256-checked)
 models list  [--data-dir DIR]             which models are present
+bench PHOTO_DIR [--age] [--passes N]      timings and memory on this machine
+
+The ML libraries are imported lazily (after `tune_process` has set the thread
+limits), never by these top-level imports.
 """
 
 from __future__ import annotations
 
-import os
-
-# before numpy / onnxruntime / mediapipe load (the analyzers import them)
-os.environ.setdefault("OMP_NUM_THREADS", "3")
-os.environ.setdefault("MPLBACKEND", "Agg")
-
 import argparse
 import json
 import logging
+import os
 import sys
 from collections.abc import Sequence
 from pathlib import Path
@@ -47,6 +46,21 @@ def _run_once(args: argparse.Namespace) -> int:
     worker = Worker(resolve_data_dir(args.data_dir))
     worker.run(once=True, limit=args.limit, report=None if args.quiet else print)
     print(f"{worker.processed} photos, peak RSS {peak_rss_mb():.0f} MB")
+    return 0
+
+
+def _bench(args: argparse.Namespace) -> int:
+    from .bench import render, run_bench
+    from .worker import tune_process
+
+    tune_process(nice=not args.no_nice)
+    folder = Path(args.photos)
+    photos = sorted(p for p in folder.iterdir() if p.suffix.lower() in (".jpg", ".jpeg"))
+    if not photos:
+        raise ToolError(f"no JPEGs in {folder}")
+    data_dir = resolve_data_dir(args.data_dir) if args.data_dir else None
+    result = run_bench(photos, with_age=args.age, passes=args.passes, data_dir=data_dir)
+    print(json.dumps(result, ensure_ascii=False) if args.json else render(result))
     return 0
 
 
@@ -106,6 +120,14 @@ def parser() -> argparse.ArgumentParser:
     o.add_argument("--limit", type=int, default=None, help="at most N photos")
     o.add_argument("--quiet", action="store_true", help="no line per photo")
     o.set_defaults(fn=_run_once)
+    b = sub.add_parser("bench", help="time the analyzers on the JPEGs in a folder (no database)")
+    b.add_argument("photos", metavar="PHOTO_DIR")
+    b.add_argument("--age", action="store_true", help="also FairFace age (opt-in analyzer)")
+    b.add_argument("--passes", type=int, default=2, help="runs over the folder (first = cold)")
+    b.add_argument("--no-nice", action="store_true", help="normal priority (worker: nice 10)")
+    b.add_argument("--json", action="store_true", help="machine-readable output")
+    b.add_argument("--data-dir", metavar="DIR", help="also look for models in DIR/wall/models")
+    b.set_defaults(fn=_bench)
     s = sub.add_parser("status", help="counts, heartbeat, analyzers")
     add_data_dir_arg(s)
     s.set_defaults(fn=_status)
@@ -124,6 +146,7 @@ def parser() -> argparse.ArgumentParser:
 
 
 def main(argv: Sequence[str] | None = None) -> int:
+    os.environ.setdefault("MPLBACKEND", "Agg")
     logging.basicConfig(
         level=logging.INFO, stream=sys.stderr,
         format="%(asctime)s wall-enrich[%(process)d] %(levelname)s %(message)s",

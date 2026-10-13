@@ -15,10 +15,12 @@ import numpy as np
 import numpy.typing as npt
 
 from ..pipeline import Frame, Result
-
-THREADS = 3
+from . import thread_limit
 
 Array = npt.NDArray[Any]
+
+if _threads := thread_limit():
+    cv2.setNumThreads(_threads)  # OpenCV's own pool (YuNet, resizes)
 
 
 @dataclass
@@ -46,7 +48,11 @@ def onnx_session(path: Path) -> Any:
     import onnxruntime as ort
 
     so = ort.SessionOptions()
-    so.intra_op_num_threads = THREADS
+    if threads := thread_limit():
+        so.intra_op_num_threads = threads
+    # idle pool threads sleep instead of spinning (they kept ~4 cores busy)
+    so.add_session_config_entry("session.intra_op.allow_spinning", "0")
+    so.add_session_config_entry("session.inter_op.allow_spinning", "0")
     so.inter_op_num_threads = 1
     so.enable_cpu_mem_arena = False
     so.log_severity_level = 3

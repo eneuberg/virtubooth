@@ -32,7 +32,7 @@ from ....core.clock import now_iso
 from ....repositories.container import Repositories
 from ....tools._common import open_repos
 from . import jobs, models
-from .analyzers import create_all, ml_installed
+from .analyzers import create_all, ml_installed, thread_limit
 from .pipeline import FRAME_SIDE, Analyzer, AnalyzerInfo, Frame, PhotoInfo, Pipeline
 
 log = logging.getLogger("virtubooth.wall.enrich")
@@ -41,18 +41,20 @@ EXIT_RECYCLE = 75
 MAX_PHOTOS = 200
 MAX_RSS_MB = 900
 IDLE_S = 2.0
+NICE = 10
 BEAT_S = 10.0
-THREADS = 3
 
 
-def tune_process() -> None:
+def tune_process(*, nice: bool = True) -> None:
     """Before numpy/onnxruntime are imported: few threads, low priority, no GUI."""
-    os.environ.setdefault("OMP_NUM_THREADS", str(THREADS))
+    if threads := thread_limit():
+        os.environ.setdefault("OMP_NUM_THREADS", str(threads))
     os.environ.setdefault("MPLBACKEND", "Agg")
-    try:
-        os.nice(10)
-    except OSError:
-        pass
+    if nice:
+        try:
+            os.nice(NICE)
+        except OSError:
+            pass
 
 
 def _proc_status_kb(field: str) -> int:

@@ -10,6 +10,7 @@ from __future__ import annotations
 import importlib
 import importlib.util
 import logging
+import os
 from collections.abc import Collection
 from functools import cache
 
@@ -55,6 +56,17 @@ DEFAULT_DISABLED: tuple[str, ...] = tuple(i.name for i in INFOS if not i.default
 ALWAYS_ON = frozenset({"basic"})
 
 ML_PACKAGES = ("numpy", "cv2", "onnxruntime", "mediapipe")
+THREADS_ENV = "VB_WALL_THREADS"
+DEFAULT_THREADS = 3
+
+
+def thread_limit() -> int:
+    """Threads per inference ($VB_WALL_THREADS, default 3 so the web server
+    keeps a core on a Pi 5; 0 = the libraries' default, all cores)."""
+    try:
+        return max(0, int(os.environ.get(THREADS_ENV, "").strip() or DEFAULT_THREADS))
+    except ValueError:
+        return DEFAULT_THREADS
 
 
 @cache

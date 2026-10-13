@@ -20,7 +20,8 @@ from collections.abc import Mapping, Sequence
 from pathlib import Path
 from typing import Literal
 
-from .worker import EXIT_RECYCLE, THREADS
+from .analyzers import thread_limit
+from .worker import EXIT_RECYCLE
 
 log = logging.getLogger("virtubooth.wall.enrich")
 
@@ -68,7 +69,8 @@ class Supervisor:
 
     def _child_env(self) -> dict[str, str]:
         env = dict(os.environ if self.env is None else self.env)
-        env.setdefault("OMP_NUM_THREADS", str(THREADS))
+        if threads := thread_limit():
+            env.setdefault("OMP_NUM_THREADS", str(threads))
         env.setdefault("MPLBACKEND", "Agg")
         env.setdefault("PYTHONUNBUFFERED", "1")
         return env
