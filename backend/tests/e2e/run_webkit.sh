@@ -10,6 +10,9 @@
 #   VB_WEBKIT_CONTAINER=<name>  names the container (to find or stop it)
 #   VB_SCREENSHOT_DIR=<dir>     screenshots land there (owned by you, not root)
 #   VB_BLOCKLISTS=<dir>         full filter lists for the rendered-DOM blocker scans
+#   LP_NUM_THREADS=<n>          threads of the software WebGL renderer per browser (4):
+#                               Mesa's default, one per core in every browser, starved the
+#                               pages' timers when several workers ran camera tests at once
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/../../.." && pwd)"
 IMAGE="mcr.microsoft.com/playwright/python:v1.63.0-noble"
@@ -28,7 +31,8 @@ fi
 if [ -n "${VB_BLOCKLISTS:-}" ]; then
   EXTRA+=(-v "$(cd "$VB_BLOCKLISTS" && pwd)":/blocklists:ro -e VB_BLOCKLISTS=/blocklists)
 fi
-exec docker run --rm --ipc=host "${EXTRA[@]}" -e HOST_IDS="$(id -u):$(id -g)" \
+exec docker run --rm --ipc=host "${EXTRA[@]}" -e LP_NUM_THREADS="${LP_NUM_THREADS:-4}" \
+  -e HOST_IDS="$(id -u):$(id -g)" \
   -v "$ROOT":/src:ro "$IMAGE" bash -c '
   set -e
   mkdir -p /tmp/src

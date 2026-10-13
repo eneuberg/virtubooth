@@ -207,6 +207,7 @@ def test_manage_sections_on_a_phone(
     g.upload()
     for tab in ("fotos", "gaeste", "instagram", "sperren", "protokoll", "export"):
         goto(admin_page, live, f"/admin/manage?tab={tab}")
+        wait_live(admin_page)  # in before it leaves (see test_no_sideways_scrolling)
         strip = admin_page.get_by_role("navigation", name="Bereiche der Verwaltung")
         expect(strip.locator("[aria-current=page]")).to_be_visible()
         assert no_horizontal_scroll(admin_page), tab

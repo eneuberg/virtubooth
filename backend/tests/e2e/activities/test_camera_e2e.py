@@ -36,7 +36,6 @@ from .conftest import (
     open_beer,
     open_booth,
     select_filter,
-    settled_box,
     shot,
     stored_images,
 )
@@ -89,7 +88,7 @@ def screenshot_of(page: Page, testid: str) -> Image.Image:
 
 
 def on_screen(page: Page, testid: str) -> dict:
-    box = settled_box(page.get_by_test_id(testid).first)
+    box = page.get_by_test_id(testid).first.bounding_box()
     assert box, testid
     assert box["x"] >= 0 and box["y"] >= 0, (testid, box)
     assert box["x"] + box["width"] <= VIEW_W and box["y"] + box["height"] <= VIEW_H, (testid, box)

@@ -93,7 +93,8 @@ def settled_box(locator: Locator) -> FloatRect | None:
     layout a frame after the content changes (a ResizeObserver sets --vb-reserve in the
     next animation frame), so a box read right after a change (the print appears, the
     status text grows) can be one frame early; on a busy machine that frame comes late.
-    Waits until the box is the same for 3 frames (at most ~2 s)."""
+    Waits until the box is the same for 3 frames (at most ~2 s). Not right before a
+    screenshot of a WebGL canvas: WebKit then sometimes captures it black."""
     locator.evaluate(
         """async (el) => {
             const frame = () => new Promise((resolve) => requestAnimationFrame(() => resolve(null)));

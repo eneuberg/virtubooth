@@ -11,7 +11,7 @@ from virtubooth.core.ratelimit import RateLimiter
 
 from ...conftest import ADMIN_PASSWORD
 from ..conftest import LiveServer, wait_until_ready
-from .conftest import errors
+from .conftest import errors, wait_live
 
 pytestmark = pytest.mark.e2e
 
@@ -33,6 +33,7 @@ def test_wrong_password_then_in_and_back_to_next(page: Page, live: LiveServer) -
     submit(page, ADMIN_PASSWORD)
     page.wait_for_url(live.url("/admin/manage?tab=gaeste&show=paused"))
     expect(page.get_by_role("heading", name="Gäste", level=1)).to_be_visible()
+    wait_live(page)  # WebKit logs a stream it aborts mid-connect as an error
     # signed in already: the login page forwards right away
     page.goto(live.url("/admin/login?next=/admin/live"))
     page.wait_for_url(live.url("/admin/live"))
