@@ -580,7 +580,8 @@ All of these are optional. Beer Cam (`extensions/beer/`) and Fotobox
   over the stage, like the Beer Cam outline (`sdk/camera/overlays.ts`). It is a
   guide, not part of the photo.
 - **A nicer presence in the guest app:** a live line on the Start card (the
-  `LIVE` map in `src/guest/ActivityCards.tsx`, like the beer counter), an icon
+  optional lazy `card` slot of `defineExtension`, like the beer counter in
+  `extensions/beer/BeerCard.tsx`), an icon
   in the switcher (`ICONS` in `src/sdk/components/ActivityMenu.tsx`; the
   default is a camera), and a frame word (`FRAME_WORD` in `src/lib/format.ts`:
   "Bier 0032", "Foto 0018"; otherwise the capitalised id, "Snap 0001").
