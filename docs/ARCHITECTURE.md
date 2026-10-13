@@ -163,6 +163,51 @@ def hide_photo(self, public_id: str, *, actor: str, reason: str = HIDDEN_BY_ADMI
   `instagram.done`, …) is listed in [overhaul/contracts/api.md](overhaul/contracts/api.md).
   "Protokoll" in the admin shows it.
 
+## Presence and online time
+
+The dashboard's "Aktiv jetzt" and the per-guest online time come from two
+cheap signals (`services/presence.py`, definitions in `domain/overview.py`):
+
+- **Last seen.** Every guest API request passes `require_access`, which
+  refreshes `users.last_seen_at` (or the visitor's, before joining), at most
+  once per device and minute (an in-memory throttle).
+- **The heartbeat.** `POST /api/here {visible}` (party access, no other
+  answer than `{ok: true}`). The guest app (`frontend/src/sdk/presence.ts`)
+  sends `{visible: true}` at start, every 60 s while
+  `document.visibilityState` is `visible`, and at once when the page is shown
+  again (never within 15 s of the last one). When the page is hidden or left
+  (`visibilitychange`, `pagehide`) it sends `{visible: false}` once, as a
+  `keepalive` fetch, which outlives the page and carries the Origin header the
+  CSRF check needs. A 404 `scan_qr` stops it; other failures are silent.
+
+Accounting, for a joined guest (signed `vb_uid` cookie), in one transaction:
+
+| Beat | `online_at` set and at most 150 s old | otherwise |
+|---|---|---|
+| visible | `online_seconds += now - online_at` | `online_sessions += 1` (a new visit, nothing added) |
+| hidden | `online_seconds += now - online_at` | nothing added |
+
+Afterwards a visible beat sets `online_at = now`, a hidden one clears it, and
+both set `last_seen_at = now`. So a visit ends when the page is hidden or
+stops beating for 150 s (one lost beat is tolerated); `online_now` on
+`AdminUser` is "`online_at` within 150 s". A browser that has not joined only
+refreshes its visitor row (throttled).
+
+- **Cost:** one small `UPDATE` per guest and minute; the beat's own request
+  skips the throttled refresh and marks the device in the throttle, so other
+  requests don't write again right away. 300 guests are about 5 writes a
+  second, nothing for SQLite in WAL mode.
+- **"Aktiv jetzt"** keeps its definition (not banned, seen in the last 5
+  minutes), but since an open, visible page beats every minute, a guest who
+  keeps the page open without doing anything now counts too. A phone that
+  locks its screen or switches apps stops counting after 5 minutes.
+- **Admin:** `AdminUser` carries `online_seconds`, `online_sessions` and
+  `online_now` (the guests table's "Online" column); the user page gets
+  `UserDetailOut.stats` (photos, hidden, deleted, per activity, first and last
+  upload) from two aggregate queries. The archive's `users.csv` has
+  `online_seconds` and `online_sessions`.
+- The join texts tell guests that the hosts see this per-guest statistic.
+
 ## The admin event stream
 
 `GET /api/admin/events` is Server-Sent Events. Each event has a type (for

@@ -52,8 +52,10 @@ Installation.
 - Die Texte kommen vom Server: Titel „Willkommen bei <Partyname>!“, was mit den Fotos
   passiert (mit `VB_INSTAGRAM_ACCOUNT`), und „Wenn du das nicht möchtest, mach hier
   bitte keine Fotos.“
-- Unter „Mehr dazu“: die Gerätewiedererkennung und der Hinweis auf den anonymen
-  Besucherzähler.
+- Unter „Mehr dazu“: die Gerätewiedererkennung, der Hinweis auf den anonymen
+  Besucherzähler und was die Gastgeber pro Gast sehen („eine kleine Statistik“: Fotos,
+  wie lange die Seite offen war, über welchen QR-Code der Gast kam). Wer den Satz als
+  Teil der Einwilligung festhalten will, erhöht `VB_CONSENT_VERSION`.
 - Feld „Instagram-Name (freiwillig)“ mit „Dann können wir dich markieren.“
   - Nimmt `@name`, `name` oder einen Profil-Link.
   - Fehler werden konkret erklärt: Umlaute, Akzente, Leerzeichen, zwei Punkte, mehr
@@ -332,7 +334,7 @@ Die Party-Ansicht für das Handy des Hosts (`/admin/live`), dunkel.
 
 | Zahl | Bedeutung |
 |---|---|
-| „Aktiv“, „Aktiv jetzt“ | Gäste, nicht gesperrt, deren Seite in den letzten 5 min mit dem Server gesprochen hat. Jede Gast-Anfrage zählt; gespeichert wird höchstens einmal pro Minute und Gerät |
+| „Aktiv“, „Aktiv jetzt“ | Gäste, nicht gesperrt, deren Seite in den letzten 5 min offen war. Die Seite meldet sich jede Minute, solange sie sichtbar ist, auch wenn der Gast nichts tut; dazu zählt jede Gast-Anfrage (gespeichert höchstens einmal pro Minute und Gerät) |
 | „Laden gerade hoch“, „Laden hoch“ | verschiedene Gäste mit einem Upload in den letzten 5 min |
 | „Gescannt, noch nicht dabei“ | Browser mit gültigem QR-Link, nicht beigetreten, in den letzten 5 min gesehen |
 | „Gescannt“ | Browser, die einen gültigen QR-Link geöffnet haben (zufällige Besucher-ID) |
@@ -393,8 +395,11 @@ Handy.
 
 **„Gäste“:**
 
-- Tabelle mit „Nr.“, „Name“, „Status“, „Instagram“, „Fotos“, „Zuletzt“, „Gerät“.
-  Sortierbar nach Nummer, Name, Fotos und Zuletzt.
+- Tabelle mit „Nr.“, „Name“, „Status“, „Instagram“, „Fotos“, „Online“, „Zuletzt“,
+  „Gerät“. Sortierbar nach Nummer, Name, Fotos, Online und Zuletzt.
+- „Online“: wie lange die Seite des Gasts sichtbar offen war, zusammengezählt („–“,
+  „unter 1 min“, „12 min“, „1 h 05 min“). Ein grüner Punkt heißt: die Seite ist gerade
+  offen. Am Handy ausgeblendet.
 - Suche nach Name, @instagram oder #Nummer. Filter „Status“: „Alle“, „Gesperrt“,
   „Nicht gesperrt“, „Hochladen pausiert“.
 - Status als Abzeichen: „Gesperrt“, „Automatisch gesperrt“, „Hochladen pausiert“.
@@ -426,6 +431,10 @@ Instagram, Sperren und dem Protokoll.
   bleiben sichtbar.
 - **„Sperren…“** bzw. **„Entsperren…“** öffnen ein Sheet, siehe
   [Sperren](#sperren-und-gerätemerkmale).
+- **„Statistik“:** „Online“ („1 h 12 min in 3 Besuchen“, dazu „gerade online“; ein
+  Besuch endet, wenn die Seite verborgen wird oder sich 150 s nicht meldet), „Fotos“
+  pro Aktivität („12: Beer Cam 8, Fotobox 4“), „Ausgeblendet“ und „Gelöscht“ (wenn es
+  welche gibt), „Erstes Foto“, „Letztes Foto“, „Dabei seit“, „Zuletzt gesehen“.
 - Die Fotos des Gasts; groß mit „Ausblenden“/„Einblenden“ und „Löschen…“.
 - „Technische Details“, eingeklappt: Gerät, Bildschirm, Grafik, Sprache, Zeitzone,
   Leistung, IP-Adresse (erste und letzte), „Zuletzt gesehen“, „Erstmals da“,
@@ -777,6 +786,7 @@ Cookie-Hinweis aussieht. virtubooth vermeidet das:
 | Instagram-Name, nur wenn angegeben | Markieren beim Posten |
 | Zeit und Textversion des Beitritts | Nachweis, was der Gast gesehen hat |
 | Erstes und letztes Mal gesehen | Gästeliste, „Aktiv“ |
+| Online-Zeit und Zahl der Besuche (die Seite meldet sich jede Minute, solange sie sichtbar ist) | Statistik pro Gast |
 | Erste und letzte IP-Adresse, User-Agent (bis 300 Zeichen) | Moderation, „Technische Details“ |
 | Gerätemerkmal: Hash und Bestandteile (Bildschirm, Grafikkarte, Sprachen, Zeitzone, Kerne, Speicher, Touch, Canvas-Hash u. a.) | nur ein Hinweis für Sperren, keine Identität |
 | Sperre mit Grund, Pause mit Quelle | Moderation |
