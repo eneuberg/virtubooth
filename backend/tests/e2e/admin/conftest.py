@@ -210,3 +210,13 @@ def upload_from_page(page: Page, shade: int = 0) -> dict[str, Any]:
     """A guest's browser uploads a 1080x1440 JPEG (it joined with join_via_api)."""
     result: dict[str, Any] = page.evaluate(UPLOAD_FROM_PAGE, shade)
     return result
+
+
+def settle(page: Page) -> None:
+    """Wait until running animations (sheets sliding in, toasts) are done."""
+    page.evaluate("() => Promise.all(document.getAnimations().map((a) => a.finished.catch(() => null)))")
+
+
+def confirm_dialog(page: Page) -> Locator:
+    """The open confirm question (not a toast: a toast with an action is an alertdialog too)."""
+    return page.get_by_test_id("confirm").get_by_role("alertdialog")

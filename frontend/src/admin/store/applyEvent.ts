@@ -53,8 +53,9 @@ export function dropPhoto(qc: QueryClient, id: string, photo: AdminPhoto | null)
   patchQueries<PhotoPages>(qc, qk.photoLists, (data, key) =>
     removePhoto(data, id, photo, filterOfKey(key) ?? ALL_PHOTOS),
   );
-  const cached = qc.getQueryData<AdminPhoto>(qk.photo(id));
-  if (cached) qc.setQueryData(qk.photo(id), { ...(photo ?? cached), deleted: true });
+  // remembered as deleted, so a deep link to it never asks the server (404) again
+  const known = photo ?? qc.getQueryData<AdminPhoto>(qk.photo(id));
+  if (known) qc.setQueryData(qk.photo(id), { ...known, deleted: true });
   patchQueries<UserDetail>(qc, qk.userDetails, (d) => patchUserDetail(d, { deletedId: id }));
 }
 
