@@ -162,13 +162,12 @@ export function unbanToast(text, released) {
   toast(`${text}${more}`, { type: 'success', ms: n ? 5000 : undefined });
 }
 
-/** "Wildes Zebra #3 · 3a9f12…": where an automatic ban came from */
+/** "gesperrtem Fingerprint 3a9f12… (gesperrt über Wildes Zebra #3)": where an automatic ban came from */
 export function autoBanSource(user) {
   const src = user.auto_ban;
-  if (!src) return 'Die Fingerprint-Sperre dazu gibt es nicht mehr.';
-  const parts = [`Fingerprint ${src.fp_hash.slice(0, 12)}…`];
-  if (src.source_user_id) parts.push(`gesperrt über ${src.source_user_name || `#${src.source_user_id}`}`);
-  return `${parts.join(', ')}.`;
+  if (!src) return 'gesperrtem Fingerprint (die Sperre gibt es inzwischen nicht mehr)';
+  const via = src.source_user_id ? ` (gesperrt über ${src.source_user_name || `#${src.source_user_id}`})` : '';
+  return `gesperrtem Fingerprint ${src.fp_hash.slice(0, 12)}…${via}`;
 }
 
 // ---------------------------------------------------------------- photos

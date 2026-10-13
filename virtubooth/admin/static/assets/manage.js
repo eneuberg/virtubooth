@@ -582,9 +582,9 @@ function bannedUserRow(u) {
     }
   });
   const sub = u.auto_banned
-    ? `Automatisch gesperrt ${relTime(u.banned_at)}: neues Gerät mit gesperrtem Fingerprint. ${autoBanSource(u)} Vielleicht nur dasselbe Handymodell.`
+    ? `Automatisch gesperrt ${relTime(u.banned_at)}: neues Gerät mit ${autoBanSource(u)}. Vielleicht nur dasselbe Handymodell.`
     : `Grund: ${u.ban_reason || '–'} · gesperrt ${relTime(u.banned_at)} · ${u.photo_count} Fotos`;
-  return h('div', { class: `adm-row is-banned${u.auto_banned ? ' is-auto' : ''}`, 'data-testid': 'banned-user-row' },
+  return h('div', { class: `adm-row adm-row--stack is-banned${u.auto_banned ? ' is-auto' : ''}`, 'data-testid': 'banned-user-row' },
     h('div', { class: 'adm-row-main' },
       userLink(u),
       h('div', { class: 'adm-row-sub' }, sub),
@@ -610,7 +610,7 @@ function fpBanRow(b) {
       showError(err);
     }
   });
-  return h('div', { class: 'adm-row is-banned', 'data-testid': 'fp-ban-row' },
+  return h('div', { class: 'adm-row adm-row--stack is-banned', 'data-testid': 'fp-ban-row' },
     h('div', { class: 'adm-row-main' },
       h('div', { class: 'adm-row-title adm-mono', title: b.fp_hash }, `🧬 ${b.fp_hash.slice(0, 16)}…`),
       h('div', { class: 'adm-row-sub' }, `Grund: ${b.reason || '–'} · seit ${relTime(b.created_at)}`,

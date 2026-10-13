@@ -159,7 +159,7 @@ function bannedPanel(u) {
   const auto = u.auto_banned
     ? h('div', { class: 'adm-warn adm-warn--auto', 'data-testid': 'auto-ban-note' },
       h('strong', {}, '🧬 Automatisch gesperrt. '),
-      `Dieses Gerät hat sich neu angemeldet und zeigte dabei einen gesperrten Fingerprint. ${autoBanSource(u)} `
+      `Dieses Gerät hat sich neu angemeldet, mit ${autoBanSource(u)}. `
       + 'Gleiche Handymodelle haben oft denselben Fingerprint: vielleicht ist das jemand anderes. Entsperren betrifft nur dieses Gerät.')
     : null;
   return h('section', { class: 'adm-panel adm-panel--ban', 'data-testid': 'ban-panel' },

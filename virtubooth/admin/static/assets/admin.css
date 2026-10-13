@@ -493,6 +493,12 @@ a.adm-row:hover, a.adm-row:focus-visible { background: var(--vb-surface-strong);
 .adm-row-sub { color: var(--vb-muted); font-size: 0.9rem; overflow-wrap: anywhere; }
 .adm-row-side { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
 .adm-num { font-weight: 900; font-size: 1.1rem; white-space: nowrap; }
+@media (max-width: 520px) {
+  /* phones: rows with a long explanation put their button below it */
+  .adm-row--stack { grid-template-columns: minmax(0, 1fr); }
+  .adm-row--stack .adm-row-side { justify-content: stretch; }
+  .adm-row--stack .adm-row-side .vb-btn { flex: 1; }
+}
 
 .adm-section { margin: 0 0 26px; }
 .adm-section > h2 { font-size: 1.25rem; margin: 0 0 10px; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
