@@ -7,6 +7,7 @@ import threading
 
 import pytest
 
+from virtubooth.admin import queries
 from virtubooth.admin.api import router as admin_router
 from virtubooth.repo import PhotoQuery
 
@@ -326,7 +327,7 @@ def test_user_detail_shows_devices_sharing_fingerprint(admin, guest, core):
     detail = admin.get(f"/api/admin/users/{ua.id}").json()
     assert detail["fingerprints"][0]["shared_with"] == 1
     assert detail["fingerprints"][0]["users"] == [
-        {"id": ub.id, "name": ub.name, "instagram": "twin", "banned": False}
+        {"id": ub.id, "name": ub.name, "instagram": "twin", "banned": False, "auto_banned": False}
     ]
     assert [u["id"] for u in detail["sharing"]] == [ub.id]
 
@@ -432,6 +433,106 @@ def test_unban_can_lift_fingerprint_bans_too(admin, guest, core):
     r = admin.post(f"/api/admin/users/{user.id}/unban", json={"fingerprint": True}, headers=ORIGIN)
     assert r.json()["fingerprints_unbanned"] == [fp(9)["hash"]]
     assert core.repo.list_fingerprint_bans() == []
+
+
+def join_on(make_client, fp_n):
+    """A new identity (cookies cleared, new browser) on a device showing fp(fp_n)."""
+    c = make_client()
+    scan(c)
+    r = c.post("/api/join", json={"accept": True, "version": "1", "fp": fp(fp_n)}, headers=ORIGIN)
+    assert r.status_code == 201, r.text
+    return c
+
+
+def test_auto_banned_identities_are_marked(admin, guest, make_client, core):
+    troll = user_of(core, guest(fp_n=7))
+    admin.post(f"/api/admin/users/{troll.id}/ban", json={"fingerprint": True}, headers=ORIGIN)
+    twin = user_of(core, join_on(make_client, 7))
+    # the reason core gives such identities is what the admin API looks for
+    assert twin.banned and twin.ban_reason == queries.AUTO_BAN_REASON
+
+    users = {u["id"]: u for u in admin.get("/api/admin/users?banned=true").json()["users"]}
+    assert users[troll.id]["auto_banned"] is False and users[troll.id]["auto_ban"] is None
+    assert users[twin.id]["auto_banned"] is True
+    assert users[twin.id]["auto_ban"] == {
+        "fp_hash": fp(7)["hash"],
+        "source_user_id": troll.id,
+        "source_user_name": troll.name,
+    }
+    assert admin.get(f"/api/admin/users/{twin.id}").json()["user"]["auto_banned"] is True
+    detail = admin.get(f"/api/admin/users/{troll.id}").json()
+    assert detail["user"]["auto_banned"] is False
+    assert [(u["id"], u["auto_banned"]) for u in detail["fingerprints"][0]["users"]] == [
+        (twin.id, True)
+    ]
+    assert [(u["id"], u["auto_banned"]) for u in detail["sharing"]] == [(twin.id, True)]
+    ban = admin.get("/api/admin/device-bans").json()["bans"][0]
+    assert {u["id"]: u["auto_banned"] for u in ban["users"]} == {troll.id: False, twin.id: True}
+
+
+def test_lifting_fp_ban_unbans_the_identities_it_auto_banned(admin, guest, make_client, core):
+    troll_client = guest(fp_n=7)
+    troll = user_of(core, troll_client)
+    known = user_of(core, guest(fp_n=7))  # was there before the ban
+    admin.post(f"/api/admin/users/{troll.id}/ban", json={"fingerprint": True}, headers=ORIGIN)
+    twin_client = join_on(make_client, 7)
+    twin = user_of(core, twin_client)
+    twin2 = user_of(core, join_on(make_client, 7))
+    # banned by hand, for its own reasons: lifting the fingerprint ban keeps that
+    admin.post(f"/api/admin/users/{known.id}/ban", json={"reason": "Spam"}, headers=ORIGIN)
+    # auto-banned on fp 7, later also showed fp 8, which is banned too: stays banned
+    other = user_of(core, guest(fp_n=8))
+    admin.post(f"/api/admin/users/{other.id}/ban", json={"fingerprint": True}, headers=ORIGIN)
+    both_client = join_on(make_client, 7)
+    both = user_of(core, both_client)
+    r = both_client.post("/api/identify", json={"fp": fp(8)}, headers=ORIGIN)
+    assert r.json()["state"] == "banned"
+    assert twin_client.post("/api/x/demo/upload", content=jpeg(), headers=JPEG).status_code == 403
+
+    def act():
+        r = admin.delete(f"/api/admin/device-bans/{fp(7)['hash']}", headers=ORIGIN)
+        assert r.status_code == 200, r.text
+        act.body = r.json()
+
+    events = _collect_events(core, act, 3)
+    body = act.body
+    assert [u["id"] for u in body["users_unbanned"]] == [twin.id, twin2.id]
+    assert body["users_unbanned"][0] == {
+        "id": twin.id, "name": twin.name, "instagram": None, "banned": False, "auto_banned": False,
+    }  # fmt: skip
+    assert [e["type"] for e in events] == ["fingerprint.unbanned", "user.unbanned", "user.unbanned"]
+    assert events[1]["data"]["user"]["id"] == twin.id and not events[1]["data"]["user"]["banned"]
+    assert events[1]["data"]["photos"] == []
+
+    assert not core.repo.get_user(twin.id).banned and not core.repo.get_user(twin2.id).banned
+    assert twin_client.post("/api/x/demo/upload", content=jpeg(), headers=JPEG).status_code == 201
+    assert core.repo.get_user(troll.id).banned  # the guest the ban was made over
+    assert core.repo.get_user(known.id).ban_reason == "Spam"
+    assert core.repo.get_user(both.id).banned
+    banned = admin.get("/api/admin/users?banned=true").json()["users"]
+    assert {u["id"] for u in banned} == {troll.id, known.id, other.id, both.id}
+    audit = [(e["action"], e["target"]) for e in core.repo.list_audit()]
+    assert ("user.unban", f"user:{twin.id}") in audit
+    assert troll_client  # used
+
+    # lifting fp 8 via the guest it was made over releases the last one too
+    r = admin.post(f"/api/admin/users/{other.id}/unban", json={"fingerprint": True}, headers=ORIGIN)
+    assert r.json()["fingerprints_unbanned"] == [fp(8)["hash"]]
+    assert [u["id"] for u in r.json()["users_unbanned"]] == [both.id]
+    assert not core.repo.get_user(both.id).banned
+
+
+def test_unban_without_fingerprint_keeps_auto_bans(admin, guest, make_client, core):
+    troll = user_of(core, guest(fp_n=7))
+    admin.post(f"/api/admin/users/{troll.id}/ban", json={"fingerprint": True}, headers=ORIGIN)
+    twin = user_of(core, join_on(make_client, 7))
+    r = admin.post(f"/api/admin/users/{troll.id}/unban", json={"fingerprint": False}, headers=ORIGIN)
+    assert r.json()["users_unbanned"] == [] and r.json()["fingerprints_unbanned"] == []
+    assert core.repo.get_user(twin.id).banned  # the fingerprint is still banned
+    # one tap on the auto-banned identity itself
+    r = admin.post(f"/api/admin/users/{twin.id}/unban", json={"fingerprint": False}, headers=ORIGIN)
+    assert r.json()["changed"] is True and r.json()["user"]["auto_banned"] is False
+    assert core.repo.is_fingerprint_banned(fp(7)["hash"])
 
 
 def test_ban_reason_length_limit(admin, guest, core):

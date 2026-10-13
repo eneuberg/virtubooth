@@ -1,9 +1,9 @@
 // User page: who is this guest, which device, all uploads, ban / unban.
 
 import {
-  aapi, absTime, ApiError, confirmAndDelete, confirmDialog, connectEvents, copyText, describeUA, field, h,
-  instagramUrl, Lightbox, loadExtensions, managementActions, mountHeader, PhotoCollection, photoTile,
-  relTime, runToggle, showError, toast, userUrl,
+  aapi, absTime, ApiError, autoBanSource, banMark, confirmAndDelete, confirmDialog, connectEvents, copyText,
+  describeUA, field, h, instagramUrl, Lightbox, loadExtensions, managementActions, mountHeader,
+  PhotoCollection, photoTile, relTime, runToggle, showError, toast, unbanToast, userUrl,
 } from './admin.js';
 
 const root = document.getElementById('user-root');
@@ -63,7 +63,7 @@ function profilePanel(u) {
     h('h1', { class: 'adm-profile-name', 'data-testid': 'user-name' }, `🙂 ${u.name}`),
     h('div', { class: 'adm-profile-insta' },
       u.banned
-        ? h('span', { class: 'adm-badge adm-badge--ban', 'data-testid': 'user-status' }, '🚫 GESPERRT')
+        ? h('span', { class: 'adm-badge adm-badge--ban', 'data-testid': 'user-status' }, u.auto_banned ? '🚫 AUTO-GESPERRT' : '🚫 GESPERRT')
         : h('span', { class: 'adm-badge adm-badge--ok', 'data-testid': 'user-status' }, '✓ Aktiv'),
       u.instagram ? h('span', { class: 'adm-user-insta', 'data-testid': 'user-insta' }, `@${u.instagram}`) : h('span', { class: 'adm-muted' }, 'kein Instagram angegeben'),
     ),
@@ -132,30 +132,50 @@ function banPanel(u) {
   );
 }
 
+/** other identities that only started banned because of these fingerprints */
+function autoBannedPeers(fps) {
+  const ids = new Set();
+  for (const f of fps) for (const o of f.users) if (o.auto_banned) ids.add(o.id);
+  ids.delete(data.user.id);
+  return ids.size;
+}
+
 function bannedPanel(u) {
   const bannedFps = data.fingerprints.filter((f) => f.banned);
+  const peers = autoBannedPeers(bannedFps);
   const fpBox = bannedFps.length ? h('input', { type: 'checkbox', id: 'unban-fp', 'data-testid': 'unban-fp' }) : null;
   const btn = h('button', { class: 'vb-btn adm-toggle--show vb-btn--block', type: 'button', 'data-testid': 'unban' }, '✅ Entsperren');
   btn.addEventListener('click', async () => {
     btn.disabled = true;
     try {
       const res = await aapi(`/api/admin/users/${u.id}/unban`, { method: 'POST', json: { fingerprint: Boolean(fpBox && fpBox.checked) } });
-      toast(res.fingerprints_unbanned.length ? 'Gast und Fingerprint entsperrt' : 'Gast entsperrt', { type: 'success' });
+      unbanToast(res.fingerprints_unbanned.length ? 'Gast und Fingerprint entsperrt' : 'Gast entsperrt', res.users_unbanned);
       await load();
     } catch (err) {
       btn.disabled = false;
       showError(err);
     }
   });
+  const auto = u.auto_banned
+    ? h('div', { class: 'adm-warn adm-warn--auto', 'data-testid': 'auto-ban-note' },
+      h('strong', {}, '🧬 Automatisch gesperrt. '),
+      `Dieses Gerät hat sich neu angemeldet und zeigte dabei einen gesperrten Fingerprint. ${autoBanSource(u)} `
+      + 'Gleiche Handymodelle haben oft denselben Fingerprint: vielleicht ist das jemand anderes. Entsperren betrifft nur dieses Gerät.')
+    : null;
   return h('section', { class: 'adm-panel adm-panel--ban', 'data-testid': 'ban-panel' },
-    h('h2', {}, '🚫 Gesperrt'),
+    h('h2', {}, u.auto_banned ? '🚫 Automatisch gesperrt' : '🚫 Gesperrt'),
     h('div', { class: 'adm-stack' },
+      auto,
       dl([
         ['Seit', absTime(u.banned_at)],
         ['Grund', u.ban_reason || '–'],
       ]),
       h('p', { class: 'adm-muted' }, 'Entsperren zeigt die Fotos wieder, die durch die Sperre versteckt wurden. Von Hand runtergenommene bleiben versteckt.'),
-      fpBox ? h('label', { class: 'adm-check', for: 'unban-fp' }, fpBox, h('span', {}, `Fingerprint-Sperre auch aufheben (${bannedFps.length})`)) : null,
+      fpBox
+        ? h('label', { class: 'adm-check', for: 'unban-fp' }, fpBox,
+          h('span', {}, `Fingerprint-Sperre auch aufheben (${bannedFps.length})`,
+            peers ? h('span', { class: 'adm-muted adm-check-hint' }, ` Entsperrt auch ${peers} ${peers === 1 ? 'weiteres Gerät, das' : 'weitere Geräte, die'} nur deshalb gesperrt ${peers === 1 ? 'ist' : 'sind'}.`) : null))
+        : null,
       btn,
     ),
   );
@@ -192,8 +212,10 @@ function fingerprintPanel() {
         unban.addEventListener('click', async () => {
           unban.disabled = true;
           try {
-            await aapi(`/api/admin/device-bans/${encodeURIComponent(f.fp_hash)}`, { method: 'DELETE' });
-            toast('Fingerprint entsperrt', { type: 'success' });
+            const res = await aapi(`/api/admin/device-bans/${encodeURIComponent(f.fp_hash)}`, { method: 'DELETE' });
+            // an auto-banned guest's own page: lifting the ban releases this guest too
+            const others = res.users_unbanned.filter((o) => o.id !== data.user.id);
+            unbanToast(others.length < res.users_unbanned.length ? 'Fingerprint und Gast entsperrt' : 'Fingerprint entsperrt', others);
             await load();
           } catch (err) {
             unban.disabled = false;
@@ -212,7 +234,7 @@ function fingerprintPanel() {
           ? h('div', { class: 'adm-stack' },
             h('strong', { 'data-testid': 'fp-shared' }, `${sharingText(f.users.length)}:`),
             h('div', { class: 'adm-chips' }, ...f.users.map((o) => h('a', { class: 'adm-chip-link', href: userUrl(o.id) },
-              `🙂 ${o.name}`, o.instagram ? ` · @${o.instagram}` : '', o.banned ? ' 🚫' : ''))))
+              `🙂 ${o.name}`, o.instagram ? ` · @${o.instagram}` : '', banMark(o)))))
           : h('div', { class: 'adm-muted' }, 'Kein anderes Gerät hat diesen Fingerprint.'),
         unban,
       );
@@ -266,8 +288,8 @@ async function load() {
 /** what the side panels show; photos are synced in place */
 function panelKey(d) {
   return JSON.stringify([
-    d.user.banned, d.user.ban_reason, d.user.instagram, d.user.fp_hash,
-    d.fingerprints.map((f) => [f.fp_hash, f.banned, f.users.map((o) => [o.id, o.banned])]),
+    d.user.banned, d.user.ban_reason, d.user.instagram, d.user.fp_hash, d.user.auto_ban,
+    d.fingerprints.map((f) => [f.fp_hash, f.banned, f.users.map((o) => [o.id, o.banned, o.auto_banned])]),
   ]);
 }
 
@@ -309,6 +331,8 @@ function onEvent(type, payload) {
     }
   } else if (type === 'user.banned' || type === 'user.unbanned') {
     if (payload.user.id === data.user.id) load();
+    // a device sharing a fingerprint (e.g. auto-unbanned with a fingerprint ban)
+    else if (data.fingerprints.some((f) => f.users.some((o) => o.id === payload.user.id))) refresh();
   } else if (type.startsWith('fingerprint.')) {
     refresh();
   }

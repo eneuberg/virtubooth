@@ -492,6 +492,84 @@ def test_user_page_ban_and_unban(desktop_page, live, guests):
     assert page.js_errors == []
 
 
+def test_lifting_fp_ban_releases_auto_banned_devices(desktop_page, admin_page, live, guests):
+    """A new identity on a banned fingerprint starts banned ("auto"). Lifting the
+    fingerprint ban with the guest's unban lets those identities in again."""
+    page = desktop_page
+    troll = guests(instagram="troll", fp_n=3)
+    troll.upload()
+    repo = live.core.repo
+    repo.ban_user(troll.user.id, "Spam", "pytest")
+    repo.ban_fingerprint(fp(3)["hash"], "Spam", "pytest", troll.user.id)
+    twin, twin2 = guests(fp_n=3), guests(fp_n=3)  # same phone model, cookies cleared, ...
+    assert twin.state == "banned" and twin2.state == "banned"
+    assert twin.upload_response().status_code == 403
+
+    # the "Sperren" tab says which bans are automatic, and that unbanning lifts them
+    watcher = admin_page  # a phone with the "Sperren" tab open
+    watcher.goto(live.url("/admin/manage?tab=sperren"))
+    rows = watcher.locator("[data-testid=banned-user-row]")
+    expect(rows).to_have_count(3)
+    expect(watcher.get_by_test_id("banned-users").get_by_test_id("auto-ban")).to_have_count(2)
+    auto_row = rows.filter(has_text=twin.user.name)
+    expect(auto_row).to_contain_text("Automatisch gesperrt")
+    expect(auto_row).to_contain_text(f"gesperrt über {troll.user.name}")
+    expect(watcher.get_by_test_id("fp-auto-note")).to_contain_text("2 Geräte sind nur wegen")
+
+    page.goto(live.url(f"/admin/user?id={troll.user.id}"))
+    expect(page.get_by_test_id("user-status")).to_have_text("🚫 GESPERRT")
+    label = page.locator("label[for=unban-fp]")
+    expect(label).to_contain_text("Entsperrt auch 2 weitere Geräte")
+    page.get_by_test_id("unban-fp").check()
+    page.get_by_test_id("unban").click()
+    expect(page.locator(".vb-toast").last).to_have_text(
+        "Gast und Fingerprint entsperrt · 2 weitere Geräte entsperrt"
+    )
+    expect(page.get_by_test_id("user-status")).to_have_text("✓ Aktiv")
+    for g in (troll, twin, twin2):
+        assert not repo.get_user(g.user.id).banned
+    assert twin.upload_response().status_code == 201
+    # the open "Sperren" tab elsewhere follows via the event stream
+    expect(rows).to_have_count(0)
+    expect(watcher.locator("[data-testid=fp-ban-row]")).to_have_count(0)
+    assert page.js_errors == [] and watcher.js_errors == []
+
+
+def test_auto_banned_device_one_tap_unban(desktop_page, live, guests):
+    page = desktop_page
+    troll = guests(fp_n=4)
+    repo = live.core.repo
+    repo.ban_user(troll.user.id, "Ärger", "pytest")
+    repo.ban_fingerprint(fp(4)["hash"], "Ärger", "pytest", troll.user.id)
+    twin, other = guests(fp_n=4), guests(fp_n=4)
+
+    page.goto(live.url(f"/admin/user?id={twin.user.id}"))
+    expect(page.get_by_test_id("user-status")).to_have_text("🚫 AUTO-GESPERRT")
+    note = page.get_by_test_id("auto-ban-note")
+    expect(note).to_contain_text("Automatisch gesperrt")
+    expect(note).to_contain_text(f"gesperrt über {troll.user.name}")
+    expect(note).to_contain_text("vielleicht ist das jemand anderes")
+    # its fingerprint list marks the other automatic ban
+    expect(page.get_by_test_id("fingerprints")).to_contain_text(f"{other.user.name} 🚫 auto")
+    page.get_by_test_id("unban").click()
+    expect(page.get_by_test_id("user-status")).to_have_text("✓ Aktiv")
+    assert not repo.get_user(twin.user.id).banned
+    assert repo.is_fingerprint_banned(fp(4)["hash"])  # only this device
+
+    # one tap in the "Sperren" tab, too
+    page.goto(live.url("/admin/manage?tab=sperren"))
+    row = page.locator("[data-testid=banned-user-row]").filter(has_text=other.user.name)
+    expect(row.get_by_test_id("auto-ban")).to_have_text("AUTO-GESPERRT")
+    row.get_by_test_id("unban-user").click()
+    expect(row).to_have_count(0)
+    assert not repo.get_user(other.user.id).banned
+    expect(page.locator("[data-testid=banned-user-row]")).to_have_count(1)  # the troll
+    page.get_by_test_id("unban-fp").click()
+    expect(page.locator(".vb-toast").last).to_have_text("Fingerprint entsperrt")
+    assert repo.get_user(troll.user.id).banned
+    assert page.js_errors == []
+
+
 def test_user_page_on_phone(admin_page, live, guests):
     g = guests(instagram="phone.user")
     pid = g.upload()

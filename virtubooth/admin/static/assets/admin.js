@@ -127,7 +127,7 @@ export function userUrl(id) {
 export function userLink(user, { cls = '' } = {}) {
   if (!user) return h('span', { class: 'adm-muted' }, 'unbekannt');
   return h('a', { class: `adm-user ${cls}`.trim(), href: userUrl(user.id), 'data-testid': 'user-link' },
-    h('span', { class: 'adm-user-name' }, `🙂 ${user.name}`, user.banned ? h('span', { class: 'adm-badge adm-badge--ban adm-badge--xs' }, 'GESPERRT') : null),
+    h('span', { class: 'adm-user-name' }, `🙂 ${user.name}`, banBadge(user)),
     user.instagram
       ? h('span', { class: 'adm-user-insta' }, `@${user.instagram}`)
       : h('span', { class: 'adm-user-insta adm-user-insta--none' }, 'kein Instagram'),
@@ -136,6 +136,39 @@ export function userLink(user, { cls = '' } = {}) {
 
 export function instagramUrl(handle) {
   return `https://www.instagram.com/${encodeURIComponent(handle)}/`;
+}
+
+// ----------------------------------------------------------------- bans
+
+/** "GESPERRT" / "AUTO-GESPERRT" badge for a banned guest (null if not banned) */
+export function banBadge(user, { xs = true } = {}) {
+  if (!user || !user.banned) return null;
+  const cls = `adm-badge adm-badge--ban${user.auto_banned ? ' adm-badge--auto' : ''}${xs ? ' adm-badge--xs' : ''}`;
+  return user.auto_banned
+    ? h('span', { class: cls, 'data-testid': 'auto-ban', title: 'Automatisch gesperrt: neues Gerät mit gesperrtem Fingerprint' }, 'AUTO-GESPERRT')
+    : h('span', { class: cls }, 'GESPERRT');
+}
+
+/** chip suffix for banned guests in lists of devices */
+export function banMark(user) {
+  if (!user || !user.banned) return '';
+  return user.auto_banned ? ' 🚫 auto' : ' 🚫';
+}
+
+/** "Fingerprint entsperrt · 2 weitere Geräte entsperrt" */
+export function unbanToast(text, released) {
+  const n = (released || []).length;
+  const more = n ? ` · ${n} ${n === 1 ? 'weiteres Gerät' : 'weitere Geräte'} entsperrt` : '';
+  toast(`${text}${more}`, { type: 'success', ms: n ? 5000 : undefined });
+}
+
+/** "Wildes Zebra #3 · 3a9f12…": where an automatic ban came from */
+export function autoBanSource(user) {
+  const src = user.auto_ban;
+  if (!src) return 'Die Fingerprint-Sperre dazu gibt es nicht mehr.';
+  const parts = [`Fingerprint ${src.fp_hash.slice(0, 12)}…`];
+  if (src.source_user_id) parts.push(`gesperrt über ${src.source_user_name || `#${src.source_user_id}`}`);
+  return `${parts.join(', ')}.`;
 }
 
 // ---------------------------------------------------------------- photos

@@ -150,6 +150,8 @@ body.adm-noscroll { overflow: hidden; }
 .adm-badge--ban { background: #19000a; color: #ff9a9a; border: 1px solid var(--vb-red); }
 .adm-badge--info { background: rgba(45, 226, 230, 0.14); color: #9ff7f9; border: 1px solid rgba(45, 226, 230, 0.4); }
 .adm-badge--xs { font-size: 0.65rem; padding: 1px 6px; margin-left: 6px; vertical-align: middle; }
+/* banned only because a new device showed a banned fingerprint: maybe a bystander */
+.adm-badge--auto { background: #241200; color: #ffc27a; border: 1px dashed var(--vb-orange); }
 
 /* ------------------------------------------------------------ user link */
 
@@ -485,6 +487,7 @@ body.adm-noscroll { overflow: hidden; }
 }
 a.adm-row:hover, a.adm-row:focus-visible { background: var(--vb-surface-strong); }
 .adm-row.is-banned { border-color: rgba(255, 77, 77, 0.55); }
+.adm-row.is-auto { border-style: dashed; border-color: rgba(255, 138, 0, 0.7); }
 .adm-row-main { display: grid; gap: 2px; min-width: 0; }
 .adm-row-title { font-weight: 800; overflow-wrap: anywhere; }
 .adm-row-sub { color: var(--vb-muted); font-size: 0.9rem; overflow-wrap: anywhere; }
@@ -574,6 +577,8 @@ a.adm-row:hover, a.adm-row:focus-visible { background: var(--vb-surface-strong);
   background: rgba(255, 138, 0, 0.12);
   font-size: 0.9rem;
 }
+.adm-warn--auto { border-style: dashed; }
+.adm-check-hint { display: block; font-weight: 600; font-size: 0.9rem; }
 .adm-check { display: flex; align-items: flex-start; gap: 10px; min-height: 44px; padding: 8px 0; font-weight: 800; cursor: pointer; }
 .adm-check input { flex: none; width: 24px; height: 24px; margin: 1px 0 0; accent-color: var(--vb-pink); }
 .adm-stack { display: grid; gap: 10px; }

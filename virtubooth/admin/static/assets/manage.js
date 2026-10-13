@@ -2,9 +2,10 @@
 // handles, bans, audit log. Everything heavier than "take it down" lives here.
 
 import {
-  aapi, absTime, confirmAndDelete, connectEvents, copyText, debounce, describeUA, field, h,
-  instagramUrl, Lightbox, loadExtensions, managementActions, mountHeader, PhotoCollection, photoTile,
-  photoTitle, qs, relTime, runToggle, segmented, showError, throttle, toast, userLink, userUrl,
+  aapi, absTime, autoBanSource, banBadge, banMark, confirmAndDelete, connectEvents, copyText, debounce,
+  describeUA, field, h, instagramUrl, Lightbox, loadExtensions, managementActions, mountHeader,
+  PhotoCollection, photoTile, photoTitle, qs, relTime, runToggle, segmented, showError, throttle, toast,
+  unbanToast, userLink, userUrl,
 } from './admin.js';
 
 const TABS = ['fotos', 'gaeste', 'instagram', 'sperren', 'protokoll'];
@@ -396,7 +397,7 @@ function guestRow(u) {
   ].join(' · ');
   return h('a', { class: `adm-row${u.banned ? ' is-banned' : ''}`, href: userUrl(u.id), 'data-testid': 'guest-row' },
     h('div', { class: 'adm-row-main' },
-      h('div', { class: 'adm-row-title' }, `🙂 ${u.name}`, u.banned ? h('span', { class: 'adm-badge adm-badge--ban adm-badge--xs' }, 'GESPERRT') : null),
+      h('div', { class: 'adm-row-title' }, `🙂 ${u.name}`, banBadge(u)),
       h('div', { class: 'adm-row-sub' }, sub),
     ),
     h('div', { class: 'adm-row-side' }, h('span', { class: 'adm-num', title: 'Fotos' }, `📸 ${u.photo_count}`), h('span', { 'aria-hidden': 'true' }, '›')),
@@ -478,7 +479,7 @@ function renderInsta() {
         ),
       ),
       h('div', { class: 'adm-chips' },
-        ...entry.users.map((u) => h('a', { class: 'adm-chip-link', href: userUrl(u.id) }, `🙂 ${u.name}`, u.banned ? ' 🚫' : '')),
+        ...entry.users.map((u) => h('a', { class: 'adm-chip-link', href: userUrl(u.id) }, `🙂 ${u.name}`, banMark(u))),
         ...entry.users.filter((u) => u.photos > 0).map((u) => h('button', {
           class: 'adm-chip-link', type: 'button', onclick: () => showUserPhotos(u.id),
         }, entry.users.length > 1 ? `📸 Alle ${u.photos} Fotos von #${u.id}` : `📸 Alle ${u.photos} Fotos`)),
@@ -531,12 +532,14 @@ function buildSperren() {
   sperren.el.append(
     h('div', { class: 'adm-section' },
       h('h2', {}, '🚫 Gesperrte Gäste', bannedUsersCount),
-      h('p', { class: 'adm-muted' }, 'Gesperrte Gäste können nichts mehr hochladen; ihre Fotos sind versteckt. Entsperren holt nur die Fotos zurück, die durch die Sperre versteckt wurden.'),
+      h('p', { class: 'adm-muted' }, 'Gesperrte Gäste können nichts mehr hochladen; ihre Fotos sind versteckt. Entsperren holt nur die Fotos zurück, die durch die Sperre versteckt wurden. '
+        + '„AUTO-GESPERRT“ heißt: neues Gerät mit einem gesperrten Fingerprint, vielleicht nur dasselbe Handymodell.'),
       bannedUsersBody,
     ),
     h('div', { class: 'adm-section' },
       h('h2', {}, '🧬 Gesperrte Fingerprints', fpBansCount),
-      h('p', { class: 'adm-warn' }, '⚠️ Neue Geräte mit einem gesperrten Fingerprint starten direkt gesperrt. Gleiche Handymodelle (z. B. zwei gleiche iPhones) können denselben Fingerprint haben, dann trifft es auch Unbeteiligte. Bereits bekannte Gäste sind davon nicht betroffen.'),
+      h('p', { class: 'adm-warn' }, '⚠️ Neue Geräte mit einem gesperrten Fingerprint starten direkt gesperrt. Gleiche Handymodelle (z. B. zwei gleiche iPhones) können denselben Fingerprint haben, dann trifft es auch Unbeteiligte. Bereits bekannte Gäste sind davon nicht betroffen. '
+        + 'Entsperren hebt auch die automatischen Sperren auf, die nur an diesem Fingerprint hängen.'),
       fpBansBody,
     ),
   );
@@ -558,7 +561,9 @@ async function loadSperren() {
 }
 
 function bannedUserRow(u) {
-  const btn = h('button', { class: 'vb-btn adm-toggle--show adm-btn-sm', type: 'button', 'data-testid': 'unban-user' }, '✅ Entsperren');
+  const btn = h('button', {
+    class: 'vb-btn adm-toggle--show adm-btn-sm', type: 'button', 'data-testid': 'unban-user', 'aria-label': `${u.name} entsperren`,
+  }, '✅ Entsperren');
   btn.addEventListener('click', async () => {
     btn.disabled = true;
     try {
@@ -571,22 +576,28 @@ function bannedUserRow(u) {
       showError(err);
     }
   });
-  return h('div', { class: 'adm-row is-banned', 'data-testid': 'banned-user-row' },
+  const sub = u.auto_banned
+    ? `Automatisch gesperrt ${relTime(u.banned_at)}: neues Gerät mit gesperrtem Fingerprint. ${autoBanSource(u)} Vielleicht nur dasselbe Handymodell.`
+    : `Grund: ${u.ban_reason || '–'} · gesperrt ${relTime(u.banned_at)} · ${u.photo_count} Fotos`;
+  return h('div', { class: `adm-row is-banned${u.auto_banned ? ' is-auto' : ''}`, 'data-testid': 'banned-user-row' },
     h('div', { class: 'adm-row-main' },
       userLink(u),
-      h('div', { class: 'adm-row-sub' }, `Grund: ${u.ban_reason || '–'} · gesperrt ${relTime(u.banned_at)} · ${u.photo_count} Fotos`),
+      h('div', { class: 'adm-row-sub' }, sub),
     ),
     h('div', { class: 'adm-row-side' }, btn),
   );
 }
 
 function fpBanRow(b) {
-  const btn = h('button', { class: 'vb-btn adm-toggle--show adm-btn-sm', type: 'button', 'data-testid': 'unban-fp' }, '✅ Entsperren');
+  const auto = b.users.filter((u) => u.auto_banned);
+  const btn = h('button', {
+    class: 'vb-btn adm-toggle--show adm-btn-sm', type: 'button', 'data-testid': 'unban-fp', 'aria-label': `Fingerprint ${b.fp_hash.slice(0, 16)} entsperren`,
+  }, '✅ Entsperren');
   btn.addEventListener('click', async () => {
     btn.disabled = true;
     try {
-      await aapi(`/api/admin/device-bans/${encodeURIComponent(b.fp_hash)}`, { method: 'DELETE' });
-      toast('Fingerprint entsperrt', { type: 'success' });
+      const res = await aapi(`/api/admin/device-bans/${encodeURIComponent(b.fp_hash)}`, { method: 'DELETE' });
+      unbanToast('Fingerprint entsperrt', res.users_unbanned);
       loadSperren();
       refreshStats();
     } catch (err) {
@@ -601,7 +612,11 @@ function fpBanRow(b) {
         b.source_user_id ? [' · gesperrt über ', h('a', { href: userUrl(b.source_user_id) }, b.source_user_name || `#${b.source_user_id}`)] : null),
       b.users.length
         ? h('div', { class: 'adm-chips' }, h('span', { class: 'adm-muted' }, `${b.users.length} ${b.users.length === 1 ? 'Gerät' : 'Geräte'}:`),
-          ...b.users.map((u) => h('a', { class: 'adm-chip-link', href: userUrl(u.id) }, `🙂 ${u.name}`, u.banned ? ' 🚫' : '')))
+          ...b.users.map((u) => h('a', { class: 'adm-chip-link', href: userUrl(u.id) }, `🙂 ${u.name}`, banMark(u))))
+        : null,
+      auto.length
+        ? h('div', { class: 'adm-row-sub', 'data-testid': 'fp-auto-note' },
+          `${auto.length} ${auto.length === 1 ? 'Gerät ist' : 'Geräte sind'} nur wegen dieses Fingerprints gesperrt (🚫 auto) und ${auto.length === 1 ? 'wird' : 'werden'} beim Entsperren mit entsperrt.`)
         : null,
     ),
     h('div', { class: 'adm-row-side' }, btn),
