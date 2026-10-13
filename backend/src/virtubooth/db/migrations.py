@@ -149,12 +149,23 @@ CREATE INDEX users_last_seen ON users(last_seen_at);
 CREATE INDEX photos_created ON photos(created_at);
 """
 
+# v6: online time. The guest page reports every minute while it is visible
+# (POST /api/here). online_at: the last beat of the visit that is open right now
+# (NULL: none); online_seconds: the visible time added up; online_sessions: visits
+# (a beat after more than 150 s without one starts a new visit).
+SCHEMA_V6 = """
+ALTER TABLE users ADD COLUMN online_seconds  INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE users ADD COLUMN online_sessions INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE users ADD COLUMN online_at       TEXT;
+"""
+
 # (version, script): each step upgrades the database from the version before.
 MIGRATIONS: tuple[tuple[int, str], ...] = (
     (1, SCHEMA),
     (2, SCHEMA_V2),
     (3, SCHEMA_V3),
     (4, SCHEMA_V4),
+    (6, SCHEMA_V6),
 )
 SCHEMA_VERSION = MIGRATIONS[-1][0]
 

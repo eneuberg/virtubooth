@@ -13,6 +13,7 @@ from pydantic import BaseModel, ConfigDict, Field, StringConstraints
 
 from ...domain import models as m
 from ...domain.constants import PHOTO_ID_PATTERN
+from ...domain.overview import is_online
 from .guest import MetaValue
 
 BULK_MAX = 200
@@ -188,6 +189,11 @@ class AdminUser(BaseModel):
     uploads_lock_period: int | None
     auto_banned: bool
     auto_ban: AutoBan | None
+    online_seconds: int = Field(description="Visible time added up, seconds.")
+    online_sessions: int = Field(description="Visits: a new one starts after 150 s without a beat.")
+    online_now: bool = Field(
+        description="The page is open and visible right now (a beat within 150 s)."
+    )
 
     @classmethod
     def of(cls, u: m.User, auto_ban: m.AutoBanSource | None) -> AdminUser:
@@ -214,6 +220,9 @@ class AdminUser(BaseModel):
             uploads_lock_period=u.uploads_lock_period,
             auto_banned=u.auto_banned,
             auto_ban=AutoBan.model_validate(auto_ban) if auto_ban and u.auto_banned else None,
+            online_seconds=u.online_seconds,
+            online_sessions=u.online_sessions,
+            online_now=is_online(u.online_at),
         )
 
 
@@ -234,11 +243,33 @@ class FingerprintOut(BaseModel):
     users: list[UserRef]
 
 
+class ActivityCountOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: str = Field(description="The activity (extension) id.")
+    photos: int = Field(description="Non-deleted photos.")
+
+
+class UserStatsOut(BaseModel):
+    """A guest's photos at a glance (the user page's „Statistik“)."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    photos: int = Field(description="Non-deleted photos.")
+    visible: int
+    hidden: int
+    deleted: int
+    by_activity: list[ActivityCountOut] = Field(description="Non-deleted photos, most first.")
+    first_photo_at: str | None = Field(description="First upload (deleted ones included).")
+    last_photo_at: str | None = Field(description="Last upload (deleted ones included).")
+
+
 class UserDetailOut(BaseModel):
     user: AdminUser
     fingerprints: list[FingerprintOut]
     sharing: list[UserRef] = Field(description="Guests that showed any of these fingerprints.")
     photos: list[AdminPhoto] = Field(description="Newest first, at most 1000.")
+    stats: UserStatsOut
 
 
 class BanIn(BaseModel):

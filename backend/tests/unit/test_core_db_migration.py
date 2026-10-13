@@ -73,7 +73,7 @@ def dump(path: Path) -> dict[str, list[tuple]]:
         out = {}
         for table in TABLES:
             cols = [r[1] for r in conn.execute(f"PRAGMA table_info({table})")]
-            v1_cols = [c for c in cols if not c.startswith("uploads_")]
+            v1_cols = [c for c in cols if not c.startswith(("uploads_", "online_"))]
             out[table] = conn.execute(
                 f"SELECT {', '.join(v1_cols)} FROM {table} ORDER BY rowid"
             ).fetchall()
@@ -85,7 +85,7 @@ def dump(path: Path) -> dict[str, list[tuple]]:
 def test_fresh_database_is_current(tmp_path):
     db = Database(tmp_path / "new.db")
     try:
-        assert db.one("PRAGMA user_version")[0] == SCHEMA_VERSION == 4
+        assert db.one("PRAGMA user_version")[0] == SCHEMA_VERSION == 6
         cols = {r[1] for r in db.all("PRAGMA table_info(users)")}
         assert {"uploads_paused_at", "uploads_paused_source", "uploads_lock_period"} <= cols
         assert db.one("SELECT COUNT(*) FROM settings")[0] == 0

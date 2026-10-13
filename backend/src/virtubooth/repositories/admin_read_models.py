@@ -8,6 +8,7 @@ from collections.abc import Iterable
 from ..db.database import Database
 from ..domain.constants import AUTO_BAN_REASON
 from ..domain.models import (
+    ActivityCount,
     AutoBanSource,
     DeviceBan,
     ExtensionCount,
@@ -15,6 +16,7 @@ from ..domain.models import (
     InstagramUser,
     Stats,
     UserRef,
+    UserStats,
 )
 from ._rows import REF_COLS, as_int, ref_from_row
 
@@ -185,3 +187,34 @@ class AdminReadModels:
             entry.hidden = entry.photos - entry.visible
         # most active first: those are the ones worth tagging
         return sorted(handles.values(), key=lambda e: (-e.photos, e.handle))
+
+    def user_stats(self, user_id: int) -> UserStats:
+        """One guest's photos: counts, per activity (most first), first and last
+        upload. Two aggregate queries over the guest's rows."""
+        totals = self.db.one(
+            "SELECT SUM(deleted_at IS NULL) AS photos, "
+            "SUM(deleted_at IS NULL AND hidden_at IS NOT NULL) AS hidden, "
+            "SUM(deleted_at IS NOT NULL) AS deleted, "
+            "MIN(created_at) AS first_at, MAX(created_at) AS last_at "
+            "FROM photos WHERE user_id=?",
+            (user_id,),
+        )
+        per_activity = self.db.all(
+            "SELECT extension, COUNT(*) AS photos FROM photos "
+            "WHERE user_id=? AND deleted_at IS NULL "
+            "GROUP BY extension ORDER BY photos DESC, extension",
+            (user_id,),
+        )
+        assert totals is not None
+        photos, hidden = as_int(totals["photos"]), as_int(totals["hidden"])
+        return UserStats(
+            photos=photos,
+            visible=photos - hidden,
+            hidden=hidden,
+            deleted=as_int(totals["deleted"]),
+            by_activity=[
+                ActivityCount(id=r["extension"], photos=as_int(r["photos"])) for r in per_activity
+            ],
+            first_photo_at=totals["first_at"],
+            last_photo_at=totals["last_at"],
+        )

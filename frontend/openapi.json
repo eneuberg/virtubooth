@@ -1,6 +1,26 @@
 {
   "components": {
     "schemas": {
+      "ActivityCountOut": {
+        "properties": {
+          "id": {
+            "description": "The activity (extension) id.",
+            "title": "Id",
+            "type": "string"
+          },
+          "photos": {
+            "description": "Non-deleted photos.",
+            "title": "Photos",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "photos"
+        ],
+        "title": "ActivityCountOut",
+        "type": "object"
+      },
       "AdminEvent": {
         "description": "One message of the admin event stream, discriminated by `type`.",
         "discriminator": {
@@ -378,6 +398,21 @@
             "title": "Name",
             "type": "string"
           },
+          "online_now": {
+            "description": "The page is open and visible right now (a beat within 150 s).",
+            "title": "Online Now",
+            "type": "boolean"
+          },
+          "online_seconds": {
+            "description": "Visible time added up, seconds.",
+            "title": "Online Seconds",
+            "type": "integer"
+          },
+          "online_sessions": {
+            "description": "Visits: a new one starts after 150 s without a beat.",
+            "title": "Online Sessions",
+            "type": "integer"
+          },
           "photo_count": {
             "description": "Non-deleted photos.",
             "title": "Photo Count",
@@ -451,7 +486,10 @@
           "uploads_paused_source",
           "uploads_lock_period",
           "auto_banned",
-          "auto_ban"
+          "auto_ban",
+          "online_seconds",
+          "online_sessions",
+          "online_now"
         ],
         "title": "AdminUser",
         "type": "object"
@@ -1621,6 +1659,32 @@
         "title": "HealthOut",
         "type": "object"
       },
+      "HereIn": {
+        "description": "The guest page's heartbeat: every minute while it is visible, and once\nwith `visible: false` when it is hidden or closed.",
+        "properties": {
+          "visible": {
+            "default": true,
+            "title": "Visible",
+            "type": "boolean"
+          }
+        },
+        "title": "HereIn",
+        "type": "object"
+      },
+      "HereOut": {
+        "properties": {
+          "ok": {
+            "const": true,
+            "title": "Ok",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "ok"
+        ],
+        "title": "HereOut",
+        "type": "object"
+      },
       "IdentifiedOut": {
         "description": "A known device. `uid_token` is also set as the `vb_uid` cookie.\n`join_text`: the join texts of the current version, so a joined guest can read\nthem again (\"Was passiert mit meinen Fotos?\").",
         "properties": {
@@ -2133,7 +2197,7 @@
       "OverviewGuests": {
         "properties": {
           "active_now": {
-            "description": "Guests, not banned, whose page talked to the server in the last 5 minutes.",
+            "description": "Guests, not banned, whose page was open in the last 5 minutes (it reports every minute while it is visible).",
             "title": "Active Now",
             "type": "integer"
           },
@@ -3434,6 +3498,9 @@
             "title": "Sharing",
             "type": "array"
           },
+          "stats": {
+            "$ref": "#/components/schemas/UserStatsOut"
+          },
           "user": {
             "$ref": "#/components/schemas/AdminUser"
           }
@@ -3442,7 +3509,8 @@
           "user",
           "fingerprints",
           "sharing",
-          "photos"
+          "photos",
+          "stats"
         ],
         "title": "UserDetailOut",
         "type": "object"
@@ -3515,6 +3583,71 @@
           "auto_banned"
         ],
         "title": "UserRef",
+        "type": "object"
+      },
+      "UserStatsOut": {
+        "description": "A guest's photos at a glance (the user page's „Statistik“).",
+        "properties": {
+          "by_activity": {
+            "description": "Non-deleted photos, most first.",
+            "items": {
+              "$ref": "#/components/schemas/ActivityCountOut"
+            },
+            "title": "By Activity",
+            "type": "array"
+          },
+          "deleted": {
+            "title": "Deleted",
+            "type": "integer"
+          },
+          "first_photo_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "First upload (deleted ones included).",
+            "title": "First Photo At"
+          },
+          "hidden": {
+            "title": "Hidden",
+            "type": "integer"
+          },
+          "last_photo_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Last upload (deleted ones included).",
+            "title": "Last Photo At"
+          },
+          "photos": {
+            "description": "Non-deleted photos.",
+            "title": "Photos",
+            "type": "integer"
+          },
+          "visible": {
+            "title": "Visible",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "photos",
+          "visible",
+          "hidden",
+          "deleted",
+          "by_activity",
+          "first_photo_at",
+          "last_photo_at"
+        ],
+        "title": "UserStatsOut",
         "type": "object"
       },
       "UserUnbannedEvent": {
@@ -7061,7 +7194,7 @@
     },
     "/api/admin/users/{user_id}": {
       "get": {
-        "description": "A guest with their fingerprints (and who else showed them) and photos.",
+        "description": "A guest with their fingerprints (and who else showed them), photos and\nphoto statistics.",
         "operationId": "get_user_api_admin_users__user_id__get",
         "parameters": [
           {
@@ -7633,6 +7766,98 @@
           }
         },
         "summary": "List Extensions",
+        "tags": [
+          "guest"
+        ]
+      }
+    },
+    "/api/here": {
+      "post": {
+        "description": "The page's heartbeat: every minute while it is visible, once with\n`visible: false` when it is hidden. Joined guests: online time and last\nseen (one write); not joined yet: the visitor's last seen (throttled).",
+        "operationId": "here_api_here_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HereIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HereOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Forbidden: banned, paused, stopped, joining closed or a foreign Origin (CSRF)"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Not found, or no party access (`scan_qr`)"
+          },
+          "411": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Content-Length required"
+          },
+          "413": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Request too large"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Request validation failed (`invalid_request`)"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Rate limited (`Retry-After` header)"
+          }
+        },
+        "summary": "Here",
         "tags": [
           "guest"
         ]
