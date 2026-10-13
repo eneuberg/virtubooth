@@ -78,7 +78,8 @@ The full contract is in [overhaul/contracts/api.md](overhaul/contracts/api.md).
 
 The database tables are `users`, `user_fingerprints`, `fingerprint_bans`,
 `photos`, `admin_sessions`, `audit_log`, `settings` (a small key/value store
-for the upload switches and Instagram marks) and `export_jobs`. A schema
+for the upload and join switches and Instagram marks), `export_jobs` and
+`visitors` (random browser ids for the dashboard's „Gescannt“). A schema
 change is a new step appended to `db/migrations.py`; never edit a released one.
 
 ## A request, end to end

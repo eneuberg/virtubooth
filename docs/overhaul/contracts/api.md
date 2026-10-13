@@ -231,3 +231,73 @@ Each is written in the same transaction as the change.
 - QR form: prefill `base_url` with `public_base_url`; when that is null the
   field is required (else 400 `base_url_required`). Timelapse form: disable it
   with a hint when `ffmpeg` is false; `fps` 1–30 (default 12).
+
+## 7. The dashboard: join stop and live overview
+
+The admin home (Live) and the manage header show two one-tap switches side by
+side, „Hochladen stoppen“ (the existing upload stop, §4 `settings.upload_stop`)
+and „Anmeldung stoppen“ (new), plus a status strip while either is on. All
+routes below are admin routes (session, CSRF on mutations, `X-VB-Event-Id`).
+
+### 7.1 Join stop („Anmeldung stoppen“)
+
+| Route | Answer |
+|---|---|
+| `GET /api/admin/join-stop` | `StopState {enabled, since, by}` (the upload stop's shape) |
+| `POST /api/admin/join-stop` | Body `StopIn {enabled}` → `StopOut {enabled, since, by, changed}`. `changed: false` when it already was in that state (no audit entry, no event). |
+
+- Persisted in the settings KV (`join_stop = {enabled, since, by}`), so it
+  survives a restart. Audit: `join.stop` / `join.resume`. Event:
+  `settings.join_stop {join_stop: StopState}`.
+- While on, `POST /api/join` from a device without a guest gives **403
+  `join_closed`** „Gerade kann niemand neu beitreten. Versuch es gleich noch
+  mal.“ (before the consent-version check and the join budget). A device that
+  joined already is not affected: identify, a second tab's join (200),
+  uploads (they follow the upload switches only).
+- `POST /api/identify` for an unknown device adds `join_closed: bool` to
+  `NeedsConsentOut`. The join sheet then shows a calm message instead of the
+  button and re-identifies on focus, visibility, every 15 s and on „Nochmal
+  versuchen“.
+
+### 7.2 Visitor ids and last-seen times
+
+- **`vb_vid` cookie**: a random id (`secrets.token_urlsafe(12)`), signed like
+  `vb_uid`, HttpOnly, SameSite=Lax, Secure as the other cookies, 30 days. Set
+  at the token entry (`?t=`, the 303) when the browser has none, and at
+  `identify`/`join` for browsers from before this change.
+- **`visitors` table** (migration v4): `id, first_seen_at, last_seen_at,
+  user_id`. Only random ids and timestamps, no IP, no user agent. `join` (and
+  `identify` of a known guest) links the visitor to its guest; a link is never
+  removed.
+- **Last seen**: every guest API route (`require_access`) refreshes
+  `users.last_seen_at` (joined) or `visitors.last_seen_at` (not joined), at
+  most once per device and 60 s (an in-memory throttle; one small `UPDATE`).
+- **Archive**: the database copy in an archive export empties `visitors`
+  (`SCRUBBED_TABLES`, with `admin_sessions` and `export_jobs`): browser ids are
+  live-dashboard data with no value after the party.
+
+### 7.3 `GET /api/admin/overview`
+
+`OverviewOut {at, active_minutes, guests, scans, photos, activities}`. The UI
+polls it every 10 s while the page is visible and refetches it (throttled) on
+`photo.*`, `user.created|banned|unbanned|uploads_changed` and
+`settings.upload_pause`. "Now" is the last `active_minutes` (5) minutes.
+
+| Field | Definition |
+|---|---|
+| `guests.total` | every guest (device) that joined |
+| `guests.active_now` | not banned, last seen (any guest API request) in the last 5 min |
+| `guests.uploading_now` | distinct guests with an upload in the last 5 min |
+| `guests.instagram`, `.banned`, `.paused` | guests with a handle; banned; uploads paused (by hand or the new-guest pause) |
+| `scans.scanned` | visitor ids: browsers that opened a valid QR link |
+| `scans.joined` / `scans.not_joined` | of those, linked to a guest / never joined (`scanned − joined`) |
+| `scans.waiting_now` | not joined, seen in the last 5 min |
+| `scans.since` | the first visitor's `first_seen_at` (counting starts with v4), or null |
+| `photos.total`, `.visible`, `.hidden` | photos not deleted |
+| `photos.last_15_min`, `.last_60_min` | uploads received in that window, including ones hidden or deleted since |
+| `photos.last_upload_at` | the newest upload (any) |
+| `activities[]` | `{id, title, photos, visible, last_60_min}` per loaded photo activity, plus ids only old photos have |
+
+Guests from before v4 have no visitor row until their browser comes back
+(then `identify` creates one, linked), so right after the update
+`scans.scanned` can be lower than `guests.total`.
