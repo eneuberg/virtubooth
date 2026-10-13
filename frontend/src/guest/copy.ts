@@ -7,6 +7,7 @@
  * emoji in chrome), a straight apostrophe between letters becomes ’, spaces collapse.
  * The words stay the server's.
  */
+import { quoted } from '@/lib/messages.de';
 import { isIOS } from '@/sdk/platform';
 import type { JoinInfo } from '@/sdk/session';
 
@@ -76,4 +77,23 @@ export function inAppAdvice(app: string | null): { title: string; text: string }
     title: 'Hier geht die Kamera oft nicht',
     text: `Du bist gerade ${where}. Öffne ${camera} deines Handys und scanne den QR-Code damit: Dann öffnet sich die Seite im richtigen Browser.`,
   };
+}
+
+/**
+ * Activity titles as names: "„Beer Cam“ oder „Fotobox“". Quoted, a title needs no
+ * article, so the sentence fits any title an extension brings ("der Fotobox" but
+ * "dem Glücksrad").
+ */
+export function activityList(titles: ReadonlyArray<string>): string {
+  const named = titles.map(quoted);
+  if (named.length <= 1) return named[0] ?? '';
+  return `${named.slice(0, -1).join(', ')} oder ${named.at(-1) ?? ''}`;
+}
+
+/** "Deine Bilder" before the first photo: where to take one, and what happens then. */
+export function firstPhotoText(titles: ReadonlyArray<string>): string {
+  const names = activityList(titles);
+  return names
+    ? `Noch keine Bilder von dir. Probier ${names} aus: Dein erstes Bild landet dann hier, und du kannst es speichern.`
+    : 'Noch keine Bilder von dir. Sobald du eins machst, landet es hier, und du kannst es speichern.';
 }
