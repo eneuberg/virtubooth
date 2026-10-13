@@ -18,6 +18,7 @@ export const SECTIONS = [
   'protokoll',
   'export',
   'uebersicht',
+  'einstellungen',
 ] as const;
 export type Section = (typeof SECTIONS)[number];
 

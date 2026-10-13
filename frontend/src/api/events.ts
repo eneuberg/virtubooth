@@ -37,6 +37,8 @@ export const ADMIN_EVENT_TYPES = [
   'settings.upload_stop',
   'settings.upload_pause',
   'settings.join_stop',
+  'settings.event',
+  'extension.settings',
   'export.updated',
   'export.deleted',
   'instagram.done',

@@ -13,7 +13,7 @@ import { Ban, CircleAlert, CloudOff, type LucideIcon } from 'lucide-react';
 import type { ReactNode } from 'react';
 import { fatalCopy, isApiError } from '@/api/errors';
 import { msg, t } from '@/lib/messages.de';
-import { fetchActivities, ACTIVITIES_KEY } from '@/sdk/activities';
+import { fetchActivities, ACTIVITIES_KEY, ACTIVITIES_REFRESH_MS } from '@/sdk/activities';
 import { useSession, type JoinInfo } from '@/sdk/session';
 import { Button } from '@/ui/Button';
 import { Notice } from '@/ui/Notice';
@@ -51,6 +51,7 @@ function useDestination(activityId: string | null): string | null {
     queryFn: fetchActivities,
     enabled: activityId !== null,
     staleTime: 5 * 60_000,
+    refetchInterval: ACTIVITIES_REFRESH_MS,
   });
   if (!activityId) return null;
   return data?.extensions.find((e) => e.id === activityId)?.title ?? null;

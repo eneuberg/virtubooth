@@ -140,6 +140,11 @@ export const AUDIT_LABELS: Record<string, string> = {
   'admin.login': 'Admin angemeldet',
   'admin.logout': 'Admin abgemeldet',
   'admin.login_failed': 'Falsches Admin-Passwort',
+  'admin.password_change': 'Admin-Passwort geändert',
+  'admin.password_change_failed': 'Passwort ändern: falsches Passwort',
+  'admin.password_reset': 'Admin-Passwort zurückgesetzt (Server)',
+  'settings.event': 'Eventname geändert',
+  'extension.settings': 'Aktivität eingestellt',
   'user.uploads_pause': 'Hochladen für Gast pausiert',
   'user.uploads_unpause': 'Hochladen für Gast erlaubt',
   'uploads.lock_on': 'Neue Gäste pausiert',
@@ -216,6 +221,11 @@ function detailValue(key: string, v: unknown): string {
 
 const DETAIL_LABELS: Record<string, string> = {
   reason: 'Grund',
+  event_name: 'Name',
+  previous: 'vorher',
+  sessions_ended: 'abgemeldete Geräte',
+  disabled: 'aus',
+  mode: 'Art',
   options: 'Optionen:',
   include_hidden: 'Ausgeblendete',
   include_db: 'Datenbank',

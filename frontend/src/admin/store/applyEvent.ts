@@ -27,6 +27,7 @@ import {
   type UserPages,
 } from './cache';
 import { qk } from './keys';
+import { extensionSettingsKey, settingsKey } from '../settings/keys';
 import { ALL_PHOTOS } from './types';
 
 /**
@@ -162,6 +163,15 @@ export function applyAdminEvent(event: AdminEvent, { qc, invalidate }: EventCont
     case 'settings.join_stop':
       qc.setQueryData(qk.joinStop, event.data.join_stop);
       invalidate([qk.audit]);
+      return;
+    case 'settings.event': {
+      const state = event.data.event;
+      qc.setQueryData<{ event: typeof state }>(settingsKey, (old) => (old ? { ...old, event: state } : old));
+      invalidate([qk.audit]);
+      return;
+    }
+    case 'extension.settings':
+      invalidate([extensionSettingsKey(event.data.id), qk.audit]);
       return;
     case 'export.updated':
       upsertExportJob(qc, event.data.job);
