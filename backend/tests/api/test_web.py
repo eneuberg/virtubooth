@@ -140,7 +140,7 @@ def test_precompressed_siblings_are_not_served_directly(client):
 def test_public_root_files(client):
     r = client.get("/boot-check.js")
     assert r.status_code == 200 and r.headers["content-type"].startswith("text/javascript")
-    assert r.headers["cache-control"] == "public, max-age=3600"
+    assert r.headers["cache-control"] == "public, max-age=300"
     assert client.get("/icon.svg").headers["content-type"] == "image/svg+xml"
     # the entries are only reachable through their routes
     assert client.get("/index.html").status_code == 404

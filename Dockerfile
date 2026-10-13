@@ -7,8 +7,13 @@
 # `runtime` is a plain python slim image with ffmpeg (for the timelapse tool),
 # that venv and nothing else. The app runs as an unprivileged user (uid/gid
 # 10001) and keeps all state in the /data volume.
+#
+# The Python project lives in backend/ (backend/pyproject.toml, backend/src).
+# TODO(overhaul wave 3): add the Node stage that builds frontend/ and copies
+# frontend/dist to /app/web (VB_WEB_DIR), then drop VB_DEV=1 below. Until
+# then the image serves built-in placeholder pages; the API works.
 
-# Keep the Python version in sync with .python-version.
+# Keep the Python version in sync with backend/.python-version.
 ARG PYTHON_IMAGE=python:3.14.8-slim-trixie
 ARG UV_IMAGE=ghcr.io/astral-sh/uv:0.12.18
 
@@ -30,14 +35,14 @@ WORKDIR /src
 # 1) Third-party dependencies only. This layer is reused until uv.lock or
 #    pyproject.toml change, so code edits rebuild in seconds.
 RUN --mount=type=cache,target=/root/.cache/uv \
-    --mount=type=bind,source=uv.lock,target=uv.lock \
-    --mount=type=bind,source=pyproject.toml,target=pyproject.toml \
+    --mount=type=bind,source=backend/uv.lock,target=uv.lock \
+    --mount=type=bind,source=backend/pyproject.toml,target=pyproject.toml \
     uv sync --frozen --no-dev --no-install-project
 
 # 2) The app itself, installed as a regular (non-editable) package, so the
 #    runtime stage needs only /opt/venv. README.md is the package's readme.
-COPY pyproject.toml uv.lock README.md ./
-COPY virtubooth ./virtubooth
+COPY backend/pyproject.toml backend/uv.lock backend/README.md ./
+COPY backend/src ./src
 RUN --mount=type=cache,target=/root/.cache/uv \
     uv sync --frozen --no-dev --no-editable
 
@@ -63,7 +68,9 @@ ENV PATH="/opt/venv/bin:${PATH}" \
     PYTHONUNBUFFERED=1 \
     VB_DATA_DIR=/data \
     VB_HOST=0.0.0.0 \
-    VB_PORT=8000
+    VB_PORT=8000 \
+    VB_WEB_DIR=/app/web \
+    VB_DEV=1
 
 WORKDIR /app
 USER 10001:10001

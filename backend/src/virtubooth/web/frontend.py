@@ -36,7 +36,7 @@ PageMode = Literal["gate", "notfound"]
 
 HTML_CACHE = "no-cache"
 ASSET_CACHE = "public, max-age=31536000, immutable"
-PUBLIC_FILE_CACHE = "public, max-age=3600"
+PUBLIC_FILE_CACHE = "public, max-age=300"
 # precompressed siblings, in order of preference
 ENCODINGS = (("br", ".br"), ("gzip", ".gz"))
 
