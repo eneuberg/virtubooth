@@ -19,7 +19,10 @@ SENTENCE = (
     "Die Gastgeber sehen zu jedem Gast eine kleine Statistik: wie viele Fotos du gemacht "
     "hast, wie lange die Seite bei dir offen war und über welchen QR-Code du gekommen bist."
 )
-T0 = datetime(2026, 10, 13, 21, 0, tzinfo=UTC)
+# The beats' clock starts a day ahead of the real one: joining stamps last seen with
+# the real time, and a beat never moves last seen backwards (MAX), so a fixed date
+# would make these tests fail once the real clock passes it.
+T0 = datetime.now(UTC).replace(microsecond=0) + timedelta(days=1)
 
 
 def here(client, visible=True, status=200):
