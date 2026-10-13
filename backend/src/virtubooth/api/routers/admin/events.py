@@ -27,10 +27,12 @@ from anyio import to_thread
 from fastapi import APIRouter, Header, Query, Request
 from fastapi.sse import EventSourceResponse, ServerSentEvent
 
+from ....core.errors import json_error_responses
 from ....core.events import Event, EventBus, Overflowed, Resync
 from ....runtime import Core
 from ...deps import CoreDep, admin_from_cookie
 from ...schemas.events import AdminEvent
+from ._params import ADMIN_ERROR_STATUSES
 
 router = APIRouter()
 
@@ -90,6 +92,8 @@ async def admin_event_stream(
     "/events",
     response_class=EventSourceResponse,
     response_description="Server-Sent Events; each message's `data` is the event's `data`.",
+    # errors are JSON, not events (overrides the admin router's entries)
+    responses=json_error_responses(*ADMIN_ERROR_STATUSES),
 )
 async def events(
     request: Request,

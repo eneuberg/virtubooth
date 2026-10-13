@@ -9,6 +9,10 @@ from fastapi import Path
 from ....core import errors
 from ....domain.constants import FP_HASH_PATTERN, MAX_ID, PHOTO_ID_PATTERN
 
+# what every admin route may answer with an ErrorBody (auth, CSRF, body cap,
+# validation, budget, and the routes' own 400/404)
+ADMIN_ERROR_STATUSES = (400, 401, 403, 404, 411, 413, 422, 429)
+
 PhotoId = Annotated[str, Path(pattern=PHOTO_ID_PATTERN)]
 UserId = Annotated[int, Path(ge=1, lt=MAX_ID)]
 FpHash = Annotated[str, Path(pattern=FP_HASH_PATTERN)]

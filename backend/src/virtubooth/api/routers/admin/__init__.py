@@ -14,12 +14,13 @@ from fastapi import APIRouter, Depends
 from ....core.errors import error_responses
 from ...deps import require_admin
 from . import bans, events, overview, photos, upload_controls, users
+from ._params import ADMIN_ERROR_STATUSES
 
 router = APIRouter(
     prefix="/api/admin",
     tags=["admin"],
     dependencies=[Depends(require_admin)],
-    responses=error_responses(400, 401, 403, 404, 422, 429),
+    responses=error_responses(*ADMIN_ERROR_STATUSES),
 )
 for _module in (photos, users, bans, overview, events, upload_controls):
     router.include_router(_module.router)

@@ -164,3 +164,16 @@ def error_responses(*statuses: int) -> dict[int | str, dict[str, Any]]:
         status: {"model": ErrorBody, "description": _DESCRIPTIONS.get(status, "Error")}
         for status in sorted(statuses)
     }
+
+
+def json_error_responses(*statuses: int) -> dict[int | str, dict[str, Any]]:
+    """Like `error_responses`, spelled out as JSON for routes whose success is
+    not JSON (FastAPI would document the errors with the route's media type)."""
+    schema = {"$ref": "#/components/schemas/ErrorBody"}
+    return {
+        status: {
+            "description": _DESCRIPTIONS.get(status, "Error"),
+            "content": {"application/json": {"schema": schema}},
+        }
+        for status in sorted(statuses)
+    }

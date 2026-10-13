@@ -3,7 +3,9 @@ name = "virtubooth"
 version = "0.2.0"
 description = "Digital party photo booth: Beer Cam timelapse, filter booth, admin moderation"
 readme = "README.md"
-requires-python = ">=3.14"
+# 3.14 in Docker and locally (.python-version); 3.12 still works (the
+# Playwright image that runs the WebKit tests has it)
+requires-python = ">=3.12"
 dependencies = [
     "fastapi==0.143.0",
     "pydantic==2.14.1",
@@ -51,7 +53,7 @@ filterwarnings = ["error::pytest.PytestUnraisableExceptionWarning"]
 
 [tool.ruff]
 line-length = 100
-target-version = "py314"
+target-version = "py312"
 extend-exclude = ["tests/e2e_legacy"]
 
 [tool.ruff.lint]
@@ -74,7 +76,7 @@ known-first-party = ["virtubooth"]
 # -------------------------------------------------------------------- mypy
 
 [tool.mypy]
-python_version = "3.14"
+python_version = "3.12"
 strict = true
 plugins = ["pydantic.mypy"]
 warn_unreachable = true

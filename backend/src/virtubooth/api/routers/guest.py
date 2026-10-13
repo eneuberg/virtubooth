@@ -25,7 +25,9 @@ from ..schemas.guest import (
     PublicExtension,
 )
 
-router = APIRouter(prefix="/api", tags=["guest"], responses=error_responses(403, 404, 422, 429))
+router = APIRouter(
+    prefix="/api", tags=["guest"], responses=error_responses(403, 404, 411, 413, 422, 429)
+)
 
 
 def _user_agent(request: Request) -> str:

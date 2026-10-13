@@ -83,7 +83,7 @@ def create_app(settings: Settings, *, extensions: Sequence[Extension] | None = N
                 ext.router,
                 prefix=f"/api/x/{ext.id}",
                 tags=[f"extension:{ext.id}"],
-                responses=errors.error_responses(404, 422),
+                responses=errors.error_responses(404, 422, 429),
             )
     app.include_router(web_routes.router)
 

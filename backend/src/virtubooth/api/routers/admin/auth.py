@@ -9,10 +9,12 @@ from ....core.security import ADMIN_COOKIE, client_ip, set_cookie
 from ...deps import CoreDep, admin_from_cookie
 from ...schemas.admin import LoginIn, OkOut, SessionOut
 
-router = APIRouter(prefix="/api/admin", tags=["admin-auth"])
+router = APIRouter(
+    prefix="/api/admin", tags=["admin-auth"], responses=error_responses(403, 411, 413, 422, 429)
+)
 
 
-@router.post("/login", responses=error_responses(401, 403, 422, 429))
+@router.post("/login", responses=error_responses(401))
 def login(body: LoginIn, request: Request, response: Response, core: CoreDep) -> OkOut:
     """Sets the `vb_admin` session cookie (HttpOnly, SameSite=Strict).
     401 `wrong_password`; 429 `rate_limited` or `login_locked` with Retry-After."""
@@ -31,7 +33,7 @@ def login(body: LoginIn, request: Request, response: Response, core: CoreDep) ->
     return OkOut(ok=True)
 
 
-@router.post("/logout", responses=error_responses(403))
+@router.post("/logout")
 def logout(request: Request, response: Response, core: CoreDep) -> OkOut:
     admin = admin_from_cookie(request, core)
     if admin is not None:
