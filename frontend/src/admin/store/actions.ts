@@ -9,7 +9,9 @@ import type {
   AdminPhoto,
   BanResponse,
   DeviceUnbanResponse,
-  ExportKind,
+  ExportJob,
+  ExportRequest,
+  InstagramHandle,
   PauseResponse,
   PauseState,
   StopState,
@@ -17,10 +19,9 @@ import type {
   UserUploadsResponse,
 } from '@/api/types';
 import { dropPhoto, patchPhoto, patchUsers, removeExportJob, upsertExportJob } from './applyEvent';
-import { call, callPending } from './api';
+import { call } from './api';
 import { patchQueries } from './cache';
 import { qk } from './keys';
-import type { AdminExportJob, BoardHandle } from './types';
 
 const BULK_MAX = 200;
 
@@ -231,19 +232,18 @@ export async function logout(): Promise<void> {
   }
 }
 
-// --------------------------------------------------- Instagram board (PLAN §3.3)
+// ------------------------------------- Instagram board (contracts/api.md §6)
 
 export async function setHandleDone(qc: QueryClient, handle: string, done: boolean): Promise<void> {
   const patch = (value: boolean) =>
-    patchQueries<BoardHandle[]>(qc, qk.instagram, (list) =>
+    patchQueries<InstagramHandle[]>(qc, qk.instagram, (list) =>
       list.map((h) => (h.handle === handle && h.done !== value ? { ...h, done: value } : h)),
     );
   patch(done);
   try {
-    await callPending(`/api/admin/instagram/${encodeURIComponent(handle)}/done`, {
-      method: 'POST',
-      json: { done },
-    });
+    await call(
+      api.POST('/api/admin/instagram/{handle}/done', { params: { path: { handle } }, body: { done } }),
+    );
   } catch (err) {
     patch(!done);
     throw err;
@@ -254,7 +254,7 @@ export function handleZipUrl(handle: string): string {
   return `/api/admin/instagram/${encodeURIComponent(handle)}/photos.zip`;
 }
 
-// ------------------------------------------------------------ exports (§3.2)
+// ------------------------------------------------ exports (contracts/api.md §6)
 
 /**
  * Start an export job. `created: false`: one of that kind is already queued or
@@ -262,22 +262,14 @@ export function handleZipUrl(handle: string): string {
  */
 export async function startExport(
   qc: QueryClient,
-  kind: ExportKind,
-  options: Record<string, unknown>,
-): Promise<{ job: AdminExportJob; created: boolean }> {
-  const res = await callPending<{ job: AdminExportJob; created?: boolean }>('/api/admin/exports', {
-    method: 'POST',
-    json: { kind, options },
-  });
+  request: ExportRequest,
+): Promise<{ job: ExportJob; created: boolean }> {
+  const res = await call(api.POST('/api/admin/exports', { body: request }));
   upsertExportJob(qc, res.job);
-  return { job: res.job, created: res.created ?? true };
+  return { job: res.job, created: res.created };
 }
 
 export async function deleteExport(qc: QueryClient, id: string): Promise<void> {
-  await callPending(`/api/admin/exports/${encodeURIComponent(id)}`, { method: 'DELETE' });
+  await call(api.DELETE('/api/admin/exports/{job_id}', { params: { path: { job_id: id } } }));
   removeExportJob(qc, id);
-}
-
-export function exportDownloadUrl(job: AdminExportJob): string {
-  return job.download_url ?? `/api/admin/exports/${encodeURIComponent(job.id)}/download`;
 }

@@ -6,7 +6,14 @@
  */
 import type { QueryClient, QueryKey } from '@tanstack/react-query';
 import type { AdminEvent } from '@/api/events';
-import type { AdminPhoto, AdminUser, UserDetail } from '@/api/types';
+import type {
+  AdminPhoto,
+  AdminUser,
+  ExportJob,
+  ExportsResponse,
+  InstagramHandle,
+  UserDetail,
+} from '@/api/types';
 import {
   addIncoming,
   filterOfKey,
@@ -20,13 +27,7 @@ import {
   type UserPages,
 } from './cache';
 import { qk } from './keys';
-import {
-  ALL_PHOTOS,
-  type AdminExportJob,
-  type BoardHandle,
-  type ExportList,
-  type ExtraAdminEvent,
-} from './types';
+import { ALL_PHOTOS } from './types';
 
 export interface EventContext {
   qc: QueryClient;
@@ -62,8 +63,8 @@ export function patchUsers(qc: QueryClient, users: ReadonlyArray<AdminUser>): vo
   }
 }
 
-export function upsertExportJob(qc: QueryClient, job: AdminExportJob): void {
-  patchQueries<ExportList>(qc, qk.exports, (list) => {
+export function upsertExportJob(qc: QueryClient, job: ExportJob): void {
+  patchQueries<ExportsResponse>(qc, qk.exports, (list) => {
     const i = list.jobs.findIndex((j) => j.id === job.id);
     if (i === -1) return { ...list, jobs: [job, ...list.jobs] };
     const jobs = [...list.jobs];
@@ -73,12 +74,12 @@ export function upsertExportJob(qc: QueryClient, job: AdminExportJob): void {
 }
 
 export function removeExportJob(qc: QueryClient, id: string): void {
-  patchQueries<ExportList>(qc, qk.exports, (list) =>
+  patchQueries<ExportsResponse>(qc, qk.exports, (list) =>
     list.jobs.some((j) => j.id === id) ? { ...list, jobs: list.jobs.filter((j) => j.id !== id) } : list,
   );
 }
 
-export function applyAdminEvent(event: AdminEvent | ExtraAdminEvent, { qc, invalidate }: EventContext): void {
+export function applyAdminEvent(event: AdminEvent, { qc, invalidate }: EventContext): void {
   switch (event.type) {
     case 'photo.created': {
       const { photo } = event.data;
@@ -138,7 +139,7 @@ export function applyAdminEvent(event: AdminEvent | ExtraAdminEvent, { qc, inval
       return;
     case 'export.updated':
       upsertExportJob(qc, event.data.job);
-      // a finished job prunes old ones on the server (export.deleted may not reach us yet)
+      // a finished job prunes old ones on the server: refetch the list
       if (event.data.job.status === 'done' || event.data.job.status === 'failed') invalidate([qk.exports]);
       invalidate([qk.audit]);
       return;
@@ -147,7 +148,7 @@ export function applyAdminEvent(event: AdminEvent | ExtraAdminEvent, { qc, inval
       invalidate([qk.audit]);
       return;
     case 'instagram.done':
-      patchQueries<BoardHandle[]>(qc, qk.instagram, (list) =>
+      patchQueries<InstagramHandle[]>(qc, qk.instagram, (list) =>
         list.map((h) =>
           h.handle === event.data.handle && h.done !== event.data.done ? { ...h, done: event.data.done } : h,
         ),

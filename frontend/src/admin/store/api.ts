@@ -2,11 +2,9 @@
  * Every admin request goes through here:
  * - the `X-VB-Event-Id` of each answer feeds the stream cursor (cursor.ts);
  * - 401 `admin_required` sends the browser to the login page (with `next`) and the
- *   request never settles, so no error flashes while the page leaves;
- * - routes BE-features is still building (exports, Instagram done/ZIP) answer 404/405
- *   until merged; that becomes one clear German error (`unavailable`).
+ *   request never settles, so no error flashes while the page leaves.
  */
-import { api, apiFetch, ApiError, isApiError, unwrap, type ApiFetchInit } from '@/api/client';
+import { api, isApiError, unwrap } from '@/api/client';
 import type {
   AdminExtension,
   AdminPhoto,
@@ -14,13 +12,15 @@ import type {
   AdminUsersResponse,
   AuditResponse,
   DeviceBan,
+  ExportsResponse,
+  InstagramHandle,
   PauseState,
   StopState,
   UserDetail,
 } from '@/api/types';
 import { goLogin, never } from '../lib/nav';
 import { noteEventId } from './cursor';
-import type { BoardHandle, ExportList, GuestFilter, PhotoFilter, PhotoPage } from './types';
+import type { GuestFilter, PhotoFilter, PhotoPage } from './types';
 
 type ClientResult = { data?: unknown; error?: unknown; response: Response };
 
@@ -44,25 +44,6 @@ export async function call<R extends ClientResult>(
   } catch (err) {
     return authGate(err);
   }
-}
-
-export const UNAVAILABLE = 'unavailable';
-const UNAVAILABLE_TEXT = 'Das kann dieser Server noch nicht. Bitte aktualisiere die Party-Software.';
-
-/** A route that is not in the OpenAPI schema yet (PLAN §3, BE-features). */
-export async function callPending<T>(path: string, init: ApiFetchInit = {}): Promise<T> {
-  try {
-    return await apiFetch<T>(path, init);
-  } catch (err) {
-    if (isApiError(err) && (err.code === 'http_404' || err.code === 'http_405')) {
-      throw new ApiError(err.status, UNAVAILABLE, UNAVAILABLE_TEXT, err.data);
-    }
-    return authGate(err);
-  }
-}
-
-export function isUnavailable(err: unknown): boolean {
-  return isApiError(err) && err.code === UNAVAILABLE;
 }
 
 // ------------------------------------------------------------------- reads
@@ -123,7 +104,7 @@ export async function fetchDeviceBans(): Promise<DeviceBan[]> {
   return (await call(api.GET('/api/admin/device-bans'))).bans;
 }
 
-export async function fetchInstagram(): Promise<BoardHandle[]> {
+export async function fetchInstagram(): Promise<InstagramHandle[]> {
   return (await call(api.GET('/api/admin/instagram'))).handles;
 }
 
@@ -141,8 +122,8 @@ export function fetchPause(): Promise<PauseState> {
   return call(api.GET('/api/admin/upload-pause'));
 }
 
-export function fetchExports(): Promise<ExportList> {
-  return callPending<ExportList>('/api/admin/exports');
+export function fetchExports(): Promise<ExportsResponse> {
+  return call(api.GET('/api/admin/exports'));
 }
 
 /** Plain session check (no redirect logic): for the login page and a closed stream. */
