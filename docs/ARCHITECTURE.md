@@ -308,6 +308,65 @@ every failure into an `ApiError` (`status`, `code`, German `message`,
 `AdminPhoto`, …); import types from there. `events.ts` types the admin event
 stream.
 
+### Posters and printing
+
+The admin builds every printable file in its own browser; the server only
+stores the host's template and where the QR code goes on it (D8 of the QR
+batch: no PDF library on the server, and the placement editor needs a
+rendered page in the browser anyway).
+
+- **`src/print/`**: a pure, framework-free export library, loaded only with
+  `await import('@/print')` (the guest bundle has none of it):
+  `qrMatrix(url)`, `qrPng(code)`, `bigQrPdf(code)`, `posterPdf(code,
+  template?)`, `exportFileName(code, kind)`, `downloadBlob(...)`. Input is
+  `{url, number, name, eventName, subtitle?}`, so it knows nothing about
+  where codes come from. The PDF writer (`pdf.ts`, pdf-lib) and the PNG
+  writer (`png.ts`, UPNG, no canvas) are further lazy chunks.
+- **QR codes**: `qr` with error correction "high", drawn as vector
+  rectangles (dark modules merged into runs per row, one fill). Quiet zone:
+  4 modules for the PNG and the big QR; on a template poster the placed
+  square is filled white and the modules sit inside with 2 modules of
+  margin. The token is only in the code, never printed as text.
+- **Text**: only the PDF standard fonts (Helvetica, Helvetica-Bold,
+  Courier-Bold), nothing embedded. `text.ts` maps every string to WinAnsi:
+  umlauts and common punctuation stay, accents fall off letters WinAnsi
+  lacks, emoji go. Every PDF carries the code's name ("Gorilla 2") at 9 pt,
+  8 mm from the bottom right corner, on a white pill.
+- **Templates**: the chosen page is embedded as a form XObject on a page of
+  its displayed size: crop box within the media box, `/Rotate` turned
+  upright, exactly as pdf.js shows it (`placePage()` in `print/geometry.ts`;
+  `geometry.test.ts` checks it against pdf.js for all rotations and offset
+  boxes). Annotations are not part of the poster (the preview hides them
+  too). Without a template, `standardPoster.ts` draws the Kontaktbogen
+  poster: film strips with sprocket holes and edge printing, the event name
+  (54 to 28 pt, at most two lines), the QR code in a framed 120 mm square
+  inside a grease-pencil loop, the call to action.
+- **Preview** (`src/admin/poster/`): pdf.js `pdfjs-dist`, the **legacy
+  build** (the modern one needs `Map.prototype.getOrInsertComputed`,
+  `Math.sumPrecise` and `Promise.withResolvers`, which iOS 16/17 lack). Its
+  worker is a same-origin module file (`?url` import →
+  `/assets/a-<hash>0.mjs`, served as `text/javascript` and precompressed),
+  because the CSP allows no blob: workers. `useWasm: false` (no
+  `wasm-unsafe-eval`; JPX/JBIG2 images then stay blank in the preview only)
+  and `isImageDecoderSupported: false` (WebKit's `ImageDecoder` left JPEG
+  images blank). Pages go to a `<canvas>` only, scaled by
+  `devicePixelRatio`; no text or annotation layer.
+- **The green field**: relative to the displayed page (0..1, origin top
+  left) and square in PDF points; pointer events with pointer capture
+  (mouse, touch, pen; `touch-action: none` on the field and its handle
+  only), the arrow and +/− keys, a polite live region.
+- **API** (`api/routers/admin/poster.py`, `services/posters.py`):
+  `GET /api/admin/poster` (meta + `max_bytes`), `PUT
+  /api/admin/poster/template` (raw PDF, ≤ 8 000 000 bytes, streamed past the
+  64 KiB body guard like activity uploads, `%PDF-` within the first 1024
+  bytes), `GET` of the same path (the bytes as an attachment, `no-store`,
+  `Content-Security-Policy: sandbox`), `PUT /api/admin/poster/layout`
+  (page, page count and size from pdf.js, the rectangle; checked on the
+  server: on the page, ≥ 3 %, square within 2 %), `DELETE` (idempotent).
+  The file is `<data>/poster/template.pdf` (written to `.part`, fsynced,
+  renamed), the meta the settings key `poster.template`; every change is
+  audit-logged. No admin events: other devices refetch on focus.
+
 ## Adding an activity
 
 An activity, such as the Beer Cam or the Fotobox, is an **extension**: a
@@ -743,6 +802,9 @@ The versions the project pins. The lockfiles (`backend/uv.lock`,
 | Backend | Python 3.14 (3.12+ works), FastAPI 0.143, Pydantic 2.14 + pydantic-settings 2.15, uvicorn 0.54 (one worker), SQLite (stdlib `sqlite3`, WAL), Pillow 12.3, segno 1.6 (QR), ffmpeg (timelapse) |
 | Frontend | React 19.3 with the React Compiler, TypeScript 6.0 (strict), Vite 8.3 (multi-page, Rolldown), Tailwind CSS 4.3 + tailwind-variants, react-aria-components 1.22, TanStack Query 5, wouter 3, zustand 5, zod 4 (`zod/mini`), lucide-react, Bricolage Grotesque + Doto (self-hosted) |
 | API client | openapi-typescript 7.13 + openapi-fetch 0.17, generated from the backend's OpenAPI export |
+| PDF preview | pdfjs-dist 6.4 (Mozilla's pdf.js, legacy build, worker from `/assets/`, no wasm), admin only, lazy |
+| PDF writing | @cantoo/pdf-lib 2.11 (the maintained fork of pdf-lib; standard fonts only), admin only, lazy |
+| QR in the browser | qr 0.7 (paulmillr, no dependencies; ECC high), admin only, lazy |
 | Tooling | uv 0.12, pnpm 11.28 on Node 22.22, ruff 0.17, mypy 2.4 (strict), oxlint 1.87 (type-aware) + Prettier 3.9 |
 | Tests | pytest 9, Vitest 5 + Testing Library (happy-dom), Playwright 1.63 (Chromium, Firefox, WebKit) |
 | Runtime | Docker image: `python:3.14.8-slim-trixie` + ffmpeg, built with `node:22.22.1-trixie-slim`; Compose and Coolify files |

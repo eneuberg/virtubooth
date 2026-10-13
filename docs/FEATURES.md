@@ -544,6 +544,37 @@ dem anderen. Man kann die Seite verlassen.
 - Die Kommandozeile kann dasselbe mit mehr Optionen, siehe
   [Kommandozeile](#kommandozeile).
 
+### Plakate
+
+Im Tab „Plakat“ (`/admin/manage?tab=plakat`). Hier entsteht das Plakat, auf dem der
+QR-Code hängt.
+
+- **Eigene Vorlage:** „PDF-Vorlage hochladen“ (am Computer auch „PDF hierher ziehen“),
+  höchstens 8 MB. Die PDF liegt auf dem Server, jedes Admin-Gerät sieht dieselbe. Hat
+  sie mehrere Seiten, wählt man unter „Seite“ die eine, die das Plakat wird. Eine neue
+  Vorlage ersetzt die alte, „Vorlage entfernen…“ löscht sie (mit Rückfrage).
+- **Das grüne Feld** zeigt, wo der QR-Code hinkommt: ziehen verschiebt es, die Ecke
+  unten rechts ändert die Größe. Es bleibt quadratisch und ganz auf der Seite. Das geht
+  mit der Maus, mit dem Finger auf dem Handy (nur das Feld fängt die Berührung, die
+  Seite scrollt sonst normal) und mit der Tastatur: Pfeiltasten verschieben um 1 %, mit
+  Umschalt um 5 %, Plus und Minus ändern die Größe. „Speichern“ merkt sich das Feld,
+  „Änderungen verwerfen“ holt das gespeicherte zurück, „Nicht gespeichert“ zeigt
+  offene Änderungen.
+- **Probedruck (PDF):** das Plakat mit einem Muster-Code („Muster 0“), auch mit
+  ungespeicherten Änderungen. Der Muster-Code führt nur zur Startseite ohne Zugang.
+- **Ohne Vorlage** gibt es das Standard-Plakat im Kontaktbogen-Stil: Filmstreifen oben
+  und unten, der Name der Party groß, der QR-Code im Rahmen mit Fettstift-Kreis,
+  „Handy-Kamera drauf halten und los!“. „Standard-Plakat ansehen (PDF)“ zeigt es mit
+  dem Muster-Code.
+- **Exporte pro Code:** der Code als PNG (mindestens 1600 px), der große QR-Code als
+  PDF (A4, etwa 17 cm) und das Plakat als PDF (eine Seite: die Vorlage mit dem Code im
+  grünen Feld, sonst das Standard-Plakat). Die Knöpfe dafür kommen in die Liste der
+  QR-Codes.
+- Jedes PDF trägt klein unten rechts den Namen des Codes („Gorilla 2“), damit man die
+  Ausdrucke auseinanderhält. Das Token steht nur im Code, nie als Text.
+- Alles entsteht im Browser des Admins; der Server speichert nur die Vorlage und das
+  Feld. Hochladen, Feld setzen und Entfernen stehen im Protokoll.
+
 ### Deep Links
 
 | Adresse | Öffnet |
