@@ -1,0 +1,148 @@
+"""How the guest app survives content blockers, dead networks and busy servers:
+a blocked device-trait chunk, a blocked entry module (boot-check.js), a blocked or
+offline /api/identify, a 429 with Retry-After, and the ?debug=1 log. Ported from
+e2e_legacy/test_core_e2e.py and test_core_ui_e2e.py (same behaviours, new markup)."""
+
+from __future__ import annotations
+
+import json
+from typing import Any
+
+import pytest
+from playwright.sync_api import Page, expect
+
+from ..conftest import WEB_DIR, LiveServer, accept_consent_in_browser, settle_dialogs, shot
+from .conftest import errors_besides, only_user
+
+pytestmark = pytest.mark.e2e
+
+# console lines of requests a test made fail on purpose
+NOISE = ("Failed to load resource", "ERR_", "NetworkError", "net::", "/api/", "blocked")
+
+
+def built_file(source: str) -> str:
+    """The hashed file the build made of a source module or HTML entry."""
+    manifest: dict[str, Any] = json.loads((WEB_DIR / ".vite" / "manifest.json").read_text())
+    return str(manifest[source]["file"])
+
+
+def test_blocked_device_trait_chunk_does_not_break_joining(page: Page, live: LiveServer):
+    """Blockers drop URLs that look like tracking. The optional trait chunk failing
+    must not stop the page, nor reload it: joining works with the coarse fallback."""
+    chunk = built_file("src/sdk/traits.ts")
+    page.route(f"**/{chunk}", lambda route: route.abort("blockedbyclient"))
+    page.goto(live.entry("/"))
+    accept_consent_in_browser(page)
+    expect(page.get_by_test_id("start")).to_be_visible()
+    user = only_user(live)
+    assert user.fp_components.get("fallback") is True
+    assert user.fp_hash and len(user.fp_hash) == 64
+    # no "reload after a deploy" for an optional chunk
+    assert page.evaluate("() => sessionStorage.getItem('vb_chunk_reload')") is None
+    assert errors_besides(page, *NOISE) == []
+
+
+def test_blocked_entry_module_shows_a_hint_instead_of_nothing(page: Page, live: LiveServer):
+    entry = built_file("index.html")
+    page.route(f"**/{entry}", lambda route: route.abort("blockedbyclient"))
+    page.goto(live.entry("/"))
+    hint = page.get_by_test_id("load-failed")
+    expect(hint).to_be_visible(timeout=10_000)
+    expect(hint).to_contain_text("Blocker")
+    expect(hint.get_by_role("button", name="Seite neu laden")).to_be_focused()
+    shot(page, "boot_check")
+
+
+def test_blocked_identify_offers_a_reload(page: Page, live: LiveServer):
+    """A blocker (or a dead network) drops /api/identify. The page can't tell which,
+    so it says neither "offline" nor nothing at all."""
+    page.route("**/api/identify", lambda route: route.abort("blockedbyclient"))
+    page.goto(live.entry("/"))
+    fatal = page.get_by_test_id("fatal")
+    expect(fatal).to_be_visible()
+    expect(fatal).to_contain_text("Keine Antwort")
+    expect(fatal).to_contain_text("Blocker")
+    expect(fatal).not_to_contain_text("Keine Verbindung")
+    reload = fatal.get_by_role("button", name="Seite neu laden")
+    expect(reload).to_be_focused()
+    shot(page, "identify_blocked")
+    page.unroute("**/api/identify")
+    reload.click()
+    accept_consent_in_browser(page)
+    expect(page.get_by_test_id("start")).to_be_visible()
+    expect(page.get_by_test_id("fatal")).to_have_count(0)
+    assert errors_besides(page, *NOISE) == []
+
+
+def test_offline_phone_is_told_so(page: Page, live: LiveServer):
+    page.add_init_script(
+        "Object.defineProperty(Navigator.prototype, 'onLine', { configurable: true, get: () => false });"
+    )
+    page.route("**/api/identify", lambda route: route.abort("internetdisconnected"))
+    page.goto(live.entry("/"))
+    fatal = page.get_by_test_id("fatal")
+    expect(fatal).to_contain_text("Keine Verbindung")
+    expect(fatal.get_by_role("button", name="Seite neu laden")).to_be_visible()
+
+
+def test_offline_while_on_start_shows_in_the_status_slot(guest_page: Page):
+    page = guest_page
+    page.context.set_offline(True)
+    page.evaluate("() => window.dispatchEvent(new Event('offline'))")
+    slot = page.get_by_test_id("status-slot")
+    expect(slot).to_have_attribute("data-kind", "offline")
+    expect(slot).to_contain_text("Offline")
+    page.context.set_offline(False)
+    page.evaluate("() => window.dispatchEvent(new Event('online'))")
+    expect(slot).to_have_count(0)
+    assert errors_besides(guest_page, *NOISE) == []
+
+
+def test_busy_server_says_when_to_try_again(page: Page, live: LiveServer):
+    page.route(
+        "**/api/extensions",
+        lambda route: route.fulfill(
+            status=429,
+            headers={"Retry-After": "12"},
+            content_type="application/json",
+            body='{"error": "rate_limited", "message": "Langsam! Zu viele Anfragen. Warte kurz."}',
+        ),
+    )
+    page.goto(live.entry("/"))
+    accept_consent_in_browser(page)
+    note = page.get_by_test_id("activities-error")
+    expect(note).to_contain_text("Langsam! Zu viele Anfragen. Warte kurz (in 12 s nochmal).")
+    page.unroute("**/api/extensions")
+    note.get_by_role("button", name="Erneut laden").click()
+    expect(page.get_by_test_id("tile-beer")).to_be_visible()
+    expect(page.get_by_test_id("activities-error")).to_have_count(0)
+    assert errors_besides(page, *NOISE, "429") == []
+
+
+def test_debug_log_lets_taps_through_and_folds(page: Page, live: LiveServer):
+    page.goto(live.entry("/?debug=1"))
+    log = page.locator(".vb-debug-log")
+    expect(log).to_be_visible()
+    expect(log).to_contain_text("debug on")
+    expect(log).to_contain_text("identify")
+    expect(page.get_by_test_id("join")).to_be_visible()
+    settle_dialogs(page)
+    box = log.bounding_box()
+    assert box is not None and box["y"] < 10  # at the top, away from shutters and buttons
+    under = page.evaluate(
+        "([x, y]) => !!document.elementFromPoint(x, y).closest('[data-testid=debug]')",
+        [box["x"] + box["width"] / 2, box["y"] + box["height"] / 2],
+    )
+    assert under is False, "the log catches taps"
+    shot(page, "join_with_debug_log")
+    accept_consent_in_browser(page)
+    toggle = page.get_by_test_id("debug-toggle")
+    toggle.click()
+    expect(log).to_be_hidden()
+    expect(toggle).to_have_attribute("aria-expanded", "false")
+    page.reload()
+    expect(page.get_by_test_id("debug-toggle")).to_be_visible()
+    expect(page.locator(".vb-debug-log")).to_be_hidden()  # stays folded for the tab
+    page.get_by_test_id("debug-toggle").click()
+    expect(page.locator(".vb-debug-log")).to_be_visible()
+    assert page.js_errors == []  # type: ignore[attr-defined]

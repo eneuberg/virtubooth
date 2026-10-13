@@ -17,6 +17,7 @@
     <title>Party</title>
     <link rel="icon" href="/icon.svg" type="image/svg+xml" />
     <link rel="stylesheet" href="/src/styles/app.css" />
+    <script src="/gate-hint.js" defer></script>
   </head>
   <body>
     <main
@@ -83,14 +84,22 @@
             Diese Seite öffnet sich nur über einen der <span class="whitespace-nowrap">QR-Codes</span> auf der
             Party.
           </p>
-          <p class="text-ink-muted">Halte die Kamera deines Handys auf den Code und tippe auf den Link.</p>
+          <p class="text-ink-muted lg:text-md">
+            Halte die Kamera deines Handys auf den Code und tippe auf den Link.
+          </p>
+          <!-- gate-hint.js fills and shows this in the browsers of Instagram, WhatsApp & co. -->
+          <p
+            class="vb-gate-app mt-2 rounded-control border border-accent bg-accent-tint p-4 lg:text-md"
+            data-testid="gate-app-hint"
+            hidden
+          ></p>
         </section>
       </div>
 
       <div class="vb-mode-notfound">
         <section class="grid justify-items-start gap-3" data-testid="notfound">
           <h1 class="text-2xl font-bold lg:text-3xl">Hier ist nichts.</h1>
-          <p class="text-md lg:text-lg">Diese Seite gibt es nicht.</p>
+          <p class="text-md lg:text-lg">Diese Seite gibt es nicht. Zurück zur Party?</p>
           <a class="vb-btn vb-btn--primary mt-3" href="/">Zum Start</a>
         </section>
       </div>

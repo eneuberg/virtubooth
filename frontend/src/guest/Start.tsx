@@ -7,9 +7,12 @@
  */
 import { CircleHelp } from 'lucide-react';
 import { useState } from 'react';
+import { isApiError } from '@/api/errors';
+import { msg } from '@/lib/messages.de';
 import { useActivities } from '@/sdk/activities';
 import { GuestPass } from '@/sdk/components/GuestPass';
 import { StatusSlot } from '@/sdk/components/StatusSlot';
+import { Button } from '@/ui/Button';
 import { cx } from '@/ui/cx';
 import { IconButton } from '@/ui/IconButton';
 import { Skeleton } from '@/ui/Skeleton';
@@ -27,7 +30,7 @@ function listNames(titles: string[]): string {
 }
 
 export function Start() {
-  const { data, isPending } = useActivities();
+  const { data, isPending, error, refetch } = useActivities();
   const [help, setHelp] = useState<HelpTopic | 'all' | null>(null);
   const activities = data?.activities ?? [];
   const partyName = data?.partyName ?? '';
@@ -63,12 +66,19 @@ export function Start() {
         aria-label="Aktivitäten"
         className="grid content-start gap-3 lg:col-start-2 lg:row-span-3 lg:row-start-2 landscape-phone:col-start-2 landscape-phone:row-span-3 landscape-phone:row-start-2"
       >
-        {isPending
+        {isPending && !error
           ? Array.from({ length: 2 }, (_, i) => (
               <Skeleton key={i} shape="block" className="h-44 rounded-none" />
             ))
           : activities.map((activity) => <ActivityCard key={activity.id} activity={activity} />)}
-        {!isPending && activities.length === 0 ? (
+        {error ? (
+          <div className="grid justify-items-start gap-3" data-testid="activities-error">
+            <p role="alert">{isApiError(error) ? error.message : msg.generic}</p>
+            <Button variant="secondary" size="sm" onPress={() => void refetch()}>
+              Erneut laden
+            </Button>
+          </div>
+        ) : !isPending && activities.length === 0 ? (
           <p className="text-ink-muted">Noch ist nichts freigeschaltet. Schau gleich nochmal vorbei.</p>
         ) : null}
       </nav>
