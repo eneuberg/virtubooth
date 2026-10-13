@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import logging
 import threading
+import weakref
 from collections.abc import Collection, Mapping, Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime
@@ -56,7 +57,8 @@ class PhotoSummary:
     facts: Mapping[str, float]
 
 
-_services: dict[int, EnrichmentService] = {}
+# the app's service per Core (weak: a service nobody holds is just recreated)
+_services: weakref.WeakValueDictionary[int, EnrichmentService] = weakref.WeakValueDictionary()
 _services_lock = threading.Lock()
 
 
