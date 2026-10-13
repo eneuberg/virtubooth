@@ -28,8 +28,8 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Fingerprint Bans */
-        get: operations["fingerprint_bans_api_admin_device_bans_get"];
+        /** Device Bans */
+        get: operations["device_bans_api_admin_device_bans_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -48,8 +48,11 @@ export interface paths {
         get?: never;
         put?: never;
         post?: never;
-        /** Unban Fingerprint */
-        delete: operations["unban_fingerprint_api_admin_device_bans__fp_hash__delete"];
+        /**
+         * Lift Device Ban
+         * @description Lift a device ban; the identities it auto-banned are released too.
+         */
+        delete: operations["lift_device_ban_api_admin_device_bans__fp_hash__delete"];
         options?: never;
         head?: never;
         patch?: never;
@@ -62,7 +65,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Events */
+        /**
+         * Events
+         * @description The admin live stream (see the module docs for resuming and resync).
+         */
         get: operations["events_api_admin_events_get"];
         put?: never;
         post?: never;
@@ -121,7 +127,11 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Login */
+        /**
+         * Login
+         * @description Sets the `vb_admin` session cookie (HttpOnly, SameSite=Strict).
+         *     401 `wrong_password`; 429 `rate_limited` or `login_locked` with Retry-After.
+         */
         post: operations["login_api_admin_login_post"];
         delete?: never;
         options?: never;
@@ -175,7 +185,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Bulk */
+        /**
+         * Bulk
+         * @description One action on up to 200 photos; one event per changed photo.
+         */
         post: operations["bulk_api_admin_photos_bulk_post"];
         delete?: never;
         options?: never;
@@ -194,7 +207,10 @@ export interface paths {
         get: operations["get_photo_api_admin_photos__photo_id__get"];
         put?: never;
         post?: never;
-        /** Delete Photo */
+        /**
+         * Delete Photo
+         * @description Delete for good: the files go, the number stays taken.
+         */
         delete: operations["delete_photo_api_admin_photos__photo_id__delete"];
         options?: never;
         head?: never;
@@ -210,7 +226,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Hide Photo */
+        /**
+         * Hide Photo
+         * @description Take a photo down (idempotent: `changed` false when it already was).
+         */
         post: operations["hide_photo_api_admin_photos__photo_id__hide_post"];
         delete?: never;
         options?: never;
@@ -227,7 +246,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Unhide Photo */
+        /**
+         * Unhide Photo
+         * @description Put a photo back up; also one a ban hid (the guest stays banned).
+         */
         post: operations["unhide_photo_api_admin_photos__photo_id__unhide_post"];
         delete?: never;
         options?: never;
@@ -279,7 +301,11 @@ export interface paths {
         /** Get Upload Pause */
         get: operations["get_upload_pause_api_admin_upload_pause_get"];
         put?: never;
-        /** Set Upload Pause */
+        /**
+         * Set Upload Pause
+         * @description Pause new guests (a new lock period), or end the pause: `restore` true
+         *     frees the guests this period paused, false keeps them paused (required).
+         */
         post: operations["set_upload_pause_api_admin_upload_pause_post"];
         delete?: never;
         options?: never;
@@ -297,7 +323,10 @@ export interface paths {
         /** Get Upload Stop */
         get: operations["get_upload_stop_api_admin_upload_stop_get"];
         put?: never;
-        /** Set Upload Stop */
+        /**
+         * Set Upload Stop
+         * @description Stop (or resume) all uploads. Per-guest pauses and the lock stay as they are.
+         */
         post: operations["set_upload_stop_api_admin_upload_stop_post"];
         delete?: never;
         options?: never;
@@ -329,7 +358,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Get User */
+        /**
+         * Get User
+         * @description A guest with their fingerprints (and who else showed them) and photos.
+         */
         get: operations["get_user_api_admin_users__user_id__get"];
         put?: never;
         post?: never;
@@ -348,7 +380,11 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Ban User */
+        /**
+         * Ban User
+         * @description Ban a guest: their photos are hidden (reason `ban`). `fingerprint`: ban
+         *     their device too, so new identities on it start banned.
+         */
         post: operations["ban_user_api_admin_users__user_id__ban_post"];
         delete?: never;
         options?: never;
@@ -365,7 +401,11 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Unban User */
+        /**
+         * Unban User
+         * @description Unban a guest (only ban-hidden photos come back). `fingerprint`: lift
+         *     their device bans too, releasing the identities those auto-banned.
+         */
         post: operations["unban_user_api_admin_users__user_id__unban_post"];
         delete?: never;
         options?: never;
@@ -382,7 +422,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Set User Uploads */
+        /**
+         * Set User Uploads
+         * @description Pause or allow one guest's uploads (not a ban: photos stay up).
+         */
         post: operations["set_user_uploads_api_admin_users__user_id__uploads_post"];
         delete?: never;
         options?: never;
@@ -397,7 +440,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** List Extensions */
+        /**
+         * List Extensions
+         * @description The activities on the start screen, in their configured order.
+         */
         get: operations["list_extensions_api_extensions_get"];
         put?: never;
         post?: never;
@@ -416,7 +462,11 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Identify */
+        /**
+         * Identify
+         * @description Called on every page load. Unknown device: the join dialog's text.
+         *     Known device (cookie, or `uid` when the cookie is gone): its identity.
+         */
         post: operations["identify_api_identify_post"];
         delete?: never;
         options?: never;
@@ -433,8 +483,12 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Consent */
-        post: operations["consent_api_join_post"];
+        /**
+         * Join
+         * @description Accept the join dialog: a new pseudonymous guest (201). A device that
+         *     joined already keeps its identity (200, `already_joined`).
+         */
+        post: operations["join_api_join_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -454,8 +508,33 @@ export interface paths {
         delete?: never;
         options?: never;
         head?: never;
-        /** Update Me */
+        /**
+         * Update Me
+         * @description Set or clear (null/blank) the guest's Instagram handle. Paused guests may;
+         *     banned ones get 403 `banned`.
+         */
         patch: operations["update_me_api_me_patch"];
+        trace?: never;
+    };
+    "/api/me/photos": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * My Photos
+         * @description The guest's own photos that are still up (not hidden, not deleted),
+         *     newest first, at most 60.
+         */
+        get: operations["my_photos_api_me_photos_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
         trace?: never;
     };
     "/api/x/beer/stats": {
@@ -465,8 +544,31 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Stats */
+        /**
+         * Stats
+         * @description The counter. Party access is enough (no join needed).
+         */
         get: operations["stats_api_x_beer_stats_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/x/booth/filters": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Filters
+         * @description The filter catalogue (ids, German names, icons) in strip order.
+         */
+        get: operations["filters_api_x_booth_filters_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -484,8 +586,30 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Upload */
+        /**
+         * Upload
+         * @description Upload one JPEG for an activity. Answers 201 with the stored photo
+         *     and the activity's extra fields (beer: `beer_number`, `total`; booth:
+         *     `booth_number`).
+         */
         post: operations["upload_api_x__ext_id__upload_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/healthz": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Healthz */
+        get: operations["healthz_healthz_get"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -499,7 +623,11 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Media */
+        /**
+         * Media
+         * @description A photo for the admin, or for the guest who took it (also when hidden).
+         *     Everyone else gets 404, without learning whether it exists.
+         */
         get: operations["media_media__public_id__get"];
         put?: never;
         post?: never;
@@ -513,6 +641,173 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        /**
+         * AdminEvent
+         * @description One message of the admin event stream, discriminated by `type`.
+         */
+        AdminEvent: components["schemas"]["PhotoCreatedEvent"] | components["schemas"]["PhotoHiddenEvent"] | components["schemas"]["PhotoUnhiddenEvent"] | components["schemas"]["PhotoDeletedEvent"] | components["schemas"]["UserCreatedEvent"] | components["schemas"]["UserBannedEvent"] | components["schemas"]["UserUnbannedEvent"] | components["schemas"]["FingerprintBannedEvent"] | components["schemas"]["FingerprintUnbannedEvent"] | components["schemas"]["UploadsChangedEvent"] | components["schemas"]["UploadStopEvent"] | components["schemas"]["UploadPauseEvent"] | components["schemas"]["StreamResyncEvent"];
+        /** AdminExtension */
+        AdminExtension: {
+            /** Emoji */
+            emoji: string;
+            /** Id */
+            id: string;
+            /**
+             * Loaded
+             * @description False: only old photos still use this id.
+             */
+            loaded: boolean;
+            /** Meta Labels */
+            meta_labels: {
+                [key: string]: string;
+            };
+            /** Tagline */
+            tagline: string;
+            /** Title */
+            title: string;
+            /** Uploads */
+            uploads: boolean;
+            /** Url */
+            url: string | null;
+        };
+        /** AdminExtensionsOut */
+        AdminExtensionsOut: {
+            /** Extensions */
+            extensions: components["schemas"]["AdminExtension"][];
+        };
+        /** AdminPhoto */
+        AdminPhoto: {
+            /** Bytes */
+            bytes: number;
+            /** Created At */
+            created_at: string;
+            /** Deleted */
+            deleted: boolean;
+            /** Extension */
+            extension: string;
+            /** Height */
+            height: number;
+            /** Hidden */
+            hidden: boolean;
+            /** Hidden At */
+            hidden_at: string | null;
+            /** Hidden Reason */
+            hidden_reason: ("admin" | "ban") | null;
+            /**
+             * Id
+             * @description Public photo id (also the cursor for paging).
+             */
+            id: string;
+            /** Meta */
+            meta: {
+                [key: string]: string | number | boolean | null;
+            };
+            /**
+             * Seq
+             * @description Per-extension number, never reused.
+             */
+            seq: number;
+            /** Thumb Url */
+            thumb_url: string;
+            /** Url */
+            url: string;
+            user: components["schemas"]["PhotoUser"];
+            /** Width */
+            width: number;
+        };
+        /**
+         * AdminUser
+         * @description Everything about a guest. The same shape in every response and event.
+         */
+        AdminUser: {
+            auto_ban: components["schemas"]["AutoBan"] | null;
+            /** Auto Banned */
+            auto_banned: boolean;
+            /** Ban Reason */
+            ban_reason: string | null;
+            /** Banned */
+            banned: boolean;
+            /** Banned At */
+            banned_at: string | null;
+            /** Consent At */
+            consent_at: string;
+            /** Consent Version */
+            consent_version: string;
+            /** Created At */
+            created_at: string;
+            /** First Ip */
+            first_ip: string;
+            /** Fp Components */
+            fp_components: {
+                [key: string]: unknown;
+            };
+            /** Fp Hash */
+            fp_hash: string | null;
+            /** Id */
+            id: number;
+            /** Instagram */
+            instagram: string | null;
+            /** Last Ip */
+            last_ip: string;
+            /** Last Seen At */
+            last_seen_at: string;
+            /** Name */
+            name: string;
+            /**
+             * Photo Count
+             * @description Non-deleted photos.
+             */
+            photo_count: number;
+            /** Uploads Lock Period */
+            uploads_lock_period: number | null;
+            /** Uploads Paused */
+            uploads_paused: boolean;
+            /** Uploads Paused At */
+            uploads_paused_at: string | null;
+            /** Uploads Paused Source */
+            uploads_paused_source: ("admin" | "new_guest_lock") | null;
+            /** User Agent */
+            user_agent: string;
+        };
+        /** AuditEntryOut */
+        AuditEntryOut: {
+            /** Action */
+            action: string;
+            /** Actor */
+            actor: string;
+            /** At */
+            at: string;
+            /** Details */
+            details: {
+                [key: string]: unknown;
+            };
+            /** Id */
+            id: number;
+            /** Target */
+            target: string;
+        };
+        /**
+         * AuditOut
+         * @description Newest first. `next`: pass as `before` for the next page (null: no more).
+         */
+        AuditOut: {
+            /** Entries */
+            entries: components["schemas"]["AuditEntryOut"][];
+            /** Next */
+            next: number | null;
+        };
+        /**
+         * AutoBan
+         * @description The fingerprint ban an auto-banned guest joined on (null once lifted).
+         */
+        AutoBan: {
+            /** Fp Hash */
+            fp_hash: string;
+            /** Source User Id */
+            source_user_id: number | null;
+            /** Source User Name */
+            source_user_name: string | null;
+        };
         /** BanIn */
         BanIn: {
             /**
@@ -526,6 +821,46 @@ export interface components {
              */
             reason: string;
         };
+        /** BanOut */
+        BanOut: {
+            /** Changed */
+            changed: boolean;
+            /** Fingerprint Banned */
+            fingerprint_banned: boolean;
+            /** Photos */
+            photos: components["schemas"]["AdminPhoto"][];
+            user: components["schemas"]["AdminUser"];
+        };
+        /** BeerStats */
+        BeerStats: {
+            /**
+             * Goal
+             * @constant
+             */
+            goal: 1000000;
+            /**
+             * Total
+             * @description Beers on the board: visible, not deleted.
+             */
+            total: number;
+        };
+        /** BoothFilter */
+        BoothFilter: {
+            /** Icon */
+            icon: string;
+            /** Id */
+            id: string;
+            /** Name */
+            name: string;
+        };
+        /** BoothFilters */
+        BoothFilters: {
+            /**
+             * Filters
+             * @description In strip order; the first is the default.
+             */
+            filters: components["schemas"]["BoothFilter"][];
+        };
         /** BulkIn */
         BulkIn: {
             /**
@@ -536,8 +871,299 @@ export interface components {
             /** Ids */
             ids: string[];
         };
-        /** ConsentIn */
-        ConsentIn: {
+        /** BulkOut */
+        BulkOut: {
+            /**
+             * Action
+             * @enum {string}
+             */
+            action: "hide" | "unhide" | "delete";
+            /** Changed */
+            changed: string[];
+            /** Missing */
+            missing: string[];
+            /** Unchanged */
+            unchanged: string[];
+        };
+        /** ConsentInfo */
+        ConsentInfo: {
+            /** Accept Label */
+            accept_label: string;
+            /** Instagram Account */
+            instagram_account: string;
+            /** Instagram Prompt */
+            instagram_prompt: string;
+            /** Paragraphs */
+            paragraphs: string[];
+            /** Party Name */
+            party_name: string;
+            /** Title */
+            title: string;
+            /** Version */
+            version: string;
+        };
+        /** DeletePhotoOut */
+        DeletePhotoOut: {
+            /** Id */
+            id: string;
+            /**
+             * Ok
+             * @constant
+             */
+            ok: true;
+        };
+        /** DeviceBanOut */
+        DeviceBanOut: {
+            /** Created At */
+            created_at: string;
+            /** Fp Hash */
+            fp_hash: string;
+            /** Reason */
+            reason: string;
+            /** Source User Id */
+            source_user_id: number | null;
+            /** Source User Name */
+            source_user_name: string | null;
+            /** Users */
+            users: components["schemas"]["UserRef"][];
+        };
+        /** DeviceBansOut */
+        DeviceBansOut: {
+            /**
+             * Bans
+             * @description Newest first.
+             */
+            bans: components["schemas"]["DeviceBanOut"][];
+        };
+        /** DeviceUnbanOut */
+        DeviceUnbanOut: {
+            /** Fp Hash */
+            fp_hash: string;
+            /**
+             * Ok
+             * @constant
+             */
+            ok: true;
+            /** Users Unbanned */
+            users_unbanned: components["schemas"]["UserRef"][];
+        };
+        /**
+         * ErrorBody
+         * @description Every error response.
+         */
+        ErrorBody: {
+            /**
+             * Error
+             * @description Machine-readable error code.
+             * @enum {string}
+             */
+            error: "scan_qr" | "needs_consent" | "banned" | "consent_outdated" | "invalid_instagram" | "uploads_paused" | "uploads_stopped" | "unsupported_type" | "too_large" | "invalid_meta" | "empty_upload" | "invalid_image" | "admin_required" | "wrong_password" | "login_locked" | "invalid_filter" | "invalid_cursor" | "no_fingerprint" | "restore_required" | "bad_origin" | "length_required" | "rate_limited" | "invalid_request" | "not_found" | "http_404" | "http_405";
+            /**
+             * Message
+             * @description German text for the guest or admin, shown as-is.
+             */
+            message: string;
+        };
+        /** ExtensionCountOut */
+        ExtensionCountOut: {
+            /** Hidden */
+            hidden: number;
+            /** Photos */
+            photos: number;
+        };
+        /** ExtensionsOut */
+        ExtensionsOut: {
+            /** Extensions */
+            extensions: components["schemas"]["PublicExtension"][];
+            /** Instagram Account */
+            instagram_account: string;
+            /** Party Name */
+            party_name: string;
+        };
+        /**
+         * Fingerprint
+         * @description Device traits: a moderation hint, never an identity.
+         */
+        Fingerprint: {
+            /** Components */
+            components?: {
+                [key: string]: unknown;
+            };
+            /** Hash */
+            hash: string;
+        };
+        /** FingerprintBannedData */
+        FingerprintBannedData: {
+            /** Fp Hash */
+            fp_hash: string;
+            /** User Id */
+            user_id: number;
+        };
+        /** FingerprintBannedEvent */
+        FingerprintBannedEvent: {
+            data: components["schemas"]["FingerprintBannedData"];
+            /**
+             * Id
+             * @description `<epoch>-<n>`: the SSE `id:` line.
+             */
+            id: string;
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            type: "fingerprint.banned";
+        };
+        /** FingerprintOut */
+        FingerprintOut: {
+            /** Banned */
+            banned: boolean;
+            /**
+             * Current
+             * @description The one the guest showed last.
+             */
+            current: boolean;
+            /** First Seen */
+            first_seen: string;
+            /** Fp Hash */
+            fp_hash: string;
+            /** Last Seen */
+            last_seen: string;
+            /**
+             * Shared With
+             * @description How many other guests showed it.
+             */
+            shared_with: number;
+            /** Users */
+            users: components["schemas"]["UserRef"][];
+        };
+        /** FingerprintUnbannedData */
+        FingerprintUnbannedData: {
+            /** Fp Hash */
+            fp_hash: string;
+        };
+        /** FingerprintUnbannedEvent */
+        FingerprintUnbannedEvent: {
+            data: components["schemas"]["FingerprintUnbannedData"];
+            /**
+             * Id
+             * @description `<epoch>-<n>`: the SSE `id:` line.
+             */
+            id: string;
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            type: "fingerprint.unbanned";
+        };
+        /**
+         * GuestPhoto
+         * @description One of the guest's own photos. The image is at `url` (`thumb_url`: 400 px).
+         */
+        GuestPhoto: {
+            /** Created At */
+            created_at: string;
+            /** Extension */
+            extension: string;
+            /** Height */
+            height: number;
+            /** Id */
+            id: string;
+            /** Seq */
+            seq: number;
+            /** Thumb Url */
+            thumb_url: string;
+            /** Url */
+            url: string;
+            /** Width */
+            width: number;
+        };
+        /**
+         * GuestUser
+         * @description What the guest's own browser may see about itself (exactly these keys).
+         */
+        GuestUser: {
+            /** Banned */
+            banned: boolean;
+            /** Instagram */
+            instagram: string | null;
+            /** Name */
+            name: string;
+            /** Uploads Paused */
+            uploads_paused: boolean;
+        };
+        /** HealthOut */
+        HealthOut: {
+            /**
+             * Ok
+             * @constant
+             */
+            ok: true;
+        };
+        /**
+         * IdentifiedOut
+         * @description A known device. `uid_token` is also set as the `vb_uid` cookie.
+         */
+        IdentifiedOut: {
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            state: "banned" | "ok";
+            /** Uid Token */
+            uid_token: string;
+            /** Uploads Stopped */
+            uploads_stopped: boolean;
+            user: components["schemas"]["GuestUser"];
+        };
+        /** IdentifyIn */
+        IdentifyIn: {
+            fp?: components["schemas"]["Fingerprint"] | null;
+            /** Uid */
+            uid?: string | null;
+        };
+        /** InstagramHandleOut */
+        InstagramHandleOut: {
+            /** Handle */
+            handle: string;
+            /** Hidden */
+            hidden: number;
+            /** Last Upload At */
+            last_upload_at: string | null;
+            /** Photos */
+            photos: number;
+            /**
+             * Recent
+             * @description Up to 8 visible photos, newest first.
+             */
+            recent: components["schemas"]["AdminPhoto"][];
+            /** Users */
+            users: components["schemas"]["InstagramUserOut"][];
+            /** Visible */
+            visible: number;
+        };
+        /**
+         * InstagramOut
+         * @description Most active handles first.
+         */
+        InstagramOut: {
+            /** Handles */
+            handles: components["schemas"]["InstagramHandleOut"][];
+        };
+        /** InstagramUserOut */
+        InstagramUserOut: {
+            /** Auto Banned */
+            auto_banned: boolean;
+            /** Banned */
+            banned: boolean;
+            /** Id */
+            id: number;
+            /** Name */
+            name: string;
+            /** Photos */
+            photos: number;
+        };
+        /** JoinIn */
+        JoinIn: {
             /**
              * Accept
              * @constant
@@ -549,35 +1175,71 @@ export interface components {
             /** Version */
             version: string;
         };
-        /** Fingerprint */
-        Fingerprint: {
-            /** Components */
-            components?: {
-                [key: string]: unknown;
-            };
-            /** Hash */
-            hash: string;
-        };
-        /** HTTPValidationError */
-        HTTPValidationError: {
-            /** Detail */
-            detail?: components["schemas"]["ValidationError"][];
-        };
-        /** IdentifyIn */
-        IdentifyIn: {
-            fp?: components["schemas"]["Fingerprint"] | null;
-            /** Uid */
-            uid?: string | null;
+        /**
+         * JoinOut
+         * @description 201 for a new guest, 200 when the device had joined already (second tab):
+         *     then a different handle is not taken over (`instagram_kept`).
+         */
+        JoinOut: {
+            /** Already Joined */
+            already_joined: boolean;
+            /** Instagram Kept */
+            instagram_kept: boolean;
+            /**
+             * State
+             * @enum {string}
+             */
+            state: "ok" | "banned";
+            /** Uid Token */
+            uid_token: string;
+            /** Uploads Stopped */
+            uploads_stopped: boolean;
+            user: components["schemas"]["GuestUser"];
         };
         /** LoginIn */
         LoginIn: {
             /** Password */
             password: string;
         };
-        /** MeUpdate */
-        MeUpdate: {
+        /**
+         * MeIn
+         * @description null or blank clears the handle.
+         */
+        MeIn: {
             /** Instagram */
             instagram?: string | null;
+        };
+        /** MeOut */
+        MeOut: {
+            user: components["schemas"]["GuestUser"];
+        };
+        /**
+         * MyPhotosOut
+         * @description The caller's own visible photos, newest first (at most 60).
+         */
+        MyPhotosOut: {
+            /** Photos */
+            photos: components["schemas"]["GuestPhoto"][];
+        };
+        /**
+         * NeedsConsentOut
+         * @description Unknown device: show the join dialog.
+         */
+        NeedsConsentOut: {
+            consent: components["schemas"]["ConsentInfo"];
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            state: "needs_consent";
+        };
+        /** OkOut */
+        OkOut: {
+            /**
+             * Ok
+             * @constant
+             */
+            ok: true;
         };
         /** PauseIn */
         PauseIn: {
@@ -586,10 +1248,254 @@ export interface components {
             /** Restore */
             restore?: boolean | null;
         };
+        /** PauseOut */
+        PauseOut: {
+            /** Affected */
+            affected: number;
+            /** By */
+            by: string | null;
+            /** Changed */
+            changed: boolean;
+            /** Enabled */
+            enabled: boolean;
+            /** Kept */
+            kept: number;
+            /** Paused Total */
+            paused_total: number;
+            /** Period */
+            period: number | null;
+            /** Restored */
+            restored: number;
+            /** Since */
+            since: string | null;
+        };
+        /**
+         * PauseState
+         * @description The new-guest lock. `period` is null while it is off; `affected`: guests
+         *     this period paused and still paused by it.
+         */
+        PauseState: {
+            /** Affected */
+            affected: number;
+            /** By */
+            by: string | null;
+            /** Enabled */
+            enabled: boolean;
+            /** Paused Total */
+            paused_total: number;
+            /** Period */
+            period: number | null;
+            /** Since */
+            since: string | null;
+        };
+        /** PhotoChangeOut */
+        PhotoChangeOut: {
+            /** Changed */
+            changed: boolean;
+            photo: components["schemas"]["AdminPhoto"];
+        };
+        /** PhotoCreatedEvent */
+        PhotoCreatedEvent: {
+            data: components["schemas"]["PhotoEventData"];
+            /**
+             * Id
+             * @description `<epoch>-<n>`: the SSE `id:` line.
+             */
+            id: string;
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            type: "photo.created";
+        };
+        /** PhotoDeletedData */
+        PhotoDeletedData: {
+            /** Id */
+            id: string;
+            /** @description The tombstone (`deleted: true`). */
+            photo: components["schemas"]["AdminPhoto"] | null;
+        };
+        /** PhotoDeletedEvent */
+        PhotoDeletedEvent: {
+            data: components["schemas"]["PhotoDeletedData"];
+            /**
+             * Id
+             * @description `<epoch>-<n>`: the SSE `id:` line.
+             */
+            id: string;
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            type: "photo.deleted";
+        };
+        /** PhotoEventData */
+        PhotoEventData: {
+            photo: components["schemas"]["AdminPhoto"];
+        };
+        /** PhotoHiddenEvent */
+        PhotoHiddenEvent: {
+            data: components["schemas"]["PhotoEventData"];
+            /**
+             * Id
+             * @description `<epoch>-<n>`: the SSE `id:` line.
+             */
+            id: string;
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            type: "photo.hidden";
+        };
+        /**
+         * PhotoListOut
+         * @description Newest first. `next`: pass as `before` for the next page (null: no more).
+         *     `total` (matching photos) only on the first page (no cursor).
+         */
+        PhotoListOut: {
+            /** Next */
+            next: string | null;
+            /** Photos */
+            photos: components["schemas"]["AdminPhoto"][];
+            /** Total */
+            total?: number | null;
+        };
+        /** PhotoOut */
+        PhotoOut: {
+            photo: components["schemas"]["AdminPhoto"];
+        };
+        /** PhotoUnhiddenEvent */
+        PhotoUnhiddenEvent: {
+            data: components["schemas"]["PhotoEventData"];
+            /**
+             * Id
+             * @description `<epoch>-<n>`: the SSE `id:` line.
+             */
+            id: string;
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            type: "photo.unhidden";
+        };
+        /**
+         * PhotoUser
+         * @description The guest who took a photo.
+         */
+        PhotoUser: {
+            /** Auto Banned */
+            auto_banned: boolean;
+            /** Banned */
+            banned: boolean;
+            /** Id */
+            id: number;
+            /** Instagram */
+            instagram: string | null;
+            /** Name */
+            name: string;
+            /** Uploads Paused */
+            uploads_paused: boolean;
+        };
+        /** PublicExtension */
+        PublicExtension: {
+            /** Emoji */
+            emoji: string;
+            /** Id */
+            id: string;
+            /** Tagline */
+            tagline: string;
+            /** Title */
+            title: string;
+            /** Uploads */
+            uploads: boolean;
+            /** Url */
+            url: string;
+        };
+        /** SessionOut */
+        SessionOut: {
+            /** Authenticated */
+            authenticated: boolean;
+        };
+        /** StatsOut */
+        StatsOut: {
+            /** Banned */
+            banned: number;
+            /** Deleted */
+            deleted: number;
+            /** Extensions */
+            extensions: {
+                [key: string]: components["schemas"]["ExtensionCountOut"];
+            };
+            /** Fingerprint Bans */
+            fingerprint_bans: number;
+            /** Guests */
+            guests: number;
+            /** Hidden */
+            hidden: number;
+            /**
+             * Instagram
+             * @description Guests (devices) that gave a handle.
+             */
+            instagram: number;
+            /**
+             * Instagram Handles
+             * @description Distinct handles.
+             */
+            instagram_handles: number;
+            /** Last Upload At */
+            last_upload_at: string | null;
+            /** Photos */
+            photos: number;
+            /** Uploaders */
+            uploaders: number;
+            /** Visible */
+            visible: number;
+        };
         /** StopIn */
         StopIn: {
             /** Enabled */
             enabled: boolean;
+        };
+        /** StopOut */
+        StopOut: {
+            /** By */
+            by: string | null;
+            /** Changed */
+            changed: boolean;
+            /** Enabled */
+            enabled: boolean;
+            /** Since */
+            since: string | null;
+        };
+        /** StopState */
+        StopState: {
+            /** By */
+            by: string | null;
+            /** Enabled */
+            enabled: boolean;
+            /** Since */
+            since: string | null;
+        };
+        /** StreamResyncData */
+        StreamResyncData: {
+            /**
+             * Reason
+             * @description gap: missed events are no longer kept; restart: the server restarted.
+             * @enum {string}
+             */
+            reason: "gap" | "restart";
+        };
+        /**
+         * StreamResyncEvent
+         * @description Not from the bus: sent first on a reconnect the history can't serve.
+         */
+        StreamResyncEvent: {
+            data: components["schemas"]["StreamResyncData"];
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            type: "stream.resync";
         };
         /** UnbanIn */
         UnbanIn: {
@@ -599,23 +1505,209 @@ export interface components {
              */
             fingerprint: boolean;
         };
+        /** UnbanOut */
+        UnbanOut: {
+            /** Changed */
+            changed: boolean;
+            /** Fingerprints Unbanned */
+            fingerprints_unbanned: string[];
+            /** Photos */
+            photos: components["schemas"]["AdminPhoto"][];
+            user: components["schemas"]["AdminUser"];
+            /**
+             * Users Unbanned
+             * @description Auto-banned guests released too.
+             */
+            users_unbanned: components["schemas"]["UserRef"][];
+        };
+        /** UploadOut */
+        UploadOut: {
+            /** Beer Number */
+            beer_number?: number | null;
+            /** Booth Number */
+            booth_number?: number | null;
+            photo: components["schemas"]["GuestPhoto"];
+            /** Total */
+            total?: number | null;
+        } & {
+            [key: string]: unknown;
+        };
+        /** UploadPauseData */
+        UploadPauseData: {
+            /** Kept */
+            kept: number[];
+            /** Restored */
+            restored: number[];
+            upload_pause: components["schemas"]["PauseState"];
+        };
+        /** UploadPauseEvent */
+        UploadPauseEvent: {
+            data: components["schemas"]["UploadPauseData"];
+            /**
+             * Id
+             * @description `<epoch>-<n>`: the SSE `id:` line.
+             */
+            id: string;
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            type: "settings.upload_pause";
+        };
+        /** UploadStopData */
+        UploadStopData: {
+            upload_stop: components["schemas"]["StopState"];
+        };
+        /** UploadStopEvent */
+        UploadStopEvent: {
+            data: components["schemas"]["UploadStopData"];
+            /**
+             * Id
+             * @description `<epoch>-<n>`: the SSE `id:` line.
+             */
+            id: string;
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            type: "settings.upload_stop";
+        };
+        /** UploadsChangedData */
+        UploadsChangedData: {
+            /** Paused */
+            paused: boolean;
+            /** Users */
+            users: components["schemas"]["AdminUser"][];
+        };
+        /** UploadsChangedEvent */
+        UploadsChangedEvent: {
+            data: components["schemas"]["UploadsChangedData"];
+            /**
+             * Id
+             * @description `<epoch>-<n>`: the SSE `id:` line.
+             */
+            id: string;
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            type: "user.uploads_changed";
+        };
+        /** UserBanData */
+        UserBanData: {
+            /** Photos */
+            photos: components["schemas"]["AdminPhoto"][];
+            user: components["schemas"]["AdminUser"];
+        };
+        /** UserBannedEvent */
+        UserBannedEvent: {
+            data: components["schemas"]["UserBanData"];
+            /**
+             * Id
+             * @description `<epoch>-<n>`: the SSE `id:` line.
+             */
+            id: string;
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            type: "user.banned";
+        };
+        /** UserCreatedData */
+        UserCreatedData: {
+            /** Auto Banned */
+            auto_banned: boolean;
+            /** Banned */
+            banned: boolean;
+            /** Id */
+            id: number;
+            /** Instagram */
+            instagram: string | null;
+            /** Name */
+            name: string;
+            /** Uploads Paused */
+            uploads_paused: boolean;
+        };
+        /** UserCreatedEvent */
+        UserCreatedEvent: {
+            data: components["schemas"]["UserCreatedData"];
+            /**
+             * Id
+             * @description `<epoch>-<n>`: the SSE `id:` line.
+             */
+            id: string;
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            type: "user.created";
+        };
+        /** UserDetailOut */
+        UserDetailOut: {
+            /** Fingerprints */
+            fingerprints: components["schemas"]["FingerprintOut"][];
+            /**
+             * Photos
+             * @description Newest first, at most 1000.
+             */
+            photos: components["schemas"]["AdminPhoto"][];
+            /**
+             * Sharing
+             * @description Guests that showed any of these fingerprints.
+             */
+            sharing: components["schemas"]["UserRef"][];
+            user: components["schemas"]["AdminUser"];
+        };
+        /**
+         * UserListOut
+         * @description Newest first. `next_offset`: pass as `offset` for the next page (null: no more).
+         */
+        UserListOut: {
+            /** Next Offset */
+            next_offset: number | null;
+            /** Users */
+            users: components["schemas"]["AdminUser"][];
+        };
+        /**
+         * UserRef
+         * @description A guest as other lists mention it.
+         */
+        UserRef: {
+            /** Auto Banned */
+            auto_banned: boolean;
+            /** Banned */
+            banned: boolean;
+            /** Id */
+            id: number;
+            /** Instagram */
+            instagram: string | null;
+            /** Name */
+            name: string;
+        };
+        /** UserUnbannedEvent */
+        UserUnbannedEvent: {
+            data: components["schemas"]["UserBanData"];
+            /**
+             * Id
+             * @description `<epoch>-<n>`: the SSE `id:` line.
+             */
+            id: string;
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            type: "user.unbanned";
+        };
         /** UserUploadsIn */
         UserUploadsIn: {
             /** Paused */
             paused: boolean;
         };
-        /** ValidationError */
-        ValidationError: {
-            /** Context */
-            ctx?: Record<string, never>;
-            /** Input */
-            input?: unknown;
-            /** Location */
-            loc: (string | number)[];
-            /** Message */
-            msg: string;
-            /** Error Type */
-            type: string;
+        /** UserUploadsOut */
+        UserUploadsOut: {
+            /** Changed */
+            changed: boolean;
+            user: components["schemas"]["AdminUser"];
         };
     };
     responses: never;
@@ -629,6 +1721,7 @@ export interface operations {
     audit_api_admin_audit_get: {
         parameters: {
             query?: {
+                /** @description next page: `next` */
                 before?: number | null;
                 limit?: number;
             };
@@ -644,23 +1737,84 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    };
+                    "application/json": components["schemas"]["AuditOut"];
                 };
             };
-            /** @description Validation Error */
+            /** @description Invalid input (see `error`) */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Needs consent or an admin session */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Forbidden: banned, paused, stopped or a foreign Origin (CSRF) */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Not found, or no party access (`scan_qr`) */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Content-Length required */
+            411: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Request too large */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Request validation failed (`invalid_request`) */
             422: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Rate limited (`Retry-After` header) */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
                 };
             };
         };
     };
-    fingerprint_bans_api_admin_device_bans_get: {
+    device_bans_api_admin_device_bans_get: {
         parameters: {
             query?: never;
             header?: never;
@@ -675,14 +1829,84 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    };
+                    "application/json": components["schemas"]["DeviceBansOut"];
+                };
+            };
+            /** @description Invalid input (see `error`) */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Needs consent or an admin session */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Forbidden: banned, paused, stopped or a foreign Origin (CSRF) */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Not found, or no party access (`scan_qr`) */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Content-Length required */
+            411: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Request too large */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Request validation failed (`invalid_request`) */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Rate limited (`Retry-After` header) */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
                 };
             };
         };
     };
-    unban_fingerprint_api_admin_device_bans__fp_hash__delete: {
+    lift_device_ban_api_admin_device_bans__fp_hash__delete: {
         parameters: {
             query?: never;
             header?: never;
@@ -699,38 +1923,176 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    };
+                    "application/json": components["schemas"]["DeviceUnbanOut"];
                 };
             };
-            /** @description Validation Error */
+            /** @description Invalid input (see `error`) */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Needs consent or an admin session */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Forbidden: banned, paused, stopped or a foreign Origin (CSRF) */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Not found, or no party access (`scan_qr`) */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Content-Length required */
+            411: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Request too large */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Request validation failed (`invalid_request`) */
             422: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Rate limited (`Retry-After` header) */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
                 };
             };
         };
     };
     events_api_admin_events_get: {
         parameters: {
-            query?: never;
-            header?: never;
+            query?: {
+                /** @description Resume after this event id. */
+                since?: string | null;
+            };
+            header?: {
+                "last-event-id"?: string | null;
+            };
             path?: never;
             cookie?: never;
         };
         requestBody?: never;
         responses: {
-            /** @description Successful Response */
+            /** @description Server-Sent Events; each message's `data` is the event's `data`. */
             200: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "text/event-stream": unknown;
+                };
+            };
+            /** @description Invalid input (see `error`) */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Needs consent or an admin session */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Forbidden: banned, paused, stopped or a foreign Origin (CSRF) */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Not found, or no party access (`scan_qr`) */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Content-Length required */
+            411: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Request too large */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Request validation failed (`invalid_request`) */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Rate limited (`Retry-After` header) */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
                 };
             };
         };
@@ -750,9 +2112,79 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    };
+                    "application/json": components["schemas"]["AdminExtensionsOut"];
+                };
+            };
+            /** @description Invalid input (see `error`) */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Needs consent or an admin session */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Forbidden: banned, paused, stopped or a foreign Origin (CSRF) */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Not found, or no party access (`scan_qr`) */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Content-Length required */
+            411: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Request too large */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Request validation failed (`invalid_request`) */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Rate limited (`Retry-After` header) */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
                 };
             };
         };
@@ -772,9 +2204,79 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    };
+                    "application/json": components["schemas"]["InstagramOut"];
+                };
+            };
+            /** @description Invalid input (see `error`) */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Needs consent or an admin session */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Forbidden: banned, paused, stopped or a foreign Origin (CSRF) */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Not found, or no party access (`scan_qr`) */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Content-Length required */
+            411: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Request too large */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Request validation failed (`invalid_request`) */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Rate limited (`Retry-After` header) */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
                 };
             };
         };
@@ -798,16 +2300,61 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": components["schemas"]["OkOut"];
                 };
             };
-            /** @description Validation Error */
+            /** @description Needs consent or an admin session */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Forbidden: banned, paused, stopped or a foreign Origin (CSRF) */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Content-Length required */
+            411: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Request too large */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Request validation failed (`invalid_request`) */
             422: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Rate limited (`Retry-After` header) */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
                 };
             };
         };
@@ -827,7 +2374,52 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": components["schemas"]["OkOut"];
+                };
+            };
+            /** @description Forbidden: banned, paused, stopped or a foreign Origin (CSRF) */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Content-Length required */
+            411: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Request too large */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Request validation failed (`invalid_request`) */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Rate limited (`Retry-After` header) */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
                 };
             };
         };
@@ -836,9 +2428,12 @@ export interface operations {
         parameters: {
             query?: {
                 extension?: string | null;
+                /** @description all | true/hidden | false/visible */
                 hidden?: string | null;
                 user_id?: string | null;
+                /** @description next page: `next` */
                 before?: string | null;
+                /** @description poll: newest known id */
                 after?: string | null;
                 limit?: number;
             };
@@ -854,18 +2449,79 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    };
+                    "application/json": components["schemas"]["PhotoListOut"];
                 };
             };
-            /** @description Validation Error */
+            /** @description Invalid input (see `error`) */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Needs consent or an admin session */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Forbidden: banned, paused, stopped or a foreign Origin (CSRF) */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Not found, or no party access (`scan_qr`) */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Content-Length required */
+            411: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Request too large */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Request validation failed (`invalid_request`) */
             422: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Rate limited (`Retry-After` header) */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
                 };
             };
         };
@@ -889,18 +2545,79 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    };
+                    "application/json": components["schemas"]["BulkOut"];
                 };
             };
-            /** @description Validation Error */
+            /** @description Invalid input (see `error`) */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Needs consent or an admin session */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Forbidden: banned, paused, stopped or a foreign Origin (CSRF) */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Not found, or no party access (`scan_qr`) */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Content-Length required */
+            411: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Request too large */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Request validation failed (`invalid_request`) */
             422: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Rate limited (`Retry-After` header) */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
                 };
             };
         };
@@ -922,18 +2639,79 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    };
+                    "application/json": components["schemas"]["PhotoOut"];
                 };
             };
-            /** @description Validation Error */
+            /** @description Invalid input (see `error`) */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Needs consent or an admin session */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Forbidden: banned, paused, stopped or a foreign Origin (CSRF) */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Not found, or no party access (`scan_qr`) */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Content-Length required */
+            411: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Request too large */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Request validation failed (`invalid_request`) */
             422: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Rate limited (`Retry-After` header) */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
                 };
             };
         };
@@ -955,18 +2733,79 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    };
+                    "application/json": components["schemas"]["DeletePhotoOut"];
                 };
             };
-            /** @description Validation Error */
+            /** @description Invalid input (see `error`) */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Needs consent or an admin session */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Forbidden: banned, paused, stopped or a foreign Origin (CSRF) */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Not found, or no party access (`scan_qr`) */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Content-Length required */
+            411: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Request too large */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Request validation failed (`invalid_request`) */
             422: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Rate limited (`Retry-After` header) */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
                 };
             };
         };
@@ -988,18 +2827,79 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    };
+                    "application/json": components["schemas"]["PhotoChangeOut"];
                 };
             };
-            /** @description Validation Error */
+            /** @description Invalid input (see `error`) */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Needs consent or an admin session */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Forbidden: banned, paused, stopped or a foreign Origin (CSRF) */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Not found, or no party access (`scan_qr`) */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Content-Length required */
+            411: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Request too large */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Request validation failed (`invalid_request`) */
             422: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Rate limited (`Retry-After` header) */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
                 };
             };
         };
@@ -1021,18 +2921,79 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    };
+                    "application/json": components["schemas"]["PhotoChangeOut"];
                 };
             };
-            /** @description Validation Error */
+            /** @description Invalid input (see `error`) */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Needs consent or an admin session */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Forbidden: banned, paused, stopped or a foreign Origin (CSRF) */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Not found, or no party access (`scan_qr`) */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Content-Length required */
+            411: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Request too large */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Request validation failed (`invalid_request`) */
             422: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Rate limited (`Retry-After` header) */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
                 };
             };
         };
@@ -1052,9 +3013,52 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        [key: string]: boolean;
-                    };
+                    "application/json": components["schemas"]["SessionOut"];
+                };
+            };
+            /** @description Forbidden: banned, paused, stopped or a foreign Origin (CSRF) */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Content-Length required */
+            411: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Request too large */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Request validation failed (`invalid_request`) */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Rate limited (`Retry-After` header) */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
                 };
             };
         };
@@ -1074,9 +3078,79 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    };
+                    "application/json": components["schemas"]["StatsOut"];
+                };
+            };
+            /** @description Invalid input (see `error`) */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Needs consent or an admin session */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Forbidden: banned, paused, stopped or a foreign Origin (CSRF) */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Not found, or no party access (`scan_qr`) */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Content-Length required */
+            411: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Request too large */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Request validation failed (`invalid_request`) */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Rate limited (`Retry-After` header) */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
                 };
             };
         };
@@ -1096,9 +3170,79 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    };
+                    "application/json": components["schemas"]["PauseState"];
+                };
+            };
+            /** @description Invalid input (see `error`) */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Needs consent or an admin session */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Forbidden: banned, paused, stopped or a foreign Origin (CSRF) */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Not found, or no party access (`scan_qr`) */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Content-Length required */
+            411: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Request too large */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Request validation failed (`invalid_request`) */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Rate limited (`Retry-After` header) */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
                 };
             };
         };
@@ -1122,18 +3266,79 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    };
+                    "application/json": components["schemas"]["PauseOut"];
                 };
             };
-            /** @description Validation Error */
+            /** @description Invalid input (see `error`) */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Needs consent or an admin session */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Forbidden: banned, paused, stopped or a foreign Origin (CSRF) */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Not found, or no party access (`scan_qr`) */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Content-Length required */
+            411: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Request too large */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Request validation failed (`invalid_request`) */
             422: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Rate limited (`Retry-After` header) */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
                 };
             };
         };
@@ -1153,9 +3358,79 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    };
+                    "application/json": components["schemas"]["StopState"];
+                };
+            };
+            /** @description Invalid input (see `error`) */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Needs consent or an admin session */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Forbidden: banned, paused, stopped or a foreign Origin (CSRF) */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Not found, or no party access (`scan_qr`) */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Content-Length required */
+            411: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Request too large */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Request validation failed (`invalid_request`) */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Rate limited (`Retry-After` header) */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
                 };
             };
         };
@@ -1179,18 +3454,79 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    };
+                    "application/json": components["schemas"]["StopOut"];
                 };
             };
-            /** @description Validation Error */
+            /** @description Invalid input (see `error`) */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Needs consent or an admin session */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Forbidden: banned, paused, stopped or a foreign Origin (CSRF) */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Not found, or no party access (`scan_qr`) */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Content-Length required */
+            411: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Request too large */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Request validation failed (`invalid_request`) */
             422: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Rate limited (`Retry-After` header) */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
                 };
             };
         };
@@ -1198,10 +3534,13 @@ export interface operations {
     list_users_api_admin_users_get: {
         parameters: {
             query?: {
+                /** @description name, handle, or #id */
                 search?: string | null;
+                /** @description all | true | false */
                 banned?: string | null;
                 limit?: number;
                 offset?: number;
+                /** @description all | true | false */
                 paused?: string | null;
             };
             header?: never;
@@ -1216,18 +3555,79 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    };
+                    "application/json": components["schemas"]["UserListOut"];
                 };
             };
-            /** @description Validation Error */
+            /** @description Invalid input (see `error`) */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Needs consent or an admin session */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Forbidden: banned, paused, stopped or a foreign Origin (CSRF) */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Not found, or no party access (`scan_qr`) */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Content-Length required */
+            411: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Request too large */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Request validation failed (`invalid_request`) */
             422: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Rate limited (`Retry-After` header) */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
                 };
             };
         };
@@ -1249,18 +3649,79 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    };
+                    "application/json": components["schemas"]["UserDetailOut"];
                 };
             };
-            /** @description Validation Error */
+            /** @description Invalid input (see `error`) */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Needs consent or an admin session */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Forbidden: banned, paused, stopped or a foreign Origin (CSRF) */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Not found, or no party access (`scan_qr`) */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Content-Length required */
+            411: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Request too large */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Request validation failed (`invalid_request`) */
             422: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Rate limited (`Retry-After` header) */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
                 };
             };
         };
@@ -1286,18 +3747,79 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    };
+                    "application/json": components["schemas"]["BanOut"];
                 };
             };
-            /** @description Validation Error */
+            /** @description Invalid input (see `error`) */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Needs consent or an admin session */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Forbidden: banned, paused, stopped or a foreign Origin (CSRF) */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Not found, or no party access (`scan_qr`) */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Content-Length required */
+            411: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Request too large */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Request validation failed (`invalid_request`) */
             422: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Rate limited (`Retry-After` header) */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
                 };
             };
         };
@@ -1323,18 +3845,79 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    };
+                    "application/json": components["schemas"]["UnbanOut"];
                 };
             };
-            /** @description Validation Error */
+            /** @description Invalid input (see `error`) */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Needs consent or an admin session */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Forbidden: banned, paused, stopped or a foreign Origin (CSRF) */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Not found, or no party access (`scan_qr`) */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Content-Length required */
+            411: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Request too large */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Request validation failed (`invalid_request`) */
             422: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Rate limited (`Retry-After` header) */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
                 };
             };
         };
@@ -1360,18 +3943,79 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    };
+                    "application/json": components["schemas"]["UserUploadsOut"];
                 };
             };
-            /** @description Validation Error */
+            /** @description Invalid input (see `error`) */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Needs consent or an admin session */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Forbidden: banned, paused, stopped or a foreign Origin (CSRF) */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Not found, or no party access (`scan_qr`) */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Content-Length required */
+            411: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Request too large */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Request validation failed (`invalid_request`) */
             422: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Rate limited (`Retry-After` header) */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
                 };
             };
         };
@@ -1391,9 +4035,61 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    };
+                    "application/json": components["schemas"]["ExtensionsOut"];
+                };
+            };
+            /** @description Forbidden: banned, paused, stopped or a foreign Origin (CSRF) */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Not found, or no party access (`scan_qr`) */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Content-Length required */
+            411: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Request too large */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Request validation failed (`invalid_request`) */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Rate limited (`Retry-After` header) */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
                 };
             };
         };
@@ -1417,21 +4113,66 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": components["schemas"]["NeedsConsentOut"] | components["schemas"]["IdentifiedOut"];
                 };
             };
-            /** @description Validation Error */
+            /** @description Forbidden: banned, paused, stopped or a foreign Origin (CSRF) */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Not found, or no party access (`scan_qr`) */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Content-Length required */
+            411: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Request too large */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Request validation failed (`invalid_request`) */
             422: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Rate limited (`Retry-After` header) */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
                 };
             };
         };
     };
-    consent_api_join_post: {
+    join_api_join_post: {
         parameters: {
             query?: never;
             header?: never;
@@ -1440,26 +4181,98 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["ConsentIn"];
+                "application/json": components["schemas"]["JoinIn"];
             };
         };
         responses: {
-            /** @description Successful Response */
+            /** @description The device had joined already */
             200: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": components["schemas"]["JoinOut"];
                 };
             };
-            /** @description Validation Error */
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["JoinOut"];
+                };
+            };
+            /** @description Invalid input (see `error`) */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Forbidden: banned, paused, stopped or a foreign Origin (CSRF) */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Not found, or no party access (`scan_qr`) */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Content-Length required */
+            411: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Request too large */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Request validation failed (`invalid_request`) */
             422: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Rate limited (`Retry-After` header) */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
                 };
             };
         };
@@ -1473,7 +4286,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["MeUpdate"];
+                "application/json": components["schemas"]["MeIn"];
             };
         };
         responses: {
@@ -1483,18 +4296,162 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    };
+                    "application/json": components["schemas"]["MeOut"];
                 };
             };
-            /** @description Validation Error */
+            /** @description Invalid input (see `error`) */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Needs consent or an admin session */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Forbidden: banned, paused, stopped or a foreign Origin (CSRF) */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Not found, or no party access (`scan_qr`) */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Content-Length required */
+            411: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Request too large */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Request validation failed (`invalid_request`) */
             422: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Rate limited (`Retry-After` header) */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    my_photos_api_me_photos_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MyPhotosOut"];
+                };
+            };
+            /** @description Needs consent or an admin session */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Forbidden: banned, paused, stopped or a foreign Origin (CSRF) */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Not found, or no party access (`scan_qr`) */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Content-Length required */
+            411: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Request too large */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Request validation failed (`invalid_request`) */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Rate limited (`Retry-After` header) */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
                 };
             };
         };
@@ -1514,20 +4471,43 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        [key: string]: number;
-                    };
+                    "application/json": components["schemas"]["BeerStats"];
+                };
+            };
+            /** @description Not found, or no party access (`scan_qr`) */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Request validation failed (`invalid_request`) */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Rate limited (`Retry-After` header) */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
                 };
             };
         };
     };
-    upload_api_x__ext_id__upload_post: {
+    filters_api_x_booth_filters_get: {
         parameters: {
             query?: never;
             header?: never;
-            path: {
-                ext_id: string;
-            };
+            path?: never;
             cookie?: never;
         };
         requestBody?: never;
@@ -1538,16 +4518,155 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": components["schemas"]["BoothFilters"];
                 };
             };
-            /** @description Validation Error */
+            /** @description Not found, or no party access (`scan_qr`) */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Request validation failed (`invalid_request`) */
             422: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Rate limited (`Retry-After` header) */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    upload_api_x__ext_id__upload_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description encodeURIComponent(JSON.stringify(meta)), at most 2048 chars; keys per extension (beer: vessel, facing; booth: filter, facing). */
+                "X-VB-Meta"?: string;
+            };
+            path: {
+                ext_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "image/jpeg": string;
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UploadOut"];
+                };
+            };
+            /** @description Invalid input (see `error`) */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Needs consent or an admin session */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Forbidden: banned, paused, stopped or a foreign Origin (CSRF) */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Not found, or no party access (`scan_qr`) */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Request too large */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Unsupported media type */
+            415: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Request validation failed (`invalid_request`) */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Rate limited (`Retry-After` header) */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    healthz_healthz_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HealthOut"];
                 };
             };
         };
@@ -1566,22 +4685,31 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Successful Response */
+            /** @description The JPEG (`thumb`: 400 px). Cache-Control: private, max-age=86400. */
             200: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "image/jpeg": string;
                 };
             };
-            /** @description Validation Error */
+            /** @description Not found, or no party access (`scan_qr`) */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Request validation failed (`invalid_request`) */
             422: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
+                    "application/json": components["schemas"]["ErrorBody"];
                 };
             };
         };

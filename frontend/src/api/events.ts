@@ -5,34 +5,22 @@
  * polling / visibility state machine (poll every 5 s while down, re-check the session
  * on CLOSED, resync on visibilitychange) belongs to wave-2's `useAdminEvents()` hook.
  */
-import type {
-  AdminPhoto,
-  AdminUser,
-  AdminUserView,
-  ExportJob,
-  FpHash,
-  PauseState,
-  PublicPhotoId,
-  StopState,
-} from './types';
+import type { components } from './schema.gen';
+import type { ExportJob } from './types';
 
+type SchemaEvent = components['schemas']['AdminEvent'];
+/** The schema variant without its required `id`: `stream.resync` has none on the wire. */
+type WireEvent<E> = E extends { type: infer T; data: infer D } ? { type: T; data: D; id?: string } : never;
+
+/**
+ * One message of the stream: `type` is the SSE event name, `data` the parsed payload,
+ * `id` the SSE id (`<epoch>-<n>`, absent on `stream.resync`). Typed from the OpenAPI
+ * union (contracts/api.md §4).
+ */
 export type AdminEvent =
-  | { type: 'photo.created'; data: { photo: AdminPhoto } }
-  | { type: 'photo.hidden'; data: { photo: AdminPhoto } }
-  | { type: 'photo.unhidden'; data: { photo: AdminPhoto } }
-  | { type: 'photo.deleted'; data: { id: PublicPhotoId; photo: AdminPhoto | null } }
-  | { type: 'user.created'; data: { id: number; name: string; banned: boolean; uploads_paused: boolean } }
-  | { type: 'user.banned'; data: { user: AdminUserView; photos: AdminPhoto[] } }
-  | { type: 'user.unbanned'; data: { user: AdminUserView; photos: AdminPhoto[] } }
-  | { type: 'fingerprint.banned'; data: { fp_hash: FpHash; user_id: number } }
-  | { type: 'fingerprint.unbanned'; data: { fp_hash: FpHash } }
-  | { type: 'user.uploads_changed'; data: { users: AdminUser[]; paused: boolean } }
-  | { type: 'settings.upload_stop'; data: { upload_stop: StopState } }
-  | {
-      type: 'settings.upload_pause';
-      data: { upload_pause: PauseState; restored: number[]; kept: number[] };
-    }
-  | { type: 'export.updated'; data: { job: ExportJob } };
+  | WireEvent<SchemaEvent>
+  // TODO(wave 2 merge): comes from the schema once BE-features' exports land.
+  | { type: 'export.updated'; data: { job: ExportJob }; id?: string };
 
 export type AdminEventType = AdminEvent['type'];
 
@@ -53,6 +41,7 @@ export const ADMIN_EVENT_TYPES = [
   'settings.upload_stop',
   'settings.upload_pause',
   'export.updated',
+  'stream.resync',
 ] as const satisfies readonly AdminEventType[];
 
 const READY_STATE_CLOSED = 2; // EventSource.CLOSED
@@ -63,6 +52,11 @@ export interface AdminEventsOptions {
   onEvent: (event: AdminEvent) => void;
   onStatus?: (status: StreamStatus) => void;
   url?: string;
+  /**
+   * `X-VB-Event-Id` of the page's first admin fetch: the server replays what happened
+   * between that fetch and this stream (contracts/api.md §4).
+   */
+  since?: string | null;
 }
 
 export interface AdminEventsHandle {
@@ -78,12 +72,14 @@ export function openAdminEvents({
   onEvent,
   onStatus,
   url = '/api/admin/events',
+  since = null,
 }: AdminEventsOptions): AdminEventsHandle {
   if (typeof EventSource === 'undefined') {
     onStatus?.('closed');
     return { close() {} };
   }
-  const source = new EventSource(url, { withCredentials: false });
+  const href = since ? `${url}?since=${encodeURIComponent(since)}` : url;
+  const source = new EventSource(href, { withCredentials: false });
   onStatus?.('connecting');
 
   const listeners = ADMIN_EVENT_TYPES.map((type) => {
@@ -95,8 +91,9 @@ export function openAdminEvents({
       } catch {
         return; // a malformed frame is dropped, the next resync repairs the view
       }
+      const id = e.lastEventId || undefined;
       // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- trust boundary: the event name fixes the payload shape
-      onEvent({ type, data } as AdminEvent);
+      onEvent({ type, data, id } as AdminEvent);
     };
     source.addEventListener(type, listener);
     return [type, listener] as const;

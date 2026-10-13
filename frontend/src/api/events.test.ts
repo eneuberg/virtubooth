@@ -54,6 +54,21 @@ describe('openAdminEvents', () => {
     ]);
   });
 
+  it('passes the SSE id and resumes from a fetch position', () => {
+    const events: AdminEvent[] = [];
+    openAdminEvents({ onEvent: (e) => events.push(e), since: '17-4' });
+    const source = FakeEventSource.instances[0]!;
+    expect(source.url).toBe('/api/admin/events?since=17-4');
+    source.dispatchEvent(
+      new MessageEvent('photo.deleted', { data: '{"id":"abcdefgh","photo":null}', lastEventId: '17-5' }),
+    );
+    source.emit('stream.resync', '{"reason":"gap"}');
+    expect(events).toEqual([
+      { type: 'photo.deleted', data: { id: 'abcdefgh', photo: null }, id: '17-5' },
+      { type: 'stream.resync', data: { reason: 'gap' } },
+    ]);
+  });
+
   it('drops malformed frames', () => {
     const { source, events } = open();
     source.emit('photo.created', '{nope');
