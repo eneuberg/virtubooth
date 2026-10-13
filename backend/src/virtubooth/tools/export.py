@@ -23,7 +23,6 @@ import argparse
 import csv
 import io
 import json
-import shutil
 import sqlite3
 import tarfile
 import tempfile
@@ -40,6 +39,7 @@ from ._common import (
     DB_NAME,
     ToolError,
     add_data_dir_arg,
+    check_free_space,
     exports_dir,
     human_size,
     iter_photos,
@@ -66,6 +66,19 @@ class Entry:
     arcname: str  # relative to the archive root, "" if the file is missing
 
 
+@dataclass(frozen=True)
+class Snapshot:
+    """What an export packs, all from one consistent database copy."""
+
+    db_file: Path  # the standalone copy (journal_mode=DELETE)
+    entries: list[Entry]
+    users: list[User]
+
+    @property
+    def files(self) -> list[Entry]:
+        return [e for e in self.entries if e.arcname]
+
+
 def snapshot_db(db_path: Path, dest: Path) -> None:
     """Consistent copy via SQLite's online backup API (safe while the app writes)."""
     src = sqlite3.connect(db_path, timeout=30)
@@ -86,6 +99,27 @@ def all_users(repos: Repositories) -> list[User]:
         users += page
         if len(page) < USERS_PAGE:
             return sorted(users, key=lambda u: u.id)
+
+
+def take_snapshot(data_dir: Path, tmp: Path, *, include_hidden: bool) -> Snapshot:
+    """Copy the live database into `tmp` (backup API) and plan the export from
+    the copy; the photo files come from `data_dir`."""
+    snap = tmp / DB_NAME
+    snapshot_db(data_dir / DB_NAME, snap)
+    db = Database(snap)  # reads the snapshot, photo files from data_dir
+    try:
+        repos = Repositories.create(db, data_dir)
+        entries = plan_entries(repos, include_hidden=include_hidden)
+        users = all_users(repos)
+    finally:
+        db.close()
+    # Database() switched the snapshot to WAL; make it a standalone file again
+    conn = sqlite3.connect(snap)
+    try:
+        conn.execute("PRAGMA journal_mode=DELETE")
+    finally:
+        conn.close()
+    return Snapshot(snap, entries, users)
 
 
 def plan_entries(repos: Repositories, *, include_hidden: bool) -> list[Entry]:
@@ -175,8 +209,9 @@ def instagram_csv(entries: list[Entry]) -> bytes:
 
 def readme(
     *, data_dir: Path, entries: list[Entry], users: list[User],
-    include_hidden: bool, include_db: bool,
+    include_hidden: bool, include_db: bool, cli: bool = True,
 ) -> bytes:  # fmt: skip
+    """README.txt. `cli` False: made by the admin UI (a zip with manifest.json)."""
     per_ext: dict[str, list[int]] = defaultdict(lambda: [0, 0])
     for e in entries:
         if e.arcname:
@@ -209,7 +244,8 @@ def readme(
             "    Photos the admin hid (moderation or banned guest). Do not post these.",
         ]
     else:
-        lines += ["    Hidden photos were left out of this export (--no-hidden)."]
+        how = " (--no-hidden)" if cli else ""
+        lines += [f"    Hidden photos were left out of this export{how}."]
     lines += [
         "photos.csv",
         "    One row per exported photo: id, extension, seq, created_at (UTC),",
@@ -224,6 +260,11 @@ def readme(
         "    that guest (banned guests and hidden photos are left out).",
         "    files = paths separated by '; '.",
     ]
+    if not cli:
+        lines += [
+            "manifest.json",
+            "    The same as photos.csv, machine-readable, plus what this export contains.",
+        ]
     if include_db:
         lines += [
             "virtubooth.db",
@@ -246,7 +287,7 @@ def readme(
     return "\n".join(lines).encode("utf-8")
 
 
-def _size(path: Path) -> int:
+def file_size(path: Path) -> int:
     try:
         return path.stat().st_size
     except OSError:
@@ -330,33 +371,15 @@ def _main(args: argparse.Namespace) -> int:
     with tempfile.TemporaryDirectory(
         prefix=".vb-export-", dir=scratch_parent(data_dir, out)
     ) as tmp:
-        snap = Path(tmp) / DB_NAME
         print(f"Snapshotting {db_path} ...", flush=True)
-        snapshot_db(db_path, snap)
-        db = Database(snap)  # reads the snapshot, photo files from data_dir
-        try:
-            repos = Repositories.create(db, data_dir)
-            entries = plan_entries(repos, include_hidden=include_hidden)
-            users = all_users(repos)
-        finally:
-            db.close()
-        # Database() switched the snapshot to WAL; make it a standalone file again
-        conn = sqlite3.connect(snap)
-        try:
-            conn.execute("PRAGMA journal_mode=DELETE")
-        finally:
-            conn.close()
+        snapshot = take_snapshot(data_dir, Path(tmp), include_hidden=include_hidden)
+        snap, entries, users = snapshot.db_file, snapshot.entries, snapshot.users
 
-        files = [e for e in entries if e.arcname]
+        files = snapshot.files
         missing = len(entries) - len(files)
-        total = sum(_size(e.source) for e in files)
+        total = sum(file_size(e.source) for e in files)
         out.parent.mkdir(parents=True, exist_ok=True)
-        free = shutil.disk_usage(out.parent).free
-        if free < total * 1.05 + 10_000_000:
-            raise ToolError(
-                f"not enough disk space at {out.parent}: need ~{human_size(total)}, "
-                f"{human_size(free)} free (use --out elsewhere)"
-            )
+        check_free_space(out.parent, total)
         print(f"Packing {len(files)} photos ({human_size(total)}) into {out} ...", flush=True)
         if missing:
             print(f"  warning: {missing} photo(s) have no file on disk, listed without one")
