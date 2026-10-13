@@ -110,8 +110,8 @@ export const msg = {
   offlineShort: 'Offline',
 
   // gate / not found
-  gateTitle: 'Scan einen QR-Code auf der Party',
-  gateText: 'Diese Seite öffnet sich nur über die QR-Codes, die auf der Party hängen.',
+  gateTitle: 'Scan den QR-Code',
+  gateText: 'Diese Seite öffnet sich nur über einen der QR-Codes auf der Party.',
   gateHint: 'Halte die Kamera deines Handys auf den Code und tippe auf den Link.',
   notFoundTitle: 'Hier ist nichts.',
   notFoundText: 'Diese Seite gibt es nicht.',
