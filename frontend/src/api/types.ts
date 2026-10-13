@@ -111,3 +111,9 @@ export type ExportsResponse = S['ExportJobsOut'];
 export type ExportDeletedResponse = S['ExportDeletedOut'];
 /** POST /api/admin/instagram/{handle}/done */
 export type InstagramDoneResponse = S['InstagramDoneOut'];
+
+// ---------------------------------------------- dashboard (live overview)
+
+/** GET /api/admin/overview: live counters (definitions in contracts/api.md §7) */
+export type Overview = S['OverviewOut'];
+export type OverviewActivity = S['OverviewActivity'];

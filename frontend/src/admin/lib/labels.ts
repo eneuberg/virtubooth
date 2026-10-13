@@ -146,6 +146,8 @@ export const AUDIT_LABELS: Record<string, string> = {
   'uploads.lock_off': 'Pause für neue Gäste beendet',
   'uploads.stop': 'Hochladen für alle gestoppt',
   'uploads.resume': 'Hochladen läuft wieder',
+  'join.stop': 'Anmeldung gestoppt',
+  'join.resume': 'Anmeldung wieder offen',
   'instagram.done': 'Instagram-Name erledigt',
   'instagram.undone': 'Instagram-Name wieder offen',
   'export.create': 'Export gestartet',

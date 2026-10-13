@@ -2,7 +2,7 @@
  * The manage area's state in the URL (manageUrl.test.ts). Section names are the
  * pre-overhaul tab names, so old bookmarks keep working:
  *
- *   /admin/manage?tab=fotos|gaeste|instagram|sperren|protokoll|export
+ *   /admin/manage?tab=fotos|gaeste|instagram|sperren|protokoll|export|uebersicht
  *   Fotos: &ext=<activity>&status=visible|hidden&user=<id>&photo=<id>
  *   Gäste: &q=<search>&show=banned|ok|paused
  *
@@ -10,7 +10,15 @@
  */
 import type { GuestFilter, GuestStatus, PhotoFilter, PhotoStatus } from '../store/types';
 
-export const SECTIONS = ['fotos', 'gaeste', 'instagram', 'sperren', 'protokoll', 'export'] as const;
+export const SECTIONS = [
+  'fotos',
+  'gaeste',
+  'instagram',
+  'sperren',
+  'protokoll',
+  'export',
+  'uebersicht',
+] as const;
 export type Section = (typeof SECTIONS)[number];
 
 const EXT_RE = /^[a-z][a-z0-9-]{1,30}$/;
