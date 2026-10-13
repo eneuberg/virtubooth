@@ -8,6 +8,7 @@ usage: python scripts/browser-check.py BASE_URL [OUT_DIR or ""] [path ...]
   e.g. python scripts/browser-check.py http://127.0.0.1:4310 shots / /admin/live /gate /x/nope /__ui
 Needs Python Playwright (the backend's dev environment has it). Dev tool, not a test.
 """
+
 from __future__ import annotations
 
 import re
@@ -16,10 +17,18 @@ from pathlib import Path
 
 from playwright.sync_api import sync_playwright
 
-WORDS = re.compile(r"consent|cookie|gdpr|banner|notice|modal|backdrop|privacy|popup|advert|fingerprint|track|beacon", re.I)
+WORDS = re.compile(
+    r"consent|cookie|gdpr|banner|notice|modal|backdrop|privacy|popup|advert|fingerprint|track|beacon",
+    re.I,
+)
 VIEWPORTS = {
-    "phone": dict(viewport={"width": 390, "height": 844}, device_scale_factor=2, is_mobile=True, has_touch=True),
-    "desk": dict(viewport={"width": 1440, "height": 900}, device_scale_factor=1),
+    "phone": {
+        "viewport": {"width": 390, "height": 844},
+        "device_scale_factor": 2,
+        "is_mobile": True,
+        "has_touch": True,
+    },
+    "desk": {"viewport": {"width": 1440, "height": 900}, "device_scale_factor": 1},
 }
 # guests' phones are not all German: the desktop run uses an English browser on purpose
 LOCALES = {"phone": "de-DE", "desk": "en-US"}
@@ -54,7 +63,9 @@ def main() -> int:
                 page.evaluate("document.fonts.ready")
                 page.wait_for_timeout(300)
                 ready = page.evaluate("window.__vbReady === true")
-                overflow = page.evaluate("document.documentElement.scrollWidth - document.documentElement.clientWidth")
+                overflow = page.evaluate(
+                    "document.documentElement.scrollWidth - document.documentElement.clientWidth"
+                )
                 bad = [
                     f"{k}={v}"
                     for k, v in page.evaluate(SCAN)
@@ -64,11 +75,18 @@ def main() -> int:
                 errs = [e for e in errors if "status of 404" not in e]
                 ok = not errs and not bad and overflow <= 0
                 failures += 0 if ok else 1
-                print(f"{'ok  ' if ok else 'FAIL'} {vp_name:5} {path:16} ready={ready} xoverflow={overflow} errors={errs} names={sorted(set(bad))[:8]}")
+                print(
+                    f"{'ok  ' if ok else 'FAIL'} {vp_name:5} {path:16} ready={ready} xoverflow={overflow} errors={errs} names={sorted(set(bad))[:8]}"
+                )
                 if out:
-                    page.evaluate("async () => { for (let y = 0; y < document.body.scrollHeight; y += 600) { scrollTo(0, y); await new Promise(r => setTimeout(r, 40)); } scrollTo(0, 0); }")
+                    page.evaluate(
+                        "async () => { for (let y = 0; y < document.body.scrollHeight; y += 600) { scrollTo(0, y); await new Promise(r => setTimeout(r, 40)); } scrollTo(0, 0); }"
+                    )
                     page.wait_for_timeout(400)
-                    slug = path.strip("/").replace("/", "_").replace("?", "_").replace("=", "-") or "root"
+                    slug = (
+                        path.strip("/").replace("/", "_").replace("?", "_").replace("=", "-")
+                        or "root"
+                    )
                     page.screenshot(path=str(out / f"{slug}-{vp_name}.png"), full_page=True)
                 page.close()
             ctx.close()

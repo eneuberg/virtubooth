@@ -1,0 +1,4 @@
+# Python outside backend/ (scripts/, docs/overhaul/design/, frontend/scripts/)
+# follows the backend's rules. Files under backend/ use backend/pyproject.toml.
+# From the repo root: uv run --project backend ruff check . && uv run --project backend ruff format --check .
+extend = "backend/pyproject.toml"
