@@ -211,3 +211,17 @@ def test_infinite_scroll_loads_older_photos(
     expect(tiles(desktop_page).last).to_have_attribute("data-photo-id", ids[0])
     expect(desktop_page.get_by_test_id("photo-total")).to_have_text("55, davon 0 ausgeblendet")
     assert errors(desktop_page) == []
+
+
+def test_deep_link_to_a_deleted_photo(
+    desktop_page: Page, live: LiveServer, guests: Callable[..., Guest]
+) -> None:
+    g = guests()
+    gone = g.upload()
+    g.upload()
+    live.core.services.moderation.delete_photo(gone, actor="pytest")
+    goto(desktop_page, live, f"/admin/manage?photo={gone}")
+    expect(desktop_page.get_by_test_id("inspector")).to_contain_text(
+        "Dieses Foto gibt es nicht mehr."
+    )
+    assert errors(desktop_page, 404) == []

@@ -13,6 +13,8 @@ import { metaRows, photoLabel } from '../lib/labels';
 
 export interface PhotoInspectorProps {
   photo: AdminPhoto | null;
+  /** the deep-linked photo does not exist (any more) */
+  gone?: boolean;
   extension: AdminExtension | undefined;
   onClose: () => void;
   onToggleHidden: (photo: AdminPhoto) => void;
@@ -35,6 +37,7 @@ const LINK =
  */
 export function PhotoInspector({
   photo,
+  gone = false,
   extension,
   onClose,
   onToggleHidden,
@@ -42,6 +45,15 @@ export function PhotoInspector({
   onCopyHandle,
   busy,
 }: PhotoInspectorProps) {
+  if (!photo && gone) {
+    return (
+      <aside aria-label="Foto" className="grid content-start px-5 py-4" data-testid="inspector">
+        <EmptyState icon={ImageOff} title="Dieses Foto gibt es nicht mehr.">
+          Es wurde gelöscht. Im Protokoll steht, wann und von wem.
+        </EmptyState>
+      </aside>
+    );
+  }
   if (!photo) {
     return (
       <aside aria-label="Foto" className="grid content-start px-5 py-4" data-testid="inspector">

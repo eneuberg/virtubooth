@@ -300,6 +300,7 @@ export function PhotosSection() {
           <div className="sticky top-0 max-h-dvh overflow-y-auto">
             <PhotoInspector
               photo={current}
+              gone={Boolean(photoId) && !current && (deepLinked.isError || Boolean(deepLinked.data?.deleted))}
               extension={current ? extensionMap.get(current.extension) : undefined}
               onClose={closePhoto}
               onToggleHidden={(photo) => void toggle(photo)}
