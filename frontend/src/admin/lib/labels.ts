@@ -148,6 +148,10 @@ export const AUDIT_LABELS: Record<string, string> = {
   'uploads.resume': 'Hochladen läuft wieder',
   'join.stop': 'Anmeldung gestoppt',
   'join.resume': 'Anmeldung wieder offen',
+  'code.create': 'QR-Code angelegt',
+  'code.edit': 'QR-Code bearbeitet',
+  'code.token': 'QR-Token geändert',
+  'code.revoke': 'QR-Code gelöscht',
   'instagram.done': 'Instagram-Name erledigt',
   'instagram.undone': 'Instagram-Name wieder offen',
   'export.create': 'Export gestartet',
@@ -169,6 +173,7 @@ export type AuditTarget =
   | { kind: 'user'; id: number }
   | { kind: 'instagram'; handle: string }
   | { kind: 'export'; id: string }
+  | { kind: 'code'; id: number }
   | { kind: 'photo'; id: string }
   | { kind: 'device'; hash: string }
   | { kind: 'ip'; ip: string }
@@ -183,6 +188,7 @@ export function auditTarget(target: string): AuditTarget {
   if (kind === 'ip' && value) return { kind: 'ip', ip: value };
   if (kind === 'instagram' && value) return { kind: 'instagram', handle: value };
   if (kind === 'export' && value) return { kind: 'export', id: value };
+  if (kind === 'code' && /^\d+$/.test(value)) return { kind: 'code', id: Number(value) };
   return { kind: 'text', text: target || '–' };
 }
 
@@ -232,6 +238,11 @@ const DETAIL_LABELS: Record<string, string> = {
   source: 'Quelle',
   handle: 'Instagram',
   kind: 'Art',
+  name: 'Name',
+  target: 'Ziel',
+  note: 'Notiz',
+  token: 'Token',
+  token_end: 'Token endet auf',
 };
 
 export function auditDetails(entry: Pick<AuditEntry, 'details'>): string {

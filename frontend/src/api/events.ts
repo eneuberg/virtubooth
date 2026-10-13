@@ -40,6 +40,7 @@ export const ADMIN_EVENT_TYPES = [
   'export.updated',
   'export.deleted',
   'instagram.done',
+  'code.changed',
   'stream.resync',
 ] as const satisfies readonly AdminEventType[];
 

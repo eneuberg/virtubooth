@@ -36,6 +36,12 @@ function Target({ entry }: { entry: AuditEntry }) {
       return <span translate="no">@{target.handle}</span>;
     case 'export':
       return <span>Export</span>;
+    case 'code':
+      return (
+        <Link href={`/manage?tab=qr&code=${target.id}`} className={LINK}>
+          QR-Code {target.id}
+        </Link>
+      );
     default:
       return <span className="text-ink-muted">{target.text}</span>;
   }
