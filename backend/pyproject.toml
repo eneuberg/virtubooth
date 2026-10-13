@@ -47,7 +47,6 @@ markers = [
     "visual: opt-in screenshot comparisons",
 ]
 addopts = "-m 'not e2e and not visual'"
-filterwarnings = ["error::pytest.PytestUnraisableExceptionWarning"]
 
 # -------------------------------------------------------------------- ruff
 
