@@ -19,6 +19,7 @@ BINARY = {
     ("get", "/media/{public_id}"): {"image/jpeg"},
     ("get", "/api/admin/exports/{job_id}/download"): {"application/zip", "video/mp4"},
     ("get", "/api/admin/instagram/{handle}/photos.zip"): {"application/zip"},
+    ("get", "/api/admin/poster/template"): {"application/pdf"},
 }
 
 

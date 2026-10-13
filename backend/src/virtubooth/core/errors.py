@@ -28,6 +28,10 @@ ErrorCode = Literal[
     "invalid_meta",
     "empty_upload",
     "invalid_image",
+    # poster
+    "invalid_pdf",
+    "invalid_layout",
+    "no_template",
     # admin
     "admin_required",
     "wrong_password",

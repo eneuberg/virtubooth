@@ -12,6 +12,7 @@ from .identity import IdentityService
 from .instagram import InstagramService
 from .join_controls import JoinControlsService
 from .moderation import ModerationService
+from .posters import PosterService
 from .presence import PresenceService
 from .upload_controls import UploadControlsService
 from .uploads import UploadService
@@ -33,6 +34,7 @@ class Services:
     exports: ExportService
     instagram: InstagramService
     join_controls: JoinControlsService
+    posters: PosterService
     presence: PresenceService
 
     @classmethod
@@ -51,5 +53,6 @@ class Services:
             exports=ExportService(core, db, repos, events),
             instagram=InstagramService(db, repos, events),
             join_controls=JoinControlsService(db, repos, events),
+            posters=PosterService(core, db, repos),
             presence=PresenceService(core, repos),
         )
