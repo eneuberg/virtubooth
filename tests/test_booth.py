@@ -149,7 +149,7 @@ def test_page_is_served_to_party_guests(client):
     r = client.get("/x/booth/")
     assert r.status_code == 200
     assert '<script type="module" src="./booth.js"></script>' in r.text
-    for name in ("booth.js", "filters.js", "renderer.js", "overlays.js", "booth.css", "filters.json"):
+    for name in ("booth.js", "filters.js", "renderer.js", "overlays.js", "outbox.js", "booth.css", "filters.json"):
         assert client.get(f"/x/booth/{name}").status_code == 200, name
 
 
@@ -164,3 +164,19 @@ def test_static_files_follow_the_csp_rules():
         assert "innerHTML" not in text, js.name
         assert "ctx.filter" not in text, js.name
         assert not re.search(r"https?://", text), f"{js.name}: external URL"
+
+
+def test_every_element_the_page_script_looks_up_exists():
+    """booth.js grabs its elements by id once at startup; a missing one breaks the page."""
+    ids = set(re.findall(r'\bid="([^"]+)"', (STATIC / "index.html").read_text(encoding="utf-8")))
+    wanted = set(re.findall(r"\$\('([^']+)'\)", (STATIC / "booth.js").read_text(encoding="utf-8")))
+    assert {"back", "outbox", "upload-retry", "upload-home"} <= wanted
+    assert wanted <= ids, wanted - ids
+
+
+def test_outbox_store_is_best_effort():
+    """Every IndexedDB call of the outbox is wrapped: a phone without storage still works."""
+    source = (STATIC / "outbox.js").read_text(encoding="utf-8")
+    for name in ("keep", "forget", "kept"):
+        body = source.split(f"export async function {name}(", 1)[1].split("\n}\n", 1)[0]
+        assert "try {" in body and "catch" in body, name

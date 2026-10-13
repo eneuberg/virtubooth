@@ -15,12 +15,12 @@
 <body class="booth-body">
   <div class="booth" id="booth" data-testid="booth" data-screen="camera">
     <header class="booth-top">
-      <a class="vb-icon-btn booth-back" href="/" aria-label="Zurück zur Übersicht" data-testid="back">←</a>
+      <a class="vb-icon-btn booth-back" id="back" href="/" aria-label="Zurück zur Übersicht" data-testid="back">←</a>
       <div class="booth-title"><span aria-hidden="true">📸</span> Fotobox</div>
       <div class="booth-top-right">
-        <button class="vb-chip booth-outbox vb-hidden" type="button" id="outbox" data-testid="outbox"></button>
         <div id="user-chip"></div>
       </div>
+      <button class="vb-chip booth-outbox vb-hidden" type="button" id="outbox" data-testid="outbox"></button>
     </header>
 
     <main class="booth-viewport" id="viewport">
@@ -63,6 +63,8 @@
           <div class="vb-progress" id="upload-progress"><span id="upload-bar"></span></div>
           <button class="vb-btn vb-btn--ghost booth-retry vb-hidden" type="button" id="upload-retry"
                   data-testid="upload-retry">↻ Nochmal hochladen</button>
+          <a class="vb-btn vb-btn--ghost booth-retry vb-hidden" href="/" id="upload-home"
+             data-testid="upload-home">Zur Startseite</a>
         </div>
         <div class="booth-result-actions">
           <button class="vb-btn vb-btn--primary vb-btn--big" type="button" id="save" data-testid="save">
