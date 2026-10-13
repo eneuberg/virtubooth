@@ -1,10 +1,10 @@
 /**
  * Live Wall admin requests (PLAN-WALL §4.3 config/password/categories, §4.4 analysis).
- * Not in the generated schema yet, so plain JSON through apiFetch with the same error
- * mapping; a 401 `admin_required` leaves for the login page like store/api.ts call().
+ * Plain JSON through apiFetch (the hand-written types in types.ts are stricter than the
+ * generated ones); a 401 `admin_required` leaves for the login page like store/api.ts call().
  */
 import { apiFetch, isApiError, type ApiFetchInit } from '@/api/client';
-import { goLogin, never } from '../lib/nav';
+import { authGate } from '../store/api';
 import { editable } from './draft';
 import type {
   AnalysisStatus,
@@ -21,11 +21,7 @@ async function wallFetch<T>(path: string, init: ApiFetchInit = {}): Promise<T> {
   try {
     return await apiFetch<T>(`${BASE}${path}`, init);
   } catch (err) {
-    if (isApiError(err) && err.status === 401 && err.code === 'admin_required') {
-      goLogin();
-      return never();
-    }
-    throw err;
+    return authGate(err);
   }
 }
 

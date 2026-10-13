@@ -21,12 +21,13 @@ const join: ConsentInfo = {
   accept_label: "Alles klar, los geht's! 🍻",
   party_name: 'Eriks Geburtstag',
   instagram_account: '@eriks.party',
+  analysis: false,
 };
 
-function renderSheet(destination: string | null = 'Beer Cam') {
+function renderSheet(destination: string | null = 'Beer Cam', texts: ConsentInfo = join) {
   render(
     <UiProvider>
-      <JoinSheet join={join} destination={destination} />
+      <JoinSheet join={texts} destination={destination} />
     </UiProvider>,
   );
   return screen.getByRole('dialog');
@@ -57,6 +58,20 @@ describe('JoinSheet', () => {
     fireEvent.click(more);
     expect(dialog.textContent).toContain(SCAN_COUNT_NOTE);
     expect(dialog.textContent).toContain('Danach öffnet sich „Beer Cam“.');
+  });
+
+  it('offers „Meine Fotos nicht automatisch auswerten“ under "Mehr dazu" only with the analysis', () => {
+    const dialog = renderSheet(null, { ...join, analysis: true });
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Mehr dazu' }));
+    const optOut = within(dialog).getByRole('switch', { name: /Meine Fotos nicht automatisch auswerten/ });
+    expect(optOut).toHaveProperty('checked', false);
+    expect(dialog.querySelector('[data-testid=analysis-opt-out]')).toBeTruthy();
+  });
+
+  it('has no analysis switch without the analysis', () => {
+    const dialog = renderSheet(null);
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Mehr dazu' }));
+    expect(within(dialog).queryByRole('switch')).toBeNull();
   });
 
   it('labels the field with the prompt and keeps the rest as help', () => {

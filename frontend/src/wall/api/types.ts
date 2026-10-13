@@ -74,7 +74,20 @@ export interface WallConfig {
   delay_s: number;
   show_instagram: boolean;
   look: WallLook;
-  overlay: { event_name: boolean; counter: boolean; qr: boolean; corner: OverlayCorner };
+  overlay: {
+    event_name: boolean;
+    counter: boolean;
+    qr: boolean;
+    /** the chosen QR code (null = the lowest active one); the server resolves it to `qr` */
+    qr_code_id?: number | null;
+    corner: OverlayCorner;
+  };
+}
+
+/** The corner's QR code: what it opens (a path: resolve against this page) and its name. */
+export interface WallQr {
+  url: string;
+  name: string;
 }
 
 export type AnalysisState = 'pending' | 'running' | 'done' | 'failed' | 'skipped' | 'off';
@@ -101,6 +114,8 @@ export type WallCursor = string | number | null;
 export interface WallFeed {
   config: WallConfig;
   event_name: string;
+  /** `overlay.qr` on and the code active, else null */
+  qr: WallQr | null;
   total: number;
   /** newest first */
   photos: WallPhoto[];
@@ -133,7 +148,7 @@ export type WallEvent =
   | { type: 'photo.add'; data: { photo: WallPhoto } }
   | { type: 'photo.update'; data: { photo: WallPhoto } }
   | { type: 'photo.remove'; data: { ids: string[] } }
-  | { type: 'config'; data: { config: WallConfig; event_name: string } }
+  | { type: 'config'; data: { config: WallConfig; event_name: string; qr: WallQr | null } }
   | { type: 'categories.changed'; data: Record<string, never> }
   | { type: 'bye'; data: { reason: 'password' | 'logout' } }
   | { type: 'stream.resync'; data: Record<string, never> };
@@ -175,5 +190,5 @@ export const DEFAULT_CONFIG: WallConfig = {
     fps: 30,
     calm: false,
   },
-  overlay: { event_name: true, counter: true, qr: false, corner: 'bottom-right' },
+  overlay: { event_name: true, counter: true, qr: false, qr_code_id: null, corner: 'bottom-right' },
 };

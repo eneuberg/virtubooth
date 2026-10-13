@@ -1,6 +1,7 @@
 /**
  * Live Wall admin types, written by hand from the contract (PLAN-WALL §4.1, §4.3,
- * §4.4) until the generated schema has them. JSON is snake_case.
+ * §4.4); checked against the generated schema (schema.gen.ts), which marks the
+ * defaulted config fields optional, so these stay. JSON is snake_case.
  */
 
 export const MODES = ['spotlight', 'gallery', 'categories'] as const;
@@ -77,7 +78,14 @@ export interface WallConfig {
     fps: WallFps;
     calm: boolean;
   };
-  overlay: { event_name: boolean; counter: boolean; qr: boolean; corner: OverlayCorner };
+  overlay: {
+    event_name: boolean;
+    counter: boolean;
+    qr: boolean;
+    /** the QR code in the corner (party_codes id); null = the lowest active one */
+    qr_code_id: number | null;
+    corner: OverlayCorner;
+  };
 }
 
 export interface WallSource {
@@ -174,7 +182,7 @@ export interface PhotoAnalysis {
   attempts: number;
   error: string | null;
   finished_at: string | null;
-  versions: Record<string, string | number>;
+  versions: Record<string, string>;
   facts: Record<string, number>;
   boxes: AnalysisBox[];
   details: Array<{ label: string; value: string }>;

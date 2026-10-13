@@ -538,6 +538,27 @@ body {
   font-variant-numeric: tabular-nums;
 }
 
+.wall-qr {
+  display: grid;
+  justify-items: center;
+  gap: 0.6vmin;
+  margin: 0 0 0.8vmin;
+}
+
+.wall-qr-code {
+  display: block;
+  width: clamp(96px, 17vmin, 420px);
+  height: auto;
+  aspect-ratio: 1;
+  border-radius: 0.8vmin;
+  image-rendering: pixelated;
+}
+
+.wall-qr-name {
+  font-size: clamp(11px, 1.6vmin, 48px);
+  color: var(--wall-ink-muted);
+}
+
 /* ---------------------------------------------------------- TV controls, hints */
 
 .wall-fs {

@@ -27,7 +27,7 @@ export function defaultConfig(): WallConfig {
       fps: 30,
       calm: false,
     },
-    overlay: { event_name: true, counter: true, qr: false, corner: 'bottom-right' },
+    overlay: { event_name: true, counter: true, qr: false, qr_code_id: null, corner: 'bottom-right' },
   };
 }
 
@@ -88,7 +88,7 @@ export function photoAnalysis(state: PhotoAnalysis['state'] = 'done'): PhotoAnal
     attempts: 1,
     error: null,
     finished_at: '2026-10-13T20:41:00Z',
-    versions: { basic: 1 },
+    versions: { basic: '1' },
     facts: { faces: 2, brightness: 0.4123 },
     boxes: [
       { kind: 'face', x: 0.1, y: 0.2, w: 0.25, h: 0.3, label: 'Gesicht 1', score: 0.9 },

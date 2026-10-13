@@ -1,10 +1,11 @@
 /**
- * A small 16:9 look at the wall with the draft's colours and background. For now a
- * CSS gradient moved with WAAPI (CSP-safe); integration swaps in the wall's own
- * background renderer (`mountBackground`).
+ * A small 16:9 look at the wall with the draft's colours and background: the wall's
+ * own background renderer (`mountBackground`, loaded lazily from the wall's code) on a
+ * canvas; until it is there (or without canvas 2D) a CSS gradient moved with WAAPI.
  */
-import { useEffect, useRef, type CSSProperties } from 'react';
+import { useEffect, useRef, useState, type CSSProperties } from 'react';
 import { cx } from '@/ui/cx';
+import type { BackgroundHandle } from '@/wall/background';
 import type { WallConfig } from './types';
 
 type Look = WallConfig['look'];
@@ -34,8 +35,50 @@ const CORNER_CLASS: Record<WallConfig['overlay']['corner'], string> = {
   'top-left': 'top-[4%] left-[3%]',
 };
 
+function canvas2d(): boolean {
+  try {
+    return typeof document !== 'undefined' && !!document.createElement('canvas').getContext('2d');
+  } catch {
+    return false;
+  }
+}
+
+/** The wall's background on `canvas` once its module loaded; null meanwhile (or never). */
+function useWallBackground(canvas: React.RefObject<HTMLCanvasElement | null>, look: Look): boolean {
+  const handle = useRef<BackgroundHandle | null>(null);
+  const latest = useRef(look);
+  const [live, setLive] = useState(false);
+
+  useEffect(() => {
+    const el = canvas.current;
+    if (!el || !canvas2d()) return undefined;
+    let cancelled = false;
+    import('@/wall/background')
+      .then(({ mountBackground }) => {
+        if (cancelled) return;
+        handle.current = mountBackground(el, latest.current, { maxWidth: 480 });
+        setLive(true);
+      })
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+      handle.current?.destroy();
+      handle.current = null;
+    };
+  }, [canvas]);
+
+  useEffect(() => {
+    latest.current = look;
+    handle.current?.update(look);
+  }, [look]);
+
+  return live;
+}
+
 export function WallPreview({ look, overlay }: { look: Look; overlay: WallConfig['overlay'] }) {
   const layer = useRef<HTMLDivElement>(null);
+  const canvas = useRef<HTMLCanvasElement>(null);
+  const live = useWallBackground(canvas, look);
   const still = look.calm || look.preset === 'plain';
   const fps = look.fps;
 
@@ -43,6 +86,7 @@ export function WallPreview({ look, overlay }: { look: Look; overlay: WallConfig
     const el = layer.current;
     const moving =
       el !== null &&
+      !live &&
       !still &&
       typeof el.animate === 'function' &&
       !window.matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -58,9 +102,9 @@ export function WallPreview({ look, overlay }: { look: Look; overlay: WallConfig
         )
       : null;
     return () => animation?.cancel();
-  }, [still, fps]);
+  }, [still, fps, live]);
 
-  const showBadge = overlay.event_name || overlay.counter;
+  const showBadge = overlay.event_name || overlay.counter || overlay.qr;
   return (
     <div
       aria-hidden="true"
@@ -68,9 +112,10 @@ export function WallPreview({ look, overlay }: { look: Look; overlay: WallConfig
       className="relative aspect-video w-full max-w-md overflow-hidden rounded-control ring-1 ring-line"
       style={{ backgroundColor: look.background }}
     >
+      <canvas ref={canvas} className="absolute inset-0 size-full" data-testid="wall-preview-canvas" />
       <div
         ref={layer}
-        className="absolute -inset-1/4"
+        className={cx('absolute -inset-1/4', live && 'hidden')}
         style={PRESET_BACKGROUND[look.preset](look.primary, look.secondary)}
       />
       <div className="absolute top-[18%] left-1/2 h-[64%] w-[30%] -translate-x-1/2 rotate-[-2deg] bg-white p-[1.5%] pb-[5%] shadow-float">
@@ -79,13 +124,20 @@ export function WallPreview({ look, overlay }: { look: Look; overlay: WallConfig
       {showBadge ? (
         <div
           className={cx(
-            'absolute rounded-small bg-black/55 px-2 py-0.5 text-[0.625rem] font-semibold text-white',
+            'absolute grid justify-items-end gap-1 rounded-small bg-black/55 px-2 py-1 text-[0.625rem] font-semibold text-white',
             CORNER_CLASS[overlay.corner],
           )}
         >
-          {[overlay.event_name ? 'Eventname' : null, overlay.counter ? '128 Fotos' : null]
-            .filter(Boolean)
-            .join(' · ')}
+          {overlay.qr ? (
+            <div className="size-8 bg-white ring-2 ring-white" data-testid="wall-preview-qr" />
+          ) : null}
+          {overlay.event_name || overlay.counter ? (
+            <span>
+              {[overlay.event_name ? 'Eventname' : null, overlay.counter ? '128 Fotos' : null]
+                .filter(Boolean)
+                .join(' · ')}
+            </span>
+          ) : null}
         </div>
       ) : null}
     </div>

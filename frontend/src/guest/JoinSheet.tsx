@@ -15,11 +15,12 @@ import { useId, useRef, useState, type FormEvent } from 'react';
 import { isApiError } from '@/api/errors';
 import { msg, quoted } from '@/lib/messages.de';
 import { HandleField } from '@/sdk/components/HandleField';
-import { shortName } from '@/sdk/identity';
+import { ANALYSIS_OPT_OUT, shortName } from '@/sdk/identity';
 import { joinParty, refreshSession, sessionStore, useJoinClosed, type JoinInfo } from '@/sdk/session';
 import { Button } from '@/ui/Button';
 import { HelpDisclosure } from '@/ui/HelpDisclosure';
 import { Sheet } from '@/ui/Sheet';
+import { Switch } from '@/ui/Switch';
 import { showToast } from '@/ui/Toast';
 import { splitParagraphs, splitPrompt, tidy } from './copy';
 
@@ -52,6 +53,7 @@ function welcomeBack(): void {
 export function JoinSheet({ join, destination }: JoinSheetProps) {
   const formId = useId();
   const [instagram, setInstagram] = useState('');
+  const [analysisOptOut, setAnalysisOptOut] = useState(false);
   const [fieldError, setFieldError] = useState<string | null>(null);
   const [formError, setFormError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
@@ -68,7 +70,7 @@ export function JoinSheet({ join, destination }: JoinSheetProps) {
     setFieldError(null);
     setFormError(null);
     try {
-      await joinParty({ instagram: instagram || null });
+      await joinParty({ instagram: instagram || null, analysisOptOut: join.analysis && analysisOptOut });
       welcomeBack();
     } catch (err) {
       if (isApiError(err) && err.code === 'invalid_instagram') {
@@ -124,6 +126,16 @@ export function JoinSheet({ join, destination }: JoinSheetProps) {
             <p key={p}>{p}</p>
           ))}
           <p>{SCAN_COUNT_NOTE}</p>
+          {join.analysis ? (
+            <Switch
+              isSelected={analysisOptOut}
+              onChange={setAnalysisOptOut}
+              description={ANALYSIS_OPT_OUT.help}
+              data-testid="analysis-opt-out"
+            >
+              {ANALYSIS_OPT_OUT.label}
+            </Switch>
+          ) : null}
         </HelpDisclosure>
         <HandleField
           label={prompt.label}

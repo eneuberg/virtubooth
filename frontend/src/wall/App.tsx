@@ -234,7 +234,12 @@ export function WallApp() {
           <div className="wall-safe">
             <LiveWall state={state} categories={categories} />
           </div>
-          <Corner overlay={state.config.overlay} eventName={state.eventName} total={state.total} />
+          <Corner
+            overlay={state.config.overlay}
+            eventName={state.eventName}
+            total={state.total}
+            qr={state.qr}
+          />
           {offline ? <OfflineHint /> : null}
         </>
       ) : null}

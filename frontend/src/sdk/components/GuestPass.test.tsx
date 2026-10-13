@@ -15,6 +15,7 @@ const user = (over: Partial<GuestUser> = {}): GuestUser => ({
   instagram: null,
   banned: false,
   uploads_paused: false,
+  analysis_opt_out: false,
   ...over,
 });
 

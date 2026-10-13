@@ -9,6 +9,7 @@ import {
   refreshSession,
   resetSession,
   sessionStore,
+  setAnalysisOptOut,
   setInstagram,
   startSession,
   type SessionState,
@@ -23,6 +24,7 @@ const user = (over: Partial<GuestUser> = {}): GuestUser => ({
   instagram: null,
   banned: false,
   uploads_paused: false,
+  analysis_opt_out: false,
   ...over,
 });
 
@@ -34,6 +36,7 @@ const consent = (over: Partial<ConsentInfo> = {}): ConsentInfo => ({
   accept_label: "Alles klar, los geht's! 🍻",
   party_name: 'Testparty',
   instagram_account: '@testparty',
+  analysis: false,
   ...over,
 });
 
@@ -137,7 +140,13 @@ describe('session state machine', () => {
     await joinParty({ instagram: '  anna ' });
     expect(calls[1]).toMatchObject({
       path: '/api/join',
-      body: { accept: true, version: '1', instagram: 'anna', fp: { hash: 'ab'.repeat(32) } },
+      body: {
+        accept: true,
+        version: '1',
+        instagram: 'anna',
+        fp: { hash: 'ab'.repeat(32) },
+        analysis_opt_out: false,
+      },
     });
     expect(getSession()).toEqual({
       status: 'ready',
@@ -266,6 +275,21 @@ describe('session state machine', () => {
     await setInstagram(null);
     expect(calls[2]?.body).toEqual({ instagram: null });
     expect(getSession()).toMatchObject({ user: { instagram: null } });
+  });
+
+  it('joins with „Meine Fotos nicht automatisch auswerten“', async () => {
+    const calls = serve(unknownDevice(), joined(user({ analysis_opt_out: true })));
+    await startSession();
+    await joinParty({ instagram: null, analysisOptOut: true });
+    expect(calls[1]).toMatchObject({ path: '/api/join', body: { analysis_opt_out: true } });
+  });
+
+  it('setAnalysisOptOut puts the switch and updates the user', async () => {
+    const calls = serve(known(), { status: 200, body: { user: user({ analysis_opt_out: true }) } });
+    await startSession();
+    await expect(setAnalysisOptOut(true)).resolves.toMatchObject({ analysis_opt_out: true });
+    expect(calls[1]).toMatchObject({ method: 'PUT', path: '/api/me/analysis', body: { opt_out: true } });
+    expect(getSession()).toMatchObject({ user: { analysis_opt_out: true } });
   });
 
   it('setInstagram rejects with the server message for an invalid name', async () => {

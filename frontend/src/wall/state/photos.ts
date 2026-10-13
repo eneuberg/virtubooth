@@ -2,7 +2,14 @@
  * The wall's data: the feed snapshot plus the live events on top of it. Pure reducer
  * (Vitest), at most MAX_PHOTOS photos, newest first.
  */
-import { DEFAULT_CONFIG, type WallConfig, type WallEvent, type WallFeed, type WallPhoto } from '../api/types';
+import {
+  DEFAULT_CONFIG,
+  type WallConfig,
+  type WallEvent,
+  type WallFeed,
+  type WallPhoto,
+  type WallQr,
+} from '../api/types';
 
 export const MAX_PHOTOS = 1000;
 /** how many removed ids the state remembers (category winners can be older than the feed) */
@@ -13,6 +20,8 @@ export interface WallState {
   loaded: boolean;
   config: WallConfig;
   eventName: string;
+  /** the corner QR code (null: none) */
+  qr: WallQr | null;
   /** all visible photos on the server (the feed may hold fewer) */
   total: number;
   /** newest first */
@@ -33,6 +42,7 @@ export const initialWallState: WallState = {
   loaded: false,
   config: DEFAULT_CONFIG,
   eventName: '',
+  qr: null,
   total: 0,
   photos: [],
   fresh: [],
@@ -70,6 +80,7 @@ export function wallReducer(state: WallState, action: WallAction): WallState {
       loaded: true,
       config: feed.config,
       eventName: feed.event_name,
+      qr: feed.qr ?? null,
       total: feed.total,
       photos,
       fresh: state.fresh.filter((id) => ids.has(id)),
@@ -109,7 +120,12 @@ export function wallReducer(state: WallState, action: WallAction): WallState {
       };
     }
     case 'config':
-      return { ...state, config: event.data.config, eventName: event.data.event_name };
+      return {
+        ...state,
+        config: event.data.config,
+        eventName: event.data.event_name,
+        qr: event.data.qr ?? null,
+      };
     case 'categories.changed':
       return { ...state, categoriesRev: state.categoriesRev + 1 };
     default:

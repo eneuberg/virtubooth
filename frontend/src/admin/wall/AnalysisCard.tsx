@@ -108,9 +108,10 @@ export function AnalysisCard() {
                 <Switch
                   isSelected={a.enabled}
                   isPending={busy === a.name}
-                  isDisabled={!a.available && !a.enabled}
+                  // the image values always run (the server never switches them off)
+                  isDisabled={a.kind === 'basic' || (!a.available && !a.enabled)}
                   onChange={(on) => void toggleAnalyzer(a.name, on)}
-                  description={a.reason ?? undefined}
+                  description={a.reason ?? (a.kind === 'basic' ? 'Läuft immer.' : undefined)}
                 >
                   <span className="inline-flex flex-wrap items-center gap-2">
                     {a.title}

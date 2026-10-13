@@ -2,6 +2,7 @@
  * The Live-Wall cards that edit the draft: Ablauf, Einzelbild, Galerie, Fotos, Aussehen,
  * Einblendungen. Nothing is sent until "Änderungen speichern".
  */
+import { useQuery } from '@tanstack/react-query';
 import {
   ArrowDown,
   ArrowUp,
@@ -18,6 +19,8 @@ import { IconButton } from '@/ui/IconButton';
 import { SegmentedControl } from '@/ui/SegmentedControl';
 import { Select } from '@/ui/Select';
 import { Switch } from '@/ui/Switch';
+import { fetchCodes } from '../codes/api';
+import { codesKey } from '../codes/keys';
 import { moveMode, setModeDuration, setModeEnabled, toggleIn, type ValidationErrors } from './draft';
 import { Card, ColorField, NumberField } from './fields';
 import {
@@ -341,9 +344,15 @@ export function OverlayCard({ draft, update }: DraftProps) {
       <Switch isSelected={o.counter} onChange={(counter) => set({ counter })}>
         Fotozähler
       </Switch>
-      <Switch isSelected={o.qr} isDisabled description="Kommt mit den QR-Codes.">
+      <Switch
+        isSelected={o.qr}
+        onChange={(qr) => set({ qr })}
+        description="Gäste scannen ihn direkt vom Bildschirm."
+        data-testid="wall-qr-switch"
+      >
         QR-Code
       </Switch>
+      {o.qr ? <QrCodeSelect value={o.qr_code_id} onChange={(qr_code_id) => set({ qr_code_id })} /> : null}
       <Select
         label="Ecke"
         options={optionsOf(CORNERS, CORNER_LABELS)}
@@ -352,5 +361,37 @@ export function OverlayCard({ draft, update }: DraftProps) {
         data-testid="wall-corner"
       />
     </Card>
+  );
+}
+
+/** „First active code“ (null) or one active code; a chosen code that is gone stays visible. */
+const FIRST_CODE = 'first';
+
+function QrCodeSelect({
+  value: chosen,
+  onChange,
+}: {
+  /** undefined: a config saved before the field existed */
+  value: number | null | undefined;
+  onChange: (id: number | null) => void;
+}) {
+  const value = chosen ?? null;
+  const codes = useQuery({ queryKey: codesKey, queryFn: fetchCodes });
+  const active = (codes.data?.codes ?? []).filter((c) => c.active);
+  const options = [
+    { id: FIRST_CODE, label: 'Erster aktiver Code' },
+    ...active.map((c) => ({ id: String(c.id), label: c.note ? `${c.name} · ${c.note}` : c.name })),
+    ...(value !== null && codes.data && !active.some((c) => c.id === value)
+      ? [{ id: String(value), label: `Code ${value} (gelöscht: kein QR-Code)` }]
+      : []),
+  ];
+  return (
+    <Select
+      label="QR-Code"
+      options={options}
+      value={value === null ? FIRST_CODE : String(value)}
+      onChange={(id) => onChange(id === FIRST_CODE ? null : Number(id))}
+      data-testid="wall-qr-code"
+    />
   );
 }

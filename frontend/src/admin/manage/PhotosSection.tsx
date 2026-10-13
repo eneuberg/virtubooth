@@ -147,7 +147,8 @@ export function PhotosSection() {
 
   const extOptions = [
     { id: 'all', label: 'Alle' },
-    ...(extensions ?? []).map((e) => ({ id: e.id, label: e.title })),
+    // activities that take photos (not the Live-Wall); old ids with photos stay listed
+    ...(extensions ?? []).filter((e) => e.uploads || !e.loaded).map((e) => ({ id: e.id, label: e.title })),
     ...(filter.ext && !extensions?.some((e) => e.id === filter.ext)
       ? [{ id: filter.ext, label: filter.ext }]
       : []),

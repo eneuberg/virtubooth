@@ -15,9 +15,11 @@
 @import '@fontsource-variable/doto/full.css';
 @plugin 'tailwindcss-react-aria-components';
 
-/* the gallery and tests are scanned too; dist/ and docs never */
+/* the gallery and tests are scanned too; dist/ and docs never, nor the Live-Wall
+   (its own plain stylesheet, wall/wall.css: its words must not become utilities here) */
 @source not '../../dist';
 @source not '../../dist-gallery';
+@source not '../wall';
 
 @custom-variant short (@media (max-height: 700px));
 @custom-variant landscape-phone (@media (orientation: landscape) and (max-height: 600px));

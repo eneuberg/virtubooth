@@ -29,6 +29,7 @@ export function feed(photos: WallPhoto[], extra: Partial<WallFeed> = {}): WallFe
   return {
     config: DEFAULT_CONFIG,
     event_name: 'Sommerfest',
+    qr: null,
     total: photos.length,
     photos,
     cursor: 42,

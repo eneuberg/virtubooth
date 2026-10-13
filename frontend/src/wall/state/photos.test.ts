@@ -71,9 +71,13 @@ describe('wallReducer', () => {
 
   it('applies a config event', () => {
     const config = { ...DEFAULT_CONFIG, look: { ...DEFAULT_CONFIG.look, primary: '#22c55e' } };
-    const s = wallReducer(loaded(), ev({ type: 'config', data: { config, event_name: 'Hochzeit' } }));
+    const qr = { url: '/?t=abc', name: 'Otter 1' };
+    const s = wallReducer(loaded(), ev({ type: 'config', data: { config, event_name: 'Hochzeit', qr } }));
     expect(s.config.look.primary).toBe('#22c55e');
     expect(s.eventName).toBe('Hochzeit');
+    expect(s.qr).toEqual(qr);
+    const off = wallReducer(s, ev({ type: 'config', data: { config, event_name: 'Hochzeit', qr: null } }));
+    expect(off.qr).toBeNull();
   });
 
   it('counts categories.changed', () => {

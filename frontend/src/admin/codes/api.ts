@@ -42,11 +42,12 @@ export function optionTarget(option: string): string {
   return option === START_OPTION ? '' : option;
 }
 
-/** The targets a code can have: Start and every loaded activity. */
+/** The targets a code can have: Start and every loaded activity that takes photos
+ * (not the Live-Wall: it is a TV page, no guest activity). */
 export function useActivities(): Activities {
   const { data } = useExtensions();
   return useMemo(() => {
-    const loaded = (data ?? []).filter((e) => e.loaded);
+    const loaded = (data ?? []).filter((e) => e.loaded && e.uploads);
     return {
       byId: new Map(loaded.map((e) => [e.id, { title: e.title }])),
       options: [{ id: START_OPTION, label: 'Start' }, ...loaded.map((e) => ({ id: e.id, label: e.title }))],
