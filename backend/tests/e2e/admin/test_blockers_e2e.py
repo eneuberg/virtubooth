@@ -29,7 +29,7 @@ from .conftest import (
 
 pytestmark = pytest.mark.e2e
 
-TABS = ("gaeste", "instagram", "sperren", "protokoll", "export")
+TABS = ("gaeste", "instagram", "sperren", "protokoll", "qr", "plakat", "export", "einstellungen")
 
 
 @pytest.mark.parametrize("kind", ["phone", "desktop"])

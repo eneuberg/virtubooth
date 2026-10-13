@@ -50,17 +50,23 @@ def fp_hash(n: int) -> str:
 
 
 class Guest:
-    """A party guest over plain HTTP (its own cookie jar): joins, uploads, can be asked
-    whether an upload goes through."""
+    """A party guest over plain HTTP (its own cookie jar): joins (through QR code 1, or
+    the code whose `entry` URL is given), uploads, can be asked whether an upload goes
+    through."""
 
     def __init__(
-        self, live: LiveServer, *, instagram: str | None = None, fp: int | None = None
+        self,
+        live: LiveServer,
+        *,
+        instagram: str | None = None,
+        fp: int | None = None,
+        entry: str | None = None,
     ) -> None:
         self.live = live
         self.client = httpx.Client(
             base_url=live.base_url, headers={"User-Agent": IPHONE_UA, "Origin": live.base_url}
         )
-        assert self.client.get(live.entry("/")).status_code == 303
+        assert self.client.get(entry or live.entry("/")).status_code == 303
         fingerprint = {
             "hash": fp_hash(fp) if fp is not None else os.urandom(16).hex(),
             "components": {

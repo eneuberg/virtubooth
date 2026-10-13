@@ -253,7 +253,10 @@ PAGES = [
     "/admin/manage?tab=instagram",
     "/admin/manage?tab=sperren",
     "/admin/manage?tab=protokoll",
+    "/admin/manage?tab=qr",
+    "/admin/manage?tab=plakat",
     "/admin/manage?tab=export",
+    "/admin/manage?tab=einstellungen",
     "/admin/user?id={id}",
 ]
 
