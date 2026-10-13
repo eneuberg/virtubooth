@@ -156,6 +156,76 @@ def test_instagram_rejects_garbage(raw):
         normalize_instagram(raw)
 
 
+@pytest.mark.parametrize(
+    ("raw", "says"),
+    [
+        ("a" * 31, "höchstens 30 Zeichen, deiner hat 31"),
+        ("@" + "b" * 40, "deiner hat 40"),
+        ("jürgen.k", "keine Umlaute"),
+        ("GROSSE_STRAßE", "keine Umlaute"),
+        ("josé", "keine Akzente"),
+        ("has space", "keine Leerzeichen"),
+        ("dots..dots", "Zwei Punkte"),
+        ("partyqueen👑", "nur Buchstaben (a bis z), Zahlen, Punkt und Unterstrich"),
+    ],
+)
+def test_instagram_errors_say_what_is_wrong(raw, says):
+    from virtubooth.errors import ApiError
+    from virtubooth.identity import normalize_instagram
+
+    with pytest.raises(ApiError) as exc:
+        normalize_instagram(raw)
+    assert exc.value.code == "invalid_instagram"
+    assert says in exc.value.message
+
+
+def test_join_from_a_second_tab_adds_a_missing_handle(client, core):
+    """Two tabs show the join dialog on a first visit. The first is accepted
+    without a handle, then the second with one: store it, don't drop it."""
+    scan(client)
+    first = accept_consent(client)
+    assert first["already_joined"] is False and first["user"]["instagram"] is None
+    second = accept_consent(client, instagram="@Tab.B")
+    assert second["already_joined"] is True and second["instagram_kept"] is False
+    assert second["user"]["instagram"] == "tab.b"
+    assert second["user"]["name"] == first["user"]["name"]
+    users = core.repo.list_users()
+    assert len(users) == 1 and users[0].instagram == "tab.b"
+
+
+def test_join_from_a_second_tab_keeps_the_existing_handle(client, core):
+    scan(client)
+    accept_consent(client, instagram="tab.a")
+    other = accept_consent(client, instagram="@tab.b")
+    assert other["already_joined"] is True and other["instagram_kept"] is True
+    assert other["user"]["instagram"] == "tab.a"
+    assert accept_consent(client, instagram="@TAB.A")["instagram_kept"] is False
+    assert accept_consent(client)["user"]["instagram"] == "tab.a"
+    assert core.repo.list_users()[0].instagram == "tab.a"
+
+
+def test_join_from_a_second_tab_checks_the_handle(client, core):
+    scan(client)
+    accept_consent(client)
+    r = client.post(
+        "/api/join",
+        json={"accept": True, "version": "1", "instagram": "jürgen", "fp": fp()},
+        headers=ORIGIN,
+    )
+    assert r.status_code == 400 and r.json()["error"] == "invalid_instagram"
+    assert core.repo.list_users()[0].instagram is None
+
+
+def test_banned_device_cannot_set_a_handle_by_joining_again(client, core):
+    scan(client)
+    accept_consent(client)
+    user = core.repo.list_users()[0]
+    core.repo.ban_user(user.id, "test", "pytest")
+    r = accept_consent(client, instagram="sneaky")
+    assert r["state"] == "banned" and r["user"]["instagram"] is None
+    assert core.repo.get_user(user.id).instagram is None
+
+
 def test_update_instagram(guest):
     g = guest()
     r = g.patch("/api/me", json={"instagram": "@new_handle"}, headers=ORIGIN)
