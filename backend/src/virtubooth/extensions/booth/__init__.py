@@ -1,15 +1,12 @@
 """Fotobox: live camera preview with WebGL filters, countdown, save + upload.
 
-The page lives in `static/` (index.html + ES modules, no build step):
+The page lives in the frontend (frontend/src/extensions/booth/). This package
+keeps the filter catalogue:
 
-- `filters.json`  the filter catalogue: ids, German names, strip order. It is
-                  the single source of truth for filter ids: the page loads it
-                  and `validate_meta` below only accepts ids listed there.
-- `filters.js`    the filter registry: one object per id with the WebGL
-                  fragment shader snippet, optional overlay (frame, stickers)
-                  and optional Canvas2D fallback.
-- `renderer.js`   WebGL1 renderer (+ Canvas2D fallback) for preview and capture.
-- `booth.js`      the page: camera, filter strip, swipe, countdown, result.
+- `filters.json`  ids, German names, icons, strip order. It is the single
+                  source of truth for filter ids: `validate_meta` only accepts
+                  ids listed there, and the page gets it from
+                  `GET /api/x/booth/filters`.
 
 Photos are 1080×1440 JPEGs (3:4 portrait), exactly what the preview showed.
 """
@@ -21,22 +18,44 @@ import re
 from pathlib import Path
 from typing import Any
 
-from virtubooth.extension import Extension, UploadContext, UploadPolicy
+from fastapi import APIRouter, Depends
+from pydantic import BaseModel, Field
 
-STATIC_DIR = Path(__file__).resolve().parent / "static"
-FILTERS_FILE = STATIC_DIR / "filters.json"
+from virtubooth.api.deps import require_access
+from virtubooth.domain.constants import FACINGS, PHOTO_HEIGHT, PHOTO_WIDTH
+from virtubooth.extensions.sdk import Extension, UploadContext, UploadPolicy
 
-OUTPUT_WIDTH = 1080
-OUTPUT_HEIGHT = 1440
-FACINGS = ("user", "environment")
+FILTERS_FILE = Path(__file__).resolve().parent / "filters.json"
+
+OUTPUT_WIDTH = PHOTO_WIDTH
+OUTPUT_HEIGHT = PHOTO_HEIGHT
 FILTER_ID_RE = re.compile(r"^[a-z][a-z0-9-]{0,31}$")
+
+
+class BoothFilter(BaseModel):
+    id: str = Field(pattern=FILTER_ID_RE.pattern)
+    name: str
+    icon: str
+
+
+class BoothFilters(BaseModel):
+    filters: list[BoothFilter] = Field(description="In strip order; the first is the default.")
+
+
+class BoothUploadResult(BaseModel):
+    booth_number: int = Field(description="This photo's number (never reused).")
+
+
+def load_catalogue(path: Path = FILTERS_FILE) -> list[dict[str, Any]]:
+    data = json.loads(path.read_text(encoding="utf-8"))
+    entries: list[dict[str, Any]] = data["filters"]
+    return entries
 
 
 def load_filters(path: Path = FILTERS_FILE) -> dict[str, str]:
     """Read the filter catalogue → {id: German name}, in strip order."""
-    data = json.loads(path.read_text(encoding="utf-8"))
     filters: dict[str, str] = {}
-    for entry in data["filters"]:
+    for entry in load_catalogue(path):
         fid, name = entry["id"], entry["name"]
         if not FILTER_ID_RE.match(fid):
             raise ValueError(f"{path.name}: invalid filter id {fid!r}")
@@ -51,6 +70,15 @@ def load_filters(path: Path = FILTERS_FILE) -> dict[str, str]:
 
 
 FILTERS = load_filters()
+CATALOGUE = BoothFilters(filters=[BoothFilter.model_validate(e) for e in load_catalogue()])
+
+router = APIRouter()
+
+
+@router.get("/filters", dependencies=[Depends(require_access)])
+def filters() -> BoothFilters:
+    """The filter catalogue (ids, German names, icons) in strip order."""
+    return CATALOGUE
 
 
 def validate_meta(meta: dict[str, Any]) -> dict[str, Any]:
@@ -70,7 +98,6 @@ extension = Extension(
     title="Fotobox",
     emoji="📸",
     tagline="Filter drauf, lächeln, klick! 🤳",
-    static_dir=STATIC_DIR,
     upload=UploadPolicy(
         max_side=OUTPUT_HEIGHT,
         min_side=480,
@@ -79,7 +106,9 @@ extension = Extension(
         meta_keys=frozenset({"filter", "facing"}),
         validate_meta=validate_meta,
     ),
+    router=router,
     on_upload=on_upload,
+    upload_result=BoothUploadResult,
     order=20,
     meta_labels={"filter": "Filter", "facing": "Kamera"},
 )

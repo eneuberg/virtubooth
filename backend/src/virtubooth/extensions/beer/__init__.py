@@ -2,7 +2,8 @@
 "1 million beers" timelapse.
 
 Every upload is a 1080x1440 (3:4 portrait) JPEG framed by the bottle or cup
-outline in the browser, so all frames line up. The page lives in `static/`.
+outline in the browser, so all frames line up. The page lives in the frontend
+(frontend/src/extensions/beer/).
 
 POST /api/x/beer/upload   X-VB-Meta {"vessel": "bottle"|"cup", "facing": "user"|"environment"}
                           → 201 {"photo": {...}, "beer_number": seq, "total": n}
@@ -11,33 +12,44 @@ GET  /api/x/beer/stats    → {"total": n, "goal": 1000000}
 
 from __future__ import annotations
 
-from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 
 from fastapi import APIRouter, Depends
+from pydantic import BaseModel, Field
 
-from virtubooth.context import Core
-from virtubooth.deps import get_core, require_access
-from virtubooth.extension import Extension, UploadContext, UploadPolicy
+from virtubooth.api.deps import CoreDep, require_access
+from virtubooth.domain.constants import FACINGS, PHOTO_HEIGHT, PHOTO_WIDTH
+from virtubooth.extensions.sdk import Extension, UploadContext, UploadPolicy
+from virtubooth.runtime import Core
 
 EXT_ID = "beer"
 GOAL = 1_000_000
-# the browser captures exactly this (see static/beer.js: captureFrame(video, 1080, 1440))
-WIDTH, HEIGHT = 1080, 1440
+# the browser captures exactly this
+WIDTH, HEIGHT = PHOTO_WIDTH, PHOTO_HEIGHT
 VESSELS = frozenset({"bottle", "cup"})
-FACINGS = frozenset({"user", "environment"})
 
 router = APIRouter()
 
 
+class BeerStats(BaseModel):
+    total: int = Field(description="Beers on the board: visible, not deleted.")
+    goal: Literal[1_000_000]
+
+
+class BeerUploadResult(BaseModel):
+    beer_number: int = Field(description="This photo's number (never reused).")
+    total: int = Field(description="Beers on the board now (what the counter shows).")
+
+
 def total_beers(core: Core) -> int:
     """Beers on the board: photos an admin took down or deleted don't count."""
-    return core.repo.count_photos(EXT_ID, visible_only=True)
+    return core.repos.photos.count(EXT_ID, hidden=False)
 
 
 @router.get("/stats", dependencies=[Depends(require_access)])
-def stats(core: Core = Depends(get_core)) -> dict[str, int]:
-    return {"total": total_beers(core), "goal": GOAL}
+def stats(core: CoreDep) -> BeerStats:
+    """The counter. Party access is enough (no join needed)."""
+    return BeerStats(total=total_beers(core), goal=GOAL)
 
 
 def validate_meta(meta: dict[str, Any]) -> dict[str, Any]:
@@ -62,7 +74,6 @@ extension = Extension(
     title="Beer Cam",
     emoji="🍺",
     tagline="Knips dein Bier – auf zur Million!",
-    static_dir=Path(__file__).parent / "static",
     upload=UploadPolicy(
         max_side=max(WIDTH, HEIGHT),
         min_side=480,
@@ -74,6 +85,7 @@ extension = Extension(
     ),
     router=router,
     on_upload=on_upload,
+    upload_result=BeerUploadResult,
     order=10,
     meta_labels={"vessel": "Gefäß", "facing": "Kamera"},
 )

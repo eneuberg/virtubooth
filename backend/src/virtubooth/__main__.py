@@ -1,4 +1,4 @@
-"""CLI: `virtubooth serve` (default) and `virtubooth gen-env`."""
+"""CLI: `virtubooth serve` (default), `virtubooth gen-env`, `virtubooth export-openapi`."""
 
 from __future__ import annotations
 
@@ -23,6 +23,8 @@ def gen_env() -> str:
             "# VB_DATA_DIR=./data",
             "# true behind an https reverse proxy",
             "VB_COOKIE_SECURE=auto",
+            "# the built frontend (default: frontend/dist of this checkout); Docker pins it",
+            "# VB_WEB_DIR=",
             "",
         )
     )
@@ -41,10 +43,19 @@ def main(argv: list[str] | None = None) -> None:
     )
     serve.add_argument("--reload", action="store_true", help="auto-reload on code changes (dev)")
     sub.add_parser("gen-env", help="print a fresh .env with random secrets")
+    export = sub.add_parser(
+        "export-openapi", help="write the OpenAPI schema (JSON) for the frontend's typed client"
+    )
+    export.add_argument("-o", "--out", required=True, metavar="PATH", help="output file, or -")
     args = parser.parse_args(argv)
 
     if args.cmd == "gen-env":
         sys.stdout.write(gen_env())
+        return
+    if args.cmd == "export-openapi":
+        from .openapi import export_openapi
+
+        export_openapi(args.out)
         return
     if args.cmd is None:
         args = parser.parse_args(["serve", *(argv or sys.argv[1:])])

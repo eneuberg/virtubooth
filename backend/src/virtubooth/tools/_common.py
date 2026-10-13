@@ -10,12 +10,13 @@ from contextlib import contextmanager
 from datetime import datetime
 from pathlib import Path
 
-from ..db import Database
-from ..repo import Photo, PhotoQuery, Repo
+from ..db.database import Database
+from ..domain.models import Photo, PhotoQuery
+from ..repositories.container import Repositories
 
 DB_NAME = "virtubooth.db"
 EXPORTS_DIR = "exports"
-# Repo.list_photos caps a page at 1000 rows
+# PhotosRepo.list caps a page at 1000 rows
 PAGE_SIZE = 1000
 
 
@@ -99,7 +100,7 @@ def human_size(n: float) -> str:
 
 
 @contextmanager
-def open_repo(data_dir: Path) -> Iterator[Repo]:
+def open_repos(data_dir: Path) -> Iterator[Repositories]:
     """Open <data_dir>/virtubooth.db without the app's Settings.
 
     Refuses to run on a directory without a database, so a typo in --data-dir
@@ -110,13 +111,13 @@ def open_repo(data_dir: Path) -> Iterator[Repo]:
         raise ToolError(f"no virtubooth database at {db_path} (pass --data-dir or set VB_DATA_DIR)")
     db = Database(db_path)
     try:
-        yield Repo(db, data_dir)
+        yield Repositories.create(db, data_dir)
     finally:
         db.close()
 
 
 def iter_photos(
-    repo: Repo, *, extension: str | None = None, hidden: bool | None = None
+    repos: Repositories, *, extension: str | None = None, hidden: bool | None = None
 ) -> Iterator[Photo]:
     """All non-deleted photos in upload order, any number of them.
 
@@ -124,7 +125,7 @@ def iter_photos(
     """
     after: int | None = None
     while True:
-        page = repo.list_photos(
+        page = repos.photos.list(
             PhotoQuery(
                 extension=extension, hidden=hidden, order="asc", after_id=after, limit=PAGE_SIZE
             )
@@ -135,10 +136,6 @@ def iter_photos(
         after = page[-1].id
 
 
-def photo_counts(repo: Repo) -> dict[str, int]:
+def photo_counts(repos: Repositories) -> dict[str, int]:
     """Non-deleted photos per extension (for "did you mean" messages)."""
-    rows = repo.db.all(
-        "SELECT extension, COUNT(*) AS n FROM photos WHERE deleted_at IS NULL "
-        "GROUP BY extension ORDER BY extension"
-    )
-    return {r["extension"]: int(r["n"]) for r in rows}
+    return repos.photos.counts_by_extension()

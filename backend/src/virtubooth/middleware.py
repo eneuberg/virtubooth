@@ -9,7 +9,9 @@ GuardMiddleware, in order:
 4. request budget for /api/: per guest device when identified, else per IP;
    admin sessions are exempt.
 
-SecurityHeadersMiddleware adds CSP & co. and a default Cache-Control.
+SecurityHeadersMiddleware adds CSP & co. and a default Cache-Control
+(`no-store` for /api/, `no-cache` for pages; routes may set their own, e.g.
+`/assets/` immutable and `/media/` private).
 """
 
 from __future__ import annotations
@@ -19,30 +21,30 @@ from urllib.parse import urlencode
 
 from starlette.datastructures import MutableHeaders
 from starlette.requests import Request
-from starlette.responses import JSONResponse, RedirectResponse
+from starlette.responses import JSONResponse, RedirectResponse, Response
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
-from . import errors
-from .context import Core
-from .deps import admin_from_cookie
-from .pages import gate_page
-from .security import (
+from .api.deps import admin_from_cookie
+from .core import errors
+from .core.ratelimit import RateLimiter
+from .core.security import (
     ACCESS_COOKIE,
     GUEST_COOKIE_MAX_AGE,
     SECURITY_HEADERS,
     UID_COOKIE,
     access_cookie_value,
     client_ip,
-    constant_time_equals,
     origin_allowed,
+    party_token_matches,
     set_cookie,
 )
+from .runtime import Core
 
 UNSAFE_METHODS = {"POST", "PUT", "PATCH", "DELETE"}
 MAX_JSON_BODY = 64 * 1024
 _UPLOAD_PATH = re.compile(r"^/api/x/[a-z][a-z0-9-]{1,30}/upload$")
 # paths where ?t= is never interpreted as a party token
-_NO_TOKEN_PREFIXES = ("/api/", "/admin", "/static/", "/media/", "/healthz")
+_NO_TOKEN_PREFIXES = ("/api/", "/admin", "/assets/", "/media/", "/healthz")
 
 
 class GuardMiddleware:
@@ -67,8 +69,7 @@ class GuardMiddleware:
             return
 
         if request.method in UNSAFE_METHODS and not origin_allowed(request, core.settings):
-            err = errors.ApiError(403, "bad_origin", "Anfrage von fremder Seite abgelehnt.")
-            await JSONResponse(err.body(), status_code=403)(scope, receive, send)
+            await _error(errors.bad_origin(), scope, receive, send)
             return
 
         if request.method in UNSAFE_METHODS and not _UPLOAD_PATH.match(path):
@@ -91,7 +92,7 @@ class GuardMiddleware:
 
         await self.app(scope, receive, send)
 
-    def _api_budget(self, request: Request, path: str):  # type: ignore[no-untyped-def]
+    def _api_budget(self, request: Request, path: str) -> tuple[RateLimiter | None, str]:
         core = self.core
         # the admin shares the venue WiFi IP with every guest; never throttle moderation
         if path.startswith("/api/admin/") and admin_from_cookie(request, core) is not None:
@@ -103,11 +104,11 @@ class GuardMiddleware:
             return core.limits.api_guest, f"uid:{public_id}"
         return core.limits.api_ip, client_ip(request)
 
-    def _token_entry(self, request: Request):  # type: ignore[no-untyped-def]
+    def _token_entry(self, request: Request) -> Response:
         core = self.core
         token = request.query_params.get("t", "")
-        if not constant_time_equals(token, core.settings.party_token):
-            return gate_page()
+        if not party_token_matches(core.settings, token):
+            return core.web.gate()
         rest = [(k, v) for k, v in request.query_params.multi_items() if k != "t"]
         # "//evil.example/" would be a protocol-relative URL: always one leading slash
         target = "/" + request.url.path.lstrip("/") + (f"?{urlencode(rest)}" if rest else "")
@@ -145,9 +146,13 @@ class SecurityHeadersMiddleware:
                     headers.setdefault(name, value)
                 if scope.get("scheme") == "https":
                     headers.setdefault("Strict-Transport-Security", "max-age=31536000")
+                api = path.startswith("/api/")
                 if "cache-control" not in headers:
-                    # API answers are personal; static files revalidate via ETag
-                    headers["Cache-Control"] = "no-store" if path.startswith("/api/") else "no-cache"
+                    # API answers are personal; HTML revalidates via ETag
+                    headers["Cache-Control"] = "no-store" if api else "no-cache"
+                elif api and headers.get("content-type", "").startswith("text/event-stream"):
+                    # FastAPI's SSE response says no-cache; the admin stream is personal
+                    headers["Cache-Control"] = "no-store"
             await send(message)
 
         await self.app(scope, receive, send_with_headers)

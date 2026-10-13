@@ -33,8 +33,9 @@ from dataclasses import dataclass, replace
 from datetime import datetime
 from pathlib import Path
 
-from ..db import Database
-from ..repo import Photo, Repo, User
+from ..db.database import Database
+from ..domain.models import Photo, User
+from ..repositories.container import Repositories
 from ._common import (
     DB_NAME,
     ToolError,
@@ -55,7 +56,7 @@ PHOTO_COLUMNS = [
 ]  # fmt: skip
 USER_COLUMNS = ["user", "instagram", "consent_at", "photo_count", "banned", "ban_reason"]
 INSTAGRAM_COLUMNS = ["instagram", "user", "photo_count", "files"]
-USERS_PAGE = 500  # Repo.list_users caps a page at 500
+USERS_PAGE = 500  # UsersRepo.list caps a page at 500
 
 
 @dataclass(frozen=True)
@@ -78,23 +79,23 @@ def snapshot_db(db_path: Path, dest: Path) -> None:
         src.close()
 
 
-def all_users(repo: Repo) -> list[User]:
+def all_users(repos: Repositories) -> list[User]:
     users: list[User] = []
     while True:
-        page = repo.list_users(limit=USERS_PAGE, offset=len(users))
+        page = repos.users.list(limit=USERS_PAGE, offset=len(users))
         users += page
         if len(page) < USERS_PAGE:
             return sorted(users, key=lambda u: u.id)
 
 
-def plan_entries(repo: Repo, *, include_hidden: bool) -> list[Entry]:
-    photos = list(iter_photos(repo, hidden=None if include_hidden else False))
+def plan_entries(repos: Repositories, *, include_hidden: bool) -> list[Entry]:
+    photos = list(iter_photos(repos, hidden=None if include_hidden else False))
     width: dict[str, int] = {}
     for p in photos:
         width[p.extension] = max(width.get(p.extension, 4), len(str(p.seq)))
     entries = []
     for p in photos:
-        source = repo.photo_path(p.extension, p.filename)
+        source = repos.photos.path(p.extension, p.filename)
         rel = Path(p.filename)
         # only files below <data_dir>/<extension>/ (lexically: the folder may be a symlink)
         inside = not rel.is_absolute() and ".." not in rel.parts and "/" not in p.extension
@@ -334,9 +335,9 @@ def _main(args: argparse.Namespace) -> int:
         snapshot_db(db_path, snap)
         db = Database(snap)  # reads the snapshot, photo files from data_dir
         try:
-            repo = Repo(db, data_dir)
-            entries = plan_entries(repo, include_hidden=include_hidden)
-            users = all_users(repo)
+            repos = Repositories.create(db, data_dir)
+            entries = plan_entries(repos, include_hidden=include_hidden)
+            users = all_users(repos)
         finally:
             db.close()
         # Database() switched the snapshot to WAL; make it a standalone file again

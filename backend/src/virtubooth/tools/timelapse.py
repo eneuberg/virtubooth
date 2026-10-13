@@ -35,14 +35,14 @@ from pathlib import Path
 
 from PIL import Image, ImageOps
 
-from ..repo import Repo
+from ..repositories.container import Repositories
 from ._common import (
     ToolError,
     add_data_dir_arg,
     exports_dir,
     human_size,
     iter_photos,
-    open_repo,
+    open_repos,
     photo_counts,
     resolve_data_dir,
     run,
@@ -179,13 +179,13 @@ def needs_letterbox(path: Path, size: Size) -> bool | None:
 
 
 def collect(
-    repo: Repo, extension: str, *, include_hidden: bool, size: Size, limit: int | None = None
+    repos: Repositories, extension: str, *, include_hidden: bool, size: Size, limit: int | None = None
 ) -> Collected:
     result = Collected()
-    for photo in iter_photos(repo, extension=extension, hidden=None if include_hidden else False):
+    for photo in iter_photos(repos, extension=extension, hidden=None if include_hidden else False):
         if limit is not None and len(result.frames) >= limit:
             break
-        path = repo.photo_path(photo.extension, photo.filename)
+        path = repos.photos.path(photo.extension, photo.filename)
         if not path.is_file():
             result.missing += 1
             continue
@@ -411,17 +411,17 @@ def _main(args: argparse.Namespace) -> int:
     out = output_path(args, data_dir)
 
     print(f"Collecting {args.extension} photos from {data_dir} ...", flush=True)
-    with open_repo(data_dir) as repo:
+    with open_repos(data_dir) as repos:
         got = collect(
-            repo, args.extension, include_hidden=args.include_hidden, size=o.size, limit=args.limit
+            repos, args.extension, include_hidden=args.include_hidden, size=o.size, limit=args.limit
         )
         hidden_left_out = (
             0
             if args.include_hidden
-            else repo.count_photos(args.extension)
-            - repo.count_photos(args.extension, visible_only=True)
+            else repos.photos.count(args.extension)
+            - repos.photos.count(args.extension, hidden=False)
         )
-        counts = photo_counts(repo)
+        counts = photo_counts(repos)
 
     notes = []
     if hidden_left_out:

@@ -22,8 +22,8 @@ from urllib.parse import quote, urlencode, urlsplit
 
 import segno
 
-from ..config import TOKEN_RE, ConfigError
-from ..extension import Extension, discover_extensions
+from ..extensions.sdk import Extension, discover_extensions
+from ..settings import TOKEN_RE, ConfigError
 from ._common import (
     ToolError,
     add_data_dir_arg,
