@@ -82,11 +82,13 @@ class Database:
             except BaseException:
                 self._depth -= 1
                 self._hooks.pop()
-                if depth == 0:
-                    self._conn.execute("ROLLBACK")
-                else:
-                    self._conn.execute(f"ROLLBACK TO {savepoint}")
-                    self._conn.execute(f"RELEASE {savepoint}")
+                # some errors (disk full, I/O) end the transaction by themselves
+                if self._conn.in_transaction:
+                    if depth == 0:
+                        self._conn.execute("ROLLBACK")
+                    else:
+                        self._conn.execute(f"ROLLBACK TO {savepoint}")
+                        self._conn.execute(f"RELEASE {savepoint}")
                 raise
             self._depth -= 1
             hooks = self._hooks.pop()
@@ -97,7 +99,8 @@ class Database:
             try:
                 self._conn.execute("COMMIT")
             except BaseException:
-                self._conn.execute("ROLLBACK")
+                if self._conn.in_transaction:
+                    self._conn.execute("ROLLBACK")
                 raise
         # outside the lock: hooks may publish events or touch the file system
         for hook in hooks:
@@ -113,11 +116,6 @@ class Database:
                 self._hooks[-1].append(hook)
                 return
         hook()
-
-    @property
-    def in_transaction(self) -> bool:
-        with self._lock:
-            return self._depth > 0
 
     def all(self, sql: str, params: Sequence[Any] = ()) -> list[sqlite3.Row]:
         with self._lock:

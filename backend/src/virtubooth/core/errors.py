@@ -8,7 +8,7 @@ errors are `http_<status>` (in practice 404 for unknown /api paths and 405).
 
 from __future__ import annotations
 
-from typing import Any, Literal, get_args
+from typing import Any, Literal
 
 from pydantic import BaseModel, Field
 
@@ -45,7 +45,6 @@ ErrorCode = Literal[
     "http_404",
     "http_405",
 ]
-ERROR_CODES: frozenset[str] = frozenset(get_args(ErrorCode))
 
 
 class ErrorBody(BaseModel):

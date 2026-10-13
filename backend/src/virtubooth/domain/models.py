@@ -75,10 +75,6 @@ class UserRef:
     def auto_banned(self) -> bool:
         return is_auto_banned(self.banned, self.ban_reason)
 
-    @classmethod
-    def of(cls, user: User) -> UserRef:
-        return cls(user.id, user.name, user.instagram, user.banned, user.ban_reason)
-
 
 @dataclass(frozen=True)
 class Photo:

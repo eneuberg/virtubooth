@@ -140,10 +140,6 @@ class WebFrontend:
             raise ConfigError(f"VB_WEB_DIR={root} lacks {', '.join(missing)}")
         return cls(root)
 
-    @property
-    def placeholder(self) -> bool:
-        return self.root is None
-
     # ----------------------------------------------------------------- html
 
     def _read(self, name: str) -> _Html:

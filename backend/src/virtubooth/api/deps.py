@@ -82,13 +82,6 @@ def require_me(request: Request, core: CoreDep, _access: None = AccessDep) -> Us
     return user
 
 
-def optional_guest(request: Request, core: CoreDep) -> User | None:
-    """The identified guest (no ban check), None without access or consent."""
-    if not has_access(request, core):
-        return None
-    return guest_from_cookie(request, core)
-
-
 def require_admin(request: Request, response: Response, core: CoreDep) -> Admin:
     admin = admin_from_cookie(request, core)
     if admin is None:
@@ -100,5 +93,4 @@ def require_admin(request: Request, response: Response, core: CoreDep) -> Admin:
 
 GuestDep = Annotated[User, Depends(require_guest)]
 MeDep = Annotated[User, Depends(require_me)]
-OptionalGuestDep = Annotated[User | None, Depends(optional_guest)]
 AdminDep = Annotated[Admin, Depends(require_admin)]
