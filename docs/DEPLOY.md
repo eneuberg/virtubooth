@@ -422,7 +422,9 @@ admin sessions and export jobs: after restoring from it, every admin logs in
 again. Copy it off with `docker compose cp app:/data/exports ./backup-$(date +%F)`.
 
 **Cold, complete:** stop the app so the SQLite files are consistent, archive
-the volume, start again (a few seconds of downtime):
+the volume, start again (a few seconds of downtime). On a clean stop the app
+writes the WAL back into `virtubooth.db`, so that file alone holds the whole
+database:
 
 ```bash
 docker compose stop

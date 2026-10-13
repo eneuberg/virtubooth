@@ -45,7 +45,7 @@ touches SQL, and a repository never publishes an event.
 | Entry | `__main__.py` | CLI: `virtubooth serve` (default), `gen-env`, `export-openapi` |
 | Composition | `app.py`, `runtime.py`, `settings.py` | `create_app(settings, extensions=None)` builds `Core` (settings, db, repos, services, bus, signer, limits, web, extensions), registers routers, error handlers and middleware. `Settings` is pydantic-settings over `VB_*`; secrets are `SecretStr`, and a bad value fails startup with the variable's name |
 | core | `core/` | `errors.py` (`ErrorCode`, `ErrorBody`, `ApiError`), `security.py` (signing, cookies, origin check, security headers, client IP), `events.py` (`EventBus`, replay history), `ratelimit.py`, `logs.py` (token-masking access log), `clock.py` |
-| db | `db/` | `Database`: one SQLite connection (WAL) behind a lock, nested transactions (savepoints), after-commit hooks. `migrations.py`: numbered steps, append only |
+| db | `db/` | `Database`: one SQLite connection (WAL) behind a lock, nested transactions (savepoints), after-commit hooks, a WAL checkpoint when the app stops. `migrations.py`: numbered steps, append only |
 | domain | `domain/` | dataclasses (`User`, `Photo`, …), constants (`PHOTO_WIDTH/HEIGHT` 1080×1440, id patterns, pause sources), pseudonyms |
 | repositories | `repositories/` | one per aggregate: users, photos, bans, app_settings, admin_sessions, audit, exports, instagram, plus `admin_read_models` for the admin lists. SQL only |
 | services | `services/` | the business logic and the only place that opens a write transaction: identity, uploads, moderation, upload_controls, admin_auth, exports (+ `export_runners.py`, one worker thread), instagram, images, views, `events.py` (typed admin events) |
