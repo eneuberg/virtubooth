@@ -90,6 +90,27 @@ def test_identify_consent_flow(client, core):
     assert core.repos.users.list()[0].fp_hash == fp()["hash"]
 
 
+def test_joined_guests_get_the_join_texts_again(client, core):
+    """"Was passiert mit meinen Fotos?" shows the join texts to a joined guest:
+    identify and join send them (the current version), also to a banned device."""
+    scan(client)
+    texts = client.post("/api/identify", json={"fp": fp()}, headers=ORIGIN).json()["consent"]
+    joined = accept_consent(client)
+    assert joined["join_text"] == texts
+    assert "@testparty" in " ".join(joined["join_text"]["paragraphs"])
+    again = client.post("/api/identify", json={}, headers=ORIGIN).json()
+    assert again["state"] == "ok"
+    assert again["join_text"] == texts
+    second_tab = accept_consent(client)
+    assert second_tab["already_joined"] is True
+    assert second_tab["join_text"] == texts
+    [user] = core.repos.users.list()
+    core.services.moderation.ban_user(user.id, reason="test", actor="admin:test")
+    banned = client.post("/api/identify", json={}, headers=ORIGIN).json()
+    assert banned["state"] == "banned"
+    assert banned["join_text"] == texts
+
+
 def test_consent_requires_accept_true(client):
     scan(client)
     r = client.post("/api/join", json={"accept": False, "version": "1"}, headers=ORIGIN)

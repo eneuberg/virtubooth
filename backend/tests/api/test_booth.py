@@ -151,3 +151,22 @@ def test_page_is_served_to_party_guests(client):
     assert r.status_code == 200
     catalogue = json.loads(booth.FILTERS_FILE.read_text(encoding="utf-8"))
     assert r.json() == {"filters": catalogue["filters"]}
+
+
+# ----------------------------------------------------------------- stats
+
+
+def test_stats_say_the_next_number_before_the_first_upload(client, guest, core):
+    """The film edge shows the next number before a visit's first photo."""
+    assert client.get("/api/x/booth/stats").json()["error"] == "scan_qr"
+    scan(client)  # party access is enough, like the Beer Cam's counter
+    assert client.get("/api/x/booth/stats").json() == {"next_number": 1}
+    g = guest()
+    first = upload(g, {"filter": "bw", "facing": "user"}).json()
+    upload(g, {"filter": "bw", "facing": "user"})
+    assert client.get("/api/x/booth/stats").json() == {"next_number": 3}
+    # numbers are never reused: a deleted or hidden photo keeps its number
+    core.services.moderation.delete_photo(first["photo"]["id"], actor="admin:test")
+    assert client.get("/api/x/booth/stats").json() == {"next_number": 3}
+    assert upload(g, {"filter": "bw", "facing": "user"}).json()["booth_number"] == 3
+    assert g.get("/api/x/booth/stats").json() == {"next_number": 4}

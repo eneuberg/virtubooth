@@ -29,6 +29,7 @@ export type GuestPhoto = S['GuestPhoto'];
 export type PublicExtension = S['PublicExtension'];
 /** GET /api/extensions */
 export type ExtensionsResponse = S['ExtensionsOut'];
+/** a known device: identify answer `ok` / `banned` (with `join_text`), also the base of JoinOut */
 export type KnownGuest = S['IdentifiedOut'];
 /** POST /api/identify */
 export type IdentifyResponse = S['IdentifiedOut'] | S['NeedsConsentOut'];
@@ -44,6 +45,8 @@ export type UploadResponse = S['UploadOut'];
 export type BoothFilter = S['BoothFilter'];
 /** GET /api/x/booth/filters */
 export type BoothFilters = S['BoothFilters'];
+/** GET /api/x/booth/stats */
+export type BoothStats = S['BoothStats'];
 
 // ----------------------------------------------------------------- admin side
 

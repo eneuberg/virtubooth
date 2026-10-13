@@ -14,6 +14,8 @@ from ..domain.models import Photo, PhotoQuery
 from ._rows import PHOTO_COLS, as_int, photo_from_row
 
 MAX_PAGE = 1000
+# tombstones count: a number is never handed out twice
+_NEXT_SEQ = "SELECT COALESCE(MAX(seq), 0) + 1 FROM photos WHERE extension=?"
 
 
 class PhotosRepo:
@@ -39,9 +41,7 @@ class PhotosRepo:
         created_at: str,
     ) -> None:
         with self.db.tx() as c:
-            seq = c.execute(
-                "SELECT COALESCE(MAX(seq), 0) + 1 FROM photos WHERE extension=?", (extension,)
-            ).fetchone()[0]
+            seq = c.execute(_NEXT_SEQ, (extension,)).fetchone()[0]
             c.execute(
                 "INSERT INTO photos (public_id, extension, user_id, seq, filename, "
                 "thumb_filename, created_at, width, height, bytes, meta) "
@@ -51,6 +51,11 @@ class PhotosRepo:
                     created_at, width, height, size, json.dumps(meta),
                 ),
             )  # fmt: skip
+
+    def next_seq(self, extension: str) -> int:
+        """The number the extension's next photo gets (unless another upload is faster)."""
+        row = self.db.one(_NEXT_SEQ, (extension,))
+        return as_int(row[0]) if row else 1
 
     def get(self, public_id: str, *, include_deleted: bool = False) -> Photo | None:
         sql = (

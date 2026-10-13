@@ -91,12 +91,15 @@ class NeedsConsentOut(BaseModel):
 
 
 class IdentifiedOut(BaseModel):
-    """A known device. `uid_token` is also set as the `vb_uid` cookie."""
+    """A known device. `uid_token` is also set as the `vb_uid` cookie.
+    `join_text`: the join texts of the current version, so a joined guest can read
+    them again ("Was passiert mit meinen Fotos?")."""
 
     state: Literal["ok", "banned"]
     user: GuestUser
     uploads_stopped: bool
     uid_token: str
+    join_text: ConsentInfo
 
 
 IdentifyOut = Annotated[NeedsConsentOut | IdentifiedOut, Field(discriminator="state")]

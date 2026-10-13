@@ -703,6 +703,20 @@
         "title": "BoothFilters",
         "type": "object"
       },
+      "BoothStats": {
+        "properties": {
+          "next_number": {
+            "description": "The number the next photo gets, unless another guest is faster.",
+            "title": "Next Number",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "next_number"
+        ],
+        "title": "BoothStats",
+        "type": "object"
+      },
       "BulkIn": {
         "properties": {
           "action": {
@@ -1597,8 +1611,11 @@
         "type": "object"
       },
       "IdentifiedOut": {
-        "description": "A known device. `uid_token` is also set as the `vb_uid` cookie.",
+        "description": "A known device. `uid_token` is also set as the `vb_uid` cookie.\n`join_text`: the join texts of the current version, so a joined guest can read\nthem again (\"Was passiert mit meinen Fotos?\").",
         "properties": {
+          "join_text": {
+            "$ref": "#/components/schemas/ConsentInfo"
+          },
           "state": {
             "enum": [
               "ok",
@@ -1623,7 +1640,8 @@
           "state",
           "user",
           "uploads_stopped",
-          "uid_token"
+          "uid_token",
+          "join_text"
         ],
         "title": "IdentifiedOut",
         "type": "object"
@@ -1895,6 +1913,9 @@
             "title": "Instagram Kept",
             "type": "boolean"
           },
+          "join_text": {
+            "$ref": "#/components/schemas/ConsentInfo"
+          },
           "state": {
             "enum": [
               "ok",
@@ -1920,6 +1941,7 @@
           "user",
           "uploads_stopped",
           "uid_token",
+          "join_text",
           "already_joined",
           "instagram_kept"
         ],
@@ -7571,6 +7593,58 @@
           }
         },
         "summary": "Filters",
+        "tags": [
+          "extension:booth"
+        ]
+      }
+    },
+    "/api/x/booth/stats": {
+      "get": {
+        "description": "The next photo number. Party access is enough (no join needed), like the\nBeer Cam's counter. Deleted photos keep their numbers (never reused).",
+        "operationId": "stats_api_x_booth_stats_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BoothStats"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Not found, or no party access (`scan_qr`)"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Request validation failed (`invalid_request`)"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Rate limited (`Retry-After` header)"
+          }
+        },
+        "summary": "Stats",
         "tags": [
           "extension:booth"
         ]

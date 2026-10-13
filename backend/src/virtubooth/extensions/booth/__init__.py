@@ -8,6 +8,9 @@ keeps the filter catalogue:
                   ids listed there, and the page gets it from
                   `GET /api/x/booth/filters`.
 
+`GET /api/x/booth/stats` → {"next_number": n}: the number the film edge shows
+before a guest's first photo (the photo's `booth_number` once it is uploaded).
+
 Photos are 1080×1440 JPEGs (3:4 portrait), exactly what the preview showed.
 """
 
@@ -21,12 +24,13 @@ from typing import Any
 from fastapi import APIRouter, Depends
 from pydantic import BaseModel, Field
 
-from virtubooth.api.deps import require_access
+from virtubooth.api.deps import CoreDep, require_access
 from virtubooth.domain.constants import FACINGS, PHOTO_HEIGHT, PHOTO_WIDTH
 from virtubooth.extensions.sdk import Extension, UploadContext, UploadPolicy
 
 FILTERS_FILE = Path(__file__).resolve().parent / "filters.json"
 
+EXT_ID = "booth"
 OUTPUT_WIDTH = PHOTO_WIDTH
 OUTPUT_HEIGHT = PHOTO_HEIGHT
 FILTER_ID_RE = re.compile(r"^[a-z][a-z0-9-]{0,31}$")
@@ -40,6 +44,12 @@ class BoothFilter(BaseModel):
 
 class BoothFilters(BaseModel):
     filters: list[BoothFilter] = Field(description="In strip order; the first is the default.")
+
+
+class BoothStats(BaseModel):
+    next_number: int = Field(
+        description="The number the next photo gets, unless another guest is faster."
+    )
 
 
 class BoothUploadResult(BaseModel):
@@ -81,6 +91,13 @@ def filters() -> BoothFilters:
     return CATALOGUE
 
 
+@router.get("/stats", dependencies=[Depends(require_access)])
+def stats(core: CoreDep) -> BoothStats:
+    """The next photo number. Party access is enough (no join needed), like the
+    Beer Cam's counter. Deleted photos keep their numbers (never reused)."""
+    return BoothStats(next_number=core.repos.photos.next_seq(EXT_ID))
+
+
 def validate_meta(meta: dict[str, Any]) -> dict[str, Any]:
     if meta.get("filter") not in FILTERS:
         raise ValueError("Unbekannter Filter.")
@@ -94,7 +111,7 @@ def on_upload(ctx: UploadContext) -> dict[str, Any]:
 
 
 extension = Extension(
-    id="booth",
+    id=EXT_ID,
     title="Fotobox",
     emoji="📸",
     tagline="Selfie mit Filter und Countdown.",

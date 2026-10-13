@@ -40,11 +40,13 @@ def _identified(request: Request, response: Response, core: Core, user: User) ->
     """The device's identity, pinned with the signed `vb_uid` cookie."""
     token = core.signer.sign("uid", user.public_id)
     set_cookie(response, request, core.settings, UID_COOKIE, token, max_age=GUEST_COOKIE_MAX_AGE)
+    identity = core.services.identity
     return IdentifiedOut(
         state="banned" if user.banned else "ok",
         user=GuestUser.of(user),
-        uploads_stopped=core.services.identity.uploads_stopped(),
+        uploads_stopped=identity.uploads_stopped(),
         uid_token=token,
+        join_text=identity.consent_info(),
     )
 
 

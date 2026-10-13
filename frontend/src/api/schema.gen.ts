@@ -686,6 +686,27 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/x/booth/stats": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Stats
+         * @description The next photo number. Party access is enough (no join needed), like the
+         *     Beer Cam's counter. Deleted photos keep their numbers (never reused).
+         */
+        get: operations["stats_api_x_booth_stats_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/x/{ext_id}/upload": {
         parameters: {
             query?: never;
@@ -996,6 +1017,14 @@ export interface components {
              * @description In strip order; the first is the default.
              */
             filters: components["schemas"]["BoothFilter"][];
+        };
+        /** BoothStats */
+        BoothStats: {
+            /**
+             * Next Number
+             * @description The number the next photo gets, unless another guest is faster.
+             */
+            next_number: number;
         };
         /** BulkIn */
         BulkIn: {
@@ -1376,8 +1405,11 @@ export interface components {
         /**
          * IdentifiedOut
          * @description A known device. `uid_token` is also set as the `vb_uid` cookie.
+         *     `join_text`: the join texts of the current version, so a joined guest can read
+         *     them again ("Was passiert mit meinen Fotos?").
          */
         IdentifiedOut: {
+            join_text: components["schemas"]["ConsentInfo"];
             /**
              * @description discriminator enum property added by openapi-typescript
              * @enum {string}
@@ -1502,6 +1534,7 @@ export interface components {
             already_joined: boolean;
             /** Instagram Kept */
             instagram_kept: boolean;
+            join_text: components["schemas"]["ConsentInfo"];
             /**
              * State
              * @enum {string}
@@ -5509,6 +5542,53 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["BoothFilters"];
+                };
+            };
+            /** @description Not found, or no party access (`scan_qr`) */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Request validation failed (`invalid_request`) */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Rate limited (`Retry-After` header) */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    stats_api_x_booth_stats_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BoothStats"];
                 };
             };
             /** @description Not found, or no party access (`scan_qr`) */
