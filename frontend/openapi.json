@@ -981,6 +981,9 @@
               "invalid_meta",
               "empty_upload",
               "invalid_image",
+              "invalid_pdf",
+              "invalid_layout",
+              "no_template",
               "admin_required",
               "wrong_password",
               "login_locked",
@@ -2712,6 +2715,198 @@
           "uploads_paused"
         ],
         "title": "PhotoUser",
+        "type": "object"
+      },
+      "PosterLayoutIn": {
+        "additionalProperties": false,
+        "description": "Where the QR code goes. `pages` and the sizes come from the editor's PDF reader.",
+        "properties": {
+          "page": {
+            "description": "0-based page index, below `pages`.",
+            "title": "Page",
+            "type": "integer"
+          },
+          "page_height": {
+            "description": "PDF points, rotation applied (0 < h ≤ 14400).",
+            "title": "Page Height",
+            "type": "number"
+          },
+          "page_width": {
+            "description": "PDF points, rotation applied (0 < w ≤ 14400).",
+            "title": "Page Width",
+            "type": "number"
+          },
+          "pages": {
+            "description": "Pages in the PDF (1..500).",
+            "title": "Pages",
+            "type": "integer"
+          },
+          "rect": {
+            "$ref": "#/components/schemas/PosterRect"
+          }
+        },
+        "required": [
+          "page",
+          "pages",
+          "page_width",
+          "page_height",
+          "rect"
+        ],
+        "title": "PosterLayoutIn",
+        "type": "object"
+      },
+      "PosterOut": {
+        "properties": {
+          "max_bytes": {
+            "description": "Largest PDF the server takes.",
+            "title": "Max Bytes",
+            "type": "integer"
+          },
+          "template": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PosterTemplate"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "template",
+          "max_bytes"
+        ],
+        "title": "PosterOut",
+        "type": "object"
+      },
+      "PosterRect": {
+        "additionalProperties": false,
+        "description": "The QR field: relative to the page (0..1), origin top left, square in PDF points.",
+        "properties": {
+          "h": {
+            "description": "Height, 0.03..1 of the page height.",
+            "title": "H",
+            "type": "number"
+          },
+          "w": {
+            "description": "Width, 0.03..1 of the page width.",
+            "title": "W",
+            "type": "number"
+          },
+          "x": {
+            "description": "Left edge, 0..1 of the page width.",
+            "title": "X",
+            "type": "number"
+          },
+          "y": {
+            "description": "Top edge, 0..1 of the page height.",
+            "title": "Y",
+            "type": "number"
+          }
+        },
+        "required": [
+          "x",
+          "y",
+          "w",
+          "h"
+        ],
+        "title": "PosterRect",
+        "type": "object"
+      },
+      "PosterTemplate": {
+        "description": "The stored template. The layout fields are null until the first layout save.",
+        "properties": {
+          "by": {
+            "description": "Who uploaded it (audit actor).",
+            "title": "By",
+            "type": "string"
+          },
+          "bytes": {
+            "description": "Size of the PDF.",
+            "title": "Bytes",
+            "type": "integer"
+          },
+          "page": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The poster page, 0-based.",
+            "title": "Page"
+          },
+          "page_height": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "That page's height in PDF points (rotated).",
+            "title": "Page Height"
+          },
+          "page_width": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "That page's width in PDF points (rotated).",
+            "title": "Page Width"
+          },
+          "pages": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Pages in the PDF, as the editor's PDF reader counted.",
+            "title": "Pages"
+          },
+          "rect": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PosterRect"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "sha256": {
+            "description": "Hex SHA-256 of the PDF (a cache key for its bytes).",
+            "title": "Sha256",
+            "type": "string"
+          },
+          "uploaded_at": {
+            "title": "Uploaded At",
+            "type": "string"
+          }
+        },
+        "required": [
+          "sha256",
+          "bytes",
+          "uploaded_at",
+          "by",
+          "pages",
+          "page",
+          "page_width",
+          "page_height",
+          "rect"
+        ],
+        "title": "PosterTemplate",
         "type": "object"
       },
       "PublicExtension": {
@@ -6276,6 +6471,554 @@
           }
         },
         "summary": "Unhide Photo",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/api/admin/poster": {
+      "get": {
+        "description": "The stored template (null without one) and the upload limit.",
+        "operationId": "get_poster_api_admin_poster_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PosterOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Invalid input (see `error`)"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Needs consent or an admin session"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Forbidden: banned, paused, stopped, joining closed or a foreign Origin (CSRF)"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Not found, or no party access (`scan_qr`)"
+          },
+          "411": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Content-Length required"
+          },
+          "413": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Request too large"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Request validation failed (`invalid_request`)"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Rate limited (`Retry-After` header)"
+          }
+        },
+        "summary": "Get Poster",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/api/admin/poster/layout": {
+      "put": {
+        "description": "Save where the QR code goes: a page and a square relative to it (origin top\nleft). 400 `invalid_layout` when it leaves the page, is under 3 % or not\nsquare; 409 `no_template` without a template.",
+        "operationId": "put_layout_api_admin_poster_layout_put",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PosterLayoutIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PosterOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Invalid input (see `error`)"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Needs consent or an admin session"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Forbidden: banned, paused, stopped, joining closed or a foreign Origin (CSRF)"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Not found, or no party access (`scan_qr`)"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "411": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Content-Length required"
+          },
+          "413": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Request too large"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Request validation failed (`invalid_request`)"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Rate limited (`Retry-After` header)"
+          }
+        },
+        "summary": "Put Layout",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/api/admin/poster/template": {
+      "delete": {
+        "description": "Remove the template (idempotent); the standard poster is used again.",
+        "operationId": "delete_template_api_admin_poster_template_delete",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PosterOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Invalid input (see `error`)"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Needs consent or an admin session"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Forbidden: banned, paused, stopped, joining closed or a foreign Origin (CSRF)"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Not found, or no party access (`scan_qr`)"
+          },
+          "411": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Content-Length required"
+          },
+          "413": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Request too large"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Request validation failed (`invalid_request`)"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Rate limited (`Retry-After` header)"
+          }
+        },
+        "summary": "Delete Template",
+        "tags": [
+          "admin"
+        ]
+      },
+      "get": {
+        "description": "The template's bytes (409 `no_template` without one). Sandboxed, never cached.",
+        "operationId": "get_template_api_admin_poster_template_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/pdf": {
+                "schema": {
+                  "format": "binary",
+                  "type": "string"
+                }
+              }
+            },
+            "description": "The template PDF as an attachment (plakat-vorlage.pdf)."
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Invalid input (see `error`)"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Needs consent or an admin session"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Forbidden: banned, paused, stopped, joining closed or a foreign Origin (CSRF)"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Not found, or no party access (`scan_qr`)"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "411": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Content-Length required"
+          },
+          "413": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Request too large"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Request validation failed (`invalid_request`)"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Rate limited (`Retry-After` header)"
+          }
+        },
+        "summary": "Get Template",
+        "tags": [
+          "admin"
+        ]
+      },
+      "put": {
+        "description": "Upload a new template (raw PDF, at most `max_bytes`, Content-Length required).\nReplaces the old one and resets the layout. 400 `invalid_pdf` when the body\ndoes not start like a PDF, 413 `too_large`, 411 `length_required`.",
+        "operationId": "put_template_api_admin_poster_template_put",
+        "requestBody": {
+          "content": {
+            "application/pdf": {
+              "schema": {
+                "format": "binary",
+                "type": "string"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PosterOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Invalid input (see `error`)"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Needs consent or an admin session"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Forbidden: banned, paused, stopped, joining closed or a foreign Origin (CSRF)"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Not found, or no party access (`scan_qr`)"
+          },
+          "411": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Content-Length required"
+          },
+          "413": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Request too large"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Request validation failed (`invalid_request`)"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Rate limited (`Retry-After` header)"
+          }
+        },
+        "summary": "Put Template",
         "tags": [
           "admin"
         ]

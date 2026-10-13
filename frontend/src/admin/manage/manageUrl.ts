@@ -17,6 +17,7 @@ export const SECTIONS = [
   'sperren',
   'protokoll',
   'export',
+  'plakat',
   'uebersicht',
 ] as const;
 export type Section = (typeof SECTIONS)[number];

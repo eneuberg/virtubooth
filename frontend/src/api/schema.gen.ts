@@ -409,6 +409,78 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/admin/poster": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Poster
+         * @description The stored template (null without one) and the upload limit.
+         */
+        get: operations["get_poster_api_admin_poster_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/poster/layout": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Put Layout
+         * @description Save where the QR code goes: a page and a square relative to it (origin top
+         *     left). 400 `invalid_layout` when it leaves the page, is under 3 % or not
+         *     square; 409 `no_template` without a template.
+         */
+        put: operations["put_layout_api_admin_poster_layout_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/poster/template": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Template
+         * @description The template's bytes (409 `no_template` without one). Sandboxed, never cached.
+         */
+        get: operations["get_template_api_admin_poster_template_get"];
+        /**
+         * Put Template
+         * @description Upload a new template (raw PDF, at most `max_bytes`, Content-Length required).
+         *     Replaces the old one and resets the layout. 400 `invalid_pdf` when the body
+         *     does not start like a PDF, 413 `too_large`, 411 `length_required`.
+         */
+        put: operations["put_template_api_admin_poster_template_put"];
+        post?: never;
+        /**
+         * Delete Template
+         * @description Remove the template (idempotent); the standard poster is used again.
+         */
+        delete: operations["delete_template_api_admin_poster_template_delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/admin/session": {
         parameters: {
             query?: never;
@@ -1171,7 +1243,7 @@ export interface components {
              * @description Machine-readable error code.
              * @enum {string}
              */
-            error: "scan_qr" | "needs_consent" | "banned" | "consent_outdated" | "invalid_instagram" | "join_closed" | "uploads_paused" | "uploads_stopped" | "unsupported_type" | "too_large" | "invalid_meta" | "empty_upload" | "invalid_image" | "admin_required" | "wrong_password" | "login_locked" | "invalid_filter" | "invalid_cursor" | "no_fingerprint" | "restore_required" | "export_not_ready" | "export_running" | "base_url_required" | "invalid_base_url" | "bad_origin" | "length_required" | "rate_limited" | "invalid_request" | "not_found" | "http_404" | "http_405";
+            error: "scan_qr" | "needs_consent" | "banned" | "consent_outdated" | "invalid_instagram" | "join_closed" | "uploads_paused" | "uploads_stopped" | "unsupported_type" | "too_large" | "invalid_meta" | "empty_upload" | "invalid_image" | "invalid_pdf" | "invalid_layout" | "no_template" | "admin_required" | "wrong_password" | "login_locked" | "invalid_filter" | "invalid_cursor" | "no_fingerprint" | "restore_required" | "export_not_ready" | "export_running" | "base_url_required" | "invalid_base_url" | "bad_origin" | "length_required" | "rate_limited" | "invalid_request" | "not_found" | "http_404" | "http_405";
             /**
              * Message
              * @description German text for the guest or admin, shown as-is.
@@ -1944,6 +2016,112 @@ export interface components {
             name: string;
             /** Uploads Paused */
             uploads_paused: boolean;
+        };
+        /**
+         * PosterLayoutIn
+         * @description Where the QR code goes. `pages` and the sizes come from the editor's PDF reader.
+         */
+        PosterLayoutIn: {
+            /**
+             * Page
+             * @description 0-based page index, below `pages`.
+             */
+            page: number;
+            /**
+             * Page Height
+             * @description PDF points, rotation applied (0 < h ≤ 14400).
+             */
+            page_height: number;
+            /**
+             * Page Width
+             * @description PDF points, rotation applied (0 < w ≤ 14400).
+             */
+            page_width: number;
+            /**
+             * Pages
+             * @description Pages in the PDF (1..500).
+             */
+            pages: number;
+            rect: components["schemas"]["PosterRect"];
+        };
+        /** PosterOut */
+        PosterOut: {
+            /**
+             * Max Bytes
+             * @description Largest PDF the server takes.
+             */
+            max_bytes: number;
+            template: components["schemas"]["PosterTemplate"] | null;
+        };
+        /**
+         * PosterRect
+         * @description The QR field: relative to the page (0..1), origin top left, square in PDF points.
+         */
+        PosterRect: {
+            /**
+             * H
+             * @description Height, 0.03..1 of the page height.
+             */
+            h: number;
+            /**
+             * W
+             * @description Width, 0.03..1 of the page width.
+             */
+            w: number;
+            /**
+             * X
+             * @description Left edge, 0..1 of the page width.
+             */
+            x: number;
+            /**
+             * Y
+             * @description Top edge, 0..1 of the page height.
+             */
+            y: number;
+        };
+        /**
+         * PosterTemplate
+         * @description The stored template. The layout fields are null until the first layout save.
+         */
+        PosterTemplate: {
+            /**
+             * By
+             * @description Who uploaded it (audit actor).
+             */
+            by: string;
+            /**
+             * Bytes
+             * @description Size of the PDF.
+             */
+            bytes: number;
+            /**
+             * Page
+             * @description The poster page, 0-based.
+             */
+            page: number | null;
+            /**
+             * Page Height
+             * @description That page's height in PDF points (rotated).
+             */
+            page_height: number | null;
+            /**
+             * Page Width
+             * @description That page's width in PDF points (rotated).
+             */
+            page_width: number | null;
+            /**
+             * Pages
+             * @description Pages in the PDF, as the editor's PDF reader counted.
+             */
+            pages: number | null;
+            rect: components["schemas"]["PosterRect"] | null;
+            /**
+             * Sha256
+             * @description Hex SHA-256 of the PDF (a cache key for its bytes).
+             */
+            sha256: string;
+            /** Uploaded At */
+            uploaded_at: string;
         };
         /** PublicExtension */
         PublicExtension: {
@@ -4424,6 +4602,492 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["PhotoChangeOut"];
+                };
+            };
+            /** @description Invalid input (see `error`) */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Needs consent or an admin session */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Forbidden: banned, paused, stopped, joining closed or a foreign Origin (CSRF) */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Not found, or no party access (`scan_qr`) */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Content-Length required */
+            411: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Request too large */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Request validation failed (`invalid_request`) */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Rate limited (`Retry-After` header) */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    get_poster_api_admin_poster_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PosterOut"];
+                };
+            };
+            /** @description Invalid input (see `error`) */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Needs consent or an admin session */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Forbidden: banned, paused, stopped, joining closed or a foreign Origin (CSRF) */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Not found, or no party access (`scan_qr`) */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Content-Length required */
+            411: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Request too large */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Request validation failed (`invalid_request`) */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Rate limited (`Retry-After` header) */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    put_layout_api_admin_poster_layout_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PosterLayoutIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PosterOut"];
+                };
+            };
+            /** @description Invalid input (see `error`) */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Needs consent or an admin session */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Forbidden: banned, paused, stopped, joining closed or a foreign Origin (CSRF) */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Not found, or no party access (`scan_qr`) */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Content-Length required */
+            411: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Request too large */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Request validation failed (`invalid_request`) */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Rate limited (`Retry-After` header) */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    get_template_api_admin_poster_template_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The template PDF as an attachment (plakat-vorlage.pdf). */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/pdf": string;
+                };
+            };
+            /** @description Invalid input (see `error`) */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Needs consent or an admin session */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Forbidden: banned, paused, stopped, joining closed or a foreign Origin (CSRF) */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Not found, or no party access (`scan_qr`) */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Content-Length required */
+            411: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Request too large */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Request validation failed (`invalid_request`) */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Rate limited (`Retry-After` header) */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    put_template_api_admin_poster_template_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/pdf": string;
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PosterOut"];
+                };
+            };
+            /** @description Invalid input (see `error`) */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Needs consent or an admin session */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Forbidden: banned, paused, stopped, joining closed or a foreign Origin (CSRF) */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Not found, or no party access (`scan_qr`) */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Content-Length required */
+            411: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Request too large */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Request validation failed (`invalid_request`) */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Rate limited (`Retry-After` header) */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    delete_template_api_admin_poster_template_delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PosterOut"];
                 };
             };
             /** @description Invalid input (see `error`) */

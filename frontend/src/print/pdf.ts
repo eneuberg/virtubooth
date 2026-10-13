@@ -5,6 +5,7 @@
  */
 import { degrees, PDFDocument, StandardFonts, type PDFPage } from '@cantoo/pdf-lib';
 import { CAP_HEIGHT, COLORS, describe, drawCentred, drawLabel, drawQr, fitText } from './draw';
+import { PrintError } from './errors';
 import { A4, centredSquare, mm, placePage, relToPdf, type PageBox } from './geometry';
 import { qrMatrix } from './qr';
 import { drawStandardPoster } from './standardPoster';
@@ -89,10 +90,10 @@ async function templatePage(pdf: ArrayBuffer, index: number): Promise<PDFPage> {
     const source = await PDFDocument.load(pdf, { password: '', updateMetadata: false });
     pages = source.getPages();
   } catch {
-    throw new Error(TEMPLATE_UNREADABLE);
+    throw new PrintError(TEMPLATE_UNREADABLE);
   }
   const page = pages[index];
-  if (!page) throw new Error('Diese Seite gibt es in der Vorlage nicht mehr.');
+  if (!page) throw new PrintError('Diese Seite gibt es in der Vorlage nicht mehr.');
   return page;
 }
 
@@ -117,7 +118,7 @@ async function templatePoster(input: CodePrintInput, template: PosterTemplateInp
     // the template's content is copied (and can fail) only here
     return await doc.save();
   } catch {
-    throw new Error(TEMPLATE_UNREADABLE);
+    throw new PrintError(TEMPLATE_UNREADABLE);
   }
 }
 

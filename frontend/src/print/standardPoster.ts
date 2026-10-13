@@ -183,7 +183,7 @@ function drawGreasePencil(page: PDFPage, cx: number, cy: number): void {
     stroke(),
     // the second, thinner pass over part of the loop: a waxy double line
     setLineWidth(1.3),
-    ...ringPath(cx, cy, RING.a * 1.012, RING.b * 1.006, (-2.6 * Math.PI) / 180, 2.2, 3.3, 0.009, 2.1),
+    ...ringPath(cx, cy, RING.a * 1.006, RING.b * 1.004, (-3.3 * Math.PI) / 180, 2.4, 3.1, 0.009, 2.1),
     stroke(),
     popGraphicsState(),
   );

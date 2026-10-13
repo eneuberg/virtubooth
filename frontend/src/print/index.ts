@@ -15,6 +15,7 @@ import type { CodePrintInput, PosterTemplateInput } from './types';
 export type { CodePrintInput, PosterTemplateInput, RelRect } from './types';
 export { qrMatrix } from './qr';
 export { downloadBlob, exportFileName } from './names';
+export { PrintError } from './errors';
 
 /** The code as a PNG: black on white, 4-module quiet zone, ≥ `minSize` (1600) px, no label. */
 export async function qrPng(input: CodePrintInput, opts: { minSize?: number } = {}): Promise<Blob> {

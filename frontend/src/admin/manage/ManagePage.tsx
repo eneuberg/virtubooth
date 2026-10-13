@@ -10,6 +10,7 @@ import {
   Images,
   LayoutGrid,
   LogOut,
+  Printer,
   Radio,
   ScrollText,
   ShieldBan,
@@ -32,6 +33,7 @@ import { OverviewSection } from '../dashboard/OverviewSection';
 import { QuickControls } from '../dashboard/QuickControls';
 import { StatusStrip } from '../dashboard/StatusStrip';
 import { DESKTOP, useMediaQuery } from '../lib/browser';
+import { PosterSection } from '../poster/PosterSection';
 import { logout } from '../store/actions';
 import { useStats } from '../store/hooks';
 import { useDocumentSurface } from '../surface';
@@ -52,6 +54,7 @@ const SECTION_VIEW: Record<Section, ComponentType> = {
   sperren: BansSection,
   protokoll: AuditSection,
   export: ExportSection,
+  plakat: PosterSection,
   uebersicht: OverviewSection,
 };
 
@@ -68,6 +71,7 @@ function navItems(stats: AdminStats | undefined) {
     navItem('sperren', 'Sperren', ShieldBan, stats ? stats.banned + stats.fingerprint_bans : undefined),
     navItem('protokoll', 'Protokoll', ScrollText),
     navItem('export', 'Export', Archive),
+    navItem('plakat', 'Plakat', Printer),
   ];
 }
 
