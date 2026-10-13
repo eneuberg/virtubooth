@@ -1,10 +1,17 @@
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import '@/styles/app.css';
+import { UiProvider } from '@/ui/UiProvider';
+import { Gallery } from './Gallery';
 
-createRoot(document.getElementById('app')!).render(
-  <StrictMode>
-    <p className="p-4 text-lg">Galerie</p>
-  </StrictMode>,
-);
+const root = document.getElementById('app');
+if (root) {
+  createRoot(root).render(
+    <StrictMode>
+      <UiProvider>
+        <Gallery />
+      </UiProvider>
+    </StrictMode>,
+  );
+}
 window.__vbReady = true;

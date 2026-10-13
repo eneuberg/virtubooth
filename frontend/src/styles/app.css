@@ -230,6 +230,7 @@
   --color-line: var(--s-line);
   --color-line-strong: var(--s-line-strong);
   --color-field: var(--s-field);
+  --color-field-bg: var(--s-field-bg);
   --color-accent: var(--color-safelight);
   --color-accent-hover: var(--color-safelight-hi);
   --color-on-accent: var(--s-on-accent);
@@ -264,6 +265,7 @@
     --s-line: rgb(251 239 233 / 0.14);
     --s-line-strong: rgb(251 239 233 / 0.3);
     --s-field: rgb(251 239 233 / 0.42);
+    --s-field-bg: var(--color-rot-950);
     --s-on-accent: var(--color-rot-900);
     --s-accent-ink: var(--color-safelight);
     --s-accent-tint: rgb(255 166 48 / 0.16);
@@ -287,6 +289,7 @@
     --s-line: var(--color-negativ-line);
     --s-line-strong: #aeb7c2;
     --s-field: var(--color-negativ-field);
+    --s-field-bg: var(--color-leuchttisch-weiss);
     --s-on-accent: var(--color-negativ);
     --s-accent-ink: var(--color-bernstein);
     --s-accent-tint: rgb(255 166 48 / 0.18);
@@ -338,6 +341,13 @@
   textarea,
   label {
     touch-action: manipulation;
+  }
+  /* React Aria used to inject these as runtime <style> (CSP); see patches/react-aria@3.53.1.patch */
+  [data-react-aria-pressable] {
+    touch-action: pan-x pan-y pinch-zoom;
+  }
+  [data-vb-scroll-lock] * {
+    overscroll-behavior: contain;
   }
   :focus-visible {
     outline: 2px solid var(--s-focus);
@@ -401,9 +411,9 @@
   .vb-screen--boot {
     z-index: var(--z-boot);
   }
+  /* in the page flow (a section, the gallery); add min-h-dvh for a whole page */
   .vb-screen--static {
     position: static;
-    min-height: 100dvh;
   }
   .vb-screen-inner {
     display: grid;

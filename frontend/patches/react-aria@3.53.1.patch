@@ -1,0 +1,183 @@
+diff --git a/dist/private/interactions/usePress.cjs b/dist/private/interactions/usePress.cjs
+index a26db2c5a0c548a3dfbb33aa5544e0659c36ab30..fb071cdebede1bff5b662cd2d6fea2839f237e8a 100644
+--- a/dist/private/interactions/usePress.cjs
++++ b/dist/private/interactions/usePress.cjs
+@@ -588,21 +588,8 @@ function $1d003dcb6308cd89$export$45712eceda6fad21(props) {
+         if (!domRef || process.env.NODE_ENV === 'test') return;
+         const ownerDocument = (0, $49582955cc364b1c$exports.getOwnerDocument)(domRef.current);
+         if (!ownerDocument || !ownerDocument.head || ownerDocument.getElementById($1d003dcb6308cd89$var$STYLE_ID)) return;
+-        const style = ownerDocument.createElement('style');
+-        style.id = $1d003dcb6308cd89$var$STYLE_ID;
+-        let nonce = (0, $a9ae3cc70c0e2090$exports.getNonce)(ownerDocument);
+-        if (nonce) style.nonce = nonce;
+-        // touchAction: 'manipulation' is supposed to be equivalent, but in
+-        // Safari it causes onPointerCancel not to fire on scroll.
+-        // https://bugs.webkit.org/show_bug.cgi?id=240917
+-        style.textContent = `
+-@layer {
+-  [${$1d003dcb6308cd89$var$PRESSABLE_ATTRIBUTE}] {
+-    touch-action: pan-x pan-y pinch-zoom;
+-  }
+-}
+-    `.trim();
+-        ownerDocument.head.prepend(style);
++        // virtubooth patch: no runtime <style> (CSP style-src 'self'). The same rule,
++        // [data-react-aria-pressable] { touch-action: pan-x pan-y pinch-zoom }, is in app.css.
+     }, [
+         domRef
+     ]);
+diff --git a/dist/private/interactions/usePress.js b/dist/private/interactions/usePress.js
+index 26e9323164b68aa796b4613c5ab24752d214e570..3593ee418d79dbf521572d376bf74fe73670801d 100644
+--- a/dist/private/interactions/usePress.js
++++ b/dist/private/interactions/usePress.js
+@@ -597,21 +597,8 @@ function $a87f4c40785e693b$export$45712eceda6fad21(props) {
+         if (!domRef || process.env.NODE_ENV === 'test') return;
+         const ownerDocument = (0, $cc3c3666b64debad$export$b204af158042fbac)(domRef.current);
+         if (!ownerDocument || !ownerDocument.head || ownerDocument.getElementById($a87f4c40785e693b$var$STYLE_ID)) return;
+-        const style = ownerDocument.createElement('style');
+-        style.id = $a87f4c40785e693b$var$STYLE_ID;
+-        let nonce = (0, $fb5d33e131fca75a$export$2b85b721e524d74b)(ownerDocument);
+-        if (nonce) style.nonce = nonce;
+-        // touchAction: 'manipulation' is supposed to be equivalent, but in
+-        // Safari it causes onPointerCancel not to fire on scroll.
+-        // https://bugs.webkit.org/show_bug.cgi?id=240917
+-        style.textContent = `
+-@layer {
+-  [${$a87f4c40785e693b$var$PRESSABLE_ATTRIBUTE}] {
+-    touch-action: pan-x pan-y pinch-zoom;
+-  }
+-}
+-    `.trim();
+-        ownerDocument.head.prepend(style);
++        // virtubooth patch: no runtime <style> (CSP style-src 'self'). The same rule,
++        // [data-react-aria-pressable] { touch-action: pan-x pan-y pinch-zoom }, is in app.css.
+     }, [
+         domRef
+     ]);
+diff --git a/dist/private/interactions/usePress.mjs b/dist/private/interactions/usePress.mjs
+index a966cad62b591a96ff388b8416e63006013458fb..4fc90bd9ef28a60eee2e87cb2a1b3023b786de69 100644
+--- a/dist/private/interactions/usePress.mjs
++++ b/dist/private/interactions/usePress.mjs
+@@ -582,21 +582,8 @@ function $d27d541f9569d26d$export$45712eceda6fad21(props) {
+         if (!domRef || process.env.NODE_ENV === 'test') return;
+         const ownerDocument = (0, $d447af545b77c9f1$export$b204af158042fbac)(domRef.current);
+         if (!ownerDocument || !ownerDocument.head || ownerDocument.getElementById($d27d541f9569d26d$var$STYLE_ID)) return;
+-        const style = ownerDocument.createElement('style');
+-        style.id = $d27d541f9569d26d$var$STYLE_ID;
+-        let nonce = (0, $2b2d34ff061957fb$export$2b85b721e524d74b)(ownerDocument);
+-        if (nonce) style.nonce = nonce;
+-        // touchAction: 'manipulation' is supposed to be equivalent, but in
+-        // Safari it causes onPointerCancel not to fire on scroll.
+-        // https://bugs.webkit.org/show_bug.cgi?id=240917
+-        style.textContent = `
+-@layer {
+-  [${$d27d541f9569d26d$var$PRESSABLE_ATTRIBUTE}] {
+-    touch-action: pan-x pan-y pinch-zoom;
+-  }
+-}
+-    `.trim();
+-        ownerDocument.head.prepend(style);
++        // virtubooth patch: no runtime <style> (CSP style-src 'self'). The same rule,
++        // [data-react-aria-pressable] { touch-action: pan-x pan-y pinch-zoom }, is in app.css.
+     }, [
+         domRef
+     ]);
+diff --git a/dist/private/overlays/usePreventScroll.cjs b/dist/private/overlays/usePreventScroll.cjs
+index 225afe6637cd3193361c0bf61b354696ce0686f4..4b7b931d9b4af6bae48c760b3a3e4a988ea3111a 100644
+--- a/dist/private/overlays/usePreventScroll.cjs
++++ b/dist/private/overlays/usePreventScroll.cjs
+@@ -107,16 +107,9 @@ function $b5daf4744c764686$var$preventScrollMobileWebKit() {
+     // of a nested scrollable area, otherwise mobile Safari will start scrolling
+     // the window instead.
+     // This must be applied before the touchstart event as of iOS 26, so inject it as a <style> element.
+-    let style = document.createElement('style');
+-    let nonce = (0, $a9ae3cc70c0e2090$exports.getNonce)();
+-    if (nonce) style.nonce = nonce;
+-    style.textContent = `
+-@layer {
+-  * {
+-    overscroll-behavior: contain;
+-  }
+-}`.trim();
+-    document.head.prepend(style);
++    // virtubooth patch: no runtime <style> (CSP style-src 'self'). app.css applies
++    // `* { overscroll-behavior: contain }` while this attribute is set.
++    document.documentElement.setAttribute('data-vb-scroll-lock', '');
+     let onTouchMove = (e)=>{
+         // Allow pinch-zooming.
+         if (e.touches.length === 2 || allowTouchMove) return;
+@@ -144,7 +137,7 @@ function $b5daf4744c764686$var$preventScrollMobileWebKit() {
+     return ()=>{
+         restoreOverflow();
+         removeEvents();
+-        style.remove();
++        document.documentElement.removeAttribute('data-vb-scroll-lock');
+         restoreFocus();
+     };
+ }
+diff --git a/dist/private/overlays/usePreventScroll.js b/dist/private/overlays/usePreventScroll.js
+index 7009ec673b786c882a08b3ae917bda22a42f42ae..024eb43a4459a9c5c3f228e7d594a75310d6133b 100644
+--- a/dist/private/overlays/usePreventScroll.js
++++ b/dist/private/overlays/usePreventScroll.js
+@@ -101,16 +101,9 @@ function $100c50c02aceaf6e$var$preventScrollMobileWebKit() {
+     // of a nested scrollable area, otherwise mobile Safari will start scrolling
+     // the window instead.
+     // This must be applied before the touchstart event as of iOS 26, so inject it as a <style> element.
+-    let style = document.createElement('style');
+-    let nonce = (0, $fb5d33e131fca75a$export$2b85b721e524d74b)();
+-    if (nonce) style.nonce = nonce;
+-    style.textContent = `
+-@layer {
+-  * {
+-    overscroll-behavior: contain;
+-  }
+-}`.trim();
+-    document.head.prepend(style);
++    // virtubooth patch: no runtime <style> (CSP style-src 'self'). app.css applies
++    // `* { overscroll-behavior: contain }` while this attribute is set.
++    document.documentElement.setAttribute('data-vb-scroll-lock', '');
+     let onTouchMove = (e)=>{
+         // Allow pinch-zooming.
+         if (e.touches.length === 2 || allowTouchMove) return;
+@@ -138,7 +131,7 @@ function $100c50c02aceaf6e$var$preventScrollMobileWebKit() {
+     return ()=>{
+         restoreOverflow();
+         removeEvents();
+-        style.remove();
++        document.documentElement.removeAttribute('data-vb-scroll-lock');
+         restoreFocus();
+     };
+ }
+diff --git a/dist/private/overlays/usePreventScroll.mjs b/dist/private/overlays/usePreventScroll.mjs
+index 5e0b590b70f9d747fd6fd98727f5b6316bce3d0c..9280ee1393a3bf41102f5cd1467f218260cbd3d9 100644
+--- a/dist/private/overlays/usePreventScroll.mjs
++++ b/dist/private/overlays/usePreventScroll.mjs
+@@ -101,16 +101,9 @@ function $0644e3663365bfe5$var$preventScrollMobileWebKit() {
+     // of a nested scrollable area, otherwise mobile Safari will start scrolling
+     // the window instead.
+     // This must be applied before the touchstart event as of iOS 26, so inject it as a <style> element.
+-    let style = document.createElement('style');
+-    let nonce = (0, $2b2d34ff061957fb$export$2b85b721e524d74b)();
+-    if (nonce) style.nonce = nonce;
+-    style.textContent = `
+-@layer {
+-  * {
+-    overscroll-behavior: contain;
+-  }
+-}`.trim();
+-    document.head.prepend(style);
++    // virtubooth patch: no runtime <style> (CSP style-src 'self'). app.css applies
++    // `* { overscroll-behavior: contain }` while this attribute is set.
++    document.documentElement.setAttribute('data-vb-scroll-lock', '');
+     let onTouchMove = (e)=>{
+         // Allow pinch-zooming.
+         if (e.touches.length === 2 || allowTouchMove) return;
+@@ -138,7 +131,7 @@ function $0644e3663365bfe5$var$preventScrollMobileWebKit() {
+     return ()=>{
+         restoreOverflow();
+         removeEvents();
+-        style.remove();
++        document.documentElement.removeAttribute('data-vb-scroll-lock');
+         restoreFocus();
+     };
+ }

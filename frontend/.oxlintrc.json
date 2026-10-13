@@ -111,6 +111,12 @@
       }
     },
     {
+      "files": ["src/ui/**"],
+      "rules": {
+        "react/only-export-components": "off"
+      }
+    },
+    {
       "files": ["**/*.test.ts", "**/*.test.tsx", "src/test/**"],
       "rules": {
         "typescript/no-floating-promises": "off",
