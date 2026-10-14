@@ -3,7 +3,7 @@ import { guardedNavigate, setLeaveGuard } from './leaveGuard';
 
 describe('leaveGuard', () => {
   it('runs the navigation at once without a guard', () => {
-    const go = vi.fn();
+    const go = vi.fn<() => void>();
     guardedNavigate(go);
     expect(go).toHaveBeenCalledOnce();
   });
@@ -14,7 +14,7 @@ describe('leaveGuard', () => {
       held = proceed;
       return true;
     });
-    const go = vi.fn();
+    const go = vi.fn<() => void>();
     guardedNavigate(go);
     expect(go).not.toHaveBeenCalled();
     expect(held).toBe(go);
@@ -27,7 +27,7 @@ describe('leaveGuard', () => {
     const removeOld = setLeaveGuard(() => true);
     const removeNew = setLeaveGuard(() => false);
     removeOld();
-    const go = vi.fn();
+    const go = vi.fn<() => void>();
     guardedNavigate(go);
     expect(go).toHaveBeenCalledOnce();
     removeNew();
