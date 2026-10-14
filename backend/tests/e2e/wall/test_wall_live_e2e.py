@@ -94,7 +94,7 @@ def test_wall_with_the_real_backend(admin: Page, tv: Page, live: LiveServer) -> 
     wait_live(admin)
     card(admin, photo_id).get_by_role("button", name=re.compile("ausblenden$")).click()
     expect(toast(admin)).to_contain_text("ausgeblendet")
-    expect(tv.locator(f".wall-slide[data-photo={photo_id}]")).to_have_count(0, timeout=5000)
+    expect(tv.locator(f'.wall-slide[data-photo="{photo_id}"]')).to_have_count(0, timeout=5000)
     expect(tv.get_by_test_id("wall-empty")).to_contain_text("Noch keine Fotos.")
 
     # a new password logs every wall out (`bye`): back to the login
