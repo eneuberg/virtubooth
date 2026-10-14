@@ -419,7 +419,10 @@ flowchart LR
 - **Screen API under `/livewall/api`, not `/api/x/wall`:** the wall cookie
   `vb_wall` is scoped to `Path=/livewall` (page, API and images, nothing else),
   and the TV never shares the per-IP `/api/` budget of the venue Wi-Fi (the same
-  reasoning as `/media/`). The login has its own limiter (5/min, 20/h per IP).
+  reasoning as `/media/`). The login has its own limiter (5/min, 20/h per IP)
+  and its own global lock: after 20 wrong wall passwords within 15 minutes, from
+  any address, every wall login is refused for 5 minutes (429 `login_locked`),
+  the right password too; logged-in walls and admin sessions keep working.
   The cookie is `signer.sign("wall", "<gen>.<issued>")`; the generation in
   `x.wall.password` grows on every password change, removal or „Alle Wände
   abmelden“, which ends every wall. An admin session passes too. The password

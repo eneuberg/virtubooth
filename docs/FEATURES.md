@@ -689,7 +689,9 @@ Aktivität; sie steht nicht auf Start. Einstellungen im Tab „Live-Wall“ der 
   ohne Passwort. Passwort ändern, entfernen oder „Alle Wände abmelden“ meldet jede
   offene Wand sofort ab. „Live-Wall öffnen“ öffnet sie in einem neuen Tab; die Zahl der
   offenen Wände steht daneben. Falsche Passwörter: höchstens 5 pro Minute und 20 pro
-  Stunde je Adresse, jedes im Protokoll.
+  Stunde je Adresse, jedes im Protokoll. Nach 20 falschen Passwörtern in 15 Minuten,
+  egal von wo, ist die Anmeldung 5 Minuten lang für alle gesperrt („Zu viele
+  Fehlversuche“), auch mit dem richtigen Passwort; angemeldete Wände laufen weiter.
 - **Ablauf:** drei Modi im Wechsel, Reihenfolge und Dauer frei (10 s bis 1 h, mindestens
   einer an):
   - **Einzelbild:** ein Foto groß mit „von <Pseudonym>“, optional dem Instagram-Namen

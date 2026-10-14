@@ -8,7 +8,7 @@ import time
 import pytest
 
 from virtubooth.extensions.wall import make_extension
-from virtubooth.extensions.wall.auth import COOKIE, PASSWORD_KEY
+from virtubooth.extensions.wall.auth import COOKIE, LOCK_SECONDS, PASSWORD_KEY
 
 from ..conftest import ORIGIN
 from .wall_support import (
@@ -120,6 +120,39 @@ def test_login_rate_limit(client, admin):
     r = wall_login(client)
     assert r.status_code == 429 and r.json()["error"] == "rate_limited"
     assert int(r.headers["retry-after"]) >= 1
+
+
+def test_global_lockout(make_client, admin, core):
+    """Review 2, WALL-01: wrong passwords from many addresses lock every wall
+    login, the right password included; walls already in and admins keep working."""
+    set_wall_password(admin)
+    inside = make_client()
+    assert wall_login(inside).status_code == 200
+    wall = core.extensions["wall"].on_start.__self__  # the extension's Wall
+    limits = wall.hub(core).login_limits
+    limits.failures = type(limits.failures)(3, 3600)
+    codes = []
+    for i in range(4):
+        # pretend every attempt comes from a different address
+        limits.per_minute.reset()
+        limits.per_hour.reset()
+        r = wall_login(make_client(), f"falsch-{i}-wort")
+        codes.append((r.status_code, r.json()["error"]))
+    assert codes == [
+        (403, "wrong_password"),
+        (403, "wrong_password"),
+        (429, "login_locked"),
+        (429, "login_locked"),
+    ]
+    limits.per_minute.reset()
+    r = wall_login(make_client())
+    assert r.status_code == 429 and r.json()["error"] == "login_locked"
+    assert 1 <= int(r.headers["retry-after"]) <= LOCK_SECONDS
+    assert r.headers["cache-control"] == "no-store" and "set-cookie" not in r.headers
+    assert inside.get("/livewall/api/feed").status_code == 200
+    assert admin.get("/livewall/api/feed").status_code == 200
+    limits.lock.reset()  # the lock is over (or the server restarted)
+    assert wall_login(make_client()).status_code == 200
 
 
 def test_login_needs_same_origin(client, admin):
