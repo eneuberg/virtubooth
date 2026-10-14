@@ -68,6 +68,10 @@ def test_login_then_spotlight_photo(tv_page: Page, wall_fake: WallFake) -> None:
     expect(slide.locator(".wall-caption")).to_contain_text("@lena.knipst")
     expect(slide.locator(".wall-caption")).to_contain_text("vor 3 Min.")
     expect(slide.locator("img")).to_have_js_property("complete", True)
+    # the first photo stays (a second step at the start used to replace it at once)
+    tv_page.wait_for_timeout(1500)
+    expect(tv_page.locator(".wall-stage .wall-slide")).to_have_count(1)
+    expect(slide).to_have_attribute("data-photo", "ph0002")
     corner = tv_page.get_by_test_id("wall-corner")
     expect(corner).to_contain_text("E2E Party")
     expect(corner).to_contain_text("2 Fotos")
@@ -247,6 +251,21 @@ def _seed_party(fake: WallFake) -> None:
     ]
 
 
+SHOT_TRANSITIONS = [
+    "polaroid",
+    "glitch",
+    "pixelate",
+    "dither",
+    "confetti",
+    "stamp",
+    "spring",
+    "slot",
+    "jelly",
+    "kenburns",
+    "crossfade",
+]
+
+
 def _only(mode: str) -> list[dict[str, Any]]:
     return [
         {"mode": m, "enabled": m == mode, "duration_s": 600}
@@ -291,39 +310,62 @@ def test_wall_screenshots(tv_page: Page, wall_fake: WallFake) -> None:
     shot(page, "wall_empty", 1200)
 
     _seed_party(wall_fake)
-    # spotlight: settled, then mid-transition for a few kinds (each with another background)
-    looks = {
-        "polaroid": "blobs",
-        "pixelate": "aurora",
-        "glitch": "disco",
-        "confetti": "confetti",
-        "stamp": "blobs",
-    }
-    for kind, preset in looks.items():
+    # spotlight: settled once, then every transition mid-way (the backgrounds take turns);
+    # glitch and polaroid a second time later on
+    presets = ["blobs", "aurora", "disco", "confetti"]
+    for i, kind in enumerate(SHOT_TRANSITIONS):
         wall_fake.config["playlist"] = _only("spotlight")
         wall_fake.config["spotlight"] = {
             "algorithm": "shuffle",
             "n": 12,
-            "interval_s": 8 if kind == "polaroid" else 3,  # time for a settled shot
+            "interval_s": 3,
             "transition": kind,
             "transition_ms": 2400,
         }
-        wall_fake.config["look"] = {**wall_fake.config["look"], "preset": preset}
+        wall_fake.config["look"] = {**wall_fake.config["look"], "preset": presets[i % 4]}
         page.reload(wait_until=LOADED)
         page.locator(".wall-stage .wall-slide").first.wait_for()
-        if kind == "polaroid":
-            _wait_settled(page)
-            shot(page, f"wall_spotlight_{kind}_settled", 300)
-        page.wait_for_timeout(500)
+        _wait_settled(page)
+        if i == 0:
+            shot(page, "wall_spotlight_settled", 300)
         _wait_transition(page, kind)
-        page.wait_for_timeout(700 if kind != "stamp" else 900)
+        page.wait_for_timeout(500 if kind in ("glitch", "polaroid") else 800)
         shot(page, f"wall_spotlight_{kind}_midway", 0)
+        if kind in ("glitch", "polaroid"):
+            shot(page, f"wall_spotlight_{kind}_later", 500)
 
-    # gallery
+    # the QR code in the bottom left corner next to a landscape photo
+    wall_fake.qr = {"url": "/?t=abc", "name": "Eingang"}
+    wall_fake.config["overlay"] = {
+        **wall_fake.config["overlay"],
+        "qr": True,
+        "corner": "bottom-left",
+    }
+    wall_fake.config["spotlight"] = {**STILL, "algorithm": "newest"}
+    wall_fake.add(wall_photo(40, "Funky Flamingo", minutes_ago=1) | {"width": 1600, "height": 900})
+    page.reload(wait_until=LOADED)
+    _wait_settled(page)
+    shot(page, "wall_spotlight_qr_bottom_left", 600)
+    expect(shown_photo(page)).to_have_attribute("data-photo", "ph0040")
+    wall_fake.photos.pop(0)
+    wall_fake.config["overlay"] = {**wall_fake.config["overlay"], "corner": "bottom-right"}
+
+    # a mode change: spotlight fades out over the gallery fading in
+    wall_fake.config["playlist"] = [
+        {"mode": "spotlight", "enabled": True, "duration_s": 3},
+        {"mode": "gallery", "enabled": True, "duration_s": 600},
+        {"mode": "categories", "enabled": False, "duration_s": 600},
+    ]
+    page.reload(wait_until=LOADED)
+    page.locator(".wall-mode[data-leaving]").wait_for(timeout=10_000)
+    shot(page, "wall_mode_crossfade", 250)
+
+    # gallery: the entry, then running
     wall_fake.config["playlist"] = _only("gallery")
     wall_fake.config["look"] = {**wall_fake.config["look"], "preset": "blobs"}
     page.reload(wait_until=LOADED)
     page.get_by_test_id("wall-gallery").wait_for()
+    shot(page, "wall_gallery_entering", 250)
     shot(page, "wall_gallery_1", 1500)
     shot(page, "wall_gallery_2", 3000)
 
