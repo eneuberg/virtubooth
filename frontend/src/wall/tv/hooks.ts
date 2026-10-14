@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { isFullscreen, toggleFullscreen } from './screen';
+import { FULLSCREEN_EVENTS, isFullscreen, toggleFullscreen } from './screen';
 
 /** true after `ms` without mouse, touch or key input */
 export function useIdle(ms: number): boolean {
@@ -23,7 +23,7 @@ export function useIdle(ms: number): boolean {
 
 /** Fullscreen state; the `F` key toggles it (Esc leaves natively). */
 export function useFullscreen(): boolean {
-  const [full, setFull] = useState(isFullscreen);
+  const [full, setFull] = useState(() => isFullscreen());
   useEffect(() => {
     const onChange = (): void => setFull(isFullscreen());
     const onKey = (e: KeyboardEvent): void => {
@@ -34,10 +34,10 @@ export function useFullscreen(): boolean {
       e.preventDefault();
       void toggleFullscreen();
     };
-    document.addEventListener('fullscreenchange', onChange);
+    for (const e of FULLSCREEN_EVENTS) document.addEventListener(e, onChange);
     window.addEventListener('keydown', onKey);
     return () => {
-      document.removeEventListener('fullscreenchange', onChange);
+      for (const e of FULLSCREEN_EVENTS) document.removeEventListener(e, onChange);
       window.removeEventListener('keydown', onKey);
     };
   }, []);
