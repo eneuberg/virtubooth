@@ -16,6 +16,8 @@ from urllib.parse import urlparse
 import pytest
 from playwright.sync_api import Page, Route, expect
 
+from virtubooth.extensions.sdk import discover_extensions
+
 from ..conftest import LiveServer
 from .conftest import Guest, errors, goto, no_horizontal_scroll, toast
 
@@ -355,6 +357,9 @@ def test_inspector_shows_the_analysis(
     assert errors(page) == []
 
 
+@pytest.mark.parametrize(
+    "e2e_extensions", [discover_extensions(["beer", "booth"])], ids=["without-wall"]
+)
 def test_without_the_wall_extension_the_inspector_has_no_panel(
     desktop_page: Page, live: LiveServer, guests: Callable[..., Guest]
 ) -> None:
