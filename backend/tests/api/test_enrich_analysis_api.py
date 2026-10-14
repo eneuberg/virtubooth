@@ -3,7 +3,7 @@ router under the wall extension's prefix `/api/x/wall`."""
 
 from __future__ import annotations
 
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 
 import pytest
 
@@ -77,6 +77,27 @@ def test_status_uses_a_fresh_heartbeat(admin, core):
     assert body["worker"]["state"] == "running" and body["worker"]["ml"] is True
     analyzers = {a["name"]: a for a in body["analyzers"]}
     assert analyzers["faces"]["available"] is True and analyzers["emotion"]["available"] is True
+    # an older beat without the numbers: nothing to show
+    assert body["worker"]["processed"] is None and body["worker"]["rss_mb"] is None
+    assert body["worker"]["load_errors"] == {}
+
+
+def test_status_passes_the_heartbeat_numbers(admin, core):
+    now = datetime.now(UTC).isoformat()
+    beat = {"pid": 1, "beat_at": now, "ml": True, "models_missing": [], "processed": 1234,
+            "rss_mb": 411.6, "load_errors": {"age": "Modell kaputt"}}  # fmt: skip
+    core.repos.app_settings.put(jobs.WORKER_KEY, beat, at=now)
+    worker = admin.get(f"{BASE}/analysis").json()["worker"]
+    assert worker["processed"] == 1234 and worker["rss_mb"] == 412
+    assert worker["load_errors"] == {"age": "Modell kaputt"}
+
+    # a stale beat: the process is gone, its numbers mean nothing any more
+    old = (datetime.now(UTC) - timedelta(hours=1)).isoformat()
+    core.repos.app_settings.put(jobs.WORKER_KEY, {**beat, "beat_at": old}, at=old)
+    worker = admin.get(f"{BASE}/analysis").json()["worker"]
+    assert worker["last_beat_at"] == old
+    assert worker["processed"] is None and worker["rss_mb"] is None
+    assert worker["load_errors"] == {}
 
 
 def test_toggles(admin, core):

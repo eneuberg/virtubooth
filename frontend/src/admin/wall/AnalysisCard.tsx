@@ -31,8 +31,8 @@ const WORKER_TONE: Record<WorkerState, 'ok' | 'amber' | 'neutral' | 'mark'> = {
 };
 
 /**
- * The worker's heartbeat: state, when it last reported, and (once the API passes them
- * on) how many photos it did, its memory and the analyzers that failed to load.
+ * The worker's heartbeat: state, when it last reported, and (while it beats) how many
+ * photos it did, its memory and the analyzers that failed to load.
  */
 function WorkerStatus({
   worker,
@@ -42,7 +42,7 @@ function WorkerStatus({
   analyzers: AnalysisStatus['analyzers'];
 }) {
   const titles = new Map(analyzers.map((a) => [a.name, a.title]));
-  const loadErrors = Object.entries(worker.load_errors ?? {});
+  const loadErrors = Object.entries(worker.load_errors);
   return (
     <div className="grid gap-2" data-testid="wall-worker">
       <dl className="grid grid-cols-[auto_minmax(0,1fr)] items-baseline gap-x-5 gap-y-1.5 text-sm">

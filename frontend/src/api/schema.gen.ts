@@ -4268,6 +4268,13 @@ export interface components {
             /** Last Beat At */
             last_beat_at: string | null;
             /**
+             * Load Errors
+             * @description Analyzers whose models failed to load: name -> error. Empty without a fresh heartbeat.
+             */
+            load_errors: {
+                [key: string]: string;
+            };
+            /**
              * Message
              * @description German hint for the admin, e.g. missing models.
              */
@@ -4277,6 +4284,16 @@ export interface components {
              * @description The worker has the ML packages (`ml` extra).
              */
             ml: boolean;
+            /**
+             * Processed
+             * @description Photos the running worker analysed since it started; null without a fresh heartbeat.
+             */
+            processed: number | null;
+            /**
+             * Rss Mb
+             * @description The worker's memory (resident set, MB); null without a fresh heartbeat.
+             */
+            rss_mb: number | null;
             /**
              * State
              * @enum {string}

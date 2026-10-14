@@ -138,7 +138,7 @@ class FakeWall:
         ]
         return {
             "worker": {"state": "running", "ml": True, "message": None, "last_beat_at": now(),
-                       **self.worker},
+                       "processed": None, "rss_mb": None, "load_errors": {}, **self.worker},
             "counts": {"pending": 2, "running": 1, "done": 12, "failed": 1, "skipped": 0,
                        "total": 16},
             "analyzers": [

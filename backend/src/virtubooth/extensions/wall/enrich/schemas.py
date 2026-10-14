@@ -15,6 +15,15 @@ class WorkerStatus(BaseModel):
     ml: bool = Field(description="The worker has the ML packages (`ml` extra).")
     message: str | None = Field(description="German hint for the admin, e.g. missing models.")
     last_beat_at: str | None
+    processed: int | None = Field(
+        description="Photos the running worker analysed since it started; null without a fresh heartbeat."
+    )
+    rss_mb: int | None = Field(
+        description="The worker's memory (resident set, MB); null without a fresh heartbeat."
+    )
+    load_errors: dict[str, str] = Field(
+        description="Analyzers whose models failed to load: name -> error. Empty without a fresh heartbeat."
+    )
 
 
 class AnalysisCounts(BaseModel):

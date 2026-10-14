@@ -158,13 +158,13 @@ export interface AnalysisStatus {
     message: string | null;
     last_beat_at: string | null;
     /**
-     * From the worker's heartbeat, once the API passes them on (optional: older
-     * servers leave them out): photos done since the worker started, its memory in
-     * MB, and the analyzers that failed to load (name: error).
+     * From a fresh heartbeat of the worker (null / empty without one): photos done
+     * since the worker started, its memory in MB, and the analyzers that failed to
+     * load (name: error).
      */
-    processed?: number | null;
-    rss_mb?: number | null;
-    load_errors?: Record<string, string> | null;
+    processed: number | null;
+    rss_mb: number | null;
+    load_errors: Record<string, string>;
   };
   counts: { pending: number; running: number; done: number; failed: number; skipped: number; total: number };
   analyzers: Analyzer[];
