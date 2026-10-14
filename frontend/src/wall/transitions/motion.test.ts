@@ -23,9 +23,7 @@ describe('glitch slices', () => {
   it('the old photo fills exactly what the band leaves out', () => {
     const s = { top: 20, bottom: 30, x: 0, y: 0 };
     expect(bandClip(s)).toBe('inset(20% 0 30% 0)');
-    expect(outsideClip(s)).toBe(
-      'polygon(0 0, 100% 0, 100% 20%, 0 20%, 0 70%, 100% 70%, 100% 100%, 0 100%)',
-    );
+    expect(outsideClip(s)).toBe('polygon(0 0, 100% 0, 100% 20%, 0 20%, 0 70%, 100% 70%, 100% 100%, 0 100%)');
     // settled: the band is everything, the outside collapses to nothing
     expect(outsideClip({ top: 0, bottom: 0, x: 0, y: 0 })).toContain('100% 0%, 0 0%, 0 100%');
   });

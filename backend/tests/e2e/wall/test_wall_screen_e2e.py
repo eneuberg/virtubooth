@@ -167,6 +167,48 @@ def test_playlist_rotates_through_the_modes(tv_page: Page, wall_fake: WallFake) 
     assert js_errors(tv_page) == []
 
 
+CORNERS = ("bottom-right", "bottom-left", "top-left", "top-right")
+
+
+def _boxes_overlap(a: dict[str, float], b: dict[str, float]) -> bool:
+    return (
+        a["x"] < b["x"] + b["width"]
+        and a["x"] + a["width"] > b["x"]
+        and a["y"] < b["y"] + b["height"]
+        and a["y"] + a["height"] > b["y"]
+    )
+
+
+@pytest.mark.parametrize("aspect", ["landscape", "portrait"])
+def test_caption_stays_clear_of_the_corner(
+    tv_page: Page, wall_fake: WallFake, aspect: str
+) -> None:
+    """In every corner, with the QR code, a long event name and a long caption."""
+    wall_fake.session = "ok"
+    wall_fake.event_name = "Sommerfest der Abteilung 2026"
+    wall_fake.qr = {"url": "/?t=abc", "name": "Eingang"}
+    wall_fake.config["spotlight"] = dict(STILL)
+    wall_fake.config["show_instagram"] = True
+    wall_fake.config["overlay"] = {**wall_fake.config["overlay"], "qr": True}
+    photo = wall_photo(1, "Funky Flamingo mit Sonnenbrille", instagram="flamingo.party.2026")
+    if aspect == "landscape":
+        photo |= {"width": 1600, "height": 900}
+    wall_fake.add(photo)
+    open_wall(tv_page, wall_fake)
+    caption = tv_page.locator(".wall-stage .wall-slide .wall-caption").last
+    corner = tv_page.get_by_test_id("wall-corner")
+    expect(tv_page.get_by_test_id("wall-qr")).to_be_visible()
+    for name in CORNERS:
+        if name != "bottom-right":
+            wall_fake.set_config(overlay={"corner": name})
+        expect(corner).to_have_attribute("data-corner", name, timeout=5000)
+        tv_page.wait_for_timeout(300)  # the card is fitted again after the config event
+        cap, box = caption.bounding_box(), corner.bounding_box()
+        assert cap and box
+        assert not _boxes_overlap(cap, box), f"caption under the {name} corner: {cap} / {box}"
+    assert js_errors(tv_page) == []
+
+
 # ------------------------------------------------------------------ screenshots
 
 CATEGORY_NAMES = [
