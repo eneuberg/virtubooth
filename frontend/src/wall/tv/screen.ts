@@ -38,7 +38,7 @@ export function keepScreenOn(): () => void {
  * 16.4 only have webkitRequestFullscreen (older still: webkitRequestFullScreen, a capital
  * S, and webkitCancelFullScreen).
  */
-interface PrefixedDocument {
+export interface PrefixedDocument {
   fullscreenEnabled?: boolean;
   fullscreenElement?: Element | null;
   exitFullscreen?: () => Promise<void>;
@@ -47,9 +47,10 @@ interface PrefixedDocument {
   webkitCurrentFullScreenElement?: Element | null;
   webkitExitFullscreen?: () => void;
   webkitCancelFullScreen?: () => void;
+  documentElement: PrefixedElement;
 }
 
-interface PrefixedElement {
+export interface PrefixedElement {
   requestFullscreen?: (options?: FullscreenOptions) => Promise<void>;
   webkitRequestFullscreen?: () => void;
   webkitRequestFullScreen?: () => void;
@@ -58,18 +59,16 @@ interface PrefixedElement {
 /** The events that report a fullscreen change (standard and prefixed). */
 export const FULLSCREEN_EVENTS = ['fullscreenchange', 'webkitfullscreenchange'] as const;
 
-export function isFullscreen(doc: Document = document): boolean {
-  const d = doc as PrefixedDocument;
+export function isFullscreen(d: PrefixedDocument = document): boolean {
   return (
     (d.fullscreenElement ?? d.webkitFullscreenElement ?? d.webkitCurrentFullScreenElement ?? null) != null
   );
 }
 
-export async function toggleFullscreen(doc: Document = document): Promise<void> {
-  const d = doc as PrefixedDocument;
-  const el = doc.documentElement as PrefixedElement;
+export async function toggleFullscreen(d: PrefixedDocument = document): Promise<void> {
+  const el = d.documentElement;
   try {
-    if (isFullscreen(doc)) {
+    if (isFullscreen(d)) {
       if (typeof d.exitFullscreen === 'function') await d.exitFullscreen();
       else if (typeof d.webkitExitFullscreen === 'function') d.webkitExitFullscreen();
       else d.webkitCancelFullScreen?.();
@@ -85,13 +84,12 @@ export async function toggleFullscreen(doc: Document = document): Promise<void> 
   }
 }
 
-export function fullscreenAvailable(doc: Document | undefined = globalThis.document): boolean {
-  if (!doc) return false;
-  const d = doc as PrefixedDocument;
+export function fullscreenAvailable(d: PrefixedDocument | undefined = globalThis.document): boolean {
+  if (!d) return false;
   // the standard flag decides where it exists (false in a frame without permission)
   if (typeof d.fullscreenEnabled === 'boolean') return d.fullscreenEnabled;
   if (typeof d.webkitFullscreenEnabled === 'boolean') return d.webkitFullscreenEnabled;
-  const el = doc.documentElement as PrefixedElement;
+  const el = d.documentElement;
   return typeof el.webkitRequestFullscreen === 'function' || typeof el.webkitRequestFullScreen === 'function';
 }
 

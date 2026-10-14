@@ -117,7 +117,7 @@ function LiveWall({ state, categories }: { state: WallState; categories: readonl
     if (leaving === null) return undefined;
     const timer = setTimeout(() => setModes((m) => ({ ...m, leaving: null })), MODE_FADE_MS);
     return () => clearTimeout(timer);
-  }, [leaving, active]);
+  }, [leaving]);
 
   const render = (mode: WallMode, isLeaving: boolean) => (
     <div

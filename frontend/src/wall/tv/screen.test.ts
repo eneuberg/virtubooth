@@ -1,25 +1,25 @@
 import { describe, expect, it, vi } from 'vitest';
-import { fullscreenAvailable, isFullscreen, toggleFullscreen } from './screen';
+import { fullscreenAvailable, isFullscreen, toggleFullscreen, type PrefixedDocument } from './screen';
 
 /** A document of an old TV browser: only the `webkit` fullscreen API. */
 function webkitDoc(capitalS = false) {
-  const root: Record<string, unknown> = {};
-  const doc: Record<string, unknown> = { documentElement: root, webkitFullscreenElement: null };
-  const request = vi.fn(() => {
-    doc['webkitFullscreenElement'] = root;
+  const doc: PrefixedDocument = { documentElement: {}, webkitFullscreenElement: null };
+  const root = document.createElement('div');
+  const request = vi.fn<() => void>(() => {
+    doc.webkitFullscreenElement = root;
   });
-  const exit = vi.fn(() => {
-    doc['webkitFullscreenElement'] = null;
+  const exit = vi.fn<() => void>(() => {
+    doc.webkitFullscreenElement = null;
   });
   if (capitalS) {
-    root['webkitRequestFullScreen'] = request;
-    doc['webkitCancelFullScreen'] = exit;
+    doc.documentElement.webkitRequestFullScreen = request;
+    doc.webkitCancelFullScreen = exit;
   } else {
-    doc['webkitFullscreenEnabled'] = true;
-    root['webkitRequestFullscreen'] = request;
-    doc['webkitExitFullscreen'] = exit;
+    doc.webkitFullscreenEnabled = true;
+    doc.documentElement.webkitRequestFullscreen = request;
+    doc.webkitExitFullscreen = exit;
   }
-  return { doc: doc as unknown as Document, request, exit };
+  return { doc, request, exit };
 }
 
 describe('fullscreen with the webkit prefix', () => {
@@ -36,14 +36,14 @@ describe('fullscreen with the webkit prefix', () => {
   });
 
   it('the standard API wins where it exists, also when it says no', async () => {
-    const request = vi.fn(() => Promise.resolve());
-    const webkit = vi.fn();
-    const doc = {
+    const request = vi.fn<(options?: FullscreenOptions) => Promise<void>>(() => Promise.resolve());
+    const webkit = vi.fn<() => void>();
+    const doc: PrefixedDocument = {
       fullscreenEnabled: false,
       fullscreenElement: null,
       webkitFullscreenEnabled: true,
       documentElement: { requestFullscreen: request, webkitRequestFullscreen: webkit },
-    } as unknown as Document;
+    };
     expect(fullscreenAvailable(doc)).toBe(false);
     await toggleFullscreen(doc);
     expect(request).toHaveBeenCalledWith({ navigationUI: 'hide' });
@@ -51,7 +51,7 @@ describe('fullscreen with the webkit prefix', () => {
   });
 
   it('no API at all: not available, toggling does nothing', async () => {
-    const doc = { documentElement: {} } as unknown as Document;
+    const doc: PrefixedDocument = { documentElement: {} };
     expect(fullscreenAvailable(doc)).toBe(false);
     await expect(toggleFullscreen(doc)).resolves.toBeUndefined();
   });
