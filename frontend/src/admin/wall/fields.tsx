@@ -3,7 +3,7 @@
  * field that keep what is typed while the draft holds the parsed value.
  */
 import type { LucideIcon } from 'lucide-react';
-import { useId, useState, type ReactNode } from 'react';
+import { useState, type ReactNode } from 'react';
 import { cx } from '@/ui/cx';
 import { TextField } from '@/ui/TextField';
 import { normalizeHex } from './draft';
@@ -102,31 +102,35 @@ export function ColorField({
 }) {
   const [text, setText] = useState(value);
   const shown = (normalizeHex(text) ?? text) === value ? text : value;
-  const pickerId = useId();
   const valid = normalizeHex(value);
   return (
-    <div className="flex items-start gap-2" data-testid={testid}>
-      <input
-        id={pickerId}
-        type="color"
-        aria-label={`${label} wählen`}
-        value={valid ?? '#000000'}
-        onChange={(e) => onChange(e.target.value.toLowerCase())}
-        className="mt-6.5 h-10 w-12 shrink-0 cursor-pointer rounded-control border border-field bg-field-bg p-1"
-      />
-      <TextField
-        label={label}
-        size="sm"
-        value={shown}
-        maxLength={7}
-        spellCheck="false"
-        onChange={(next) => {
-          setText(next);
-          onChange(normalizeHex(next) ?? next);
-        }}
-        errorMessage={error ?? null}
-        className="min-w-0 flex-1 grid-cols-[minmax(0,1fr)]"
-      />
-    </div>
+    <TextField
+      label={label}
+      size="sm"
+      value={shown}
+      maxLength={7}
+      spellCheck="false"
+      onChange={(next) => {
+        setText(next);
+        onChange(normalizeHex(next) ?? next);
+      }}
+      errorMessage={error ?? null}
+      // the swatch sits in the field box, on the input's line
+      start={
+        <input
+          type="color"
+          aria-label={`${label} wählen`}
+          value={valid ?? '#000000'}
+          onChange={(e) => onChange(e.target.value.toLowerCase())}
+          className={cx(
+            '-ml-1.5 size-7 shrink-0 cursor-pointer rounded-small border border-line-strong bg-transparent p-0',
+            '[&::-moz-color-swatch]:rounded-[3px] [&::-moz-color-swatch]:border-0',
+            '[&::-webkit-color-swatch]:rounded-[3px] [&::-webkit-color-swatch]:border-0 [&::-webkit-color-swatch-wrapper]:p-0',
+          )}
+        />
+      }
+      className="min-w-0 grid-cols-[minmax(0,1fr)]"
+      data-testid={testid}
+    />
   );
 }

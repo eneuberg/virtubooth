@@ -7,11 +7,14 @@ import { useQueryClient } from '@tanstack/react-query';
 import { ExternalLink, Save, Tv, Undo2 } from 'lucide-react';
 import { useState } from 'react';
 import { Button, LinkButton } from '@/ui/Button';
+import { cx } from '@/ui/cx';
+import { ConfirmDialog } from '@/ui/ConfirmDialog';
 import { EmptyState } from '@/ui/EmptyState';
 import { Spinner } from '@/ui/Spinner';
 import { showToast } from '@/ui/Toast';
 import { toastAvoid } from '@/ui/toastPlacement';
 import { errorText, showError } from '../common/usePhotoActions';
+import { useLeaveGuard } from '../lib/leaveGuard';
 import { AccessCard } from './AccessCard';
 import { AnalysisCard } from './AnalysisCard';
 import { isRouteMissing, saveWallConfig } from './api';
@@ -120,19 +123,33 @@ function Editor({ admin }: { admin: WallAdminOut }) {
     }
   };
 
+  const discard = () => {
+    setEdits(null);
+    setSaveError(null);
+  };
+
+  // leaving with unsaved changes: ask first (in-app links), or the browser asks (reload, close)
+  const [leaving, setLeaving] = useState<(() => void) | null>(null);
+  useLeaveGuard(dirty, (proceed) => setLeaving(() => proceed));
+
   const props = { draft, update, errors };
   return (
     <>
+      {/* two independent stacks on wide screens: a short card never leaves a hole */}
       <div className="grid items-start gap-x-10 gap-y-8 xl:grid-cols-2">
-        <AccessCard admin={admin} />
-        <PlaylistCard {...props} />
-        <SpotlightCard {...props} />
-        <GalleryCard {...props} />
-        <PhotosCard {...props} sources={admin.sources} />
-        <LookCard {...props} defaults={admin.defaults} />
-        <OverlayCard {...props} />
-        <CategoriesCard {...props} categories={admin.categories} />
-        <AnalysisCard />
+        <div className="grid min-w-0 content-start gap-y-8" data-testid="wall-column">
+          <AccessCard admin={admin} />
+          <PlaylistCard {...props} />
+          <SpotlightCard {...props} />
+          <GalleryCard {...props} />
+          <PhotosCard {...props} sources={admin.sources} />
+        </div>
+        <div className="grid min-w-0 content-start gap-y-8" data-testid="wall-column">
+          <LookCard {...props} defaults={admin.defaults} />
+          <OverlayCard {...props} />
+          <CategoriesCard {...props} categories={admin.categories} />
+          <AnalysisCard />
+        </div>
       </div>
       {dirty ? (
         <section
@@ -140,23 +157,33 @@ function Editor({ admin }: { admin: WallAdminOut }) {
           data-testid="wall-savebar"
           data-surface="dark"
           {...toastAvoid}
-          className="sticky bottom-[calc(4rem+env(safe-area-inset-bottom))] z-(--z-bar) -mx-4 flex flex-wrap items-center gap-2 bg-negativ px-4 py-2 text-leuchttisch lg:bottom-0 lg:-mx-6 lg:px-6 lg:py-3"
+          className="sticky bottom-[calc(4rem+env(safe-area-inset-bottom))] z-(--z-bar) -mx-4 flex items-center gap-2 bg-negativ px-4 py-2 text-leuchttisch lg:bottom-0 lg:-mx-6 lg:px-6 lg:py-3"
         >
-          <p className="mr-auto text-sm" role={saveError ? 'alert' : undefined}>
-            {saveError ?? 'Ungespeicherte Änderungen'}
+          {/* one row on every phone: a short status, Verwerfen as an icon below sm */}
+          <p
+            className={cx(
+              'mr-auto min-w-0 flex-1 text-sm leading-tight',
+              saveError ? 'line-clamp-2' : 'truncate',
+            )}
+            role={saveError ? 'alert' : undefined}
+          >
+            {saveError ?? (
+              <>
+                <span className="sm:hidden">Nicht gespeichert</span>
+                <span className="max-sm:hidden">Ungespeicherte Änderungen</span>
+              </>
+            )}
           </p>
           <Button
             size="xs"
             variant="quiet"
             icon={Undo2}
             isDisabled={saving}
-            onPress={() => {
-              setEdits(null);
-              setSaveError(null);
-            }}
+            onPress={discard}
+            className="shrink-0"
             data-testid="wall-discard"
           >
-            Verwerfen
+            <span className="max-sm:sr-only">Verwerfen</span>
           </Button>
           <Button
             size="xs"
@@ -164,12 +191,32 @@ function Editor({ admin }: { admin: WallAdminOut }) {
             icon={Save}
             isPending={saving}
             onPress={() => void save()}
+            className="shrink-0"
             data-testid="wall-save"
           >
-            Änderungen speichern
+            <span className="sm:hidden">Speichern</span>
+            <span className="max-sm:hidden">Änderungen speichern</span>
           </Button>
         </section>
       ) : null}
+      <ConfirmDialog
+        isOpen={leaving !== null}
+        onOpenChange={(open) => {
+          if (!open) setLeaving(null);
+        }}
+        title="Änderungen verwerfen?"
+        confirmLabel="Verwerfen"
+        cancelLabel="Hierbleiben"
+        onConfirm={() => {
+          const proceed = leaving;
+          discard();
+          setLeaving(null);
+          proceed?.();
+        }}
+        data-testid="wall-leave"
+      >
+        <p>Die Einstellungen der Live-Wall sind noch nicht gespeichert.</p>
+      </ConfirmDialog>
     </>
   );
 }
