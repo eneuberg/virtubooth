@@ -13,7 +13,7 @@ Archive layout (everything inside one folder named like the archive):
       instagram.csv                      Instagram handle -> photos to tag
       virtubooth.db                      consistent SQLite copy (backup API), without
                                          admin sessions, export jobs and visitors
-                                         (SCRUBBED_TABLES)
+                                         (SCRUBBED_TABLES) and password hashes
 
 Everything comes from one database snapshot, so the CSVs, the photo files and
 the database copy agree even while the app keeps running.
@@ -94,10 +94,16 @@ class Snapshot:
 # the copy still opens as a virtubooth database (restoring it logs every admin
 # out).
 SCRUBBED_TABLES = ("admin_sessions", "export_jobs", "visitors", "code_visitors")
+# Settings rows removed from the copy: password hashes (the admin password set
+# in the admin, `admin.password`, and an extension's, e.g. the Live-Wall's
+# `x.wall.password`). An archive must not hand out something to crack offline;
+# restoring the copy falls back to VB_ADMIN_PASSWORD and a wall without one.
+SCRUBBED_SETTINGS_SQL = "key = 'admin.password' OR key LIKE 'x.%.password'"
 
 
 def scrub_snapshot(path: Path) -> None:
-    """Empty SCRUBBED_TABLES in a database copy, then VACUUM: the backup API
+    """Empty SCRUBBED_TABLES and drop the password hashes
+    (SCRUBBED_SETTINGS_SQL) in a database copy, then VACUUM: the backup API
     copies free pages too, so rows deleted earlier (also in the live database)
     could otherwise be recovered from the file. Leaves a standalone file
     (journal_mode=DELETE, no -wal/-shm companions)."""
@@ -107,6 +113,7 @@ def scrub_snapshot(path: Path) -> None:
         conn.execute("BEGIN IMMEDIATE")
         for table in SCRUBBED_TABLES:
             conn.execute(f"DELETE FROM {table}")  # fixed names, never input
+        conn.execute(f"DELETE FROM settings WHERE {SCRUBBED_SETTINGS_SQL}")
         conn.execute("COMMIT")
         conn.execute("VACUUM")
     finally:
@@ -316,10 +323,10 @@ def readme(
             "    Consistent copy of the SQLite database: guests (pseudonyms, Instagram",
             "    handles, IP addresses, browsers, device fingerprints, bans), all photo",
             "    rows (hidden and deleted ones included), device bans, the admin audit",
-            "    log (with the addresses admins logged in from) and the upload settings.",
-            "    Admin sessions and export jobs are removed; nothing deleted earlier",
-            "    can be recovered from the file. Open with `sqlite3 virtubooth.db` or",
-            "    DB Browser for SQLite.",
+            "    log (with the addresses admins logged in from), the upload settings and",
+            "    the QR codes with their tokens. Admin sessions, export jobs and password",
+            "    hashes are removed; nothing deleted earlier can be recovered from the",
+            "    file. Open with `sqlite3 virtubooth.db` or DB Browser for SQLite.",
         ]
     lines += [
         "",
