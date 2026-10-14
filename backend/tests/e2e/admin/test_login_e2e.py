@@ -74,8 +74,13 @@ def test_ip_rate_limit_message(page: Page, live: LiveServer) -> None:
         expect(page.get_by_test_id("login-error")).to_have_text("Falsches Passwort.")
         page.get_by_label("Passwort").fill("")
     submit(page, ADMIN_PASSWORD)
-    expect(page.get_by_test_id("login-error")).to_contain_text("Zu viele Anfragen")
-    expect(page.get_by_test_id("login-error")).to_contain_text("nochmal (um ")
+    # one sentence, not the general "Langsam! … Warte kurz. Versuch es … nochmal"
+    expect(page.get_by_test_id("login-error")).to_have_text(
+        re.compile(
+            r"^Zu viele Versuche hintereinander\. Versuch es in \d+\u00a0(Sekunden?|Minuten?) "
+            r"nochmal( \(um \d\d:\d\d\))?\.$"
+        )
+    )
     assert errors(page, 401, 429) == []
 
 

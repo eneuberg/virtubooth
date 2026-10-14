@@ -13,7 +13,8 @@ export interface FilterStripProps {
   filters: ReadonlyArray<Filter>;
   selectedId: string;
   onSelect: (id: string) => void;
-  swatches: ReadonlyMap<string, string>;
+  /** per filter: its swatch's URL, null when it failed (icon), missing while it is made */
+  swatches: ReadonlyMap<string, string | null>;
   isDisabled?: boolean;
 }
 
@@ -123,10 +124,18 @@ export function FilterStrip({ filters, selectedId, onSelect, swatches, isDisable
                   height={70}
                   className="pointer-events-none size-full object-cover motion-ok:animate-fade-in"
                 />
-              ) : (
+              ) : url === null ? (
                 <span aria-hidden="true" className="grid size-full place-items-center text-xl">
                   {filter.icon}
                 </span>
+              ) : (
+                // still being made: a quiet placeholder, no emoji flashing by. Static on
+                // purpose: animations next to the live WebGL preview strain WebKit (above)
+                <span
+                  aria-hidden="true"
+                  data-testid="filter-swatch-pending"
+                  className="block size-full bg-white/8"
+                />
               )}
               <span className="sr-only">{filter.name}</span>
             </ListBoxItem>

@@ -119,3 +119,15 @@ export function measureToastLift(region: HTMLElement): number {
   const minTop = Number.parseFloat(style.scrollMarginTop) || 0;
   return Math.round(toastLift(home, actionAreas(region.ownerDocument), minTop));
 }
+
+/**
+ * How much room (px) a scrolling page needs below its content so its last row can come
+ * out from under the toast: from the toast's top (where it rests, lifted or not) to the
+ * bottom of the window, plus the gap.
+ */
+export function measureToastRoom(region: HTMLElement, lift: number): number {
+  const shift = translateY(getComputedStyle(region).translate);
+  const top = region.getBoundingClientRect().top - shift - lift;
+  const height = region.ownerDocument.documentElement.clientHeight;
+  return Math.max(0, Math.round(height - top + TOAST_GAP));
+}

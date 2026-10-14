@@ -13,7 +13,7 @@ export function AdminFrame({ children, toastClassName }: { children: ReactNode; 
     <>
       {children}
       <UploadControlsSheet />
-      <ToastSlot className={toastClassName} />
+      <ToastSlot className={toastClassName} reserveRoom />
     </>
   );
 }

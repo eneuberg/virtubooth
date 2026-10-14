@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from 'vitest';
-import { actionAreas, toastLift, translateY, type Box } from './toastPlacement';
+import { actionAreas, measureToastRoom, toastLift, translateY, type Box } from './toastPlacement';
 
 // a 390 × 844 phone; the toast is 56 px high, 16 px from the bottom, 16 px gutters
 const box = (top: number, bottom: number, left = 0, right = 390): Box => ({ top, bottom, left, right });
@@ -98,5 +98,25 @@ describe('actionAreas', () => {
     const el = area(document.body, 780);
     el.getBoundingClientRect = () => new DOMRect(0, 0, 0, 0);
     expect(actionAreas()).toEqual([]);
+  });
+});
+
+describe('measureToastRoom', () => {
+  it('reaches from the toast top (where it rests) to the window bottom, plus the gap', () => {
+    const region = document.createElement('div');
+    document.body.append(region);
+    region.getBoundingClientRect = () => new DOMRect(16, 772, 358, 56);
+    const root = document.documentElement;
+    const before = Object.getOwnPropertyDescriptor(root, 'clientHeight');
+    Object.defineProperty(root, 'clientHeight', { configurable: true, value: 844 });
+    try {
+      expect(measureToastRoom(region, 0)).toBe(844 - 772 + 8);
+      // lifted above a bar: the room grows with it
+      expect(measureToastRoom(region, 64)).toBe(844 - 772 + 64 + 8);
+    } finally {
+      if (before) Object.defineProperty(root, 'clientHeight', before);
+      else Reflect.deleteProperty(root, 'clientHeight');
+      region.remove();
+    }
   });
 });

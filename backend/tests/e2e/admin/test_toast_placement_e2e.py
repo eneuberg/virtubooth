@@ -135,3 +135,28 @@ def test_desktop_toast_keeps_its_corner_and_clears_the_selection_bar(
     assert box is not None
     assert box["y"] + box["height"] == pytest.approx(DESKTOP_VIEWPORT["height"] - 24, abs=1)
     assert errors(page) == []
+
+
+def test_last_row_scrolls_out_from_under_the_toast(
+    admin_page: Page, live: LiveServer, guests: Callable[..., Guest]
+) -> None:
+    """While a toast shows, a scrolling grid gets room at the bottom: scrolled to the
+    end, its last row sits above the toast instead of under it."""
+    page = admin_page
+    g = guests()
+    ids = [g.upload() for _ in range(10)]
+    goto(page, live, "/admin/live")
+    wait_live(page)
+    oldest = card(page, ids[0])  # newest first: the last tile
+    oldest.get_by_test_id("toggle").click()
+    expect(toast(page)).to_contain_text("ausgeblendet")
+    settle_toast(page)
+    page.evaluate("() => window.scrollTo(0, document.documentElement.scrollHeight)")
+    tile = oldest.locator("figure").first.bounding_box()
+    region = toast(page).bounding_box()
+    assert tile is not None and region is not None
+    assert tile["y"] + tile["height"] <= region["y"], (tile, region)
+    # gone with the toast
+    toast(page).get_by_role("button", name="Schließen").click()
+    expect(page.locator("html[data-vb-toast-room]")).to_have_count(0)
+    assert errors(page) == []

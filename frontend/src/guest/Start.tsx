@@ -97,7 +97,7 @@ export function Start() {
       </footer>
 
       <HelpSheet topic={help} onClose={() => setHelp(null)} instagramAccount={instagramAccount} />
-      <ToastSlot />
+      <ToastSlot reserveRoom />
     </main>
   );
 }
