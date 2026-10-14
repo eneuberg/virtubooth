@@ -211,6 +211,59 @@ def test_caption_stays_clear_of_the_corner(tv_page: Page, wall_fake: WallFake, a
     assert js_errors(tv_page) == []
 
 
+@pytest.mark.parametrize("count", [1, 3])
+def test_categories_stay_clear_of_the_corner(
+    tv_page: Page, wall_fake: WallFake, count: int
+) -> None:
+    """The winners (photo, badge, name) and the title never sit under the QR corner."""
+    wall_fake.session = "ok"
+    wall_fake.event_name = "Sommerfest der Abteilung 2026"
+    wall_fake.qr = {"url": "/?t=abc", "name": "Eingang"}
+    wall_fake.config["overlay"] = {**wall_fake.config["overlay"], "qr": True}
+    wall_fake.config["playlist"] = [
+        {"mode": m, "enabled": m == "categories", "duration_s": 600}
+        for m in ("spotlight", "gallery", "categories")
+    ]
+    wall_fake.config["categories"] = {"per_category_s": 600, "disabled": []}
+    for n in range(1, 5):
+        wall_fake.add(wall_photo(n, "Funky Flamingo"))
+    wall_fake.categories = [
+        {
+            "id": "volles_haus",
+            "emoji": "👥",
+            "title": "Volles Haus",
+            "line": "Die meisten Leute auf einem Foto",
+            "winners": [
+                {"photo": wall_fake.photos[k], "value": 7, "label": "7 Personen"}
+                for k in range(count)
+            ],
+        }
+    ]
+    open_wall(tv_page, wall_fake)
+    corner = tv_page.get_by_test_id("wall-corner")
+    expect(tv_page.get_by_test_id("wall-qr")).to_be_visible()
+    parts = tv_page.locator(
+        ".wall-cat-pic, .wall-cat-value, .wall-cat-by, .wall-cat-title, .wall-cat-line"
+    )
+    expect(parts).to_have_count(2 + 3 * count)
+    for name in CORNERS:
+        if name != "bottom-right":
+            wall_fake.set_config(overlay={"corner": name})
+        expect(corner).to_have_attribute("data-corner", name, timeout=5000)
+        tv_page.wait_for_timeout(1400)  # the winners' drop-in animation
+        box = corner.bounding_box()
+        assert box
+        # still big photos (they make room, they do not vanish)
+        for pic in tv_page.locator(".wall-cat-pic").all():
+            pic_box = pic.bounding_box()
+            assert pic_box and pic_box["height"] > 300, f"{name}: {pic_box}"
+        for i in range(parts.count()):
+            part = parts.nth(i).bounding_box()
+            assert part and part["height"] > 10
+            assert not _boxes_overlap(part, box), f"{name}: part {i} under the corner"
+    assert js_errors(tv_page) == []
+
+
 # ------------------------------------------------------------------ screenshots
 
 CATEGORY_NAMES = [

@@ -248,7 +248,12 @@ export function WallApp() {
 
   const corner = state.config.overlay.corner;
   return (
-    <div className="wall" data-idle={idle ? '' : undefined} data-phase={phase}>
+    <div
+      className="wall"
+      data-idle={idle ? '' : undefined}
+      data-phase={phase}
+      data-corner={phase === 'live' ? corner : undefined}
+    >
       <canvas ref={canvasRef} className="wall-bg-canvas" aria-hidden="true" />
       {phase === 'login' ? (
         <LoginScreen onDone={() => setPhase('connecting')} onNoPassword={() => setPhase('nopassword')} />
