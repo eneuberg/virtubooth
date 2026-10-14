@@ -7,6 +7,7 @@
 #   make e2e E2E_ARGS=tests/e2e/admin/test_live_e2e.py   one file (paths from backend/)
 #   make e2e E2E_WORKERS=0          browser tests in one process (--pdb, breakpoints)
 #   make docker IMAGE=virtubooth:test
+#   make docker-smoke DOCKER_BUILD_FLAGS=--network=host   build without the bridge network
 # Needs uv, pnpm 11 with Node 22 (frontend/.node-version), and Docker for the
 # docker/WebKit targets.
 
@@ -26,6 +27,9 @@ ENV_FILE ?= .env
 DATA_DIR ?= $(CURDIR)/data
 # image name for docker / docker-smoke
 IMAGE ?= virtubooth:local
+# extra `docker build` arguments for docker / docker-smoke, e.g. --network=host
+# (when the host's firewall or VPN breaks the build containers' network)
+DOCKER_BUILD_FLAGS ?=
 # docker-smoke publishes its throwaway container on 127.0.0.1:SMOKE_PORT
 SMOKE_PORT ?= 8180
 # setup with the Live-Wall analysis extra (mediapipe, onnxruntime, OpenCV): ML=1
@@ -159,7 +163,7 @@ e2e-changed: frontend/dist/index.html ## Chromium e2e tests changed since BASE (
 	  cd backend && uv run pytest -m e2e -q $(call xdist,$(E2E_WORKERS)) $$tests $(E2E_ARGS)
 
 docker: ## build the container image (IMAGE); unchanged layers come from Docker's build cache
-	docker build -t $(IMAGE) .
+	docker build $(DOCKER_BUILD_FLAGS) -t $(IMAGE) .
 
 docker-smoke: docker ## run IMAGE on 127.0.0.1:SMOKE_PORT and check it end to end, then remove it
 	VB_SMOKE_BUILD=0 VB_SMOKE_IMAGE=$(IMAGE) VB_SMOKE_PORT=$(SMOKE_PORT) scripts/docker-smoke.sh

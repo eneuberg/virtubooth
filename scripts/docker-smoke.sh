@@ -9,7 +9,8 @@
 #   VB_SMOKE_SCREENSHOTS=/tmp/shots scripts/docker-smoke.sh   # + Chromium screenshots
 #
 # Settings (environment): VB_SMOKE_PORT (8180), VB_SMOKE_IMAGE (virtubooth:smoke),
-# VB_SMOKE_NAME (virtubooth-smoke-<port>), VB_SMOKE_BUILD (1), VB_SMOKE_SCREENSHOTS.
+# VB_SMOKE_NAME (virtubooth-smoke-<port>), VB_SMOKE_BUILD (1), VB_SMOKE_SCREENSHOTS,
+# DOCKER_BUILD_FLAGS (extra `docker build` arguments, e.g. --network=host).
 # Needs Docker and uv (the checker runs in backend/'s environment).
 set -euo pipefail
 
@@ -31,7 +32,8 @@ if [ -n "$cleanup_needed" ]; then docker rm -f "$NAME" >/dev/null; fi
 
 if [ "${VB_SMOKE_BUILD:-1}" = 1 ]; then
   echo "== docker build -t $IMAGE"
-  docker build -t "$IMAGE" "$ROOT"
+  # shellcheck disable=SC2086  # DOCKER_BUILD_FLAGS is a list of arguments
+  docker build ${DOCKER_BUILD_FLAGS:-} -t "$IMAGE" "$ROOT"
 fi
 size=$(docker image inspect -f '{{.Size}}' "$IMAGE")
 echo "== image $IMAGE: $((size / 1000000)) MB (compressed)"
@@ -78,6 +80,43 @@ echo "  ok  runs as uid 10001 on a read-only root filesystem"
 docker exec "$NAME" sh -c 'test -z "$(find /app /opt/venv -name .env -o -name "*.env" | head -1)"' \
   || { echo "FAIL  an .env file ended up in the image" >&2; exit 1; }
 echo "  ok  /app holds only the frontend build; no .env in the image"
+
+# The HEALTHCHECK runs inside the container's network namespace; smoke.py talks
+# to the published port from the host. Check that path first, so a host that
+# cannot reach Docker's bridge network fails here with a diagnosis instead of a
+# bare timeout in smoke.py.
+probe() {  # probe URL → 0 when it answers 200 within 3 s
+  uv run --quiet --project "$ROOT/backend" python -c '
+import sys, urllib.request
+try:
+    sys.exit(urllib.request.urlopen(sys.argv[1], timeout=3).status != 200)
+except Exception as exc:
+    print(f"      {sys.argv[1]}: {exc!r}", file=sys.stderr)
+    sys.exit(1)' "$1"
+}
+reachable=0
+for _ in 1 2 3; do
+  if probe "http://127.0.0.1:$PORT/healthz" 2>"$WORK/probe.err"; then reachable=1; break; fi
+  sleep 1
+done
+if [ "$reachable" != 1 ]; then
+  cat "$WORK/probe.err" >&2
+  ip=$(docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}} {{end}}' "$NAME" | awk '{print $1}')
+  if [ -z "$ip" ]; then
+    echo "FAIL  the container is healthy, but the host gets no answer on 127.0.0.1:$PORT" >&2
+  elif ! probe "http://$ip:8000/healthz"; then
+    echo "FAIL  the container is healthy (its HEALTHCHECK answers inside it), but the" \
+      "host reaches neither 127.0.0.1:$PORT nor its bridge address $ip:8000. Most" \
+      "likely a host firewall drops traffic to Docker's bridge networks, e.g. a VPN" \
+      "kill switch with LAN access blocked (IVPN, Mullvad, ...): allow LAN traffic" \
+      "or 172.16.0.0/12 and rerun." >&2
+  else
+    echo "FAIL  the container answers on its bridge address $ip:8000, but not on the" \
+      "published port 127.0.0.1:$PORT (port publishing / docker-proxy)" >&2
+  fi
+  exit 1
+fi
+echo "  ok  the published port 127.0.0.1:$PORT answers from the host"
 
 shots=()
 if [ -n "${VB_SMOKE_SCREENSHOTS:-}" ]; then shots=(--screenshots "$VB_SMOKE_SCREENSHOTS"); fi
