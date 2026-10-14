@@ -57,6 +57,7 @@ export class SpotlightEngine {
   private ageTimer: ReturnType<typeof setInterval> | undefined;
   private observer: ResizeObserver | null = null;
   private observedCorner: Element | null = null;
+  private relayoutFrame = 0;
 
   constructor(
     stage: HTMLElement,
@@ -76,7 +77,11 @@ export class SpotlightEngine {
   start(): void {
     this.ageTimer = setInterval(() => refreshAges(this.stage, this.input.clockSkewMs), AGE_REFRESH_MS);
     if (typeof ResizeObserver === 'function') {
-      this.observer = new ResizeObserver(() => this.relayout());
+      // next frame: layout changes inside the callback make WebKit report a ResizeObserver loop
+      this.observer = new ResizeObserver(() => {
+        cancelAnimationFrame(this.relayoutFrame);
+        this.relayoutFrame = requestAnimationFrame(this.relayout);
+      });
       this.observer.observe(this.stage);
     } else {
       window.addEventListener('resize', this.relayout);
@@ -88,6 +93,7 @@ export class SpotlightEngine {
     this.stopped = true;
     clearTimeout(this.timer);
     clearInterval(this.ageTimer);
+    cancelAnimationFrame(this.relayoutFrame);
     this.observer?.disconnect();
     this.observer = null;
     this.observedCorner = null;

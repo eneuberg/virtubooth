@@ -15,9 +15,16 @@ function usePublishedSize(ref: RefObject<HTMLElement | null>): void {
       wall.style.setProperty('--wall-corner-h', `${Math.ceil(el.offsetHeight)}px`);
     };
     publish();
-    const observer = typeof ResizeObserver === 'function' ? new ResizeObserver(publish) : null;
+    // next frame: style changes inside the callback make WebKit report a ResizeObserver loop
+    let frame = 0;
+    const later = (): void => {
+      cancelAnimationFrame(frame);
+      frame = requestAnimationFrame(publish);
+    };
+    const observer = typeof ResizeObserver === 'function' ? new ResizeObserver(later) : null;
     observer?.observe(el);
     return () => {
+      cancelAnimationFrame(frame);
       observer?.disconnect();
       wall.style.removeProperty('--wall-corner-w');
       wall.style.removeProperty('--wall-corner-h');
