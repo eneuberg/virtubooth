@@ -32,6 +32,8 @@ from anyio import to_thread
 from ...core.events import Closed, Event, EventBus
 from .auth import LoginLimits, ScreenLimits
 from .config import WallConfig, load_config
+from .enrich import jobs
+from .enrich.pipeline import SourceLabels
 from .enrichment import Enrichment, load_enrichment
 from .feed import (
     Visibility,
@@ -88,6 +90,18 @@ class WallHub:
         self._loop = loop
         self.bus.bind_loop(loop)
         self._delay_s = load_config(self.core.repos.app_settings).delay_s
+        try:
+            # names for the analysis details, read by the worker (no imports there)
+            jobs.save_source_labels(
+                self.core.repos.app_settings,
+                {
+                    e.id: SourceLabels(title=e.title, labels=e.meta_labels, values=e.meta_values)
+                    for e in self.core.extensions.values()
+                    if e.upload is not None
+                },
+            )
+        except Exception:
+            log.exception("wall: storing the source names failed")
         try:
             self._has_categories = bool(self.enrichment.catalogue())
         except Exception:

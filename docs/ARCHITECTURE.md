@@ -491,7 +491,12 @@ flowchart LR
   models) and writes facts and boxes; every write sets `rev = MAX(rev)+1`.
   Heartbeat in the settings key `x.wall.worker`. Scratch (crops, landmarks,
   CLIP vectors) never leaves the worker's memory; deleted photos are purged.
-  Categories (`categories.py`) are SQL over `wall_facts`.
+  Categories (`categories.py`) are SQL over `wall_facts`, at most one winner
+  per guest and category (a window function keeps each guest's best). The
+  worker imports neither FastAPI nor the extensions: `wall/__init__.py` makes
+  `extension` lazily (PEP 562 `__getattr__`), and the details' names (source
+  title, meta labels, `Extension.meta_values` such as booth filter names) come
+  from the settings key `x.wall.sources`, which the wall writes at its start.
 - **Re-analysis sweep** (`Worker.sweep`, `jobs.stale`): each `done` row stores
   the versions of the analyzers that ran. At worker start, whenever the set a
   run would use changes (an analyzer switched on in the admin, a model file

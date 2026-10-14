@@ -750,12 +750,13 @@ aus. Nichts davon verlässt den Server.
   sind, warten oder fehlschlugen, jede Analyse ein- und ausschalten (mit dem Grund,
   wenn eine fehlt, z. B. „Modell fehlt“), „Fehlgeschlagene neu analysieren“ und „Alle neu analysieren…“.
 - **Analyse im Foto-Inspektor** (Verwaltung): Zustand, gefundene Werte, die Rahmen und
-  die Details; „Neu analysieren“ stellt das Foto wieder an.
+  die Details (Quelle und Angaben mit Namen, z. B. „Filter: Schwarz-Weiß“, „Kamera:
+  Selfie“); „Neu analysieren“ stellt das Foto wieder an.
 - Der Prozess läuft mit niedriger Priorität, ein Foto nach dem anderen (auf einem
   Raspberry Pi 5 0,4 bis 2 s je Foto), startet bei einem Absturz neu und beginnt nach
   200 Fotos oder 900 MB frisch. Gelöschte Fotos verlieren ihre Analyse.
-- **Kategorien** (Gewinner sind nur sichtbare Fotos nach der Verzögerung; bei Gleichstand
-  das neuere):
+- **Kategorien** (Gewinner sind nur sichtbare Fotos nach der Verzögerung, je Kategorie
+  höchstens eins pro Gast (sein bestes); bei Gleichstand das neuere):
 
 | | Kategorie | Zeile | Gewinnt |
 |---|---|---|---|

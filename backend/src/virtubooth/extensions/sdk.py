@@ -83,6 +83,9 @@ class Extension:
     show_on_home: bool = True
     # how the admin UI labels meta keys, e.g. {"vessel": "Gefäß"}
     meta_labels: Mapping[str, str] = field(default_factory=dict)
+    # display names of meta values, e.g. {"filter": {"bw": "Schwarz-Weiß"}}
+    # (the Live-Wall's analysis details)
+    meta_values: Mapping[str, Mapping[str, str]] = field(default_factory=dict)
     # mounted at the root, outside /api/ (e.g. pages and files); its paths must not
     # start with /api, /admin, /x/, /assets or /media
     web_router: APIRouter | None = None

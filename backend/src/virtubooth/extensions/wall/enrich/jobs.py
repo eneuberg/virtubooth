@@ -20,7 +20,7 @@ from ....db.database import Database
 from ....domain.codes import code_name
 from ....repositories.app_settings import AppSettingsRepo
 from .analyzers import ALWAYS_ON, BY_NAME, DEFAULT_DISABLED
-from .pipeline import PhotoInfo
+from .pipeline import PhotoInfo, SourceLabels
 
 MAX_ATTEMPTS = 2
 STATES = ("pending", "running", "done", "failed", "skipped")
@@ -30,6 +30,10 @@ ABORTED = "Analyse abgebrochen"
 # DEFAULT_DISABLED) and the worker's heartbeat {pid, beat_at, ml, models_missing}
 ANALYZERS_KEY = "x.wall.analyzers"
 WORKER_KEY = "x.wall.worker"
+# {ext id: {title, labels, values}} of the loaded extensions, written by the
+# app at the wall's start: the worker names sources and meta values with it
+# without importing the extensions (and FastAPI)
+SOURCES_KEY = "x.wall.sources"
 
 _NEEDS_WORK = "p.deleted_at IS NULL AND (a.photo_id IS NULL OR a.state = 'pending')"
 
@@ -295,6 +299,40 @@ def disabled_analyzers(app_settings: AppSettingsRepo) -> set[str]:
     if "disabled" not in raw or not isinstance(raw["disabled"], list):
         return set(DEFAULT_DISABLED)
     return {str(n) for n in raw["disabled"] if n in BY_NAME and n not in ALWAYS_ON}
+
+
+def save_source_labels(app_settings: AppSettingsRepo, labels: Mapping[str, SourceLabels]) -> None:
+    value = {
+        ext_id: {
+            "title": s.title,
+            "labels": dict(s.labels),
+            "values": {k: dict(v) for k, v in s.values.items()},
+        }
+        for ext_id, s in labels.items()
+    }
+    if app_settings.get(SOURCES_KEY) != value:
+        app_settings.put(SOURCES_KEY, value, at=now_iso())
+
+
+def source_labels(app_settings: AppSettingsRepo) -> dict[str, SourceLabels]:
+    out: dict[str, SourceLabels] = {}
+    for ext_id, raw in app_settings.get(SOURCES_KEY).items():
+        if not isinstance(raw, dict) or not isinstance(raw.get("title"), str):
+            continue
+        labels = raw.get("labels")
+        values = raw.get("values")
+        labels = labels if isinstance(labels, dict) else {}
+        values = values if isinstance(values, dict) else {}
+        out[str(ext_id)] = SourceLabels(
+            title=raw["title"],
+            labels={str(k): str(v) for k, v in labels.items()},
+            values={
+                str(k): {str(a): str(b) for a, b in v.items()}
+                for k, v in values.items()
+                if isinstance(v, dict)
+            },
+        )
+    return out
 
 
 def save_disabled(app_settings: AppSettingsRepo, names: set[str], *, by: str) -> None:

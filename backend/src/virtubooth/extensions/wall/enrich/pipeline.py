@@ -92,6 +92,16 @@ class Result:
 
 
 @dataclass(frozen=True)
+class SourceLabels:
+    """How the admin names a photo's source and its meta (from the extension,
+    which the worker does not import: `jobs.source_labels`)."""
+
+    title: str
+    labels: Mapping[str, str] = field(default_factory=dict)  # meta key → name
+    values: Mapping[str, Mapping[str, str]] = field(default_factory=dict)  # key → value → name
+
+
+@dataclass(frozen=True)
 class PhotoInfo:
     """The photo row as the worker claimed it."""
 
@@ -108,6 +118,8 @@ class PhotoInfo:
     code_name: str | None = None
     # the guest switched the automatic analysis off: basic image values only
     opt_out: bool = False
+    # the source's names for the details; None: the raw ids
+    source: SourceLabels | None = None
 
 
 @dataclass

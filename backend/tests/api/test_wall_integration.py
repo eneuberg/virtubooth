@@ -202,3 +202,28 @@ def test_event_name_and_code_changes_reach_open_walls(live):
             wall.close()
     finally:
         admin.close()
+
+
+def test_the_wall_stores_the_source_names_for_the_worker(client, core):
+    """The worker names sources and meta values from a settings key the app
+    writes at the wall's start (it imports no extension, no FastAPI)."""
+    from virtubooth.extensions.wall.enrich import jobs
+
+    labels = jobs.source_labels(core.repos.app_settings)
+    assert labels["demo"].title == core.extensions["demo"].title
+    assert "wall" not in labels  # no uploads, no source
+
+
+def test_the_worker_imports_no_web_framework():
+    import subprocess
+    import sys
+
+    code = (
+        "import sys\n"
+        "from virtubooth.extensions.wall.enrich import worker, __main__\n"
+        "from virtubooth.extensions.wall.enrich.analyzers import create_all\n"
+        "create_all(['basic'])\n"
+        "print(sorted(m for m in ('fastapi', 'starlette') if m in sys.modules))\n"
+    )
+    out = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True, check=True)
+    assert out.stdout.strip() == "[]"

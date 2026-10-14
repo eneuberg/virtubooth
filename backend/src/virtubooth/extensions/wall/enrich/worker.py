@@ -19,6 +19,7 @@ analysis, runs the pipeline and stores the result. Idle: a DB scan every 2 s.
 
 from __future__ import annotations
 
+import dataclasses
 import logging
 import os
 import signal
@@ -153,6 +154,9 @@ class Worker:
             jobs.skip(db, photo.id, "Fotodatei fehlt")
             return "skipped"
         disabled = self._disabled(repos, opt_out=photo.opt_out)
+        source = jobs.source_labels(repos.app_settings).get(photo.extension)
+        if source is not None:
+            photo = dataclasses.replace(photo, source=source)
         started = time.perf_counter()
         try:
             frame = load_frame(path, photo)

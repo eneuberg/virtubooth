@@ -320,3 +320,14 @@ def test_an_opt_out_during_an_analysis_never_stores_its_ml_result(data_dir):
                            versions={"faces": "7"})  # fmt: skip
     assert jobs.get(repos.db, photo_id).state == "pending"
     assert jobs.facts(repos.db, photo_id) == {}
+
+
+def test_the_worker_names_the_source_from_the_stored_labels(data_dir):
+    from virtubooth.extensions.wall.enrich.analyzers.basic import BasicAnalyzer
+    from virtubooth.extensions.wall.enrich.pipeline import SourceLabels
+
+    data, repos, photo_id = data_dir
+    jobs.save_source_labels(repos.app_settings, {"booth": SourceLabels(title="Fotobox")})
+    Worker(data, analyzers=[BasicAnalyzer()]).run(once=True)
+    details = {d["label"]: d["value"] for d in jobs.get(repos.db, photo_id).data["details"]}
+    assert details["Quelle"] == "Fotobox"
