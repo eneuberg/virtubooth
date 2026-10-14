@@ -37,8 +37,12 @@ class Party:
         return create_user(self.db, self.repos, consent_version="1", instagram=None,
                            fp_hash=None, fp_components={}, ip="10.0.0.1", user_agent="pytest")  # fmt: skip
 
-    def photo(self, created_at: str | None = None, *, ext: str = "booth", user: int = 0,
+    def photo(self, created_at: str | None = None, *, ext: str = "booth", user: int | None = None,
               **facts: float) -> int:  # fmt: skip
+        """A photo with these facts, by guest `user` (default: a guest of its own)."""
+        if user is None:
+            self.users.append(self.user())
+            user = len(self.users) - 1
         if created_at is None:
             self._minute += 1
             created_at = at(self._minute)
@@ -129,6 +133,19 @@ def test_ties_go_to_the_newer_photo_and_per_category_caps(party):
     top = party.photo(people=9)
     assert party.winners("volles_haus") == [(top, 9.0), (new, 4.0), (old, 4.0)]
     assert party.winners("volles_haus", n=1) == [(top, 9.0)]
+
+
+def test_one_photo_per_guest_and_category(party):
+    """A guest with the three fullest photos still takes only one place: their
+    best; the others go to other guests."""
+    best = party.photo(user=0, people=9)
+    party.photo(user=0, people=8)
+    party.photo(user=0, people=7)
+    other = party.photo(user=1, people=5)
+    later = party.photo(user=1, people=5)  # a tie within the guest: the newer one
+    third = party.photo(user=2, people=3)
+    assert party.winners("volles_haus") == [(best, 9.0), (later, 5.0), (third, 3.0)]
+    assert other != later
 
 
 def test_only_visible_photos_win(party):
