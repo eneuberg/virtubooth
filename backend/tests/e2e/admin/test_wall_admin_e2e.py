@@ -88,8 +88,10 @@ class FakeWall:
         self.password: dict[str, Any] = {"set": False, "changed_at": None}
         self.disabled_analyzers: list[str] = []
         self.analysis: dict[str, dict[str, Any]] = {}
-        self.winner: str | None = None
+        self.winners: list[str] = []  # photo ids leading "eroeffnung", best first
+        self.worker: dict[str, Any] = {}  # extra heartbeat fields of the worker
         self.requests: list[tuple[str, str, Any]] = []
+        self.open_walls = 2
 
     def sent(self, method: str, path: str) -> list[Any]:
         return [b for m, p, b in self.requests if m == method and p == path]
@@ -108,9 +110,10 @@ class FakeWall:
             }
             if winners:
                 cat["winners"] = (
-                    [{"photo_id": self.winner, "thumb_url": f"/media/{self.winner}?thumb=1",
-                      "value": 1, "label": "um 19:42"}]
-                    if self.winner and cid == "eroeffnung" else []
+                    [{"photo_id": w, "thumb_url": f"/media/{w}?thumb=1",
+                      "value": i + 1, "label": f"um 19:4{i}"}
+                     for i, w in enumerate(self.winners[:3])]
+                    if cid == "eroeffnung" else []
                 )  # fmt: skip
             out.append(cat)
         return out
@@ -123,7 +126,7 @@ class FakeWall:
             "wall_path": "/livewall",
             "sources": [{"id": "beer", "title": "Bier", "emoji": "🍺"}],
             "categories": self.categories(winners=False),
-            "open_walls": 2,
+            "open_walls": self.open_walls,
             "event_name": "Testparty",
         }
 
@@ -134,7 +137,8 @@ class FakeWall:
             ("age", "Alter schätzen", "ml", True, None),
         ]
         return {
-            "worker": {"state": "running", "ml": True, "message": None, "last_beat_at": now()},
+            "worker": {"state": "running", "ml": True, "message": None, "last_beat_at": now(),
+                       **self.worker},
             "counts": {"pending": 2, "running": 1, "done": 12, "failed": 1, "skipped": 0,
                        "total": 16},
             "analyzers": [
@@ -341,14 +345,22 @@ def test_inspector_shows_the_analysis(
     page = desktop_page
     photo = guests().upload()
     goto(page, live, f"/admin/manage?photo={photo}")
-    panel = page.get_by_test_id("inspector").get_by_test_id("analysis")
+    inspector = page.get_by_test_id("inspector")
+    panel = inspector.get_by_test_id("analysis")
     expect(panel.get_by_role("heading", name="Analyse")).to_be_visible()
     expect(panel.get_by_test_id("analysis-state")).to_have_text("fertig")
-    boxes = panel.get_by_test_id("analysis-box")
+    # the frames lie on the inspector's big photo, not on a second thumbnail
+    boxes = inspector.get_by_test_id("analysis-box")
     expect(boxes).to_have_count(3)
+    expect(panel.locator("img")).to_have_count(0)
     assert boxes.first.evaluate("(el) => parseFloat(el.style.left)") == 20
+    photo_box = inspector.get_by_test_id("fitted-photo").bounding_box()
+    img_box = inspector.get_by_role("img", name="Bier 0001").bounding_box()
+    assert photo_box and img_box
+    assert abs(photo_box["width"] - img_box["width"]) < 1.5
+    assert abs(photo_box["height"] - img_box["height"]) < 1.5
     expect(panel.get_by_test_id("analysis-details")).to_contain_text("Personen")
-    panel.get_by_text("Rahmen zeigen").click()
+    panel.get_by_text("Rahmen auf dem Foto zeigen").click()
     expect(boxes).to_have_count(0)
 
     panel.get_by_role("button", name="Neu analysieren").click()
@@ -382,5 +394,103 @@ def test_section_on_a_phone(admin_page: Page, live: LiveServer) -> None:
     expect(page.get_by_test_id("wall-counts")).to_be_visible()
     page.get_by_role("textbox", name="Reihen").fill("4")
     expect(page.get_by_test_id("wall-save")).to_be_in_viewport()
+    assert no_horizontal_scroll(page)
+    assert errors(page) == []
+
+
+def test_leaving_with_unsaved_changes_asks_first(
+    desktop_page: Page, live: LiveServer, wall: FakeWall
+) -> None:
+    page = desktop_page
+    goto(page, live, "/admin/manage?tab=livewall")
+    unload_held = "() => { const e = new Event('beforeunload', {cancelable: true}); window.dispatchEvent(e); return e.defaultPrevented; }"
+    assert page.evaluate(unload_held) is False
+    page.get_by_role("textbox", name="Reihen").fill("4")
+    expect(page.get_by_test_id("wall-savebar")).to_be_visible()
+    # a reload or closing the tab: the browser asks
+    assert page.evaluate(unload_held) is True
+
+    nav = page.get_by_role("navigation", name="Verwaltung")
+    nav.get_by_role("link", name=re.compile("^Fotos")).click()
+    dialog = page.get_by_test_id("wall-leave").get_by_role("alertdialog")
+    expect(dialog).to_contain_text("noch nicht gespeichert")
+    dialog.get_by_role("button", name="Hierbleiben").click()
+    expect(dialog).to_have_count(0)
+    assert "tab=livewall" in page.url
+    expect(page.get_by_role("textbox", name="Reihen")).to_have_value("4")
+
+    nav.get_by_role("link", name=re.compile("^Fotos")).click()
+    dialog.get_by_role("button", name="Verwerfen").click()
+    expect(page.get_by_role("heading", name="Fotos", level=1)).to_be_visible()
+    assert "livewall" not in page.url
+    assert page.evaluate(unload_held) is False
+    assert wall.sent("PUT", "/config") == []
+
+    # saved changes leave without a question
+    goto(page, live, "/admin/manage?tab=livewall")
+    page.get_by_role("textbox", name="Reihen").fill("5")
+    page.get_by_test_id("wall-save").click()
+    expect(page.get_by_test_id("wall-savebar")).to_have_count(0)
+    nav.get_by_role("link", name=re.compile("^Fotos")).click()
+    expect(page.get_by_role("heading", name="Fotos", level=1)).to_be_visible()
+    assert "livewall" not in page.url
+    assert errors(page) == []
+
+
+def test_worker_heartbeat_winners_and_open_walls(
+    desktop_page: Page, live: LiveServer, wall: FakeWall, guests: Callable[..., Guest]
+) -> None:
+    page = desktop_page
+    g = guests()
+    wall.winners = [g.upload() for _ in range(4)]
+    wall.worker = {"processed": 1234, "rss_mb": 411.6,
+                   "load_errors": {"age": "Modell kaputt"}}  # fmt: skip
+    page.clock.install()
+    goto(page, live, "/admin/manage?tab=livewall")
+    worker = page.get_by_test_id("wall-worker")
+    expect(worker).to_contain_text("läuft")
+    expect(page.get_by_test_id("wall-worker-beat")).to_have_text("gerade eben")
+    expect(page.get_by_test_id("wall-worker-processed")).to_have_text("1.234\u00a0Fotos")
+    expect(page.get_by_test_id("wall-worker-rss")).to_have_text("412\u00a0MB")
+    expect(page.get_by_test_id("wall-worker-load-errors")).to_contain_text("Alter schätzen")
+    expect(page.get_by_test_id("wall-worker-load-errors")).to_contain_text("Modell kaputt")
+
+    # the top three of a category, best first
+    podium = page.locator("[data-category=eroeffnung]").get_by_test_id("wall-category-winners")
+    expect(podium.get_by_role("img")).to_have_count(3)
+    expect(podium.get_by_role("img").first).to_have_accessible_name("Platz 1: um 19:40")
+    expect(page.locator("[data-category=volles_haus]")).to_contain_text("Noch kein Foto")
+
+    # the open-walls count follows without a reload
+    count = page.get_by_test_id("wall-open-count")
+    expect(count).to_have_text("2 Wände offen")
+    asked = len(wall.sent("GET", "/config"))
+    wall.open_walls = 1
+    page.clock.run_for(16_000)
+    expect(count).to_have_text("1 Wand offen")
+    assert len(wall.sent("GET", "/config")) > asked
+    assert errors(page) == []
+
+
+def test_phone_viewer_has_the_analysis(
+    admin_page: Page, live: LiveServer, guests: Callable[..., Guest]
+) -> None:
+    page = admin_page
+    install(page)
+    photo = guests().upload()
+    goto(page, live, f"/admin/manage?photo={photo}")
+    viewer = page.get_by_test_id("lightbox")
+    expect(viewer).to_be_visible()
+    panel = viewer.get_by_test_id("analysis")
+    expect(panel.get_by_test_id("analysis-state")).to_have_text("fertig")
+    boxes = viewer.get_by_test_id("analysis-box")
+    expect(boxes).to_have_count(3)
+    # on the photo itself
+    photo_box = viewer.get_by_test_id("fitted-photo").bounding_box()
+    first = boxes.first.bounding_box()
+    assert photo_box and first
+    assert abs(first["x"] - (photo_box["x"] + 0.2 * photo_box["width"])) < 2
+    panel.get_by_text("Rahmen auf dem Foto zeigen").click()
+    expect(boxes).to_have_count(0)
     assert no_horizontal_scroll(page)
     assert errors(page) == []

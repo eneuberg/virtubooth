@@ -89,6 +89,33 @@ def test_filters_selection_and_bulk_actions(
     assert errors(page) == []
 
 
+def test_inspector_shows_the_selection_not_the_last_photo(
+    desktop_page: Page, live: LiveServer, guests: Callable[..., Guest]
+) -> None:
+    page = desktop_page
+    g = guests()
+    first, second = g.upload(), g.upload()
+    goto(page, live, f"/admin/manage?photo={first}")
+    inspector = page.get_by_test_id("inspector")
+    expect(inspector.get_by_role("heading", name="Bier 0001")).to_be_visible()
+    # the photo's name for screen readers: "Foto Bier 0001", never "Foto Foto …"
+    expect(page.get_by_role("complementary", name="Foto Bier 0001")).to_be_visible()
+
+    card(page, second).get_by_test_id("select").click()
+    card(page, first).get_by_test_id("select").click()
+    expect(page.get_by_test_id("bulk-count")).to_have_text("2 ausgewählt")
+    expect(inspector).to_have_attribute("data-selection", "2")
+    expect(inspector.get_by_role("heading")).to_have_text("2 Fotos ausgewählt")
+    expect(inspector.get_by_role("img")).to_have_count(2)
+    expect(inspector.get_by_role("heading", name="Bier 0001")).to_have_count(0)
+
+    # the selection gone: the open photo is back
+    page.get_by_test_id("bulk-clear").click()
+    expect(page.get_by_test_id("bulkbar")).to_have_count(0)
+    expect(inspector.get_by_role("heading", name="Bier 0001")).to_be_visible()
+    assert errors(page) == []
+
+
 def test_inspector_delete_asks_first(
     desktop_page: Page, live: LiveServer, guests: Callable[..., Guest]
 ) -> None:

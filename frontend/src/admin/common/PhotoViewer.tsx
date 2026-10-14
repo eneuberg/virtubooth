@@ -9,7 +9,8 @@ import { cx } from '@/ui/cx';
 import { GreaseX } from '@/ui/GreaseMarks';
 import { IconButton } from '@/ui/IconButton';
 import { toastAvoid } from '@/ui/toastPlacement';
-import { metaRows, photoLabel } from '../lib/labels';
+import { metaRows, photoLabel, photoName } from '../lib/labels';
+import { FittedPhoto } from './FittedPhoto';
 
 export interface PhotoViewerProps {
   /** the photo shown; null: closed */
@@ -21,40 +22,43 @@ export interface PhotoViewerProps {
   extensions: ReadonlyMap<string, AdminExtension>;
   /** the actions this screen allows (live: hide only) */
   renderActions: (photo: AdminPhoto) => ReactNode;
+  /** drawn on the photo, in % of it (the analysis frames) */
+  renderOverlay?: (photo: AdminPhoto) => ReactNode;
+  /** more of the details panel, under the actions (the analysis) */
+  renderDetails?: (photo: AdminPhoto) => ReactNode;
 }
 
-function ViewerImage({ photo }: { photo: AdminPhoto }) {
+function ViewerImage({ photo, overlay }: { photo: AdminPhoto; overlay?: ReactNode }) {
   const [loaded, setLoaded] = useState(false);
-  // a 3:4 box as tall as the stage (flex: its percentage height resolves), the photo
-  // contained in it, the grease X on top of the photo
+  // a box with the photo's shape, as large as the stage allows; the grease X and the
+  // overlay lie on the photo itself
   return (
-    <div className="absolute inset-x-2 inset-y-0 flex items-center justify-center">
-      <div className="relative aspect-[3/4] h-full max-w-full">
-        <img
-          src={photo.thumb_url}
-          alt=""
-          width={photo.width}
-          height={photo.height}
-          className={cx('absolute inset-0 size-full object-contain', loaded && 'invisible')}
-        />
-        <img
-          src={photo.url}
-          alt={photoLabel(photo)}
-          width={photo.width}
-          height={photo.height}
-          onLoad={() => setLoaded(true)}
-          data-testid="lightbox-img"
-          className={cx(
-            'absolute inset-0 size-full object-contain transition-[opacity,filter] duration-(--duration-quick)',
-            loaded ? 'opacity-100' : 'opacity-0',
-            photo.hidden && 'opacity-45 grayscale-[0.6]',
-          )}
-        />
-        {photo.hidden ? (
-          <GreaseX className="pointer-events-none absolute inset-[8%] size-[84%] text-fettstift-hell" />
-        ) : null}
-      </div>
-    </div>
+    <FittedPhoto width={photo.width} height={photo.height} className="inset-x-2">
+      <img
+        src={photo.thumb_url}
+        alt=""
+        width={photo.width}
+        height={photo.height}
+        className={cx('absolute inset-0 size-full object-contain', loaded && 'invisible')}
+      />
+      <img
+        src={photo.url}
+        alt={photoLabel(photo)}
+        width={photo.width}
+        height={photo.height}
+        onLoad={() => setLoaded(true)}
+        data-testid="lightbox-img"
+        className={cx(
+          'absolute inset-0 size-full object-contain transition-[opacity,filter] duration-(--duration-quick)',
+          loaded ? 'opacity-100' : 'opacity-0',
+          photo.hidden && 'opacity-45 grayscale-[0.6]',
+        )}
+      />
+      {photo.hidden ? (
+        <GreaseX className="pointer-events-none absolute inset-[8%] size-[84%] text-fettstift-hell" />
+      ) : null}
+      {overlay}
+    </FittedPhoto>
   );
 }
 
@@ -69,6 +73,8 @@ export function PhotoViewer({
   onClose,
   extensions,
   renderActions,
+  renderOverlay,
+  renderDetails,
 }: PhotoViewerProps) {
   const index = photo ? list.findIndex((p) => p.id === photo.id) : -1;
   const newer = index > 0 ? list[index - 1] : undefined;
@@ -93,6 +99,7 @@ export function PhotoViewer({
   }, [photo, newer, older, onNavigate]);
 
   const label = photo ? photoLabel(photo) : '';
+  const name = photo ? photoName(photo) : 'Foto';
   const ext = photo ? extensions.get(photo.extension) : undefined;
 
   return (
@@ -113,7 +120,7 @@ export function PhotoViewer({
     >
       <Modal className="size-full outline-none">
         <Dialog
-          aria-label={`Foto ${label}`}
+          aria-label={name}
           data-testid="lightbox"
           className={cx(
             'grid size-full grid-rows-[auto_minmax(0,1fr)_auto] text-papier outline-none',
@@ -168,7 +175,7 @@ export function PhotoViewer({
                   if (dx < 0 && older) onNavigate(older.id);
                 }}
               >
-                <ViewerImage key={photo.id} photo={photo} />
+                <ViewerImage key={photo.id} photo={photo} overlay={renderOverlay?.(photo)} />
               </div>
               {/* a toast (Rückgängig) moves above this panel on phones, never over a button */}
               <section
@@ -217,6 +224,7 @@ export function PhotoViewer({
                     Gast öffnen
                   </LinkButton>
                 </div>
+                {renderDetails?.(photo)}
               </section>
             </>
           ) : null}

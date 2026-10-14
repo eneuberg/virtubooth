@@ -10,6 +10,15 @@ export function photoLabel(photo: Pick<AdminPhoto, 'extension' | 'seq'>): string
   return frameLabel(photo.extension, photo.seq);
 }
 
+/**
+ * The photo's name for screen readers (viewer dialog, inspector): "Foto Bier 0032",
+ * and "Foto 0018" for the Fotobox, whose frames already say "Foto" (not "Foto Foto").
+ */
+export function photoName(photo: Pick<AdminPhoto, 'extension' | 'seq'>): string {
+  const label = photoLabel(photo);
+  return /^Foto\s/.test(label) ? label : `Foto ${label}`;
+}
+
 export const photoCount = (n: number) => pluralize(n, 'Foto', 'Fotos');
 export const guestCount = (n: number) => pluralize(n, 'Gast', 'Gäste');
 export const deviceCount = (n: number) => pluralize(n, 'Gerät', 'Geräte');

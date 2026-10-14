@@ -1,10 +1,11 @@
 import { QueryClientProvider } from '@tanstack/react-query';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { useState } from 'react';
 import { describe, expect, it } from 'vitest';
 import type { AdminExtension, AdminPhoto } from '@/api/types';
 import { UiProvider } from '@/ui/UiProvider';
 import { json, stubApi, testClient, type Route } from '../testing';
-import { AnalysisPanel } from './AnalysisPanel';
+import { AnalysisBoxes, AnalysisPanel } from './AnalysisPanel';
 import { photoAnalysis } from './fixtures';
 
 const PHOTO: AdminPhoto = {
@@ -38,12 +39,25 @@ const WALL: AdminExtension = {
 
 const PATH = 'GET /api/x/wall/admin/photos/p1/analysis';
 
+/** the panel and the frames on the photo, as the inspector wires them */
+function Inspector() {
+  const [show, setShow] = useState(true);
+  return (
+    <>
+      <div data-testid="photo">
+        <AnalysisBoxes photo={PHOTO} visible={show} />
+      </div>
+      <AnalysisPanel photo={PHOTO} showBoxes={show} onShowBoxesChange={setShow} />
+    </>
+  );
+}
+
 function renderPanel(routes: Record<string, Route>, extensions: AdminExtension[] = [WALL]) {
   const requests = stubApi({ 'GET /api/admin/extensions': () => ({ extensions }), ...routes });
   const view = render(
     <QueryClientProvider client={testClient()}>
       <UiProvider>
-        <AnalysisPanel photo={PHOTO} />
+        <Inspector />
       </UiProvider>
     </QueryClientProvider>,
   );
@@ -81,10 +95,13 @@ describe('AnalysisPanel', () => {
     expect(boxes[0]?.style.left).toBe('10.00%');
     expect(boxes[0]?.style.height).toBe('30.00%');
     expect(boxes[0]?.textContent).toBe('Gesicht 1');
+    // on the photo, not in the panel
+    expect(screen.getByTestId('photo').contains(boxes[0] ?? null)).toBe(true);
+    expect(screen.getByTestId('analysis').querySelector('img')).toBeNull();
     expect(screen.getByTestId('analysis-details').textContent).toContain('Gesichter2');
     expect(screen.getByRole('button', { name: 'Rohwerte' })).toBeTruthy();
 
-    fireEvent.click(screen.getByRole('switch', { name: 'Rahmen zeigen' }));
+    fireEvent.click(screen.getByRole('switch', { name: 'Rahmen auf dem Foto zeigen' }));
     await waitFor(() => expect(screen.queryAllByTestId('analysis-box')).toHaveLength(0));
   });
 
