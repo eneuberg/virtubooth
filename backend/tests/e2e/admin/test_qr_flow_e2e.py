@@ -128,3 +128,27 @@ def test_a_code_from_creation_to_poster(
     expect(cell(overview, code_row, "Beigetreten")).to_have_text("1")
     expect(cell(overview, code_row, "Fotos")).to_have_text("1")
     assert errors(page) == []
+
+
+def test_row_menu_downloads_without_opening_the_sheet(
+    desktop_page: Page, live: LiveServer, tmp_path: Path
+) -> None:
+    page = desktop_page
+    goto(page, live, "/admin/manage?tab=qr")
+    row = page.get_by_test_id("codes").locator('[data-testid="code-row"][data-id="1"]')
+    menu = row.get_by_test_id("code-row-menu")
+    expect(menu).to_have_accessible_name(re.compile(r"^Drucken: "))
+    for kind, pattern in (
+        ("png", r"qr-01-[a-z]+\.png"),
+        ("qr-pdf", r"qr-01-[a-z]+-gross\.pdf"),
+        ("poster", r"plakat-01-[a-z]+\.pdf"),
+    ):
+        expect(menu).to_be_enabled()
+        menu.click()
+        name, data = download(page, page.get_by_test_id(f"code-menu-{kind}"), tmp_path / kind)
+        assert re.fullmatch(pattern, name), name
+        assert data.startswith(PNG if kind == "png" else b"%PDF-")
+    # the menu is no row click: the code's sheet stayed closed
+    expect(page.get_by_test_id("code-sheet")).to_have_count(0)
+    assert "code=" not in page.url
+    assert errors(page) == []
