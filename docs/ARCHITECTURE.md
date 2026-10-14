@@ -199,7 +199,12 @@ refreshes its visitor row (throttled).
 - **Cost:** one small `UPDATE` per guest and minute; the beat's own request
   skips the throttled refresh and marks the device in the throttle, so other
   requests don't write again right away. 300 guests are about 5 writes a
-  second, nothing for SQLite in WAL mode.
+  second, nothing for SQLite in WAL mode. A visible beat less than 20 s
+  (`BEAT_MIN_SECONDS`) after the guest's last written visible beat is not
+  written at all (an in-memory timestamp per guest, HERE-01), so a client
+  that beats in a loop costs no writes. Nothing is lost: `online_at` keeps the
+  last written beat, and the next written one adds the whole time since.
+  Hidden beats are always written (they close the visit).
 - **"Aktiv jetzt"** keeps its definition (not banned, seen in the last 5
   minutes), but since an open, visible page beats every minute, a guest who
   keeps the page open without doing anything now counts too. A phone that
