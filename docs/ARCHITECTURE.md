@@ -199,7 +199,12 @@ refreshes its visitor row (throttled).
 - **Cost:** one small `UPDATE` per guest and minute; the beat's own request
   skips the throttled refresh and marks the device in the throttle, so other
   requests don't write again right away. 300 guests are about 5 writes a
-  second, nothing for SQLite in WAL mode.
+  second, nothing for SQLite in WAL mode. A visible beat less than 20 s
+  (`BEAT_MIN_SECONDS`) after the guest's last written visible beat is not
+  written at all (an in-memory timestamp per guest, HERE-01), so a client
+  that beats in a loop costs no writes. Nothing is lost: `online_at` keeps the
+  last written beat, and the next written one adds the whole time since.
+  Hidden beats are always written (they close the visit).
 - **"Aktiv jetzt"** keeps its definition (not banned, seen in the last 5
   minutes), but since an open, visible page beats every minute, a guest who
   keeps the page open without doing anything now counts too. A phone that
@@ -287,12 +292,15 @@ startup log warns once that it no longer controls access.
 token is hashed and looked up among the current tokens of active codes
 (hash-then-lookup: timing tells nothing about stored tokens). A hit sets
 `vb_access`, counts the scan (`PresenceService.enter(code_id=…)` →
-`code_visitors`) and redirects without `t`; a miss shows the gate. Wrong
-tokens are limited per IP (`limits.token_fail_ip`, 60 per minute, IPv6 per
-/64; valid scans are free): while an address' budget is empty, every token
-gets the gate without being checked, so guessing gets no answer. The
-trade-off: a guest who keeps guessing on the venue Wi-Fi blocks first scans
-from that IP for as long as they keep it up.
+`code_visitors`) and redirects without `t`; a miss shows the gate. Only
+well-formed tokens (`TOKEN_RE`: 16–128 characters of `[A-Za-z0-9_-]`) are
+looked up, and they always are: guessing 144-bit generated or 16+ character
+custom tokens is hopeless, and an unchecked gate would let one device lock
+every guest on the venue Wi-Fi (one shared IP) out (QR-01). Wrong tokens are
+counted per IP (`limits.token_fail_ip`, 60 per minute, IPv6 per /64; valid
+scans are free). Over that budget a wrong token's gate is held back
+`TOKEN_FAIL_DELAY` (1 s, an `asyncio.sleep`, no thread) and the burst is logged
+once a minute per address (`limits.token_fail_log`).
 
 **Access cookie.** `vb_access` = `signer.sign("access", "<code id>.<token_gen>")`.
 `api/deps.py` `has_access()` (pages, `require_access`, media) asks
@@ -395,7 +403,7 @@ to start, unless `VB_DEV=1`, which serves placeholder pages for working with
 
 `extensions/wall/` (backend) and `frontend/wall.html` + `src/wall/` (the TV),
 `src/admin/wall/` (the admin tab). An extension without uploads and without a
-Start card (`show_on_home=False`); it uses three generic hooks of
+Start card (`show_on_home=False`); it uses four generic hooks of
 `Extension` (`sdk.py`):
 
 - `web_router`: mounted at the root, outside `/api/` (here: `/livewall`,
@@ -404,6 +412,13 @@ Start card (`show_on_home=False`); it uses three generic hooks of
 - `on_start(core)` / `on_stop(core)`: called in the app lifespan after
   `exports.attach()` / before `exports.detach()` (stop in reverse order);
   errors are logged, never fatal.
+- `derived_files(core, public_id)`: files the extension made from a photo.
+  `ModerationService.delete_photo` removes them with the photo's own files
+  after the commit, with no event involved. The wall's is its 1280 px copy
+  `<data>/wall/cache/m/<id>.jpg` (`media.py`). The hub also sweeps that
+  folder (`sweep_cache`) at start, after its translator missed events, and
+  hourly: copies of deleted, hidden or unknown photos and temp files older
+  than 10 minutes go; an unhidden photo gets a new copy on demand (WALL-02).
 
 ```mermaid
 flowchart LR
@@ -423,7 +438,11 @@ flowchart LR
   and its own global lock: after 20 wrong wall passwords within 15 minutes, from
   any address, every wall login is refused for 5 minutes (429 `login_locked`),
   the right password too; logged-in walls and admin sessions keep working.
-  The cookie is `signer.sign("wall", "<gen>.<issued>")`; the generation in
+  The screen's GET routes are rate limited per wall cookie (else per
+  address): 120 a minute for session, feed, categories and stream together,
+  1200 a minute for media (429 `rate_limited`).
+  The cookie is `signer.sign("wall", "<gen>.<issued>.<nonce>")` (older
+  cookies without the nonce stay valid); the generation in
   `x.wall.password` grows on every password change, removal or „Alle Wände
   abmelden“, which ends every wall. An admin session passes too. The password
   hash uses `core/passwords.py` (scrypt).
@@ -436,13 +455,26 @@ flowchart LR
   `created_at + delay_s` and, after a visibility re-check, publish
   `photo.add`; hidden, deleted and banned photos become `photo.remove` at
   once; `settings.event` and `code.changed` republish `config` (event name and
-  the corner QR code). A poller reads the analysis' change counter every 2 s
+  the corner QR code); `user.instagram` (a guest set, changed or removed the
+  handle) becomes `photo.update` for the guest's visible photos while the wall
+  shows handles. That event is in-process only (`INTERNAL_EVENT_TYPES`): the
+  admin stream leaves it out, so `AdminEvent` stays the stream's contract.
+  When the translator itself missed app events (a resync on resubscribe), it
+  publishes `stream.resync` on the wall bus, so every open wall refetches its
+  feed, and sweeps the media cache. A poller reads the analysis' change counter every 2 s
   (`photo.update`, `categories.changed` debounced 10 s). Admin saves publish
   `config` and `bye`. Each wall stream is a plain subscriber, so a reconnect
   with `Last-Event-ID` replays what it missed (else `stream.resync` → refetch
-  the feed).
+  the feed). One wall cookie (or admin session) keeps at most 4 streams open
+  (`EventBus.per_session`, keyed by a hash of the cookie); a fifth closes its
+  oldest (WALL-03, like SEC-06). The cookie's nonce keeps screens that logged
+  in within the same second apart.
 - **Feed:** visible = not hidden, not deleted, from a configured source,
-  older than the delay; the newest 1000. `WallPhoto` carries the pseudonym,
+  older than the delay; the newest 1000. Configured sources that are no longer
+  loaded are ignored (none left = all) and left out of the config screens and
+  the admin get; a save may still carry them (they are dropped), a new unknown
+  one is refused. `analysis` is `off` for photos of guests who switched the
+  analysis off (no facts will come). `WallPhoto` carries the pseudonym,
   the Instagram name only when enabled, a non-reversible `author_key`, the
   public facts (`people`, `faces`, `hands`, `smiles`) and the analysis state.
   `qr` is the chosen (or lowest active) QR code's URL, absolute with
@@ -459,11 +491,33 @@ flowchart LR
   models) and writes facts and boxes; every write sets `rev = MAX(rev)+1`.
   Heartbeat in the settings key `x.wall.worker`. Scratch (crops, landmarks,
   CLIP vectors) never leaves the worker's memory; deleted photos are purged.
-  Categories (`categories.py`) are SQL over `wall_facts`.
+  Categories (`categories.py`) are SQL over `wall_facts`, at most one winner
+  per guest and category (a window function keeps each guest's best). The
+  worker imports neither FastAPI nor the extensions: `wall/__init__.py` makes
+  `extension` lazily (PEP 562 `__getattr__`), and the details' names (source
+  title, meta labels, `Extension.meta_values` such as booth filter names) come
+  from the settings key `x.wall.sources`, which the wall writes at its start.
+- **Re-analysis sweep** (`Worker.sweep`, `jobs.stale`): each `done` row stores
+  the versions of the analyzers that ran. At worker start, whenever the set a
+  run would use changes (an analyzer switched on in the admin, a model file
+  arrived) and every 5 minutes, rows that lack an expected analyzer or carry
+  another version (`AnalyzerInfo.version` bumped) are queued again, newest
+  first, their facts kept until the new run replaces them. Opted-out guests
+  expect `basic` only and no ML entry. Switching an analyzer off queues
+  nothing (its facts are ignored). The cheap static check (gate, model files)
+  runs first; only when it finds stale rows are the analyzers loaded for the
+  exact answer, so a model that fails to load never requeues every photo
+  after each recycle.
 - **Opt-out:** `users.analysis_opt_out` (join flag, `PUT /api/me/analysis`).
-  `UsersRepo.set_analysis_opt_out` drops the guest's facts and boxes and
-  requeues their rows (each with its own rev); the worker then runs only
-  `basic` for them, and categories that need an ML analyzer skip them. The
+  Only a real change does anything. `UsersRepo.set_analysis_opt_out` drops the
+  guest's facts and boxes and requeues their rows (each with its own rev); the
+  worker then runs only `basic` for them, and categories that need an ML
+  analyzer skip them. `IdentityService` requeues at most once per guest and
+  5 minutes (`ANALYSIS_REQUEUE_SECONDS`, in memory, ANA-01). Inside that
+  window, switching off still drops facts and boxes at once (rows keep their
+  state with empty versions; a running row goes back to `pending`, so its ML
+  result is refused) and switching on touches nothing; the sweep redoes what
+  no longer matches. Flipping the switch in a loop costs one pass per window. The
   join texts carry the analysis paragraph while the wall is loaded
   (`ConsentInfo.analysis`).
 - **Frontend:** `src/wall/` has no router or design system: a canvas

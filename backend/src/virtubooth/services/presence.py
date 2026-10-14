@@ -12,8 +12,11 @@ host's dashboard (see domain/overview.py for what is counted).
   minute while it is visible and once when it is hidden. For a joined guest
   each beat is one small UPDATE that adds up the online time and the visits
   (domain/overview.py) and refreshes `last_seen_at`, so an idle open page stays
-  "active now". A browser that has not joined yet only refreshes its visitor
-  (throttled). 300 guests are about 5 writes a second.
+  "active now". A visible beat less than BEAT_MIN_SECONDS after the guest's
+  last written visible beat is skipped (HERE-01): the next written beat adds
+  the time in between, so the online time stays exact. A browser that has
+  not joined yet only refreshes its visitor (throttled). 300 guests are about
+  5 writes a second.
 """
 
 from __future__ import annotations
@@ -37,6 +40,8 @@ if TYPE_CHECKING:
     from ..runtime import Core
 
 THROTTLE_SECONDS = 60.0
+# a visible heartbeat this soon after the last written one is not written
+BEAT_MIN_SECONDS = 20.0
 # the throttle remembers this many devices before it forgets the stale ones
 _MAX_REMEMBERED = 5000
 _VISITOR_PURPOSE = "vid"
@@ -50,6 +55,8 @@ class PresenceService:
         self.repos = repos
         self.clock = clock
         self._last: dict[str, float] = {}
+        # public id -> when its last visible beat was written (now())
+        self._beats: dict[str, datetime] = {}
         self._lock = threading.Lock()
 
     # ------------------------------------------------------------ visitors
@@ -126,13 +133,46 @@ class PresenceService:
     def here(self, request: Request, *, visible: bool) -> None:
         """The guest page's heartbeat. A joined guest (signed `vb_uid` cookie):
         online time, visits and last seen in one write (repositories/presence.py
-        `beat()`); then `note()` leaves the device alone for THROTTLE_SECONDS.
+        `beat()`), skipped for a visible beat within BEAT_MIN_SECONDS of the
+        last written one; then `note()` leaves the device alone for
+        THROTTLE_SECONDS.
         Not joined yet: the visitor's last seen, throttled like `note()`."""
         public_id = self.core.signer.unsign("uid", request.cookies.get(UID_COOKIE))
         if public_id:
-            self.repos.presence.beat(public_id, visible=visible, now=self.now())
+            now = self.now()
+            if visible and not self._beat_due(public_id, now):
+                return
+            if self.repos.presence.beat(public_id, visible=visible, now=now):
+                self._beat_written(public_id, now, visible=visible)
             self._remember(f"u:{public_id}")
             return
         vid = self.visitor_id(request)
         if vid and self._due(f"v:{vid}"):
             self.repos.presence.touch_visitor(vid, at=now_iso())
+
+    def _beat_due(self, public_id: str, now: datetime) -> bool:
+        """Whether a visible beat is worth a write: none was written within
+        BEAT_MIN_SECONDS (on the beats' own clock, `now()`). A skipped beat
+        loses nothing: `online_at` keeps the last written one, so the next
+        write adds the whole time since."""
+        with self._lock:
+            last = self._beats.get(public_id)
+        if last is None:
+            return True
+        elapsed = (now - last).total_seconds()
+        # a clock that went backwards writes rather than skipping for long
+        return not 0 <= elapsed < BEAT_MIN_SECONDS
+
+    def _beat_written(self, public_id: str, now: datetime, *, visible: bool) -> None:
+        with self._lock:
+            if not visible:
+                # the visit is closed; the next visible beat opens a new one
+                self._beats.pop(public_id, None)
+                return
+            if len(self._beats) >= _MAX_REMEMBERED:
+                self._beats = {
+                    k: t
+                    for k, t in self._beats.items()
+                    if (now - t).total_seconds() < BEAT_MIN_SECONDS
+                }
+            self._beats[public_id] = now

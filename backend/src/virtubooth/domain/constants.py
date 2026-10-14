@@ -12,6 +12,7 @@ PHOTO_HEIGHT: Final = 1440
 
 # which camera took the photo (upload meta "facing")
 FACINGS: Final = frozenset({"user", "environment"})
+FACING_NAMES: Final = {"user": "Selfie", "environment": "Rückkamera"}
 
 # The ban reason an identity gets when it joins showing a banned fingerprint.
 # Such guests may just own the same phone model ("auto-banned").

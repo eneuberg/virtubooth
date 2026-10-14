@@ -5949,6 +5949,7 @@
       "WallPhoto": {
         "properties": {
           "analysis": {
+            "description": "The photo analysis' state; `off`: the guest switched the analysis off, so no facts will come.",
             "enum": [
               "pending",
               "running",
@@ -6217,7 +6218,7 @@
         "type": "object"
       },
       "WallResyncEvent": {
-        "description": "The missed events are gone: refetch /livewall/api/feed.",
+        "description": "The missed events are gone (this stream's, or the server's own wall\nmissed app events): refetch /livewall/api/feed.",
         "properties": {
           "data": {
             "$ref": "#/components/schemas/WallEmptyData"
@@ -14272,6 +14273,16 @@
               }
             },
             "description": "Needs consent or an admin session"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Rate limited (`Retry-After` header)"
           }
         },
         "summary": "Categories",
@@ -14328,6 +14339,16 @@
               }
             },
             "description": "Request validation failed (`invalid_request`)"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Rate limited (`Retry-After` header)"
           }
         },
         "summary": "Feed",
@@ -14400,6 +14421,16 @@
               }
             },
             "description": "Conflict"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Rate limited (`Retry-After` header)"
           }
         },
         "summary": "Session",
@@ -14572,6 +14603,16 @@
               }
             },
             "description": "Request validation failed (`invalid_request`)"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Rate limited (`Retry-After` header)"
           }
         },
         "summary": "Stream",

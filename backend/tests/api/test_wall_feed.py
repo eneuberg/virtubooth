@@ -189,9 +189,100 @@ def test_media_sizes_and_cache(wall, guest, admin, core, monkeypatch):
     wait_until(lambda: not cached.exists())
 
 
+def test_deleting_removes_the_copy_without_the_event(wall, guest, admin, core, monkeypatch):
+    """WALL-02: the copy goes with the photo's files even when the wall never
+    handles `photo.deleted` (not loaded, fell behind, stopped right after)."""
+    from virtubooth.extensions.wall import hub
+
+    monkeypatch.setattr(hub, "drop_cached", lambda *_: None)
+    pid = upload(guest())
+    age_photos(core)
+    assert size_of(wall.get(f"/livewall/media/{pid}?s=m")) == (960, 1280)
+    cached = cache_path(core, pid)
+    assert cached.is_file()
+    assert admin.delete(f"/api/admin/photos/{pid}", headers=ORIGIN).status_code == 200
+    assert not cached.exists()  # at once, on commit
+
+
+def test_the_sweep_removes_copies_of_deleted_hidden_and_unknown_photos(guest, admin, core):
+    import os
+    import time
+
+    from virtubooth.extensions.wall.media import cache_dir, sweep_cache
+
+    g = guest()
+    keep, hidden, deleted = upload(g), upload(g), upload(g)
+    assert admin.post(f"/api/admin/photos/{hidden}/hide", headers=ORIGIN).status_code == 200
+    with core.db.tx() as c:  # deleted behind the app's back: no event, no hook
+        c.execute("UPDATE photos SET deleted_at='2026-01-01' WHERE public_id=?", (deleted,))
+    folder = cache_dir(core)
+    folder.mkdir(parents=True, exist_ok=True)
+    for name in (keep, hidden, deleted, "AAAAAAAAAAAAAAAA"):
+        (folder / f"{name}.jpg").write_bytes(b"jpeg")
+    old_tmp, new_tmp = folder / ".m-old.tmp", folder / ".m-new.tmp"
+    old_tmp.write_bytes(b""), new_tmp.write_bytes(b"")
+    os.utime(old_tmp, (time.time() - 3600, time.time() - 3600))
+    assert sweep_cache(core) == 4
+    assert sorted(p.name for p in folder.iterdir()) == sorted([f"{keep}.jpg", ".m-new.tmp"])
+    assert sweep_cache(core) == 0
+
+
 def test_media_needs_the_wall(make_client, guest, core, admin):
     pid = upload(guest())
     age_photos(core)
     r = make_client().get(f"/livewall/media/{pid}?s=s")
     assert r.status_code == 401 and r.json()["error"] == "wall_login_required"
     assert admin.get(f"/livewall/media/{pid}?s=s").status_code == 200
+
+
+def test_an_opted_out_guests_photos_say_off(wall, guest, core, fake):
+    g = guest()
+    pid = upload(g)
+    age_photos(core)
+    fake.analysed(internal_id(core, pid), {"people": 2})
+    assert g.put("/api/me/analysis", json={"opt_out": True}, headers=ORIGIN).status_code == 200
+    (photo,) = wall.get("/livewall/api/feed").json()["photos"]
+    assert (photo["analysis"], photo["facts"]) == ("off", {})
+
+
+def test_the_screen_routes_are_rate_limited(wall, make_client, core):
+    from virtubooth.extensions.wall import auth
+
+    limits = core.extensions["wall"].on_start.__self__.hub(core).screen_limits
+    for _ in range(auth.SCREEN_REQUESTS_PER_MIN):
+        assert wall.get("/livewall/api/session").status_code == 200
+    r = wall.get("/livewall/api/feed")
+    assert r.status_code == 429 and r.json()["error"] == "rate_limited"
+    assert int(r.headers["retry-after"]) >= 1
+    # per wall cookie: another screen (here: one without a cookie) has its own
+    assert make_client().get("/livewall/api/session").status_code == 401
+    # media have their own, larger budget
+    assert wall.get("/livewall/media/AAAAAAAAAAAAAAAA?s=s").status_code == 404
+    limits.api.reset()
+    assert wall.get("/livewall/api/feed").status_code == 200
+
+
+def test_stale_sources_are_ignored(wall, guest, admin, core):
+    """A source whose extension is no longer loaded (here: stored behind the
+    API's back) never empties the wall, never reaches a screen and does not
+    keep the admin from saving the config again."""
+    from virtubooth.extensions.wall.config import CONFIG_KEY
+
+    pid = upload(guest())
+    age_photos(core)
+    put_config(admin, sources=["demo"])
+    raw = core.repos.app_settings.get(CONFIG_KEY)
+    core.repos.app_settings.put(CONFIG_KEY, raw | {"sources": ["gone", "demo"]}, at="x")
+    assert feed_ids(wall) == [pid]
+    assert wall.get("/livewall/api/feed").json()["config"]["sources"] == ["demo"]
+    raw["sources"] = ["gone"]
+    core.repos.app_settings.put(CONFIG_KEY, raw, at="x")
+    assert feed_ids(wall) == [pid]  # none left: all sources, like an empty list
+    body = admin.get("/api/x/wall/admin/config").json()
+    assert body["config"]["sources"] == []
+    # the admin's stale copy saves (the gone id is dropped), a new unknown id does not
+    config = body["config"] | {"sources": ["gone", "other"]}
+    r = admin.put("/api/x/wall/admin/config", json=config, headers=ORIGIN)
+    assert r.status_code == 200 and r.json()["config"]["sources"] == ["other"]
+    r = admin.put("/api/x/wall/admin/config", json=config | {"sources": ["nope"]}, headers=ORIGIN)
+    assert r.status_code == 400 and r.json()["error"] == "invalid_wall_config"

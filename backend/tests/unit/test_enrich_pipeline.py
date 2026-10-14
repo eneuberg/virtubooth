@@ -124,6 +124,24 @@ def test_load_errors_make_an_analyzer_unavailable():
     }
 
 
+def test_expected_versions_static_and_loaded():
+    class Broken(Fake):
+        def load(self, models: Mapping[str, Path]) -> None:
+            raise RuntimeError("no libEGL")
+
+    broken = Broken("x")
+    p = pipeline(Fake("a"), Fake("b", ("a",)), broken, Fake("y", ("x",)),
+                 Fake("m", models=("big",)),
+                 resolve=lambda name: None if name == "big" else Path("/m"))  # fmt: skip
+    # static: nothing is loaded, the broken one still looks fine
+    assert p.expected() == {"a": "7", "b": "7", "x": "7", "y": "7"}
+    assert p.expected({"a"}) == {"x": "7", "y": "7"}
+    assert broken.loads == 0
+    # loaded: exact, and the load error sticks for the static answer too
+    assert p.expected(load=True) == {"a": "7", "b": "7"}
+    assert p.expected() == {"a": "7", "b": "7"}
+
+
 def test_people_falls_back_to_faces():
     out = merge({"faces": Result(facts={"faces": 3})}, ["faces"], {}, {}, {})
     assert out.facts == {"faces": 3.0, "people": 3.0}
@@ -212,3 +230,104 @@ def test_an_opted_out_guest_gets_only_the_basic_values(data_dir):
     Worker(data, analyzers=analyzers()).run(once=True)
     facts = jobs.facts(repos.db, photo_id)
     assert facts == {"basic": 1.0, "faces": 1.0, "emotion": 1.0, "people": 1.0}
+
+
+def _versions(repos: Repositories, photo_id: int) -> tuple[str, dict[str, str]]:
+    row = jobs.get(repos.db, photo_id)
+    assert row is not None
+    return row.state, row.versions
+
+
+def test_the_sweep_requeues_on_a_new_version_or_a_newly_enabled_analyzer(data_dir):
+    data, repos, photo_id = data_dir
+    worker = Worker(data, analyzers=[Fake("basic"), Fake("faces")])
+    worker.run(once=True)
+    assert _versions(repos, photo_id) == ("done", {"basic": "7", "faces": "7"})
+    # nothing changed: a sweep (also a forced one) queues nothing
+    assert worker.sweep(repos, force=True) == 0
+    # a new version of one analyzer (new code, so a new worker)
+    bumped = Fake("faces")
+    object.__setattr__(bumped, "info", AnalyzerInfo(
+        name="faces", title="F", version="8", kind="basic", facts=("faces",)))  # fmt: skip
+    worker = Worker(data, analyzers=[Fake("basic"), bumped])
+    assert worker.run(once=True) == 0
+    assert _versions(repos, photo_id) == ("done", {"basic": "7", "faces": "8"})
+    # switched off: no new work (its old facts are just ignored) ...
+    jobs.save_disabled(repos.app_settings, {"faces"}, by="pytest")
+    assert worker.sweep(repos) == 0
+    # ... switched on (here: a registry analyzer that was not running): queued again
+    jobs.save_disabled(repos.app_settings, set(), by="pytest")
+    worker = Worker(data, analyzers=[Fake("basic"), bumped, Fake("tags")])
+    assert worker.sweep(repos) == 1
+    assert _versions(repos, photo_id)[0] == "pending"
+    worker.run(once=True)
+    assert _versions(repos, photo_id) == ("done", {"basic": "7", "faces": "8", "tags": "7"})
+
+
+def test_a_model_that_fails_to_load_does_not_requeue_forever(data_dir):
+    data, repos, photo_id = data_dir
+
+    class Broken(Fake):
+        def load(self, models: Mapping[str, Path]) -> None:
+            self.loads += 1
+            raise RuntimeError("no libEGL")
+
+    for _ in range(3):  # three recycled workers
+        broken = Broken("faces")
+        worker = Worker(data, analyzers=[Fake("basic"), broken])
+        worker.run(once=True)
+        assert _versions(repos, photo_id) == ("done", {"basic": "7"})
+        assert worker.sweep(repos, force=True) == 0
+    # the sweep loaded it to find out (once per worker), but queued nothing
+    assert broken.loads == 1 and not broken.seen
+
+
+def test_an_opt_out_inside_the_requeue_limit_is_redone_by_the_sweep(data_dir):
+    data, repos, photo_id = data_dir
+    user_id = repos.db.one("SELECT user_id FROM photos WHERE id=?", (photo_id,))[0]
+
+    def worker() -> Worker:
+        return Worker(data, analyzers=[Fake("basic"), Fake("faces")])
+
+    worker().run(once=True)
+    # off without a requeue: the findings are gone at once, the state stays
+    assert repos.users.set_analysis_opt_out(user_id, True, requeue=False)
+    assert _versions(repos, photo_id) == ("done", {})
+    assert jobs.facts(repos.db, photo_id) == {}
+    w = worker()
+    w.run(once=True)  # the sweep at start queues it: basic values only
+    assert _versions(repos, photo_id) == ("done", {"basic": "7"})
+    assert jobs.facts(repos.db, photo_id) == {"basic": 1.0}
+    # on again without a requeue: nothing happens until the sweep runs
+    assert repos.users.set_analysis_opt_out(user_id, False, requeue=False)
+    assert _versions(repos, photo_id) == ("done", {"basic": "7"})
+    # and switched off and on again before it ran: still just one pass
+    assert repos.users.set_analysis_opt_out(user_id, True, requeue=False)
+    assert repos.users.set_analysis_opt_out(user_id, False, requeue=False)
+    assert w.sweep(repos) == 0  # within SWEEP_S and nothing else changed
+    assert w.sweep(repos, force=True) == 1
+    w.run(once=True)
+    assert _versions(repos, photo_id) == ("done", {"basic": "7", "faces": "7"})
+
+
+def test_an_opt_out_during_an_analysis_never_stores_its_ml_result(data_dir):
+    _data, repos, photo_id = data_dir
+    user_id = repos.db.one("SELECT user_id FROM photos WHERE id=?", (photo_id,))[0]
+    claimed = jobs.claim(repos.db)
+    assert claimed is not None and not claimed.opt_out
+    assert repos.users.set_analysis_opt_out(user_id, True, requeue=False)
+    assert not jobs.finish(repos.db, photo_id, facts={"faces": 2}, data={},
+                           versions={"faces": "7"})  # fmt: skip
+    assert jobs.get(repos.db, photo_id).state == "pending"
+    assert jobs.facts(repos.db, photo_id) == {}
+
+
+def test_the_worker_names_the_source_from_the_stored_labels(data_dir):
+    from virtubooth.extensions.wall.enrich.analyzers.basic import BasicAnalyzer
+    from virtubooth.extensions.wall.enrich.pipeline import SourceLabels
+
+    data, repos, photo_id = data_dir
+    jobs.save_source_labels(repos.app_settings, {"booth": SourceLabels(title="Fotobox")})
+    Worker(data, analyzers=[BasicAnalyzer()]).run(once=True)
+    details = {d["label"]: d["value"] for d in jobs.get(repos.db, photo_id).data["details"]}
+    assert details["Quelle"] == "Fotobox"

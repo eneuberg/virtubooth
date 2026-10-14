@@ -15,7 +15,7 @@ from ...core.clock import iso
 from ...domain.codes import entry_path
 from ...domain.models import Photo
 from ...repositories._rows import PHOTO_COLS, photo_from_row
-from .config import WallConfig
+from .config import WallConfig, prune_sources
 from .enrichment import PUBLIC_FACTS, Enrichment, PhotoFilter
 from .schemas import AnalysisState, WallPhoto, WallPhotoUrls, WallQr
 
@@ -35,7 +35,16 @@ def upload_ids(core: Core) -> list[str]:
 
 
 def sources(core: Core, config: WallConfig) -> tuple[str, ...]:
-    return tuple(config.sources) if config.sources else tuple(upload_ids(core))
+    """The configured sources that are loaded; all upload extensions when none
+    is configured (or every configured one is gone)."""
+    loaded = upload_ids(core)
+    kept = tuple(s for s in config.sources if s in loaded)
+    return kept or tuple(loaded)
+
+
+def screen_config(core: Core, config: WallConfig) -> WallConfig:
+    """The config as screens and the admin see it: stale sources left out."""
+    return prune_sources(config, upload_ids(core))
 
 
 def cutoff(config: WallConfig, now: datetime | None = None) -> str:
@@ -87,6 +96,17 @@ def visible_by_ids(core: Core, config: WallConfig, ids: Sequence[int]) -> dict[i
     return {int(r["id"]): photo_from_row(r) for r in rows}
 
 
+def visible_of_user(core: Core, config: WallConfig, user_id: int) -> list[Photo]:
+    """A guest's photos visible on the wall, newest first (at most MAX_FEED)."""
+    where, params = _where(sources(core, config), cutoff(config))
+    rows = core.db.all(
+        f"SELECT {PHOTO_COLS} FROM photos p JOIN users u ON u.id=p.user_id "
+        f"WHERE {where} AND p.user_id=? ORDER BY p.id DESC LIMIT ?",
+        [*params, user_id, MAX_FEED],
+    )
+    return [photo_from_row(r) for r in rows]
+
+
 def visibility(core: Core, config: WallConfig, public_id: str) -> tuple[Visibility, Photo | None]:
     """`visible`; `later` = only the delay holds it back; `gone` = not on the wall."""
     where, params = _where(sources(core, config), None)
@@ -120,6 +140,7 @@ def wall_photos(
     core: Core, config: WallConfig, enrichment: Enrichment, photos: Sequence[Photo]
 ) -> list[WallPhoto]:
     summaries = enrichment.summaries([p.id for p in photos]) if photos else {}
+    opted_out = _opted_out(core, {p.user_id for p in photos})
     # a photo the analysis has not picked up yet is waiting for it
     unknown: AnalysisState = "pending"
     out: list[WallPhoto] = []
@@ -127,7 +148,10 @@ def wall_photos(
         summary = summaries.get(p.id)
         state = unknown
         facts: dict[str, float] = {}
-        if summary is not None:
+        if p.user_id in opted_out:
+            # the guest switched the analysis off: no faces, hands, smiles come
+            state = "off"
+        elif summary is not None:
             if summary.state in _STATES:
                 state = cast(AnalysisState, summary.state)
             facts = {k: float(v) for k, v in summary.facts.items() if k in PUBLIC_FACTS}
@@ -149,6 +173,23 @@ def wall_photos(
                 ),
                 facts=facts,
                 analysis=state,
+            )
+        )
+    return out
+
+
+def _opted_out(core: Core, user_ids: set[int]) -> set[int]:
+    """The guests among `user_ids` who switched the photo analysis off."""
+    ids = sorted(user_ids)
+    out: set[int] = set()
+    for start in range(0, len(ids), 500):
+        chunk = ids[start : start + 500]
+        out.update(
+            int(r[0])
+            for r in core.db.all(
+                "SELECT id FROM users WHERE analysis_opt_out = 1 "
+                f"AND id IN ({','.join('?' * len(chunk))})",
+                chunk,
             )
         )
     return out
@@ -181,7 +222,7 @@ def config_payload(core: Core, config: WallConfig) -> dict[str, Any]:
     """The `config` event's data (WallConfigData)."""
     qr = wall_qr(core, config)
     return {
-        "config": config.model_dump(mode="json"),
+        "config": screen_config(core, config).model_dump(mode="json"),
         "event_name": event_name(core),
         "qr": qr.model_dump(mode="json") if qr else None,
     }

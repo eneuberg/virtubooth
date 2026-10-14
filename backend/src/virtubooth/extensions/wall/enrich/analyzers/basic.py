@@ -8,19 +8,15 @@ any size compare.
 
 from __future__ import annotations
 
-import logging
 import math
 from collections.abc import Mapping
-from functools import cache
 from pathlib import Path
 
 from PIL import Image, ImageChops, ImageFilter, ImageStat
 
 from .. import clock
-from ..pipeline import Frame, Result
+from ..pipeline import Frame, Result, SourceLabels
 from . import BASIC
-
-log = logging.getLogger("virtubooth.wall.enrich")
 
 STAT_SIDE = 512
 # the Laplacian, halved (scale 2) and shifted (offset 128) so it fits 8 bits
@@ -54,18 +50,6 @@ def sharpness(img: Image.Image) -> float:
     return float((2 * ImageStat.Stat(inner).stddev[0]) ** 2)
 
 
-@cache
-def _extensions() -> dict[str, tuple[str, Mapping[str, str]]]:
-    """id → (title, meta labels) of the installed extensions."""
-    try:
-        from ....sdk import discover_extensions
-
-        return {e.id: (e.title, e.meta_labels) for e in discover_extensions()}
-    except Exception:
-        log.warning("extensions not loadable for the analysis details", exc_info=True)
-        return {}
-
-
 def _number(value: float) -> str:
     return f"{value:.0f}" if value >= 10 else f"{value:.1f}".replace(".", ",")
 
@@ -85,14 +69,16 @@ class BasicAnalyzer:
             "sharpness": round(sharpness(small), 1),
         }
         photo = frame.photo
-        title, labels = _extensions().get(photo.extension, (photo.extension, {}))
+        # names from the extension (jobs.source_labels), else the raw ids
+        source = photo.source or SourceLabels(title=photo.extension)
         details: list[tuple[str, str]] = [
             ("Aufgenommen", f"{clock.local(photo.created_at):%d.%m.%Y, %H:%M}"),
-            ("Quelle", title),
+            ("Quelle", source.title),
         ]
         for key, value in photo.meta.items():
             if isinstance(value, str | int | float) and not isinstance(value, bool):
-                details.append((labels.get(key, key), str(value)))
+                names = source.values.get(key, {})
+                details.append((source.labels.get(key, key), names.get(str(value), str(value))))
         details += [
             ("Gast", photo.user_name or "–"),
             ("QR-Code", photo.code_name or "–"),

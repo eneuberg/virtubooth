@@ -13,20 +13,28 @@ Files: `<data>/wall/cache/m/` (media.py).
 
 from __future__ import annotations
 
-from fastapi import APIRouter
+from typing import TYPE_CHECKING
 
-from virtubooth.extensions.sdk import Extension
+if TYPE_CHECKING:
+    from virtubooth.extensions.sdk import Extension
 
-from . import admin_api, screen_api
-from .enrich import admin_api as analysis_admin_api
-from .enrichment import Enrichment
-from .hub import Wall
+    from .enrichment import Enrichment
 
 EXT_ID = "wall"
 
 
 def make_extension(enrichment: Enrichment | None = None) -> Extension:
     """The wall extension; `enrichment` replaces the photo analysis (tests)."""
+    # imported here, not at the top: the analysis worker imports this package
+    # (as the parent of enrich/) and needs none of the web side (FastAPI)
+    from fastapi import APIRouter
+
+    from virtubooth.extensions.sdk import Extension
+
+    from . import admin_api, media, screen_api
+    from .enrich import admin_api as analysis_admin_api
+    from .hub import Wall
+
     wall = Wall(enrichment)
     # /api/x/wall/admin/...: the wall's settings and the photo analysis
     router = APIRouter()
@@ -42,7 +50,14 @@ def make_extension(enrichment: Enrichment | None = None) -> Extension:
         web_router=screen_api.build_router(wall),
         on_start=wall.on_start,
         on_stop=wall.on_stop,
+        derived_files=media.derived_files,
     )
 
 
-extension = make_extension()
+def __getattr__(name: str) -> Extension:
+    """`extension` (what discover_extensions reads) is made on first access."""
+    if name == "extension":
+        ext = make_extension()
+        globals()["extension"] = ext
+        return ext
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")

@@ -1,4 +1,5 @@
-"""`python -m virtubooth.extensions.wall.enrich …`: the analysis worker and its tools.
+"""`virtubooth wall …` (or `python -m virtubooth.extensions.wall.enrich …`): the
+analysis worker and its tools.
 
 worker   [--data-dir DIR]                 the worker loop (the app starts it)
 run-once [--data-dir DIR] [--limit N]      analyse what is pending, print timings
@@ -106,9 +107,9 @@ def _models_list(args: argparse.Namespace) -> int:
     return 0
 
 
-def parser() -> argparse.ArgumentParser:
+def parser(prog: str = "python -m virtubooth.extensions.wall.enrich") -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(
-        prog="python -m virtubooth.extensions.wall.enrich",
+        prog=prog,
         description="Live-Wall photo analysis: worker, models, status.",
     )
     sub = p.add_subparsers(dest="command", required=True)
@@ -145,13 +146,13 @@ def parser() -> argparse.ArgumentParser:
     return p
 
 
-def main(argv: Sequence[str] | None = None) -> int:
+def main(argv: Sequence[str] | None = None, prog: str | None = None) -> int:
     os.environ.setdefault("MPLBACKEND", "Agg")
     logging.basicConfig(
         level=logging.INFO, stream=sys.stderr,
         format="%(asctime)s wall-enrich[%(process)d] %(levelname)s %(message)s",
     )  # fmt: skip
-    return run(lambda a: int(a.fn(a)), parser(), argv)
+    return run(lambda a: int(a.fn(a)), parser(prog) if prog else parser(), argv)
 
 
 if __name__ == "__main__":

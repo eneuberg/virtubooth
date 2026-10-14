@@ -1,6 +1,7 @@
 """The guest page's heartbeat (`POST /api/here`): online time and visits of
 joined guests, "online now", the visitor's last seen for browsers that have not
-joined, "Aktiv jetzt" for idle open pages, one write per beat."""
+joined, "Aktiv jetzt" for idle open pages, one write per beat (none for a
+visible beat within BEAT_MIN_SECONDS of the last written one)."""
 
 from __future__ import annotations
 
@@ -10,7 +11,7 @@ import pytest
 
 from virtubooth.core.clock import iso
 from virtubooth.domain.overview import ONLINE_GAP_SECONDS, beat, is_online
-from virtubooth.services.presence import THROTTLE_SECONDS
+from virtubooth.services.presence import BEAT_MIN_SECONDS, THROTTLE_SECONDS
 
 from ..conftest import ORIGIN, scan
 from .test_admin_dashboard import _age_everyone, identify, overview, user_id_of, visitor_of
@@ -111,6 +112,42 @@ def test_online_time_adds_up_beat_by_beat(guest, core, at):
     at[0] += timedelta(seconds=30)
     here(g)
     assert online(core, g) == (164, 3, iso(at[0]))
+
+
+def test_quick_visible_beats_are_not_written(guest, core, at, monkeypatch):
+    """HERE-01: a visible beat within BEAT_MIN_SECONDS of the last written one
+    is skipped; the next written beat adds the whole time, so nothing is lost."""
+    g = guest()
+    here(g)
+    writes: list[bool] = []
+    write = core.repos.presence.beat
+
+    def spy(public_id: str, *, visible: bool, now: datetime) -> bool:
+        writes.append(visible)
+        return write(public_id, visible=visible, now=now)
+
+    monkeypatch.setattr(core.repos.presence, "beat", spy)
+    for step in (5, 5, 5):  # 15 s of rapid beats: none written
+        at[0] += timedelta(seconds=step)
+        assert here(g) == {"ok": True}
+    assert writes == []
+    assert online(core, g) == (0, 1, iso(T0))
+
+    at[0] = T0 + timedelta(seconds=BEAT_MIN_SECONDS)
+    here(g)
+    assert writes == [True]
+    assert online(core, g) == (int(BEAT_MIN_SECONDS), 1, iso(at[0]))
+
+    # a hidden beat is always written (it closes the visit) ...
+    at[0] += timedelta(seconds=3)
+    here(g, visible=False)
+    assert writes == [True, False]
+    assert online(core, g) == (int(BEAT_MIN_SECONDS) + 3, 1, None)
+    # ... and the next visible one opens a new visit at once
+    at[0] += timedelta(seconds=2)
+    here(g)
+    assert writes == [True, False, True]
+    assert online(core, g) == (int(BEAT_MIN_SECONDS) + 3, 2, iso(at[0]))
 
 
 def test_a_hidden_beat_after_the_gap_adds_nothing(guest, core, at):

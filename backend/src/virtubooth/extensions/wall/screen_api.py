@@ -13,12 +13,21 @@ wall cookie can be scoped to this one prefix.
 
 Everything but the page and `session` needs the wall cookie or an admin session
 (401 `wall_login_required`). JSON answers are `Cache-Control: no-store`.
+
+The GET routes are rate limited per wall cookie, else per address (429
+`rate_limited` with `Retry-After`): 120 a minute for session, feed, categories
+and stream together, 1200 a minute (bursts of 600) for media.
+
+One wall cookie (or admin session) keeps at most `EventBus.per_session` (4)
+streams open; a fifth closes its oldest, whose screen reconnects and replays
+what it missed (WALL-03, like the admin stream's SEC-06).
 """
 
 # no `from __future__ import annotations`: FastAPI must resolve the routes'
 # annotations, and some name dependencies local to build_router()
 
 import asyncio
+import hashlib
 import json
 import time
 from collections.abc import AsyncIterator
@@ -29,11 +38,12 @@ from fastapi import APIRouter, Depends, Header, Query, Request, Response
 from fastapi.responses import FileResponse, RedirectResponse
 from fastapi.sse import EventSourceResponse, ServerSentEvent
 
-from ...api.deps import CoreDep
+from ...api.deps import CoreDep, admin_from_cookie
 from ...core import errors
 from ...core.clock import now_iso
 from ...core.errors import error_responses, json_error_responses
 from ...core.events import Closed, Event, EventBus, Resync
+from ...core.ratelimit import RateLimiter
 from ...domain.constants import PHOTO_ID_RE
 from ...runtime import Core
 from . import auth
@@ -44,6 +54,7 @@ from .feed import (
     WALL_PATH,
     event_name,
     photo_filter,
+    screen_config,
     visible_by_ids,
     visible_photo,
     visible_photos,
@@ -83,15 +94,31 @@ def _sse(bus: EventBus, event: Event) -> ServerSentEvent:
     )
 
 
+def stream_owner(request: Request, core: Core) -> str | None:
+    """Whose stream this is, for the cap on open streams: the wall cookie, else
+    the admin session (hashed: the bus keeps it in memory)."""
+    cookie = request.cookies.get(auth.COOKIE)
+    state = auth.password_state(core.repos.app_settings)
+    if cookie and auth.cookie_valid(core, request, state):
+        return "wall:" + hashlib.sha256(cookie.encode()).hexdigest()[:32]
+    admin = admin_from_cookie(request, core)
+    return f"admin:{admin.session_hash}" if admin is not None else None
+
+
 async def wall_event_stream(
-    request: Request, core: Core, hub: WallHub, cursor: int | Resync | None
+    request: Request,
+    core: Core,
+    hub: WallHub,
+    cursor: int | Resync | None,
+    *,
+    owner: str | None = None,
 ) -> AsyncIterator[ServerSentEvent]:
     """`retry: 3000`, `hello`, then (after a `stream.resync` when the missed events
     are gone) every wall event. Ends when the screen is logged out (`bye`, or
     the cookie check every RECHECK_SECONDS) or falls behind (the browser
-    reconnects and catches up)."""
+    reconnects and catches up), or when `owner` opens one stream too many."""
     bus = hub.bus
-    sub = bus.subscribe(cursor)
+    sub = bus.subscribe(cursor, session=owner)
 
     async def authorized() -> bool:
         return await to_thread.run_sync(wall_auth, request, core) is not None
@@ -139,6 +166,12 @@ async def wall_event_stream(
         bus.unsubscribe(sub)
 
 
+def limit(limiter: RateLimiter, request: Request, core: Core) -> None:
+    key = auth.screen_key(core, request)
+    if not limiter.hit(key):
+        raise errors.rate_limited(limiter.retry_after(key))
+
+
 def build_router(wall: Wall) -> APIRouter:
     router = APIRouter(tags=["wall"])
 
@@ -146,6 +179,15 @@ def build_router(wall: Wall) -> APIRouter:
         return wall.hub(core)
 
     HubDep = Annotated[WallHub, Depends(get_hub)]
+
+    def screen_budget(request: Request, core: CoreDep, hub: HubDep) -> None:
+        limit(hub.screen_limits.api, request, core)
+
+    def media_budget(request: Request, core: CoreDep, hub: HubDep) -> None:
+        limit(hub.screen_limits.media, request, core)
+
+    ScreenBudget = Depends(screen_budget)
+    MediaBudget = Depends(media_budget)
 
     @router.get(WALL_PATH, include_in_schema=False)
     def page(core: CoreDep) -> Response:
@@ -158,8 +200,8 @@ def build_router(wall: Wall) -> APIRouter:
 
     @router.get(
         WALL_PATH + "/api/session",
-        dependencies=[NoStore],
-        responses=error_responses(401, 409),
+        dependencies=[NoStore, ScreenBudget],
+        responses=error_responses(401, 409, 429),
     )
     def session(request: Request, core: CoreDep) -> WallSessionOut:
         """Whether this screen may watch: 401 log in, 409 no wall password yet."""
@@ -193,8 +235,8 @@ def build_router(wall: Wall) -> APIRouter:
 
     @router.get(
         WALL_PATH + "/api/feed",
-        dependencies=[NoStore],
-        responses=error_responses(401, 422),
+        dependencies=[NoStore, ScreenBudget],
+        responses=error_responses(401, 422, 429),
     )
     def feed(
         request: Request,
@@ -210,7 +252,7 @@ def build_router(wall: Wall) -> APIRouter:
         config = load_config(core.repos.app_settings)
         total, photos = visible_photos(core, config, limit)
         return WallFeed(
-            config=config,
+            config=screen_config(core, config),
             event_name=event_name(core),
             qr=wall_qr(core, config, str(request.base_url)),
             total=total,
@@ -221,8 +263,8 @@ def build_router(wall: Wall) -> APIRouter:
 
     @router.get(
         WALL_PATH + "/api/categories",
-        dependencies=[NoStore],
-        responses=error_responses(401),
+        dependencies=[NoStore, ScreenBudget],
+        responses=error_responses(401, 429),
     )
     def categories(core: CoreDep, hub: HubDep, _via: WallDep) -> WallCategoriesOut:
         """The enabled categories that have winners, in catalogue order."""
@@ -232,7 +274,8 @@ def build_router(wall: Wall) -> APIRouter:
         WALL_PATH + "/api/stream",
         response_class=EventSourceResponse,
         response_description="Server-Sent Events; each message's `data` is the event's `data`.",
-        responses=json_error_responses(401, 422),
+        dependencies=[ScreenBudget],
+        responses=json_error_responses(401, 422, 429),
     )
     async def stream(
         request: Request,
@@ -246,12 +289,15 @@ def build_router(wall: Wall) -> APIRouter:
     ) -> AsyncIterator[WallEvent]:
         """The wall's live events (resume with `Last-Event-ID` or `?since=<feed cursor>`)."""
         cursor = hub.bus.parse_cursor(last_event_id if last_event_id else since)
-        async for message in wall_event_stream(request, core, hub, cursor):
+        owner = await to_thread.run_sync(stream_owner, request, core)
+        async for message in wall_event_stream(request, core, hub, cursor, owner=owner):
             # FastAPI writes ServerSentEvent items as they are; `WallEvent` only
             # documents the messages in the OpenAPI schema
             yield message  # type: ignore[misc]
 
-    @router.get(WALL_PATH + "/media/{public_id}", include_in_schema=False)
+    @router.get(
+        WALL_PATH + "/media/{public_id}", include_in_schema=False, dependencies=[MediaBudget]
+    )
     def media(
         public_id: str, core: CoreDep, _via: WallDep, s: Literal["s", "m", "l"] = "m"
     ) -> FileResponse:

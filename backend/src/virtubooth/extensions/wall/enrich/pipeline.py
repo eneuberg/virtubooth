@@ -92,6 +92,16 @@ class Result:
 
 
 @dataclass(frozen=True)
+class SourceLabels:
+    """How the admin names a photo's source and its meta (from the extension,
+    which the worker does not import: `jobs.source_labels`)."""
+
+    title: str
+    labels: Mapping[str, str] = field(default_factory=dict)  # meta key → name
+    values: Mapping[str, Mapping[str, str]] = field(default_factory=dict)  # key → value → name
+
+
+@dataclass(frozen=True)
 class PhotoInfo:
     """The photo row as the worker claimed it."""
 
@@ -108,6 +118,8 @@ class PhotoInfo:
     code_name: str | None = None
     # the guest switched the automatic analysis off: basic image values only
     opt_out: bool = False
+    # the source's names for the details; None: the raw ids
+    source: SourceLabels | None = None
 
 
 @dataclass
@@ -214,6 +226,30 @@ class Pipeline:
             return self.load_errors[info.name]
         self._loaded.add(info.name)
         return None
+
+    def expected(self, disabled: Collection[str] = (), *, load: bool = False) -> dict[str, str]:
+        """name → version of the analyzers a run with `disabled` would use: not
+        disabled, able to run, dependencies expected too. Without `load` from
+        static checks (gate, model files, no load error so far), so an analyzer
+        not loaded yet may still fail; with `load` each one is loaded (or its
+        load error recorded) first, which makes the answer exact. The worker's
+        sweep compares stored analyses with it (`jobs.stale`)."""
+        out: dict[str, str] = {}
+        for name in self.order:
+            analyzer = self._by_name[name]
+            info = analyzer.info
+            if name in disabled or any(n not in out for n in info.needs):
+                continue
+            if load:
+                if self._ready(analyzer):
+                    continue
+            elif name in self.load_errors or (
+                name not in self._loaded
+                and (self._gate(info) or any(self._resolve(m) is None for m in info.models))
+            ):
+                continue
+            out[name] = info.version
+        return out
 
     def run(self, frame: Frame, disabled: Collection[str] = ()) -> Outcome:
         results: dict[str, Result] = {}

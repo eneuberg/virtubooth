@@ -400,9 +400,12 @@ docker build --build-arg VB_ML=1 -t virtubooth:ml .        # the ML image
 docker build --build-arg VB_ML=1 --build-arg VB_BAKE_MODELS=1 -t virtubooth:ml .
                                                             # ... with the models in /opt/vb-models
 # or download them into the volume once (versioned URLs, SHA256-checked):
-docker compose run --rm app python -m virtubooth.extensions.wall.enrich models fetch
-docker compose run --rm app python -m virtubooth.extensions.wall.enrich models list
+docker compose run --rm app virtubooth wall models fetch
+docker compose run --rm app virtubooth wall models list
 ```
+
+(`virtubooth wall …` is short for `python -m virtubooth.extensions.wall.enrich …`,
+which keeps working.)
 
 `models fetch` writes to `$VB_WALL_MODELS_DIR` or `/data/wall/models`;
 `--with-age` adds FairFace (switched off in the admin until you turn it on).

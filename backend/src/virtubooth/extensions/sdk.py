@@ -35,6 +35,8 @@ from ..domain.constants import EXT_ID_PATTERN, EXT_ID_RE, META_KEY_RE
 from ..settings import ConfigError
 
 if TYPE_CHECKING:
+    from pathlib import Path
+
     from ..domain.models import Photo, User
     from ..runtime import Core
 
@@ -81,6 +83,9 @@ class Extension:
     show_on_home: bool = True
     # how the admin UI labels meta keys, e.g. {"vessel": "Gefäß"}
     meta_labels: Mapping[str, str] = field(default_factory=dict)
+    # display names of meta values, e.g. {"filter": {"bw": "Schwarz-Weiß"}}
+    # (the Live-Wall's analysis details)
+    meta_values: Mapping[str, Mapping[str, str]] = field(default_factory=dict)
     # mounted at the root, outside /api/ (e.g. pages and files); its paths must not
     # start with /api, /admin, /x/, /assets or /media
     web_router: APIRouter | None = None
@@ -89,6 +94,10 @@ class Extension:
     # loop. An exception is logged, never fatal.
     on_start: Callable[[Core], None] | None = None
     on_stop: Callable[[Core], None] | None = None
+    # files the extension derived from a photo (by public id), e.g. the wall's
+    # cached copy; deleting the photo removes them with its own files, after
+    # the commit, whether or not the extension saw the event
+    derived_files: Callable[[Core, str], Sequence[Path]] | None = None
 
     @property
     def url(self) -> str:

@@ -232,3 +232,63 @@ def test_without_auth(live):
     with httpx.Client(base_url=live.base_url, timeout=5) as anonymous:
         r = anonymous.get("/livewall/api/stream")
         assert r.status_code == 401 and r.json()["error"] == "wall_login_required"
+
+
+def test_one_wall_cookie_keeps_at_most_four_streams(live, admin_c):
+    """WALL-03: a fifth stream of the same cookie closes the oldest; another
+    wall (its own cookie) is not affected."""
+    wall, other = live_wall(live), live_wall(live)
+    streams = [Stream(wall, "/livewall/api/stream") for _ in range(4)]
+    theirs = Stream(other, "/livewall/api/stream")
+    try:
+        for s in [*streams, theirs]:
+            s.until("hello")
+        streams.append(Stream(wall, "/livewall/api/stream"))
+        streams[-1].until("hello")
+        while (message := streams[0].next()) is not None:
+            assert message.get("event") != "photo.add"
+        assert admin_c.get("/api/x/wall/admin/config").json()["open_walls"] == 5
+    finally:
+        for s in [*streams, theirs]:
+            s.close()
+        wall.close()
+        other.close()
+
+
+def test_an_instagram_change_updates_the_guests_photos(live, admin_c):
+    put_config(live, admin_c, delay_s=0, show_instagram=True)
+    wall = live_wall(live)
+    stream = Stream(wall, "/livewall/api/stream")
+    guest = live_guest(live)
+    try:
+        stream.until("hello")
+        pid = live_upload(live, guest)
+        assert stream.until("photo.add")["data"]["photo"]["instagram"] is None
+        r = guest.patch("/api/me", json={"instagram": "@anna.party"}, headers=live.origin)
+        assert r.status_code == 200, r.text
+        updated = stream.until("photo.update")["data"]["photo"]
+        assert (updated["id"], updated["instagram"]) == (pid, "anna.party")
+        # the same handle again: no event; removed: an update without it
+        guest.patch("/api/me", json={"instagram": "anna.party"}, headers=live.origin)
+        guest.patch("/api/me", json={"instagram": None}, headers=live.origin)
+        updated = stream.until("photo.update")["data"]["photo"]
+        assert (updated["id"], updated["instagram"]) == (pid, None)
+    finally:
+        stream.close()
+        wall.close()
+        guest.close()
+
+
+def test_missed_app_events_make_every_wall_resync(live, admin_c):
+    wall = live_wall(live)
+    stream = Stream(wall, "/livewall/api/stream")
+    try:
+        stream.until("hello")
+        hub = live.core.extensions["wall"].on_start.__self__.hub(live.core)
+        assert hub._loop is not None
+        hub._loop.call_soon_threadsafe(hub._missed)
+        message = stream.until("stream.resync")
+        assert message["data"] == {} and "id" in message
+    finally:
+        stream.close()
+        wall.close()

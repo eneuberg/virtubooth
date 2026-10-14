@@ -4,10 +4,14 @@
   for `created_at + delay_s`, then (visibility re-checked) `photo.add`;
   `photo.unhidden` / `user.unbanned` add photos past the delay (or arm a timer);
   `photo.hidden` / `photo.deleted` / `user.banned` → `photo.remove` at once;
+  `user.instagram` (in-process only) → `photo.update` for the guest's photos
+  while the wall shows handles; when it misses app events (fell behind,
+  restart gap) → `stream.resync`, so every open wall refetches its feed;
 - a poller: every POLL_SECONDS the analysis' changes → `photo.update` for
   visible photos, and `categories.changed` CATEGORIES_DEBOUNCE_SECONDS after
   the first change (more changes in between are folded in);
-- the admin API: `config` after a save, `bye` when every wall is logged out.
+- the admin API: `config` after a save, `bye` when every wall is logged out;
+- a media sweep (`media.sweep_cache`): at start, after missed events, hourly.
 
 Each open wall stream is a plain subscriber of `WallHub.bus`, so a reconnect
 with `Last-Event-ID` replays what it missed.
@@ -26,11 +30,20 @@ from typing import TYPE_CHECKING, Any
 from anyio import to_thread
 
 from ...core.events import Closed, Event, EventBus
-from .auth import LoginLimits
+from .auth import LoginLimits, ScreenLimits
 from .config import WallConfig, load_config
+from .enrich import jobs
+from .enrich.pipeline import SourceLabels
 from .enrichment import Enrichment, load_enrichment
-from .feed import Visibility, config_payload, visibility, visible_by_ids, wall_photos
-from .media import drop_cached
+from .feed import (
+    Visibility,
+    config_payload,
+    visibility,
+    visible_by_ids,
+    visible_of_user,
+    wall_photos,
+)
+from .media import SWEEP_SECONDS, drop_cached, sweep_cache
 from .schemas import WallPhoto
 
 if TYPE_CHECKING:
@@ -59,6 +72,7 @@ class WallHub:
         self.enrichment = enrichment
         self.bus = EventBus()
         self.login_limits = LoginLimits.create()
+        self.screen_limits = ScreenLimits.create()
         self._loop: asyncio.AbstractEventLoop | None = None
         self._tasks: set[asyncio.Task[None]] = set()
         # photos waiting for their delay: public id -> (created timestamp, timer)
@@ -77,11 +91,24 @@ class WallHub:
         self.bus.bind_loop(loop)
         self._delay_s = load_config(self.core.repos.app_settings).delay_s
         try:
+            # names for the analysis details, read by the worker (no imports there)
+            jobs.save_source_labels(
+                self.core.repos.app_settings,
+                {
+                    e.id: SourceLabels(title=e.title, labels=e.meta_labels, values=e.meta_values)
+                    for e in self.core.extensions.values()
+                    if e.upload is not None
+                },
+            )
+        except Exception:
+            log.exception("wall: storing the source names failed")
+        try:
             self._has_categories = bool(self.enrichment.catalogue())
         except Exception:
             log.exception("wall: the category catalogue failed")
         self._spawn(self._translate())
         self._spawn(self._poll())
+        self._spawn(self._sweep_media())
         try:
             self.enrichment.start()
         except Exception:
@@ -127,7 +154,8 @@ class WallHub:
             sub = bus.subscribe(after)
             try:
                 if sub.resync is not None:
-                    log.warning("wall: missed app events (%s); walls may lag", sub.resync)
+                    log.warning("wall: missed app events (%s); walls resync", sub.resync)
+                    self._missed()
                 for event in sub.replay:
                     after = event["id"]
                     await self._handle(event)
@@ -137,6 +165,7 @@ class WallHub:
                     await self._handle(event)
             except Closed:
                 # overflowed: catch up from the bus history
+                # (the next subscribe replays what it missed, or reports a resync)
                 log.warning("wall: the translator fell behind; resubscribing")
             finally:
                 bus.unsubscribe(sub)
@@ -158,6 +187,10 @@ class WallHub:
                 await to_thread.run_sync(drop_cached, self.core, data["id"])
             elif type_ == "user.banned":
                 self._remove([p["id"] for p in data.get("photos", [])])
+            elif type_ == "user.instagram":
+                photos = await to_thread.run_sync(self._user_photos, int(data["id"]))
+                for photo in photos:
+                    self.publish_photo("photo.update", photo)
             elif type_ in ("settings.event", "code.changed"):
                 # the event name or the corner QR code may have changed
                 payload = await to_thread.run_sync(self._config_payload)
@@ -165,6 +198,22 @@ class WallHub:
         except Exception:
             # never let one odd event stop the translator
             log.exception("wall: handling a %s event failed", type_)
+
+    def _missed(self) -> None:
+        """Events the translator never saw: every open wall refetches its feed
+        (`stream.resync`, the same as a reconnect whose events are gone), and
+        the media cache is swept (a `photo.deleted` may be among them)."""
+        self.bus.publish("stream.resync", {})
+        self._sweep_soon()
+
+    def _user_photos(self, user_id: int) -> list[WallPhoto]:
+        """A guest's visible photos as the wall shows them; none while the wall
+        hides Instagram handles (nothing it shows changed)."""
+        config = load_config(self.core.repos.app_settings)
+        if not config.show_instagram:
+            return []
+        photos = visible_of_user(self.core, config, user_id)
+        return wall_photos(self.core, config, self.enrichment, photos)
 
     def _remove(self, ids: Iterable[str]) -> None:
         ids = list(dict.fromkeys(ids))
@@ -224,6 +273,26 @@ class WallHub:
 
     def _config_payload(self) -> dict[str, Any]:
         return config_payload(self.core, load_config(self.core.repos.app_settings))
+
+    # ---------------------------------------------------------- media cache
+
+    async def _sweep_media(self) -> None:
+        """The cached copies of deleted or hidden photos (WALL-02): at start,
+        then every SWEEP_SECONDS."""
+        while True:
+            await self._sweep_once()
+            await asyncio.sleep(SWEEP_SECONDS)
+
+    async def _sweep_once(self) -> None:
+        try:
+            await to_thread.run_sync(sweep_cache, self.core)
+        except Exception:
+            log.exception("wall: sweeping the media cache failed")
+
+    def _sweep_soon(self) -> None:
+        """After missed events: a `photo.deleted` may be among them."""
+        if self._loop is not None:
+            self._spawn(self._sweep_once())
 
     # ---------------------------------------------------------------- poller
 

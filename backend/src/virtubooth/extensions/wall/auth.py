@@ -2,7 +2,8 @@
 
 A wall screen logs in with the wall password (settings key `x.wall.password =
 {hash, gen, changed_at, by}`) and gets the cookie `vb_wall` =
-`signer.sign("wall", "<gen>.<issued unix>")`: HttpOnly, SameSite=Strict, Path
+`signer.sign("wall", "<gen>.<issued unix>.<nonce>")` (cookies without the
+nonce, from before it, stay valid): HttpOnly, SameSite=Strict, Path
 `/livewall` (page, screen API and images; nothing else), 30 days. It is valid
 while `gen` equals the stored generation, which grows whenever the password is
 set, changed or removed and when the admin logs every wall out. A valid admin
@@ -20,7 +21,10 @@ Every wrong password is audited (`wall.login_failed`).
 
 from __future__ import annotations
 
+import hashlib
 import logging
+import re
+import secrets
 import time
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Annotated, Any
@@ -31,7 +35,7 @@ from ...api.deps import CoreDep, admin_from_cookie
 from ...core import errors
 from ...core.clock import now_iso
 from ...core.passwords import verify_password
-from ...core.ratelimit import IpRateLimiter, Lockout, RateLimiter
+from ...core.ratelimit import IpRateLimiter, Lockout, RateLimiter, ip_bucket
 from ...core.security import client_ip, cookie_secure
 from ...repositories.app_settings import AppSettingsRepo
 from .schemas import Via
@@ -49,6 +53,7 @@ MIN_PASSWORD = 6
 MAX_PASSWORD = 256
 # a cookie "issued" this far in the future (clock skew) still counts
 _FUTURE_SLACK = 300
+_NONCE = re.compile(r"[0-9a-f]{8}")
 NO_STORE = {"Cache-Control": "no-store"}
 # wrong wall passwords from anywhere; running out locks every wall login
 FAILURES_GLOBAL = 20
@@ -137,7 +142,9 @@ def store_password_state(repo: AppSettingsRepo, state: PasswordState, *, at: str
 
 
 def set_wall_cookie(response: Response, request: Request, core: Core, gen: int) -> None:
-    value = core.signer.sign("wall", f"{gen}.{int(time.time())}")
+    # the nonce tells screens that logged in within the same second apart
+    # (the stream cap counts per cookie); cookies without one stay valid
+    value = core.signer.sign("wall", f"{gen}.{int(time.time())}.{secrets.token_hex(4)}")
     response.set_cookie(
         COOKIE,
         value,
@@ -165,9 +172,11 @@ def cookie_valid(core: Core, request: Request, state: PasswordState) -> bool:
     value = core.signer.unsign("wall", request.cookies.get(COOKIE))
     if value is None:
         return False
-    gen_text, _, issued_text = value.partition(".")
+    parts = value.split(".")
+    if len(parts) not in (2, 3) or (len(parts) == 3 and not _NONCE.fullmatch(parts[2])):
+        return False
     try:
-        gen, issued = int(gen_text), int(issued_text)
+        gen, issued = int(parts[0]), int(parts[1])
     except ValueError:
         return False
     age = time.time() - issued
@@ -192,6 +201,37 @@ def require_wall(request: Request, core: CoreDep) -> Via:
 
 # the wall cookie or an admin session; else 401 `wall_login_required`
 WallDep = Annotated[Via, Depends(require_wall)]
+
+
+# ------------------------------------------------------------ screen limits
+
+# the screen's GET routes, per wall cookie (else per address): generous for a
+# TV (a feed refetch per reconnect, a few images a second), a ceiling for
+# someone with a stolen cookie or a script
+SCREEN_REQUESTS_PER_MIN = 120  # session, feed, categories, stream
+MEDIA_REQUESTS_PER_MIN = 1200
+
+
+@dataclass
+class ScreenLimits:
+    api: RateLimiter
+    media: RateLimiter
+
+    @classmethod
+    def create(cls) -> ScreenLimits:
+        return cls(
+            api=RateLimiter(SCREEN_REQUESTS_PER_MIN, 60),
+            media=RateLimiter(MEDIA_REQUESTS_PER_MIN, 60, burst=MEDIA_REQUESTS_PER_MIN // 2),
+        )
+
+
+def screen_key(core: Core, request: Request) -> str:
+    """Whose budget a screen request uses: its wall cookie when the signature
+    holds (no DB read), else its address (IPv6: the /64)."""
+    cookie = request.cookies.get(COOKIE)
+    if cookie and core.signer.unsign("wall", cookie) is not None:
+        return "w:" + hashlib.sha256(cookie.encode()).hexdigest()[:32]
+    return "ip:" + ip_bucket(client_ip(request))
 
 
 # ------------------------------------------------------------------- login

@@ -4031,6 +4031,7 @@ export interface components {
         WallPhoto: {
             /**
              * Analysis
+             * @description The photo analysis' state; `off`: the guest switched the analysis off, so no facts will come.
              * @enum {string}
              */
             analysis: "pending" | "running" | "done" | "failed" | "skipped" | "off";
@@ -4187,7 +4188,8 @@ export interface components {
         };
         /**
          * WallResyncEvent
-         * @description The missed events are gone: refetch /livewall/api/feed.
+         * @description The missed events are gone (this stream's, or the server's own wall
+         *     missed app events): refetch /livewall/api/feed.
          */
         WallResyncEvent: {
             data: components["schemas"]["WallEmptyData"];
@@ -10805,6 +10807,15 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorBody"];
                 };
             };
+            /** @description Rate limited (`Retry-After` header) */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
         };
     };
     feed_livewall_api_feed_get: {
@@ -10845,6 +10856,15 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorBody"];
                 };
             };
+            /** @description Rate limited (`Retry-After` header) */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
         };
     };
     session_livewall_api_session_get: {
@@ -10876,6 +10896,15 @@ export interface operations {
             };
             /** @description Conflict */
             409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Rate limited (`Retry-After` header) */
+            429: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -11008,6 +11037,15 @@ export interface operations {
             };
             /** @description Request validation failed (`invalid_request`) */
             422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Rate limited (`Retry-After` header) */
+            429: {
                 headers: {
                     [name: string]: unknown;
                 };

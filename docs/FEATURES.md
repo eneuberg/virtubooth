@@ -50,8 +50,9 @@ Installation.
     zusätzlich: den Code lieber mit der Kamera-App scannen.
 - **Mit Zugang, aber falscher Adresse:** „Hier ist nichts.“ mit „Zum Start“.
 - Beide Seiten sind statisch und funktionieren ohne JavaScript.
-- Wer zu oft ein falsches Token probiert (60 pro Minute und IP), sieht für diese
-  Adresse eine Weile nur noch das Gate, auch mit einem richtigen Code.
+- Wer zu oft ein falsches Token probiert (mehr als 60 pro Minute und IP), bekommt
+  das Gate nur noch verzögert (1 s) und landet im Log. Ein richtiger Code öffnet
+  trotzdem sofort, auch für alle anderen Gäste im selben WLAN.
 
 ### Beitreten
 
@@ -714,15 +715,21 @@ Aktivität; sie steht nicht auf Start. Einstellungen im Tab „Live-Wall“ der 
   bestimmter); wird er gelöscht, verschwindet er von der Wall. Eventname und Code
   ändern sich auf offenen Wänden sofort mit.
 - **Fotos:** neue Fotos erscheinen nach einer Verzögerung (Standard 20 s, 0 bis 600 s),
-  damit der Host vorher ausblenden kann. Quellen: alle Aktivitäten oder eine Auswahl.
-  Instagram-Namen nur, wenn eingeschaltet. Ausblenden, Löschen und Sperren nehmen
-  Fotos sofort von jeder Wand. Es zählen die neuesten 1000 Fotos.
+  damit der Host vorher ausblenden kann. Quellen: alle Aktivitäten oder eine Auswahl;
+  eine ausgewählte Aktivität, die nicht mehr geladen ist, zählt nicht (bleibt keine
+  übrig, gelten alle). Instagram-Namen nur, wenn eingeschaltet; ändert ein Gast seinen
+  Namen, ändern ihn offene Wände sofort mit. Ausblenden, Löschen und Sperren nehmen
+  Fotos sofort von jeder Wand; die 1280-px-Kopie eines gelöschten Fotos verschwindet
+  mit ihm. Es zählen die neuesten 1000 Fotos.
 - „Speichern“ übernimmt alle Einstellungen auf allen offenen Wänden sofort;
   „Verwerfen“ holt die gespeicherten zurück.
 - Der Bildschirm: Vollbild-Knopf (verschwindet ohne Bewegung), hält den Bildschirm
   wach, wo der Browser es erlaubt (nur über https oder localhost; sonst den
   Bildschirmschoner des Fernsehers ausschalten). Bricht die Verbindung ab, verbindet er
-  sich selbst neu und holt nach, was er verpasst hat.
+  sich selbst neu und holt nach, was er verpasst hat; hat der Server selbst Ereignisse
+  verpasst, laden alle offenen Wände ihre Fotos neu.
+- Grenzen je Wand (Cookie): höchstens 4 offene Verbindungen (eine fünfte schließt die
+  älteste), 120 Abrufe pro Minute und 1200 Bilder pro Minute.
 
 ### Fotoanalyse
 
@@ -743,12 +750,13 @@ aus. Nichts davon verlässt den Server.
   sind, warten oder fehlschlugen, jede Analyse ein- und ausschalten (mit dem Grund,
   wenn eine fehlt, z. B. „Modell fehlt“), „Fehlgeschlagene neu analysieren“ und „Alle neu analysieren…“.
 - **Analyse im Foto-Inspektor** (Verwaltung): Zustand, gefundene Werte, die Rahmen und
-  die Details; „Neu analysieren“ stellt das Foto wieder an.
+  die Details (Quelle und Angaben mit Namen, z. B. „Filter: Schwarz-Weiß“, „Kamera:
+  Selfie“); „Neu analysieren“ stellt das Foto wieder an.
 - Der Prozess läuft mit niedriger Priorität, ein Foto nach dem anderen (auf einem
   Raspberry Pi 5 0,4 bis 2 s je Foto), startet bei einem Absturz neu und beginnt nach
   200 Fotos oder 900 MB frisch. Gelöschte Fotos verlieren ihre Analyse.
-- **Kategorien** (Gewinner sind nur sichtbare Fotos nach der Verzögerung; bei Gleichstand
-  das neuere):
+- **Kategorien** (Gewinner sind nur sichtbare Fotos nach der Verzögerung, je Kategorie
+  höchstens eins pro Gast (sein bestes); bei Gleichstand das neuere):
 
 | | Kategorie | Zeile | Gewinnt |
 |---|---|---|---|
@@ -779,7 +787,11 @@ aus. Nichts davon verlässt den Server.
   Beitritts-Sheet unter „Mehr dazu“ und im Du-Sheet. Dann gibt es für die Fotos dieses
   Gasts nur die Bildwerte; sie gewinnen keine Kategorie, die Gesichter, Hände oder
   Gegenstände braucht. Umschalten löscht die bisherige Auswertung seiner Fotos und
-  wertet sie neu aus.
+  wertet sie neu aus. Wer mehrmals hin- und herschaltet, löst höchstens alle 5 Minuten
+  eine neue Auswertung aus; Ausschalten löscht die Auswertung trotzdem sofort.
+- **Automatisch neu analysiert** werden fertige Fotos, wenn eine Analyse eingeschaltet
+  wird (oder ihr Modell nachträglich ankommt) und wenn ein Update eine Analyse
+  ändert (neue Version), die neuesten zuerst. Ausschalten stellt nichts neu an.
 
 ### Deep Links
 
@@ -915,7 +927,7 @@ startet der Server nicht und nennt die Variable. Die Limits stehen unter
 | `python -m virtubooth.tools.qr` | QR-Codes und Druckbogen. `--base-url`, `--code <Nr.>` (Token dieses QR-Codes), `--token` (ein bestimmtes Token), `--extensions`, `--party-name` (Standard: der Eventname aus der Datenbank, ohne Datenbank `VB_PARTY_NAME`), `--no-home`, `--out`. Ohne `--code` und `--token`: der aktive QR-Code mit der kleinsten Nummer aus der Datenbank von `--data-dir`, ohne Datenbank `VB_PARTY_TOKEN` |
 | `python -m virtubooth.tools.timelapse` | Zeitraffer. `--extension`, `--fps`, `--crossfade`, `--fade`, `--out-fps`, `--size`, `--hold-last`, `--crf`, `--preset`, `--include-hidden`, `--limit` (Vorschau), `--dry-run`, `--out` |
 | `python -m virtubooth.tools.export` | alles als `.tar.gz`, auch im laufenden Betrieb. `--no-hidden`, `--no-db`, `--out` |
-| `python -m virtubooth.extensions.wall.enrich` | Fotoanalyse der Live-Wall: `models fetch` (Modelle laden, SHA256-geprüft; `--with-age` auch FairFace), `models list`, `status`, `run-once` (wartende Fotos jetzt auswerten), `worker`, `bench <Ordner>` |
+| `virtubooth wall` (lang: `python -m virtubooth.extensions.wall.enrich`) | Fotoanalyse der Live-Wall: `models fetch` (Modelle laden, SHA256-geprüft; `--with-age` auch FairFace), `models list`, `status`, `run-once` (wartende Fotos jetzt auswerten), `worker`, `bench <Ordner>` |
 
 - Alle Werkzeuge haben `--data-dir` und `--help`. Sie schreiben nach `<data>/exports/`
   und behalten ihre Dateien, bis man sie löscht.

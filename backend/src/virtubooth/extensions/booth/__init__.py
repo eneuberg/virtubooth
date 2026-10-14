@@ -35,7 +35,7 @@ from pydantic import BaseModel, Field, StringConstraints
 from virtubooth.api.deps import AdminDep, CoreDep, require_access
 from virtubooth.core import errors
 from virtubooth.core.clock import now_iso
-from virtubooth.domain.constants import FACINGS, PHOTO_HEIGHT, PHOTO_WIDTH
+from virtubooth.domain.constants import FACING_NAMES, FACINGS, PHOTO_HEIGHT, PHOTO_WIDTH
 from virtubooth.extensions.sdk import Extension, UploadContext, UploadPolicy
 from virtubooth.repositories.container import Repositories
 
@@ -224,4 +224,5 @@ extension = Extension(
     upload_result=BoothUploadResult,
     order=20,
     meta_labels={"filter": "Filter", "facing": "Kamera"},
+    meta_values={"filter": FILTERS, "facing": FACING_NAMES},
 )

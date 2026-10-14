@@ -943,7 +943,7 @@ The ML extra was not installed, so the analyzers themselves were only read, not 
 | Critical | 0 | |
 | High | 0 | |
 | Medium | 1 | WALL-01 (fixed) |
-| Low | 6 | ARCH-01 (fixed), QR-01, WALL-02, WALL-03, HERE-01, ANA-01 |
+| Low | 6 | ARCH-01, QR-01, WALL-02, WALL-03, HERE-01, ANA-01 (all fixed) |
 | Info | 7 | R2-I1 … R2-I7 |
 
 The new auth paths hold:
@@ -1024,7 +1024,7 @@ and also that the QR codes with their tokens are in the copy (see the accepted r
 
 Test: `tests/api/test_security_fixes.py::test_snapshot_drops_password_hashes`.
 
-#### QR-01 · Low · confirmed · open: wrong tokens from one device lock new guests out of a shared network
+#### QR-01 · Low · confirmed · fixed: wrong tokens from one device lock new guests out of a shared network
 
 **Affected code:** `backend/src/virtubooth/middleware.py` (`_token_entry`),
 `core/ratelimit.py` (`TOKEN_FAILURES_PER_MIN`)
@@ -1044,7 +1044,16 @@ tokens. Keep counting failures, and log or alert on bursts. If an oracle limit i
 wanted, key it on address plus `vb_vid`, so one device cannot empty its neighbours'
 budget.
 
-#### WALL-02 · Low · confirmed (code) · open: the wall's 1280 px copy of a deleted photo can survive on disk
+**Fix (`00b78a5`, branch `polish/backend`).** A well-formed token (`TOKEN_RE`,
+16–128 characters of `[A-Za-z0-9_-]`) is always looked up; a malformed one never is.
+The per-address counter (`token_fail_ip`, 60/min) stays, but only for wrong tokens:
+over it, their gate answer is held back 1 s (`TOKEN_FAIL_DELAY`, an `asyncio.sleep`,
+no thread) and the burst is logged once a minute per address. The right token from a
+throttled address gets `303` at once. Tests: `tests/api/test_code_access.py`
+(`test_wrong_tokens_never_block_valid_ones`, `test_malformed_tokens_are_not_looked_up`,
+the IPv6 /64 case).
+
+#### WALL-02 · Low · confirmed (code) · fixed: the wall's 1280 px copy of a deleted photo can survive on disk
 
 **Affected code:** `extensions/wall/hub.py` (`_handle` → `drop_cached`), `extensions/wall/media.py`
 
@@ -1063,7 +1072,18 @@ for good.
   whose photo is deleted or unknown. It is a single query and a directory listing.
 - Or let `ModerationService.delete_photo` unlink the copy in its on-commit hook.
 
-#### WALL-03 · Low · open: no cap on wall event streams
+**Fix (`6528aec`, branch `polish/backend`).** Both:
+- A new generic hook `Extension.derived_files(core, public_id)`: files an extension
+  made from a photo. `delete_photo` unlinks them with the photo's own files on commit,
+  with no event involved. The wall registers its cached copy.
+- `media.sweep_cache` runs at the wall's start, after its translator missed events and
+  every hour. It removes copies whose photo is deleted, hidden or unknown, and temp
+  files older than 10 minutes.
+
+Tests: `tests/api/test_wall_feed.py` (`test_deleting_removes_the_copy_without_the_event`,
+`test_the_sweep_removes_copies_of_deleted_hidden_and_unknown_photos`).
+
+#### WALL-03 · Low · fixed: no cap on wall event streams
 
 **Affected code:** `extensions/wall/screen_api.py` (`stream`)
 
@@ -1075,7 +1095,16 @@ run out. Each stream also re-checks its cookie every 30 s.
 **Recommendation.** At most 4 open streams per wall cookie value (or per address), and
 close the oldest one, like SEC-06.
 
-#### HERE-01 · Low · open: the heartbeat writes on every request
+**Fix (`5cfbc1d`, branch `polish/backend`).** The wall bus keys each stream by a hash of
+its wall cookie (or the admin session) and keeps at most 4 (`EventBus.per_session`); a
+fifth closes the oldest. New wall cookies carry a random nonce
+(`<gen>.<issued>.<nonce>`), so screens that log in within the same second get their own
+cap; cookies without it stay valid. Later (`e35afa7`) the screen's GET routes also got
+rate limits per wall cookie, else per address: 120/min for session, feed, categories
+and stream, 1200/min for media. Test:
+`tests/api/test_wall_stream.py::test_one_wall_cookie_keeps_at_most_four_streams`.
+
+#### HERE-01 · Low · fixed: the heartbeat writes on every request
 
 **Affected code:** `services/presence.py` (`here`), `repositories/presence.py` (`beat`)
 
@@ -1091,7 +1120,13 @@ online time cannot be inflated: a beat adds only the real time since the last on
 previous one. A per-guest timestamp in memory is enough, as in `note()`. The accounting
 does not change, because the next beat adds the elapsed time.
 
-#### ANA-01 · Low · open: toggling the analysis opt-out requeues all of the guest's photos every time
+**Fix (`7a09832`, branch `polish/backend`).** As recommended: a visible beat less than
+20 s (`BEAT_MIN_SECONDS`) after the guest's last written visible beat is not written.
+The timestamp lives in memory, on the beats' own clock. Hidden beats are always written
+(they close the visit), and the next visible beat after one opens a new visit at once.
+Test: `tests/api/test_here.py::test_quick_visible_beats_are_not_written`.
+
+#### ANA-01 · Low · fixed: toggling the analysis opt-out requeues all of the guest's photos every time
 
 **Affected code:** `repositories/users.py` (`set_analysis_opt_out`), `PUT /api/me/analysis`
 
@@ -1105,6 +1140,20 @@ nice 10 rather than blocking anyone. The opt-out itself is correct:
 - categories that need ML exclude opted-out guests.
 
 **Recommendation.** A small per-guest limit on this route (e.g. 5 per minute).
+
+**Fix (`54a405f`, branch `polish/backend`).** No refused requests: the switch always
+applies. Only a real change does anything, and a guest's photos are queued again at
+most once per 5 minutes (`ANALYSIS_REQUEUE_SECONDS`, in memory). Inside that window:
+- switching off still drops facts and boxes at once, and a running analysis goes back
+  to `pending` (`finish` refuses its ML result);
+- switching on touches nothing.
+
+The worker's new sweep (`Worker.sweep`, `jobs.stale`) redoes analyses whose stored
+analyzer versions no longer match the guest's current choice. It runs at start, when the
+active analyzers change, and every 5 minutes. So switching back and forth costs at most
+about one pass per 5 minutes. Tests: `tests/api/test_wall_integration.py::
+test_switching_the_opt_out_back_and_forth_requeues_once` and the sweep tests in
+`tests/unit/test_enrich_pipeline.py`.
 
 #### Info
 
@@ -1253,11 +1302,11 @@ accounting described in HERE-01.
 |---|---|---|---|
 | WALL-01 | Medium | fixed | `5e541e0` |
 | ARCH-01 | Low | fixed | `5aec2f2` |
-| QR-01 | Low | open (recommendation above) | – |
-| WALL-02 | Low | open | – |
-| WALL-03 | Low | open | – |
-| HERE-01 | Low | open | – |
-| ANA-01 | Low | open | – |
+| QR-01 | Low | fixed | `00b78a5` |
+| WALL-02 | Low | fixed | `6528aec` |
+| WALL-03 | Low | fixed | `5cfbc1d` (+ screen rate limits `e35afa7`) |
+| HERE-01 | Low | fixed | `7a09832` |
+| ANA-01 | Low | fixed | `54a405f` |
 | R2-I1 … R2-I7 | Info | accepted / notes | – |
 
 **Tests run.** Targeted backend tests: `uv run pytest -n 4` → 332 passed. The files:

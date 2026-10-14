@@ -3,7 +3,8 @@
 Each category ranks photos by one fact (`wall_facts`), optionally with more
 conditions, or is special (the first photo, the most photos of one guest).
 Winners are visible photos only (not hidden, not deleted, within the sources,
-taken no later than `not_after`); ties go to the newer photo. Labels are German
+taken no later than `not_after`), at most one per guest and category (their
+best); ties go to the newer photo. Labels are German
 and gender-neutral; nothing ranks a single person in a mean way.
 """
 
@@ -184,9 +185,15 @@ def _by_facts(
     order = [f"COALESCE({alias[k]}.value, -1) DESC" for k in cat.order if k != cat.rank]
     order.append(f"{alias[cat.rank]}.value {'DESC' if cat.descending else 'ASC'}")
     order += ["p.created_at DESC", "p.id DESC"]
+    ranking = ", ".join(order)
+    # one photo per guest: each guest's best (`mine` = 1), then the best of those
     sql = (
-        f"SELECT p.id, {alias[cat.rank]}.value FROM photos p {' '.join(joins)} "
-        f"WHERE {' AND '.join(conds)} ORDER BY {', '.join(order)} LIMIT ?"
+        "SELECT id, value FROM ("
+        f"SELECT p.id, {alias[cat.rank]}.value AS value, "
+        f"ROW_NUMBER() OVER (PARTITION BY p.user_id ORDER BY {ranking}) AS mine, "
+        f"ROW_NUMBER() OVER (ORDER BY {ranking}) AS pos "
+        f"FROM photos p {' '.join(joins)} WHERE {' AND '.join(conds)}"
+        ") WHERE mine = 1 ORDER BY pos LIMIT ?"
     )
     return [(int(r[0]), float(r[1])) for r in db.all(sql, [*params, limit])]
 

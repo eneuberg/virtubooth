@@ -42,6 +42,13 @@ class UserCreatedData(BaseModel):
     uploads_paused: bool
 
 
+class UserInstagramData(BaseModel):
+    """`user.instagram` (in-process only, see INTERNAL_EVENT_TYPES)."""
+
+    id: int
+    instagram: str | None
+
+
 class UserBanData(BaseModel):
     user: AdminUser
     photos: list[AdminPhoto]
@@ -295,3 +302,8 @@ ADMIN_EVENT_TYPES: tuple[str, ...] = (
     "instagram.done",
     "code.changed",
 )
+
+# events on the app's bus for in-process listeners (an extension such as the
+# Live Wall) that are not part of the admin stream: it leaves them out, so the
+# AdminEvent union stays the stream's complete contract
+INTERNAL_EVENT_TYPES: frozenset[str] = frozenset({"user.instagram"})

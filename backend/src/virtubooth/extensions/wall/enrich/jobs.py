@@ -20,7 +20,7 @@ from ....db.database import Database
 from ....domain.codes import code_name
 from ....repositories.app_settings import AppSettingsRepo
 from .analyzers import ALWAYS_ON, BY_NAME, DEFAULT_DISABLED
-from .pipeline import PhotoInfo
+from .pipeline import PhotoInfo, SourceLabels
 
 MAX_ATTEMPTS = 2
 STATES = ("pending", "running", "done", "failed", "skipped")
@@ -30,6 +30,10 @@ ABORTED = "Analyse abgebrochen"
 # DEFAULT_DISABLED) and the worker's heartbeat {pid, beat_at, ml, models_missing}
 ANALYZERS_KEY = "x.wall.analyzers"
 WORKER_KEY = "x.wall.worker"
+# {ext id: {title, labels, values}} of the loaded extensions, written by the
+# app at the wall's start: the worker names sources and meta values with it
+# without importing the extensions (and FastAPI)
+SOURCES_KEY = "x.wall.sources"
 
 _NEEDS_WORK = "p.deleted_at IS NULL AND (a.photo_id IS NULL OR a.state = 'pending')"
 
@@ -208,6 +212,54 @@ def rerun(db: Database, scope: Literal["failed", "all"]) -> int:
     return len(ids)
 
 
+def stale(
+    db: Database, expected: Mapping[str, str], expected_opt_out: Mapping[str, str]
+) -> list[int]:
+    """Analysed photos (`done`) whose stored analyzer versions no longer match
+    what a run now would use: an analyzer was switched on (or its model
+    arrived), its version changed, or the guest changed the opt-out since
+    (`expected_opt_out` for opted-out guests: no ML entry may be left). Extra
+    entries of analyzers switched off since are fine: their facts are ignored
+    (categories check the active analyzers)."""
+    out: list[int] = []
+    rows = db.all(
+        "SELECT a.photo_id, a.versions, u.analysis_opt_out FROM wall_analysis a "
+        "JOIN photos p ON p.id = a.photo_id JOIN users u ON u.id = p.user_id "
+        "WHERE a.state = 'done' AND p.deleted_at IS NULL ORDER BY a.photo_id"
+    )
+    for r in rows:
+        try:
+            versions = json.loads(r["versions"] or "{}")
+        except ValueError:
+            versions = {}
+        if not isinstance(versions, dict):
+            versions = {}
+        want = expected_opt_out if r["analysis_opt_out"] else expected
+        if any(versions.get(k) != v for k, v in want.items()) or (
+            r["analysis_opt_out"] and any(k not in want for k in versions)
+        ):
+            out.append(int(r["photo_id"]))
+    return out
+
+
+def requeue(db: Database, photo_ids: list[int]) -> int:
+    """Queue these analysed photos again (facts stay until the new analysis
+    replaces them); each row gets its own rev. Rows that left `done` meanwhile
+    are left alone."""
+    if not photo_ids:
+        return 0
+    n = 0
+    with db.tx() as c:
+        base = _next_rev(c)
+        for i, pid in enumerate(photo_ids):
+            n += c.execute(
+                "UPDATE wall_analysis SET state='pending', attempts=0, error=NULL, rev=? "
+                "WHERE photo_id=? AND state='done'",
+                (base + i, pid),
+            ).rowcount
+    return n
+
+
 def get(db: Database, photo_id: int) -> AnalysisRow | None:
     row = db.one("SELECT * FROM wall_analysis WHERE photo_id=?", (photo_id,))
     if row is None:
@@ -247,6 +299,40 @@ def disabled_analyzers(app_settings: AppSettingsRepo) -> set[str]:
     if "disabled" not in raw or not isinstance(raw["disabled"], list):
         return set(DEFAULT_DISABLED)
     return {str(n) for n in raw["disabled"] if n in BY_NAME and n not in ALWAYS_ON}
+
+
+def save_source_labels(app_settings: AppSettingsRepo, labels: Mapping[str, SourceLabels]) -> None:
+    value = {
+        ext_id: {
+            "title": s.title,
+            "labels": dict(s.labels),
+            "values": {k: dict(v) for k, v in s.values.items()},
+        }
+        for ext_id, s in labels.items()
+    }
+    if app_settings.get(SOURCES_KEY) != value:
+        app_settings.put(SOURCES_KEY, value, at=now_iso())
+
+
+def source_labels(app_settings: AppSettingsRepo) -> dict[str, SourceLabels]:
+    out: dict[str, SourceLabels] = {}
+    for ext_id, raw in app_settings.get(SOURCES_KEY).items():
+        if not isinstance(raw, dict) or not isinstance(raw.get("title"), str):
+            continue
+        labels = raw.get("labels")
+        values = raw.get("values")
+        labels = labels if isinstance(labels, dict) else {}
+        values = values if isinstance(values, dict) else {}
+        out[str(ext_id)] = SourceLabels(
+            title=raw["title"],
+            labels={str(k): str(v) for k, v in labels.items()},
+            values={
+                str(k): {str(a): str(b) for a, b in v.items()}
+                for k, v in values.items()
+                if isinstance(v, dict)
+            },
+        )
+    return out
 
 
 def save_disabled(app_settings: AppSettingsRepo, names: set[str], *, by: str) -> None:

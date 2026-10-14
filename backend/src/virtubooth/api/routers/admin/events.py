@@ -34,7 +34,7 @@ from ....core.errors import json_error_responses
 from ....core.events import Closed, Event, EventBus, Resync
 from ....runtime import Core
 from ...deps import AdminDep, CoreDep, admin_from_cookie
-from ...schemas.events import AdminEvent
+from ...schemas.events import INTERNAL_EVENT_TYPES, AdminEvent
 from ._params import ADMIN_ERROR_STATUSES
 
 router = APIRouter()
@@ -74,7 +74,8 @@ async def admin_event_stream(
         if sub.resync is not None:
             yield _resync(sub.resync)
         for event in sub.replay:
-            yield sse_message(bus, event)
+            if event["type"] not in INTERNAL_EVENT_TYPES:
+                yield sse_message(bus, event)
         checked = time.monotonic()
         while True:
             recheck = SESSION_RECHECK_SECONDS
@@ -93,7 +94,7 @@ async def admin_event_stream(
                 checked = now
                 if await to_thread.run_sync(admin_from_cookie, request, core) is None:
                     return
-            if item is not None:
+            if item is not None and item["type"] not in INTERNAL_EVENT_TYPES:
                 yield sse_message(bus, item)
     finally:
         bus.unsubscribe(sub)

@@ -11,7 +11,7 @@ from virtubooth.extensions.wall.enrich.analyzers.basic import (
     colorfulness,
     sharpness,
 )
-from virtubooth.extensions.wall.enrich.pipeline import Frame, PhotoInfo
+from virtubooth.extensions.wall.enrich.pipeline import Frame, PhotoInfo, SourceLabels
 
 
 def checkerboard(size: int = 512, cell: int = 16) -> Image.Image:
@@ -70,8 +70,25 @@ def test_run_facts_and_details(monkeypatch):
     assert res.facts["colorfulness"] > 100
     details = dict(res.details)
     assert details["Aufgenommen"] == "13.10.2026, 19:42"
-    assert details["Quelle"] == "Fotobox"  # the extension's title
-    assert details["Filter"] == "noir" and details["Kamera"] == "user"  # meta_labels
+    # without the extension's names (jobs.source_labels): the raw ids
+    assert details["Quelle"] == "booth"
+    assert details["filter"] == "noir" and details["facing"] == "user"
     assert details["Gast"] == "Tanzende Giraffe #1"
     assert details["Größe"] == "1080 × 1440 px"
     assert not res.boxes and not res.scratch
+
+
+def test_details_name_the_source_and_its_meta_values():
+    from virtubooth.extensions.booth import extension as booth
+
+    source = SourceLabels(title=booth.title, labels=booth.meta_labels, values=booth.meta_values)
+    info = PhotoInfo(
+        id=1, public_id="p", extension="booth", filename="x.jpg",
+        created_at="2026-10-13T17:42:00.000+00:00", width=1080, height=1440,
+        meta={"filter": "bw", "facing": "user", "other": "x"}, user_name="Gast",
+        source=source,
+    )  # fmt: skip
+    details = dict(BasicAnalyzer().run(Frame(stripes(), 1080, 1440, info), {}).details)
+    assert details["Quelle"] == "Fotobox"
+    assert details["Filter"] == "Schwarz-Weiß" and details["Kamera"] == "Selfie"
+    assert details["other"] == "x"  # unknown keys and values stay as they are

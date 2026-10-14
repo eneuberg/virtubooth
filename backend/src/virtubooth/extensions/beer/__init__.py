@@ -22,7 +22,7 @@ from fastapi import APIRouter, Depends
 from pydantic import BaseModel, Field
 
 from virtubooth.api.deps import CoreDep, require_access
-from virtubooth.domain.constants import FACINGS, PHOTO_HEIGHT, PHOTO_WIDTH
+from virtubooth.domain.constants import FACING_NAMES, FACINGS, PHOTO_HEIGHT, PHOTO_WIDTH
 from virtubooth.extensions.sdk import Extension, UploadContext, UploadPolicy
 from virtubooth.runtime import Core
 
@@ -97,4 +97,5 @@ extension = Extension(
     upload_result=BeerUploadResult,
     order=10,
     meta_labels={"vessel": "Gefäß", "facing": "Kamera"},
+    meta_values={"vessel": {"bottle": "Flasche", "cup": "Becher"}, "facing": FACING_NAMES},
 )

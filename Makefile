@@ -89,7 +89,7 @@ models: $(ENV_FILE) ## Live-Wall analysis: install the ml extra, download the mo
 	@set -a && . $(abspath $(ENV_FILE)) && set +a && \
 	  VB_DATA_DIR="$${VB_DATA_DIR:-$(DATA_DIR)}" && \
 	  case "$$VB_DATA_DIR" in /*) ;; *) VB_DATA_DIR="$(CURDIR)/$$VB_DATA_DIR" ;; esac && \
-	  cd backend && uv run python -m virtubooth.extensions.wall.enrich models fetch \
+	  cd backend && uv run virtubooth wall models fetch \
 	    --data-dir "$$VB_DATA_DIR" $(MODELS_ARGS)
 
 dev: $(ENV_FILE) ## backend on :PORT with reload; serves frontend/dist, or placeholders + API without a build
