@@ -2,10 +2,13 @@
  * Gallery: a mosaic of `rows` rows that scroll sideways for ever (alternating
  * directions). Each row has a fixed pool of tiles; a tile that left the screen moves to
  * the other end and gets the next photo, so the number of live <img> never grows.
+ * The tiles on screen come in with a light, staggered fade and settle when the gallery
+ * starts; a tile whose photo was removed fades its next photo in.
  */
 import type { GallerySpeed, WallPhoto } from '../api/types';
 import { mathRng, type Rng } from '../rng';
 import { createSelector, emptyContext, recordShown, type Selector } from '../select/algorithms';
+import { prefersReducedMotion } from '../transitions';
 import { releaseImage } from '../tv/preload';
 import { aspectOf } from './slide';
 
@@ -19,6 +22,10 @@ export interface GalleryInput {
 export const SPEEDS: Record<GallerySpeed, number> = { slow: 0.028, medium: 0.055, fast: 0.1 };
 const MIN_ASPECT = 0.62;
 const MAX_ASPECT = 1.6;
+/** the entry: each tile's fade, and the stagger across the screen and down the rows */
+const ENTER_MS = 700;
+const ENTER_SPREAD_MS = 650;
+const ENTER_ROW_MS = 110;
 
 interface Tile {
   el: HTMLElement;
@@ -58,7 +65,7 @@ export class GalleryEngine {
   }
 
   start(): void {
-    this.build();
+    this.build(!prefersReducedMotion());
     window.addEventListener('resize', this.onResize);
     this.frame = requestAnimationFrame(this.tick);
   }
@@ -119,6 +126,28 @@ export class GalleryEngine {
     tile.img.alt = `Foto von ${photo.author}`;
     tile.img.src = this.urlFor(photo);
     tile.label.textContent = photo.author;
+    if (keepWidth && typeof tile.img.animate === 'function') {
+      tile.img.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 500, easing: 'ease-out' });
+    }
+  }
+
+  /** The light entry of a tile on screen (the tile's transform is its position: the
+   *  picture inside scales, the tile fades). */
+  private enter(tile: Tile, row: number): void {
+    if (typeof tile.el.animate !== 'function' || tile.x + tile.w < 0 || tile.x > this.width) return;
+    const delay = row * ENTER_ROW_MS + (Math.max(0, tile.x) / this.width) * ENTER_SPREAD_MS;
+    tile.el.animate([{ opacity: 0 }, { opacity: 1 }], {
+      duration: ENTER_MS,
+      delay,
+      easing: 'ease-out',
+      fill: 'backwards',
+    });
+    tile.img.animate([{ transform: 'scale(1.12)' }, { transform: 'none' }], {
+      duration: ENTER_MS * 1.6,
+      delay,
+      easing: 'cubic-bezier(0.22, 1, 0.36, 1)',
+      fill: 'backwards',
+    });
   }
 
   private teardown(): void {
@@ -129,7 +158,8 @@ export class GalleryEngine {
     this.rows = [];
   }
 
-  private build(): void {
+  /** `entering`: the gallery starts (not a resize or a new row count) */
+  private build(entering = false): void {
     this.teardown();
     const rect = this.stage.getBoundingClientRect();
     this.width = rect.width || window.innerWidth;
@@ -174,6 +204,7 @@ export class GalleryEngine {
         tileEl.style.transform = `translate3d(${x}px, 0, 0)`;
         x += tile.w + this.gap;
         row.tiles.push(tile);
+        if (entering) this.enter(tile, r);
       }
       this.rows.push(row);
       this.stage.append(el);
