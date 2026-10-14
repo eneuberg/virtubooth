@@ -1,7 +1,7 @@
 /**
  * Status lines of the Live Wall admin (text.test.ts).
  */
-import { formatDateTime, formatNumber, NBSP } from '@/lib/format';
+import { formatDateTime, formatNumber, formatRelative, NBSP } from '@/lib/format';
 import type { AnalysisBox, AnalysisStatus, PasswordState } from './types';
 
 /** "1 Wand offen", "3 Wände offen" */
@@ -49,4 +49,19 @@ export function boxStyle(box: Pick<AnalysisBox, 'x' | 'y' | 'w' | 'h'>): {
 /** A raw fact for the "Rohwerte" list: integers as they are, fractions to 3 places. */
 export function factValue(value: number): string {
   return Number.isInteger(value) ? formatNumber(value) : value.toFixed(3);
+}
+
+/** "gerade eben", "vor 3 Min.": when the worker last beat; null when it never did. */
+export function lastBeatText(lastBeatAt: string | null, now = Date.now()): string {
+  return lastBeatAt ? formatRelative(lastBeatAt, now) : 'noch nie';
+}
+
+/** "1.234 Fotos" since the worker started */
+export function processedText(n: number): string {
+  return `${formatNumber(n)}${NBSP}${n === 1 ? 'Foto' : 'Fotos'}`;
+}
+
+/** "412 MB" */
+export function memoryText(mb: number): string {
+  return `${formatNumber(Math.round(mb))}${NBSP}MB`;
 }
