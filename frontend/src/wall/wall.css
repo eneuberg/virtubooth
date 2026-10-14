@@ -194,9 +194,11 @@ body {
   font-size: clamp(18px, 3.6vmin, 110px);
 }
 
-/* glitch: three colour channels (multiply → one channel, screen → recombined) */
+/* glitch: per colour channel the new photo in a band, the old one around it
+   (multiply → one channel, screen → recombined) */
 .wall-glitch,
 .wall-glitch-layer,
+.wall-glitch-shift,
 .wall-glitch-tint,
 .wall-slot {
   position: absolute;
@@ -210,6 +212,9 @@ body {
 
 .wall-glitch-layer {
   mix-blend-mode: screen;
+}
+
+.wall-glitch-shift {
   isolation: isolate;
 }
 

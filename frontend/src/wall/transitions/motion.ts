@@ -1,6 +1,7 @@
 /**
  * The DOM transitions (WAAPI only: CSP-safe, no stylesheet changes at runtime).
  */
+import { releaseImage } from '../tv/preload';
 import { captionIn, cardOf, fadeOut, imgOf, picOf, play, type Transition } from './types';
 
 export const crossfade: Transition = ({ from, to, ms, signal }) =>
@@ -68,54 +69,127 @@ export const spring: Transition = ({ from, to, ms, signal }) => {
 };
 
 const CHANNELS = ['#ff0000', '#00ff00', '#0000ff'] as const;
+const GLITCH_STEPS = 9;
 
-/** RGB split: three channel layers drift apart in steps, clipped to jumping slices. */
+/** One step of one colour channel: the band (insets in %) that shows the new photo. */
+export interface GlitchSlice {
+  top: number;
+  bottom: number;
+  /** shift of the new photo inside its band, in % */
+  x: number;
+  y: number;
+}
+
+/**
+ * The glitch's bands: per channel GLITCH_STEPS + 1 slices that grow from a thin band to
+ * the whole picture; the last one is the settled photo (no inset, no shift).
+ */
+export function glitchSlices(rng: () => number, steps = GLITCH_STEPS): GlitchSlice[][] {
+  return CHANNELS.map((_, i) => {
+    const slices: GlitchSlice[] = [];
+    for (let s = 0; s <= steps; s++) {
+      if (s === steps) {
+        slices.push({ top: 0, bottom: 0, x: 0, y: 0 });
+        continue;
+      }
+      const p = s / steps;
+      const amp = (1 - p) * 7;
+      const size = 12 + p * 70 + rng() * 18; // the band's height in %
+      const top = Math.floor(rng() * Math.max(0, 100 - size));
+      slices.push({
+        top,
+        bottom: Math.max(0, Math.floor(100 - top - size)),
+        x: (rng() - 0.5) * 2 * amp + (i - 1) * amp * 0.6,
+        y: (rng() - 0.5) * amp * 0.4,
+      });
+    }
+    return slices;
+  });
+}
+
+/** The band of a slice as a clip-path. */
+export function bandClip({ top, bottom }: GlitchSlice): string {
+  return `inset(${top}% 0 ${bottom}% 0)`;
+}
+
+/** Everything outside the band (two rectangles in one polygon; empty for the full band). */
+export function outsideClip({ top, bottom }: GlitchSlice): string {
+  const a = `${top}%`;
+  const b = `${100 - bottom}%`;
+  return `polygon(0 0, 100% 0, 100% ${a}, 0 ${a}, 0 ${b}, 100% ${b}, 100% 100%, 0 100%)`;
+}
+
+/** layer (clipped, screen-blended) > shift (moves) > [image copy, channel tint] */
+function channelLayer(img: HTMLImageElement, tint: string): { layer: HTMLElement; shift: HTMLElement } {
+  const layer = document.createElement('div');
+  layer.className = 'wall-glitch-layer';
+  const shift = document.createElement('div');
+  shift.className = 'wall-glitch-shift';
+  const copy = img.cloneNode(false);
+  if (copy instanceof HTMLImageElement) {
+    copy.removeAttribute('class');
+    copy.alt = '';
+    shift.append(copy);
+  }
+  const color = document.createElement('div');
+  color.className = 'wall-glitch-tint';
+  color.style.backgroundColor = tint;
+  shift.append(color);
+  layer.append(shift);
+  return { layer, shift };
+}
+
+/**
+ * RGB split: per colour channel the new photo shows in a jumping, shifted band and the
+ * old photo everywhere else, so the slices cut between the two photos (the first photo
+ * of a wall cuts against black). The bands grow until the new photo fills the picture.
+ */
 export const glitch: Transition = (args) => {
   const { from, to, ms, signal, rng } = args;
   const pic = picOf(to);
   const img = imgOf(to);
   if (!img) return crossfade(args);
+  const oldImg = from ? imgOf(from) : null;
   const box = document.createElement('div');
   box.className = 'wall-glitch';
   const animations: Animation[] = [];
-  const steps = 9;
-  CHANNELS.forEach((tint, i) => {
-    const layer = document.createElement('div');
-    layer.className = 'wall-glitch-layer';
-    const copy = img.cloneNode(false);
-    if (copy instanceof HTMLImageElement) {
-      copy.removeAttribute('class');
-      copy.alt = '';
-      layer.append(copy);
+  const step = { duration: ms, fill: 'both' } as const;
+  const jump = 'steps(1, end)';
+  glitchSlices(rng).forEach((slices, i) => {
+    const tint = CHANNELS[i]!;
+    if (oldImg) {
+      const old = channelLayer(oldImg, tint);
+      box.append(old.layer);
+      animations.push(
+        old.layer.animate(
+          slices.map((s) => ({ clipPath: outsideClip(s), easing: jump })),
+          step,
+        ),
+      );
     }
-    const color = document.createElement('div');
-    color.className = 'wall-glitch-tint';
-    color.style.backgroundColor = tint;
-    layer.append(color);
-    box.append(layer);
-    const frames: Keyframe[] = [];
-    for (let s = 0; s <= steps; s++) {
-      const left = s === steps;
-      const amp = left ? 0 : (1 - s / steps) * 7;
-      const x = (rng() - 0.5) * 2 * amp + (i - 1) * amp * 0.6;
-      const y = (rng() - 0.5) * amp * 0.4;
-      const top = left ? 0 : Math.floor(rng() * 70);
-      const bottom = left ? 0 : Math.floor(rng() * (90 - top));
-      frames.push({
-        transform: `translate(${x.toFixed(2)}%, ${y.toFixed(2)}%)`,
-        clipPath: `inset(${s === 0 || left ? 0 : top}% 0 ${s === 0 || left ? 0 : bottom}% 0)`,
-        easing: 'steps(1, end)',
-      });
-    }
-    animations.push(layer.animate(frames, { duration: ms, fill: 'both' }));
+    const fresh = channelLayer(img, tint);
+    box.append(fresh.layer);
+    animations.push(
+      fresh.layer.animate(
+        slices.map((s) => ({ clipPath: bandClip(s), easing: jump })),
+        step,
+      ),
+      fresh.shift.animate(
+        slices.map((s) => ({
+          transform: `translate(${s.x.toFixed(2)}%, ${s.y.toFixed(2)}%)`,
+          easing: jump,
+        })),
+        step,
+      ),
+    );
   });
   pic.append(box);
   animations.push(
     to.animate(
       [
         { opacity: 0 },
-        { opacity: 1, offset: 0.12 },
-        { opacity: 0.6, offset: 0.3 },
+        { opacity: 1, offset: 0.08 },
+        { opacity: 0.7, offset: 0.3 },
         { opacity: 1, offset: 0.36 },
         { opacity: 1 },
       ],
@@ -136,7 +210,10 @@ export const glitch: Transition = (args) => {
       ),
     );
   }
-  return play(animations, signal).then(() => box.remove());
+  return play(animations, signal).then(() => {
+    for (const copy of box.querySelectorAll('img')) releaseImage(copy);
+    box.remove();
+  });
 };
 
 /** A white instant-photo frame drops in and settles with a tilt (and keeps it). */
@@ -146,14 +223,27 @@ export const polaroid: Transition = ({ from, to, ms, signal, rng }) => {
   const tilt = (rng() < 0.5 ? -1 : 1) * (1.5 + rng() * 2.5);
   return play(
     [
+      // eased per segment: a soft start and a gliding fall onto the landing (one
+      // ease-out over the whole timeline made the first half a jump), then the bounce
       card.animate(
         [
-          { transform: `translateY(-115vh) rotate(${-tilt * 5}deg)` },
-          { transform: `translateY(2.5vh) rotate(${tilt * 1.8}deg)`, offset: 0.55 },
-          { transform: `translateY(-1vh) rotate(${-tilt * 0.6}deg)`, offset: 0.75 },
+          {
+            transform: `translateY(-115vh) rotate(${-tilt * 5}deg)`,
+            easing: 'cubic-bezier(0.4, 0, 0.2, 1)',
+          },
+          {
+            transform: `translateY(2.5vh) rotate(${tilt * 1.8}deg)`,
+            offset: 0.55,
+            easing: 'cubic-bezier(0.45, 0, 0.55, 1)',
+          },
+          {
+            transform: `translateY(-1vh) rotate(${-tilt * 0.6}deg)`,
+            offset: 0.75,
+            easing: 'cubic-bezier(0.33, 0, 0.3, 1)',
+          },
           { transform: `rotate(${tilt}deg)` },
         ],
-        { duration: ms, easing: 'cubic-bezier(0.22, 0.9, 0.35, 1)', fill: 'both' },
+        { duration: ms, fill: 'both' },
       ),
       ...captionIn(to, ms * 0.4, ms * 0.6, true),
       ...(from
