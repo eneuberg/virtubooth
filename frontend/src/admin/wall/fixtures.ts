@@ -55,7 +55,15 @@ export function adminOut(config: WallConfig = defaultConfig()): WallAdminOut {
 }
 
 export const analysisStatus: AnalysisStatus = {
-  worker: { state: 'running', ml: true, message: null, last_beat_at: null },
+  worker: {
+    state: 'running',
+    ml: true,
+    message: null,
+    last_beat_at: null,
+    processed: null,
+    rss_mb: null,
+    load_errors: {},
+  },
   counts: { pending: 2, running: 1, done: 12, failed: 1, skipped: 0, total: 16 },
   analyzers: [
     {

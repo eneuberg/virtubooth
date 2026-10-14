@@ -15,8 +15,8 @@
 # Live-Wall photo analysis (optional, ~+480 MB image, ~+145 MB models):
 #   docker build --build-arg VB_ML=1 -t virtubooth:ml .
 #       adds the `ml` extra (mediapipe, onnxruntime, OpenCV) + libEGL/GLES;
-#       models then come from /data/wall/models (run `python -m
-#       virtubooth.extensions.wall.enrich models fetch` in the container once)
+#       models then come from /data/wall/models (run `virtubooth wall models
+#       fetch` in the container once)
 #   docker build --build-arg VB_ML=1 --build-arg VB_BAKE_MODELS=1 -t virtubooth:ml .
 #       also downloads the models (SHA256-checked) into /opt/vb-models
 # Without VB_ML the image is unchanged and only the basic analysis (Pillow) runs.
@@ -91,7 +91,7 @@ RUN --mount=type=cache,target=/root/.cache/uv \
 # VB_BAKE_MODELS=1: download the analysis models into /opt/vb-models (versioned
 # URLs, SHA256-checked by the app's own downloader). 0: an empty folder.
 FROM build AS models-1
-RUN /opt/venv/bin/python -m virtubooth.extensions.wall.enrich models fetch --dest /opt/vb-models
+RUN /opt/venv/bin/virtubooth wall models fetch --dest /opt/vb-models
 
 FROM ${PYTHON_IMAGE} AS models-0
 RUN mkdir -p /opt/vb-models

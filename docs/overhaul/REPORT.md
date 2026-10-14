@@ -1,8 +1,10 @@
 # Abschlussbericht: Überarbeitung von virtubooth
 
-Stand 13.10.2026. Basis vor der Überarbeitung: `main` auf `1d6b5eb`. Danach 122 Commits
-bis zum Merge `01960c7`, dann die Nacharbeiten (Branches `fin/*`), alle in das lokale
-`main` gemerged. Nichts wurde gepusht.
+Stand 13.10.2026, Nachtrag 14.10.2026. Basis vor der Überarbeitung: `main` auf `1d6b5eb`.
+Danach 122 Commits bis zum Merge `01960c7`, dann die Nacharbeiten (Branches `fin/*`),
+alle in das lokale `main` gemerged. Am 13./14.10. kamen QR-Codes, Einstellungen, Plakate,
+Tracking und die Live-Wall dazu (siehe [Nachtrag](#nachtrag-131410-qr-codes-einstellungen-plakate-tracking-live-wall)).
+Nichts wurde gepusht.
 
 ## Kurzfassung
 
@@ -26,6 +28,11 @@ bis zum Merge `01960c7`, dann die Nacharbeiten (Branches `fin/*`), alle in das l
   und alle niedrigen Befunde sind behoben.
 - SEC-13 ist erledigt: Die Ausnahmen vom Mindestalter der Pakete sind am Abend des
   13.10. raus.
+- Nachtrag 13./14.10.: mehrere QR-Codes mit Statistik pro Code, Einstellungen
+  (Eventname, Admin-Passwort, Fotobox-Filter), Plakate mit eigener Vorlage, Online-Zeit
+  per Herzschlag und die Live-Wall mit Fotoanalyse und 19 Kategorien.
+- Sicherheitsreview 2: 0 kritisch, 0 hoch, 1 mittel, 6 niedrig, 7 Info; der mittlere
+  und alle niedrigen Befunde sind behoben.
 
 ## Was gemacht wurde
 
@@ -216,8 +223,6 @@ Platzprüfung und Aufräumen). SEC-13 ist am Abend erledigt worden (siehe Todos)
 
 ## Tests
 
-| Lauf | Was | Ergebnis |
-|---|---|---|
 Endstand: App-Code wie `7168423`, Test-Harness aus `fin/test-speed`. `make check-all`
 war darauf grün; danach lief `make check` noch einmal auf dem fertigen `main`: grün in
 2:34 min.
@@ -337,24 +342,30 @@ Firefox geprüft und ist im Testlauf unten enthalten.
     der Überarbeitung) erste und letzte IP-Adresse und den Browser-Typ, für die
     Wiedererkennung von Geräten und Sperren. Der Beitrittstext erwähnt das nicht. Bei
     Bedarf einen Satz unter „Mehr dazu“ ergänzen.
-13. **„Aktiv jetzt“** zählt API-Anfragen der letzten 5 Minuten. Wer die Seite offen hat,
-    aber nichts tut, fällt heraus. Ein leichter Herzschlag würde das ändern.
+13. ~~**„Aktiv jetzt“** zählt API-Anfragen der letzten 5 Minuten. Wer die Seite offen hat,
+    aber nichts tut, fällt heraus. Ein leichter Herzschlag würde das ändern.~~
+    Erledigt: Die Gastseite meldet sich jede Minute, solange sie sichtbar ist (siehe
+    Nachtrag, Tracking).
 14. **„Gescannt“** zählt erst ab dem Update. Direkt danach kann es kleiner sein als
     „Gäste“; die Übersicht sagt „Gezählt seit …“.
 15. **Wortwahl:** Der Knopf heißt „Hochladen stoppen“ (wie im übrigen Admin), nicht
     „Uploads stoppen“. Änderbar in einer Zeile in `frontend/src/admin/dashboard/text.ts`.
     Gäste sehen beim Stopp „Hochladen ist kurz angehalten“ statt „temporär deaktiviert“.
-16. **Kleinigkeiten aus der QA, nicht behoben:**
+16. **Kleinigkeiten aus der QA:** am 14.10. alle behoben (Branch `polish/admin`).
     - ~~Am Handy verdeckt der Toast 5–7 s lang den „Ausblenden“-Knopf im Foto-Viewer.~~
       Behoben, siehe Punkt 17.
-    - Bei Mehrfachauswahl zeigt der Inspektor in „Fotos“ weiter das zuletzt geöffnete Foto.
-    - Der Viewer-Dialog heißt für Screenreader „Foto Foto 0008“.
-    - Von einer einzelnen Adresse zeigt der Login den allgemeinen Rate-Limit-Text
-      („Langsam! … Warte kurz … in 3 Sekunden“), etwas doppelt formuliert.
-    - Die Filterleiste der Fotobox zeigt Emoji als Platzhalter, bis die echten
-      Vorschaubilder fertig sind (kurz, auf schwachen Geräten länger).
-    - Blendet der Admin ein Foto aus, das ein Gast gerade im Viewer ansieht, springt der
-      Viewer zum nächsten Foto, statt sich zu schließen.
+    - ~~Bei Mehrfachauswahl zeigt der Inspektor in „Fotos“ weiter das zuletzt geöffnete
+      Foto.~~ Er zeigt jetzt die Auswahl.
+    - ~~Der Viewer-Dialog heißt für Screenreader „Foto Foto 0008“.~~ Jetzt „Foto 0008“.
+    - ~~Von einer einzelnen Adresse zeigt der Login den allgemeinen Rate-Limit-Text,
+      etwas doppelt formuliert.~~ Jetzt ein Satz: „Zu viele Versuche hintereinander.
+      Versuch es in 3 Sekunden nochmal.“
+    - ~~Die Filterleiste der Fotobox zeigt Emoji als Platzhalter, bis die echten
+      Vorschaubilder fertig sind.~~ Jetzt ein ruhiger Platzhalter; Emoji nur, wenn ein
+      Vorschaubild fehlschlägt.
+    - ~~Blendet der Admin ein Foto aus, das ein Gast gerade im Viewer ansieht, springt der
+      Viewer zum nächsten Foto.~~ Er schließt sich jetzt mit „Dieses Bild ist nicht mehr
+      zu sehen.“ (Rest siehe Nachtrag, offene Punkte).
 17. **Gefunden beim Beschleunigen der Tests, danach behoben:**
     - **Firefox/Safari, behoben (`fin/preload-nav`):** Eine echte Seitennavigation
       (Adresszeile, externer Link), die startete, während noch ein Seitenmodul lud,
@@ -365,11 +376,164 @@ Firefox geprüft und ist im Testlauf unten enthalten.
     - **Toast am Handy, behoben (`fin/phone-toast`):** Der Toast rutscht jetzt über
       markierte Aktionsflächen (Viewer-Leiste, Bestätigungsdialog, Auswahlleiste,
       Kamera-Auslöser, Filterleiste), statt sie zu verdecken; „Rückgängig“ bleibt
-      erreichbar. Betroffen waren Admin und Gäste. Offen: In scrollbaren Rastern kann er
-      die unterste Kachelreihe noch kurz verdecken.
+      erreichbar. Betroffen waren Admin und Gäste. ~~Offen: In scrollbaren Rastern kann er
+      die unterste Kachelreihe noch kurz verdecken.~~ Behoben: Solange ein Toast steht,
+      bekommen scrollende Seiten unten Platz.
     - `test_upload_publishes_event` dauert 5 s: sein Event-Loop wird nie geweckt, weil
       der Bus an den Loop des TestClients gebunden wird; er endet erst über den eigenen
       Timeout. Nur ein Testproblem.
+
+## Nachtrag 13./14.10.: QR-Codes, Einstellungen, Plakate, Tracking, Live-Wall
+
+Nach dem Bericht (`f59399d`) kamen fünf Funktionsbranches (`feat/*`), die Live-Wall in
+vier Teilen (`wall/*`), Sicherheitsreview 2 (`sec/review`), ein Docker-Fix und eine
+Polierrunde (`polish/*`) dazu, alle in das lokale `main` gemerged. Funktionen im Detail:
+`docs/FEATURES.md`.
+
+### Was gebaut wurde
+
+- **QR-Codes** (Tab „QR-Codes“):
+  - Beliebig viele Codes, jeder mit fester Nummer und Tiername („Gorilla 2“), Ziel
+    (Start oder eine Aktivität) und Notiz. Code 1 entsteht aus `VB_PARTY_TOKEN`; alte
+    Gäste und Scans zählen für ihn (Migration 5).
+  - Gelöschte Codes bleiben grau in der Liste (Grabstein), ihr Token gilt nicht mehr.
+    „Token ändern…“ macht einen gedruckten Code ungültig; ein gedruckter Code lässt sich
+    per Link übernehmen. Kein Token wird zweimal vergeben.
+  - Zahlen pro Code: gescannt, Personen, beigetreten, Fotos, aktiv jetzt, Online-Zeit;
+    Gästeliste nach Code filterbar.
+  - Exporte pro Code: QR als PNG, QR groß (PDF), Plakat (PDF), im Sheet und im
+    Zeilenmenü.
+- **Einstellungen** (Zahnrad bzw. unten in der Seitenleiste): Eventname (überall, auch
+  auf Plakaten und im Archiv), Admin-Passwort ändern (scrypt, meldet alle anderen
+  Geräte ab, `virtubooth reset-admin-password` für den Notfall), Fotobox-Filter einzeln
+  an und aus.
+- **Plakate** (Tab „Plakat“): PDF-Vorlage hochladen, Seite wählen, QR-Feld mit Maus,
+  Finger oder Tastatur platzieren, Probedruck. Ohne Vorlage ein Standard-Plakat im
+  Kontaktbogen-Stil. Alles entsteht im Browser des Admins.
+- **Tracking:** Die Gastseite meldet sich jede Minute, solange sie sichtbar ist
+  (`POST /api/here`, Migration 6). Daraus „Aktiv jetzt“, die Online-Zeit pro Gast
+  („1 h 12 min in 3 Besuchen“, „gerade online“), die Spalte „Online“ und eine Statistik
+  pro Gast (Fotos je Aktivität, erstes und letztes Foto, QR-Code des Beitritts). Auch in
+  `users.csv`.
+- **Live-Wall** (`/livewall` auf dem Fernseher, Einstellungen im Tab „Live-Wall“):
+  - Zugang mit eigenem Passwort (30 Tage Cookie nur für `/livewall`), „Alle Wände
+    abmelden“, Zahl der offenen Wände.
+  - Drei Modi im Wechsel: Einzelbild, Galerie (endlose Fotowand), Kategorien.
+  - Sieben Auswahlverfahren fürs Einzelbild (u. a. „Fair: jeder Gast reihum“, „Selten
+    gezeigte zuerst“, „Neue Fotos sofort, sonst gemischt“ als Standard).
+  - Elf Übergänge plus „Zufall“, WebGL mit Überblenden als Rückfall.
+  - Animierter Hintergrund (Farbblasen, Polarlicht, Disco-Gitter, Konfetti-Regen oder
+    ruhig) mit drei frei wählbaren Farben, 30 oder 60 fps.
+  - Fernseher: Vollbild-Knopf (auch mit `webkit`-Präfix für alte TV-Browser), hält den
+    Bildschirm wach, verbindet sich selbst neu und holt Verpasstes nach.
+  - Neue Fotos erst nach einer Verzögerung (Standard 20 s), damit der Host vorher
+    ausblenden kann; Ausblenden, Löschen und Sperren wirken sofort auf jeder Wand.
+  - QR-Code, Eventname und Fotozähler in einer wählbaren Ecke.
+  - **Fotoanalyse:** ein eigener Prozess (nice 10, ein Foto nach dem anderen, Neustart
+    nach 200 Fotos oder 900 MB) wertet jedes Foto aus. Immer Bildwerte (Pillow); mit
+    dem `ml`-Extra MediaPipe- und ONNX-Modelle für Gesichter, Ausdruck, Gesten, Personen
+    und Gläser, Brillen und Hüte, optional Alter (FairFace). Gespeichert werden nur
+    Zahlen und Rahmen, nichts, was eine Person wiedererkennt. Ausgelegt für einen
+    Raspberry Pi 5.
+  - **19 Kategorien** („Volles Haus“, „Grinsekatzen“, „Prost!“, „Dauerauslöser“ …),
+    höchstens ein Gewinnerfoto pro Gast und Kategorie, einzeln abschaltbar.
+  - Gäste können die Auswertung abschalten („Meine Fotos nicht automatisch auswerten“).
+  - Im Admin: Analyse-Karte (Status, Herzschlag des Prozesses mit verarbeiteten Fotos,
+    Speicher und Ladefehlern, Analysen an/aus, neu analysieren), die ersten drei jeder
+    Kategorie, Analyse mit Rahmen im Foto-Inspektor.
+  - Kommandozeile: `virtubooth wall models fetch`, `… status`, `… bench`. Docker-Image
+    mit Analyse: `VB_ML=1`, Modelle eingebacken mit `VB_BAKE_MODELS=1`.
+- **Polierrunde** (`polish/backend`, `polish/admin`, `polish/screen`):
+  - Wall: Instagram-Änderungen live, Neuabgleich nach verpassten Ereignissen,
+    Limits pro Wand, Modi blenden ineinander, mitlaufende Altersangaben, das erste Foto
+    bleibt stehen, Speichertest (Heap und DOM bleiben begrenzt).
+  - Admin: gleichmäßige Spalten, Speichern-Leiste in einer Zeile, Rückfrage beim
+    Verlassen mit ungespeicherten Änderungen, Farbfeld mit Vorschau, QR-Zeilenmenü,
+    Plakat-Vorschau mit dem gewählten Code.
+  - Die QA-Reste aus Punkt 16 und der Toast über der letzten Kachelreihe (Punkt 17)
+    sind behoben.
+  - `make docker-smoke` erklärt einen nicht erreichbaren Port; `DOCKER_BUILD_FLAGS`
+    für den Build.
+
+### Sicherheitsreview 2
+
+Gleiche Methode wie Review 1, Umfang: alles seit `0ff9bd4` (Passwortänderung, QR-Codes,
+Live-Wall, Plakat-Upload, Herzschlag, Analyse-Prozess, CSP). **0 kritisch, 0 hoch,
+1 mittel, 6 niedrig, 7 Info.** Alle mittleren und niedrigen Befunde sind behoben, je mit
+Test:
+
+- **WALL-01 (mittel):** Das Wall-Login hatte nur ein Limit pro Adresse; 1000 Versuche in
+  84 s gingen durch. Jetzt sperrt es nach 20 Fehlversuchen in 15 Minuten, egal von wo,
+  5 Minuten lang für alle; angemeldete Wände laufen weiter.
+- **ARCH-01:** Die Datenbank-Kopie im Archiv enthielt die Passwort-Hashes (Admin, Wall).
+  Jetzt geleert.
+- **QR-01:** Falsche Tokens von einem Gerät konnten neue Gäste im selben Netz aussperren.
+  Jetzt wird jedes gut geformte Token geprüft, nur falsche über dem Limit werden
+  verzögert.
+- **WALL-02:** Die 1280-px-Kopie eines gelöschten Fotos konnte liegen bleiben. Jetzt geht
+  sie mit dem Foto, der Cache wird aufgeräumt.
+- **WALL-03:** Keine Grenze für Event-Streams einer Wand. Jetzt höchstens 4 pro Cookie,
+  dazu Abruf-Limits.
+- **HERE-01:** Der Herzschlag schrieb bei jeder Anfrage. Jetzt höchstens alle 20 s.
+- **ANA-01:** Jedes Umschalten des Opt-outs stellte alle Fotos des Gasts neu an. Jetzt
+  höchstens alle 5 Minuten (Löschen der Auswertung weiter sofort).
+
+Info R2-I1 bis R2-I7 sind Hinweise oder bewusst akzeptiert, z. B.: Gelöschte Codes
+sperren beigetretene Gäste nicht aus (Ausweg: `VB_SECRET_KEY` wechseln), der QR-Code auf
+der Wand enthält ein gültiges Token. Details: `docs/overhaul/SECURITY_REVIEW.md`,
+Abschnitt „Review 2“.
+
+### ML-Benchmark
+
+Auf dem Entwicklungsrechner (i7-13650HX), mit den Einstellungen des Prozesses (nice 10,
+3 Threads), Fotos mit 1280 px:
+
+| | pro Foto | Fotos/min | Spitzen-RAM |
+|---|---|---|---|
+| ohne Alter, kalt (erstes Foto) | 1,4 s | | |
+| ohne Alter, warm | 0,44 s | 151 | 593 MB |
+| mit Alter (FairFace) | 0,79 s | 98 | 745 MB |
+
+- Modelle: 144 MB, mit Alter 231 MB. Das `ml`-Extra braucht etwa 485 MB; das Docker-Image
+  mit Analyse ist 1,85 GB statt 903 MB.
+- Schätzung für einen Raspberry Pi 5 (ohne Alter): 1,2–1,8 s pro Foto, etwa 600 MB.
+
+### Tests
+
+Endlauf am 14.10. auf `fin/wrapup` (Stand von `main` plus die Herzschlag-Felder der
+Analyse-Karte), je einmal:
+
+| Lauf | Ergebnis |
+|---|---|
+| `make check`: OpenAPI-Abgleich, Lint, Typecheck | sauber |
+| Backend (pytest, 4 Prozesse) | 926 bestanden, 8 übersprungen (44 s) |
+| Vitest | 577 bestanden in 67 Dateien |
+| e2e Chromium (4 Prozesse) | 242 bestanden, 23 übersprungen, 0 Fehler (3:45 min) |
+| e2e Firefox (`make e2e-firefox`) | 249 bestanden, 16 übersprungen, 0 Fehler (3:41 min) |
+| e2e WebKit, nur Live-Wall und Admin-Live-Wall | 20 bestanden, 2 übersprungen, 0 Fehler (48 s inkl. Container) |
+| `make docker-smoke` | nicht gelaufen (siehe offene Punkte) |
+
+Kein Wackler.
+
+### Offene Punkte
+
+1. **Docker-Smoke lokal blockiert:** Die IVPN-Firewall dieses Rechners lässt keinen
+   Verkehr zu Dockers Bridge-Netzen durch. Abhilfe (Entscheidung des Hosts):
+   `ivpn firewall -exceptions '172.16.0.0/12'` oder `-lan_allow`. Der ECONNRESET von
+   `pnpm install` im `docker build` hat dieselbe Ursache. Das Image wurde für diesen
+   Nachtrag nicht gebaut.
+2. **Vor einem Push** (das Repo ist öffentlich): `docs/overhaul/design/shots/wave2-gp/`
+   mit echtem Partynamen und Handle steckt in der lokalen Historie. Historie umschreiben
+   oder das Repo privat stellen (siehe Punkt 11 oben).
+3. **Gast-Viewer beim Ausblenden:** Er schließt sich erst beim nächsten Abgleich, also
+   bis zu 60 s später.
+4. **Zurück-Taste des Browsers:** Die Rückfrage bei ungespeicherten Live-Wall-Einstellungen
+   greift bei Links in der App, bei Neuladen und beim Schließen, nicht bei der
+   Zurück-Taste.
+5. **Schwellen der Analyse** (z. B. „ab 50 %“ beim Ausdruck, Schärfe für den
+   Action-Shot) sollten an echten Partyfotos nachjustiert werden.
+6. **Kategorien-Ansicht:** Mit einer hohen QR-Ecke unten wird das Layout eng.
+7. **Alte Analysen** zeigen rohe Filter-IDs statt Namen, bis sie neu analysiert werden.
 
 ## Starten
 

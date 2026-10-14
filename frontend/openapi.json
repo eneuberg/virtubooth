@@ -6379,6 +6379,14 @@
             ],
             "title": "Last Beat At"
           },
+          "load_errors": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "description": "Analyzers whose models failed to load: name -> error. Empty without a fresh heartbeat.",
+            "title": "Load Errors",
+            "type": "object"
+          },
           "message": {
             "anyOf": [
               {
@@ -6396,6 +6404,30 @@
             "title": "Ml",
             "type": "boolean"
           },
+          "processed": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Photos the running worker analysed since it started; null without a fresh heartbeat.",
+            "title": "Processed"
+          },
+          "rss_mb": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The worker's memory (resident set, MB); null without a fresh heartbeat.",
+            "title": "Rss Mb"
+          },
           "state": {
             "enum": [
               "running",
@@ -6412,7 +6444,10 @@
           "state",
           "ml",
           "message",
-          "last_beat_at"
+          "last_beat_at",
+          "processed",
+          "rss_mb",
+          "load_errors"
         ],
         "title": "WorkerStatus",
         "type": "object"

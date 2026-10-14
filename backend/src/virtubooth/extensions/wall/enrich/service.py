@@ -71,6 +71,13 @@ def _age_s(iso: str | None) -> float | None:
         return None
 
 
+def _int_or_none(value: Any) -> int | None:
+    """A heartbeat number as an int (bools and junk are no numbers)."""
+    if isinstance(value, bool) or not isinstance(value, int | float):
+        return None
+    return round(value)
+
+
 class EnrichmentService:
     def __init__(self, core: Core) -> None:
         self.core = core
@@ -212,7 +219,17 @@ class EnrichmentService:
             message = "Ohne KI-Paket: nur Bildwerte (Helligkeit, Farbe, Schärfe)."
         elif fresh and self._missing_for_enabled(beat):
             message = "Modelle fehlen – auf dem Server „models fetch“ ausführen."
-        return WorkerStatus(state=state, ml=ml, message=message, last_beat_at=beat.get("beat_at"))
+        # the worker's own numbers only while it beats (a stale beat is a dead process)
+        live: Mapping[str, Any] = beat if fresh else {}
+        errors = live.get("load_errors")
+        return WorkerStatus(
+            state=state, ml=ml, message=message, last_beat_at=beat.get("beat_at"),
+            processed=_int_or_none(live.get("processed")),
+            rss_mb=_int_or_none(live.get("rss_mb")),
+            load_errors=(
+                {str(k): str(v) for k, v in errors.items()} if isinstance(errors, dict) else {}
+            ),
+        )  # fmt: skip
 
     def _missing_for_enabled(self, beat: Mapping[str, Any]) -> bool:
         missing = set(beat.get("models_missing") or [])
