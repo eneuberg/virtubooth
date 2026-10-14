@@ -4,6 +4,7 @@
 import { releaseImage } from '../tv/preload';
 import { captionIn, cardOf, fadeOut, imgOf, picOf, play, type Transition } from './types';
 
+/** The caption comes in over the second half (no two names on top of each other). */
 export const crossfade: Transition = ({ from, to, ms, signal }) =>
   play(
     [
@@ -12,6 +13,7 @@ export const crossfade: Transition = ({ from, to, ms, signal }) =>
         easing: 'ease-in-out',
         fill: 'backwards',
       }),
+      ...captionIn(to, ms * 0.5, ms * 0.5, true),
       ...fadeOut(from, ms),
     ],
     signal,
@@ -195,6 +197,7 @@ export const glitch: Transition = (args) => {
       ],
       { duration: ms, easing: 'steps(6, end)', fill: 'backwards' },
     ),
+    ...captionIn(to, ms * 0.35, ms * 0.6),
     ...fadeOut(from, ms * 0.35),
   );
   if (from) {

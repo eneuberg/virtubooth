@@ -14,6 +14,7 @@ import { webglAvailable } from '../gl/gl';
 import { mathRng, type Rng } from '../rng';
 import { createSelector, recordShown, type SelectContext, type Selector } from '../select/algorithms';
 import { pickTransition, prefersReducedMotion, TRANSITIONS } from '../transitions';
+import { captionOut } from '../transitions/types';
 import { createPreloader, type Preloader } from '../tv/preload';
 import { buildSlide, refreshAges, relayoutSlides, spotlightUrl, type Box } from './slide';
 
@@ -50,6 +51,8 @@ export class SpotlightEngine {
   private chain: Promise<void> = Promise.resolve();
   private abort: AbortController | null = null;
   private queued = false;
+  /** a step runs (it may wait for its image a while) */
+  private stepping = false;
   private stopped = false;
   private ageTimer: ReturnType<typeof setInterval> | undefined;
   private observer: ResizeObserver | null = null;
@@ -113,7 +116,9 @@ export class SpotlightEngine {
       clearTimeout(this.timer);
       this.abort?.abort();
       this.enqueue(true);
-    } else if (!this.current && !this.queued && input.photos.length > 0) {
+    } else if (!this.current && !this.queued && !this.stepping && input.photos.length > 0) {
+      // nothing shown and nothing on the way (not while the first photo still loads:
+      // a second step would replace it right after it came in)
       this.enqueue(false);
     }
     // a config change may have moved, grown or removed the corner (rendered by now)
@@ -150,9 +155,13 @@ export class SpotlightEngine {
     this.chain = this.chain
       .then(() => {
         this.queued = false;
+        this.stepping = true;
         return this.step(quick);
       })
-      .catch(() => undefined);
+      .catch(() => undefined)
+      .finally(() => {
+        this.stepping = false;
+      });
   }
 
   private schedule(ms: number): void {
@@ -225,11 +234,13 @@ export class SpotlightEngine {
     const abort = new AbortController();
     this.abort = abort;
     this.stage.dataset['transition'] = kind;
+    const ms = quick ? QUICK_MS : spotlight.transition_ms;
+    captionOut(from?.el ?? null, ms);
     await TRANSITIONS[kind]({
       stage: this.stage,
       from: from?.el ?? null,
       to: slide,
-      ms: quick ? QUICK_MS : spotlight.transition_ms,
+      ms,
       hold: spotlight.interval_s * 1000,
       signal: abort.signal,
       colors: { primary: look.primary, secondary: look.secondary },
