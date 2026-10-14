@@ -180,9 +180,7 @@ def _boxes_overlap(a: dict[str, float], b: dict[str, float]) -> bool:
 
 
 @pytest.mark.parametrize("aspect", ["landscape", "portrait"])
-def test_caption_stays_clear_of_the_corner(
-    tv_page: Page, wall_fake: WallFake, aspect: str
-) -> None:
+def test_caption_stays_clear_of_the_corner(tv_page: Page, wall_fake: WallFake, aspect: str) -> None:
     """In every corner, with the QR code, a long event name and a long caption."""
     wall_fake.session = "ok"
     wall_fake.event_name = "Sommerfest der Abteilung 2026"
