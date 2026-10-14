@@ -2,7 +2,7 @@
  * The three wall modes as React shells around their engines (spotlight, gallery) or
  * plain markup (categories).
  */
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, type CSSProperties } from 'react';
 import type { GallerySpeed, WallCategory, WallPhoto } from '../api/types';
 import { GalleryEngine } from './galleryEngine';
 import { aspectOf } from './slide';
@@ -65,7 +65,11 @@ function WinnerPhoto({ winner, index }: { winner: WallCategory['winners'][number
   const { photo } = winner;
   return (
     <figure className="wall-cat-photo" data-index={index}>
-      <div className="wall-cat-pic" style={{ aspectRatio: String(aspectOf(photo)) }}>
+      <div
+        className="wall-cat-pic"
+        // --a: the aspect for wall.css, which fits the pictures into the row's width
+        style={{ aspectRatio: String(aspectOf(photo)), '--a': String(aspectOf(photo)) } as CSSProperties}
+      >
         <img
           src={photo.urls.m}
           alt={`Foto von ${photo.author}`}

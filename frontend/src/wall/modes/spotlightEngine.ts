@@ -5,14 +5,18 @@
  * - The next photo is chosen right after a change and decoded in the background.
  * - When the shown (or the upcoming) photo is removed, the engine changes at once.
  * - Every image leaves through the preloader's release (src = '').
+ * - The caption's age („vor 3 Min.“) counts on while a photo is shown.
+ * - Cards stay clear of the corner overlay; they are fitted again when the stage or the
+ *   corner changes size (TV resolution, fullscreen, the QR code switched on).
  */
 import type { ConcreteTransition, WallConfig, WallPhoto } from '../api/types';
 import { webglAvailable } from '../gl/gl';
 import { mathRng, type Rng } from '../rng';
 import { createSelector, recordShown, type SelectContext, type Selector } from '../select/algorithms';
 import { pickTransition, prefersReducedMotion, TRANSITIONS } from '../transitions';
+import { captionOut } from '../transitions/types';
 import { createPreloader, type Preloader } from '../tv/preload';
-import { buildSlide, spotlightUrl } from './slide';
+import { buildSlide, refreshAges, relayoutSlides, spotlightUrl, type Box } from './slide';
 
 export interface SpotlightInput {
   photos: readonly WallPhoto[];
@@ -30,6 +34,7 @@ interface Shown {
 
 const QUICK_MS = 500;
 const RETRY_MS = 1500;
+const AGE_REFRESH_MS = 15_000;
 
 export class SpotlightEngine {
   private input: SpotlightInput;
@@ -46,7 +51,13 @@ export class SpotlightEngine {
   private chain: Promise<void> = Promise.resolve();
   private abort: AbortController | null = null;
   private queued = false;
+  /** a step runs (it may wait for its image a while) */
+  private stepping = false;
   private stopped = false;
+  private ageTimer: ReturnType<typeof setInterval> | undefined;
+  private observer: ResizeObserver | null = null;
+  private observedCorner: Element | null = null;
+  private relayoutFrame = 0;
 
   constructor(
     stage: HTMLElement,
@@ -64,12 +75,29 @@ export class SpotlightEngine {
   }
 
   start(): void {
+    this.ageTimer = setInterval(() => refreshAges(this.stage, this.input.clockSkewMs), AGE_REFRESH_MS);
+    if (typeof ResizeObserver === 'function') {
+      // next frame: layout changes inside the callback make WebKit report a ResizeObserver loop
+      this.observer = new ResizeObserver(() => {
+        cancelAnimationFrame(this.relayoutFrame);
+        this.relayoutFrame = requestAnimationFrame(this.relayout);
+      });
+      this.observer.observe(this.stage);
+    } else {
+      window.addEventListener('resize', this.relayout);
+    }
     this.enqueue(false);
   }
 
   stop(): void {
     this.stopped = true;
     clearTimeout(this.timer);
+    clearInterval(this.ageTimer);
+    cancelAnimationFrame(this.relayoutFrame);
+    this.observer?.disconnect();
+    this.observer = null;
+    this.observedCorner = null;
+    window.removeEventListener('resize', this.relayout);
     this.abort?.abort();
     this.preloader.clear();
     for (const img of this.stage.querySelectorAll('img')) this.preloader.release(img);
@@ -94,10 +122,29 @@ export class SpotlightEngine {
       clearTimeout(this.timer);
       this.abort?.abort();
       this.enqueue(true);
-    } else if (!this.current && !this.queued && input.photos.length > 0) {
+    } else if (!this.current && !this.queued && !this.stepping && input.photos.length > 0) {
+      // nothing shown and nothing on the way (not while the first photo still loads:
+      // a second step would replace it right after it came in)
       this.enqueue(false);
     }
+    // a config change may have moved, grown or removed the corner (rendered by now)
+    this.relayout();
   }
+
+  /** The corner overlay's box, watched for size changes. */
+  private corner(): Box | null {
+    const corner = this.stage.closest('.wall')?.querySelector('.wall-corner') ?? null;
+    if (corner !== this.observedCorner && this.observer) {
+      if (this.observedCorner) this.observer.unobserve(this.observedCorner);
+      if (corner) this.observer.observe(corner);
+    }
+    this.observedCorner = corner;
+    return corner ? corner.getBoundingClientRect() : null;
+  }
+
+  private readonly relayout = (): void => {
+    if (!this.stopped) relayoutSlides(this.stage, this.corner());
+  };
 
   private keyOf(config: WallConfig): string {
     return `${config.spotlight.algorithm}:${config.spotlight.n}`;
@@ -114,9 +161,13 @@ export class SpotlightEngine {
     this.chain = this.chain
       .then(() => {
         this.queued = false;
+        this.stepping = true;
         return this.step(quick);
       })
-      .catch(() => undefined);
+      .catch(() => undefined)
+      .finally(() => {
+        this.stepping = false;
+      });
   }
 
   private schedule(ms: number): void {
@@ -166,7 +217,10 @@ export class SpotlightEngine {
       if (!this.stopped) this.enqueue(true);
       return;
     }
-    const slide = buildSlide(this.stage, photo, img, { skewMs: this.input.clockSkewMs });
+    const slide = buildSlide(this.stage, photo, img, {
+      skewMs: this.input.clockSkewMs,
+      corner: this.corner(),
+    });
     this.stage.append(slide);
     const from = this.current;
     const wantsGl =
@@ -186,11 +240,13 @@ export class SpotlightEngine {
     const abort = new AbortController();
     this.abort = abort;
     this.stage.dataset['transition'] = kind;
+    const ms = quick ? QUICK_MS : spotlight.transition_ms;
+    captionOut(from?.el ?? null, ms);
     await TRANSITIONS[kind]({
       stage: this.stage,
       from: from?.el ?? null,
       to: slide,
-      ms: quick ? QUICK_MS : spotlight.transition_ms,
+      ms,
       hold: spotlight.interval_s * 1000,
       signal: abort.signal,
       colors: { primary: look.primary, secondary: look.secondary },

@@ -27,6 +27,8 @@ type Phase = 'checking' | 'login' | 'nopassword' | 'connecting' | 'live';
 const IDLE_MS = 3000;
 const OFFLINE_GRACE_MS = 2500;
 const CATEGORIES_REFRESH_MS = 5 * 60_000;
+/** how long a mode that ends keeps fading out (wall.css: wall-mode-out) */
+const MODE_FADE_MS = 900;
 
 function applyLook(look: WallLook): void {
   const root = document.documentElement.style;
@@ -102,17 +104,43 @@ function LiveWall({ state, categories }: { state: WallState; categories: readonl
     [state.photos, state.fresh, highlights, config, state.clockSkewMs],
   );
 
-  if (active === null) return <EmptyScreen />;
-  return (
-    <div className="wall-mode" key={active} data-mode={active}>
-      {active === 'spotlight' ? <Spotlight input={spotlightInput} /> : null}
-      {active === 'gallery' ? (
+  // the previous mode stays while it fades out (crossfade); same key → no remount
+  const [modes, setModes] = useState<{ current: WallMode | null; leaving: WallMode | null }>({
+    current: active,
+    leaving: null,
+  });
+  if (modes.current !== active) {
+    setModes({ current: active, leaving: modes.current });
+  }
+  const { leaving } = modes;
+  useEffect(() => {
+    if (leaving === null) return undefined;
+    const timer = setTimeout(() => setModes((m) => ({ ...m, leaving: null })), MODE_FADE_MS);
+    return () => clearTimeout(timer);
+  }, [leaving]);
+
+  const render = (mode: WallMode, isLeaving: boolean) => (
+    <div
+      className="wall-mode"
+      key={mode}
+      data-mode={mode}
+      data-leaving={isLeaving ? '' : undefined}
+      aria-hidden={isLeaving ? true : undefined}
+    >
+      {mode === 'spotlight' ? <Spotlight input={spotlightInput} /> : null}
+      {mode === 'gallery' ? (
         <Gallery photos={state.photos} rows={config.gallery.rows} speed={config.gallery.speed} />
       ) : null}
-      {active === 'categories' ? (
+      {mode === 'categories' ? (
         <Categories categories={cats} perCategoryS={config.categories.per_category_s} />
       ) : null}
     </div>
+  );
+  return (
+    <>
+      {leaving !== null && leaving !== active ? render(leaving, true) : null}
+      {active === null ? <EmptyScreen key="empty" /> : render(active, false)}
+    </>
   );
 }
 
@@ -220,7 +248,12 @@ export function WallApp() {
 
   const corner = state.config.overlay.corner;
   return (
-    <div className="wall" data-idle={idle ? '' : undefined} data-phase={phase}>
+    <div
+      className="wall"
+      data-idle={idle ? '' : undefined}
+      data-phase={phase}
+      data-corner={phase === 'live' ? corner : undefined}
+    >
       <canvas ref={canvasRef} className="wall-bg-canvas" aria-hidden="true" />
       {phase === 'login' ? (
         <LoginScreen onDone={() => setPhase('connecting')} onNoPassword={() => setPhase('nopassword')} />

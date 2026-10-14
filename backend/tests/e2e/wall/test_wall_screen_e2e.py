@@ -68,6 +68,10 @@ def test_login_then_spotlight_photo(tv_page: Page, wall_fake: WallFake) -> None:
     expect(slide.locator(".wall-caption")).to_contain_text("@lena.knipst")
     expect(slide.locator(".wall-caption")).to_contain_text("vor 3 Min.")
     expect(slide.locator("img")).to_have_js_property("complete", True)
+    # the first photo stays (a second step at the start used to replace it at once)
+    tv_page.wait_for_timeout(1500)
+    expect(tv_page.locator(".wall-stage .wall-slide")).to_have_count(1)
+    expect(slide).to_have_attribute("data-photo", "ph0002")
     corner = tv_page.get_by_test_id("wall-corner")
     expect(corner).to_contain_text("E2E Party")
     expect(corner).to_contain_text("2 Fotos")
@@ -150,9 +154,13 @@ def test_playlist_rotates_through_the_modes(tv_page: Page, wall_fake: WallFake) 
         for m in ("spotlight", "gallery", "categories")
     ]
     open_wall(tv_page, wall_fake)
-    mode = tv_page.locator(".wall-mode")
+    # the mode that ends fades out (data-leaving) while the next one comes in
+    mode = tv_page.locator(".wall-mode:not([data-leaving])")
+    leaving = tv_page.locator(".wall-mode[data-leaving]")
     expect(mode).to_have_attribute("data-mode", "spotlight")
     expect(mode).to_have_attribute("data-mode", "gallery", timeout=6000)
+    expect(leaving).to_have_attribute("data-mode", "spotlight")
+    expect(leaving).to_have_count(0, timeout=3000)
     expect(tv_page.locator(".wall-tile img").first).to_have_attribute(
         "src", re.compile(r"/livewall/media/")
     )
@@ -160,6 +168,99 @@ def test_playlist_rotates_through_the_modes(tv_page: Page, wall_fake: WallFake) 
     expect(tv_page.get_by_test_id("wall-category")).to_contain_text("Volles Haus")
     expect(tv_page.get_by_test_id("wall-category")).to_contain_text("7 Personen")
     expect(mode).to_have_attribute("data-mode", "spotlight", timeout=6000)
+    assert js_errors(tv_page) == []
+
+
+CORNERS = ("bottom-right", "bottom-left", "top-left", "top-right")
+
+
+def _boxes_overlap(a: dict[str, float], b: dict[str, float]) -> bool:
+    return (
+        a["x"] < b["x"] + b["width"]
+        and a["x"] + a["width"] > b["x"]
+        and a["y"] < b["y"] + b["height"]
+        and a["y"] + a["height"] > b["y"]
+    )
+
+
+@pytest.mark.parametrize("aspect", ["landscape", "portrait"])
+def test_caption_stays_clear_of_the_corner(tv_page: Page, wall_fake: WallFake, aspect: str) -> None:
+    """In every corner, with the QR code, a long event name and a long caption."""
+    wall_fake.session = "ok"
+    wall_fake.event_name = "Sommerfest der Abteilung 2026"
+    wall_fake.qr = {"url": "/?t=abc", "name": "Eingang"}
+    wall_fake.config["spotlight"] = dict(STILL)
+    wall_fake.config["show_instagram"] = True
+    wall_fake.config["overlay"] = {**wall_fake.config["overlay"], "qr": True}
+    photo = wall_photo(1, "Funky Flamingo mit Sonnenbrille", instagram="flamingo.party.2026")
+    if aspect == "landscape":
+        photo |= {"width": 1600, "height": 900}
+    wall_fake.add(photo)
+    open_wall(tv_page, wall_fake)
+    caption = tv_page.locator(".wall-stage .wall-slide .wall-caption").last
+    corner = tv_page.get_by_test_id("wall-corner")
+    expect(tv_page.get_by_test_id("wall-qr")).to_be_visible()
+    for name in CORNERS:
+        if name != "bottom-right":
+            wall_fake.set_config(overlay={"corner": name})
+        expect(corner).to_have_attribute("data-corner", name, timeout=5000)
+        tv_page.wait_for_timeout(300)  # the card is fitted again after the config event
+        cap, box = caption.bounding_box(), corner.bounding_box()
+        assert cap and box
+        assert not _boxes_overlap(cap, box), f"caption under the {name} corner: {cap} / {box}"
+    assert js_errors(tv_page) == []
+
+
+@pytest.mark.parametrize("count", [1, 3])
+def test_categories_stay_clear_of_the_corner(
+    tv_page: Page, wall_fake: WallFake, count: int
+) -> None:
+    """The winners (photo, badge, name) and the title never sit under the QR corner."""
+    wall_fake.session = "ok"
+    wall_fake.event_name = "Sommerfest der Abteilung 2026"
+    wall_fake.qr = {"url": "/?t=abc", "name": "Eingang"}
+    wall_fake.config["overlay"] = {**wall_fake.config["overlay"], "qr": True}
+    wall_fake.config["playlist"] = [
+        {"mode": m, "enabled": m == "categories", "duration_s": 600}
+        for m in ("spotlight", "gallery", "categories")
+    ]
+    wall_fake.config["categories"] = {"per_category_s": 600, "disabled": []}
+    for n in range(1, 5):
+        wall_fake.add(wall_photo(n, "Funky Flamingo"))
+    wall_fake.categories = [
+        {
+            "id": "volles_haus",
+            "emoji": "👥",
+            "title": "Volles Haus",
+            "line": "Die meisten Leute auf einem Foto",
+            "winners": [
+                {"photo": wall_fake.photos[k], "value": 7, "label": "7 Personen"}
+                for k in range(count)
+            ],
+        }
+    ]
+    open_wall(tv_page, wall_fake)
+    corner = tv_page.get_by_test_id("wall-corner")
+    expect(tv_page.get_by_test_id("wall-qr")).to_be_visible()
+    parts = tv_page.locator(
+        ".wall-cat-pic, .wall-cat-value, .wall-cat-by, .wall-cat-title, .wall-cat-line"
+    )
+    expect(parts).to_have_count(2 + 3 * count)
+    for name in CORNERS:
+        if name != "bottom-right":
+            wall_fake.set_config(overlay={"corner": name})
+        expect(corner).to_have_attribute("data-corner", name, timeout=5000)
+        tv_page.wait_for_timeout(1400)  # the winners' drop-in animation
+        box = corner.bounding_box()
+        assert box
+        # still big photos (they make room, they do not vanish)
+        for pic in tv_page.locator(".wall-cat-pic").all():
+            pic_box = pic.bounding_box()
+            assert pic_box and pic_box["height"] > 300, f"{name}: {pic_box}"
+        for i in range(parts.count()):
+            part = parts.nth(i).bounding_box()
+            assert part and part["height"] > 10
+            assert not _boxes_overlap(part, box), f"{name}: part {i} under the corner"
     assert js_errors(tv_page) == []
 
 
@@ -201,6 +302,21 @@ def _seed_party(fake: WallFake) -> None:
         }
         for i, (cid, emoji, title, line, label) in enumerate(CATEGORY_NAMES)
     ]
+
+
+SHOT_TRANSITIONS = [
+    "polaroid",
+    "glitch",
+    "pixelate",
+    "dither",
+    "confetti",
+    "stamp",
+    "spring",
+    "slot",
+    "jelly",
+    "kenburns",
+    "crossfade",
+]
 
 
 def _only(mode: str) -> list[dict[str, Any]]:
@@ -247,39 +363,62 @@ def test_wall_screenshots(tv_page: Page, wall_fake: WallFake) -> None:
     shot(page, "wall_empty", 1200)
 
     _seed_party(wall_fake)
-    # spotlight: settled, then mid-transition for a few kinds (each with another background)
-    looks = {
-        "polaroid": "blobs",
-        "pixelate": "aurora",
-        "glitch": "disco",
-        "confetti": "confetti",
-        "stamp": "blobs",
-    }
-    for kind, preset in looks.items():
+    # spotlight: settled once, then every transition mid-way (the backgrounds take turns);
+    # glitch and polaroid a second time later on
+    presets = ["blobs", "aurora", "disco", "confetti"]
+    for i, kind in enumerate(SHOT_TRANSITIONS):
         wall_fake.config["playlist"] = _only("spotlight")
         wall_fake.config["spotlight"] = {
             "algorithm": "shuffle",
             "n": 12,
-            "interval_s": 8 if kind == "polaroid" else 3,  # time for a settled shot
+            "interval_s": 3,
             "transition": kind,
             "transition_ms": 2400,
         }
-        wall_fake.config["look"] = {**wall_fake.config["look"], "preset": preset}
+        wall_fake.config["look"] = {**wall_fake.config["look"], "preset": presets[i % 4]}
         page.reload(wait_until=LOADED)
         page.locator(".wall-stage .wall-slide").first.wait_for()
-        if kind == "polaroid":
-            _wait_settled(page)
-            shot(page, f"wall_spotlight_{kind}_settled", 300)
-        page.wait_for_timeout(500)
+        _wait_settled(page)
+        if i == 0:
+            shot(page, "wall_spotlight_settled", 300)
         _wait_transition(page, kind)
-        page.wait_for_timeout(700 if kind != "stamp" else 900)
+        page.wait_for_timeout(500 if kind in ("glitch", "polaroid") else 800)
         shot(page, f"wall_spotlight_{kind}_midway", 0)
+        if kind in ("glitch", "polaroid"):
+            shot(page, f"wall_spotlight_{kind}_later", 500)
 
-    # gallery
+    # the QR code in the bottom left corner next to a landscape photo
+    wall_fake.qr = {"url": "/?t=abc", "name": "Eingang"}
+    wall_fake.config["overlay"] = {
+        **wall_fake.config["overlay"],
+        "qr": True,
+        "corner": "bottom-left",
+    }
+    wall_fake.config["spotlight"] = {**STILL, "algorithm": "newest"}
+    wall_fake.add(wall_photo(40, "Funky Flamingo", minutes_ago=1) | {"width": 1600, "height": 900})
+    page.reload(wait_until=LOADED)
+    _wait_settled(page)
+    shot(page, "wall_spotlight_qr_bottom_left", 600)
+    expect(shown_photo(page)).to_have_attribute("data-photo", "ph0040")
+    wall_fake.photos.pop(0)
+    wall_fake.config["overlay"] = {**wall_fake.config["overlay"], "corner": "bottom-right"}
+
+    # a mode change: spotlight fades out over the gallery fading in
+    wall_fake.config["playlist"] = [
+        {"mode": "spotlight", "enabled": True, "duration_s": 3},
+        {"mode": "gallery", "enabled": True, "duration_s": 600},
+        {"mode": "categories", "enabled": False, "duration_s": 600},
+    ]
+    page.reload(wait_until=LOADED)
+    page.locator(".wall-mode[data-leaving]").wait_for(timeout=10_000)
+    shot(page, "wall_mode_crossfade", 250)
+
+    # gallery: the entry, then running
     wall_fake.config["playlist"] = _only("gallery")
     wall_fake.config["look"] = {**wall_fake.config["look"], "preset": "blobs"}
     page.reload(wait_until=LOADED)
     page.get_by_test_id("wall-gallery").wait_for()
+    shot(page, "wall_gallery_entering", 250)
     shot(page, "wall_gallery_1", 1500)
     shot(page, "wall_gallery_2", 3000)
 

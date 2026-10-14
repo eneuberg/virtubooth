@@ -89,6 +89,12 @@ export function captionIn(to: HTMLElement, ms: number, delay: number, plain = fa
   ];
 }
 
+/** The outgoing caption leaves quickly, before the new one comes in (the engine runs it
+ *  next to every transition). */
+export function captionOut(from: HTMLElement | null, ms: number): Animation[] {
+  return fadeOut(from ? captionOf(from) : null, Math.min(400, ms * 0.3));
+}
+
 export function fadeOut(el: HTMLElement | null, ms: number, delay = 0): Animation[] {
   if (!el) return [];
   return [

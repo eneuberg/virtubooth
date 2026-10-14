@@ -148,6 +148,7 @@ class WallFake:
         self.session = "login"  # "ok" | "login" | "nopassword"
         self.config: dict[str, Any] = deepcopy(DEFAULT_CONFIG)
         self.event_name = "E2E Party"
+        self.qr: dict[str, str] | None = None  # the corner's QR code (`overlay.qr` on)
         self.photos: list[dict[str, Any]] = []  # newest first
         self.categories: list[dict[str, Any]] = []
         self.pending: list[tuple[str, dict[str, Any]]] = []
@@ -181,7 +182,13 @@ class WallFake:
             else:
                 self.config[key] = value
         self.config["rev"] += 1
-        self.emit("config", {"config": deepcopy(self.config), "event_name": self.event_name})
+        self.emit(
+            "config",
+            {"config": deepcopy(self.config), "event_name": self.event_name, "qr": self._qr()},
+        )
+
+    def _qr(self) -> dict[str, str] | None:
+        return self.qr if self.config["overlay"].get("qr") else None
 
     def emit(self, event: str, data: dict[str, Any]) -> None:
         self.pending.append((event, data))
@@ -211,6 +218,7 @@ class WallFake:
         return {
             "config": self.config,
             "event_name": self.event_name,
+            "qr": self._qr(),
             "total": len(self.photos),
             "photos": self.photos,
             "cursor": self.event_id,

@@ -76,10 +76,23 @@ body {
   animation: wall-mode-in 900ms ease-out both;
 }
 
+/* the mode that ends fades out on top of the next one fading in (App: MODE_FADE_MS) */
+.wall-mode[data-leaving] {
+  pointer-events: none;
+  animation: wall-mode-out 800ms ease-in both;
+}
+
 @keyframes wall-mode-in {
   from {
     opacity: 0;
     transform: scale(0.985);
+  }
+}
+
+@keyframes wall-mode-out {
+  to {
+    opacity: 0;
+    transform: scale(1.02);
   }
 }
 
@@ -194,9 +207,11 @@ body {
   font-size: clamp(18px, 3.6vmin, 110px);
 }
 
-/* glitch: three colour channels (multiply → one channel, screen → recombined) */
+/* glitch: per colour channel the new photo in a band, the old one around it
+   (multiply → one channel, screen → recombined) */
 .wall-glitch,
 .wall-glitch-layer,
+.wall-glitch-shift,
 .wall-glitch-tint,
 .wall-slot {
   position: absolute;
@@ -210,6 +225,9 @@ body {
 
 .wall-glitch-layer {
   mix-blend-mode: screen;
+}
+
+.wall-glitch-shift {
   isolation: isolate;
 }
 
@@ -371,6 +389,17 @@ body {
   justify-content: center;
   gap: 4vmin;
   height: 100%;
+  container-type: size;
+}
+
+/* the corner overlay (Corner.tsx publishes its size) keeps the category clear: both
+   columns move away from it together, so the title stays level with the winners */
+.wall[data-corner^='bottom'] .wall-cat {
+  padding-bottom: calc(var(--wall-corner-h, 0px) + 2.5vmin);
+}
+
+.wall[data-corner^='top'] .wall-cat {
+  padding-top: calc(var(--wall-corner-h, 0px) + 2.5vmin);
 }
 
 .wall-cat-photo {
@@ -387,6 +416,8 @@ body {
   animation-delay: 360ms;
 }
 
+/* as tall as the count allows, no taller than the row (minus the badge and the name
+   under it: 14vmin) and narrow enough that all of them fit side by side */
 .wall-cat-pic {
   overflow: hidden;
   max-width: 100%;
@@ -408,6 +439,25 @@ body {
 
 .wall-cat-winners[data-count='3'] .wall-cat-pic {
   height: 46vh;
+}
+
+/* (old TV browsers without container queries keep the plain heights above) */
+@supports (height: 1cqh) {
+  .wall-cat-pic {
+    --room: calc(100cqh - 14vmin);
+  }
+
+  .wall-cat-winners[data-count='1'] .wall-cat-pic {
+    height: min(76vh, var(--room), (100cqw - 4vmin) / var(--a, 0.75));
+  }
+
+  .wall-cat-winners[data-count='2'] .wall-cat-pic {
+    height: min(60vh, var(--room), (100cqw - 8vmin) / 2 / var(--a, 0.75));
+  }
+
+  .wall-cat-winners[data-count='3'] .wall-cat-pic {
+    height: min(46vh, var(--room), (100cqw - 12vmin) / 3 / var(--a, 0.75));
+  }
 }
 
 .wall-cat-pic img {
