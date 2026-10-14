@@ -318,6 +318,35 @@ def test_snapshot_drops_admin_secrets_and_free_pages(tmp_path):
     Database(snap.db_file).close()
 
 
+def test_snapshot_drops_password_hashes(tmp_path):
+    """Review 2, ARCH-01: the admin password set in the admin and the wall
+    password are scrypt hashes in `settings`; the archive's copy must not
+    carry them (offline cracking). Other settings stay."""
+    data = tmp_path / "data"
+    db = Database(data / "virtubooth.db")
+    with db.tx() as c:
+        for key, marker in (
+            ("admin.password", "ADMINHASH-MARKER"),
+            ("x.wall.password", "WALLHASH-MARKER"),
+            ("x.wall.config", "CONFIG-MARKER"),
+            ("event", "EVENT-MARKER"),
+        ):
+            c.execute("INSERT INTO settings VALUES (?, ?, '2026')", (key, f'{{"v": "{marker}"}}'))
+    scratch = tmp_path / "scratch"
+    scratch.mkdir()
+    snap = take_snapshot(data, scratch, include_hidden=True)
+    db.close()
+    content = snap.db_file.read_bytes()
+    assert b"ADMINHASH-MARKER" not in content and b"WALLHASH-MARKER" not in content
+    conn = sqlite3.connect(snap.db_file)
+    try:
+        keys = {r[0] for r in conn.execute("SELECT key FROM settings")}
+    finally:
+        conn.close()
+    assert {"x.wall.config", "event"} <= keys
+    assert not keys & {"admin.password", "x.wall.password"}
+
+
 # ============================================================ SEC-04 CSRF
 
 

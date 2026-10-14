@@ -8,12 +8,19 @@ while `gen` equals the stored generation, which grows whenever the password is
 set, changed or removed and when the admin logs every wall out. A valid admin
 session passes everywhere too.
 
-Logins are limited per IP (IPv6: per /64) to 5 per minute and 20 per hour;
-every wrong password is audited (`wall.login_failed`).
+Logins are limited per IP (IPv6: per /64) to 5 per minute and 20 per hour,
+and globally like the admin login: after FAILURES_GLOBAL wrong passwords within
+FAILURES_WINDOW, from any address, every wall login is refused for
+LOCK_SECONDS (429 `login_locked`), the right password included, so spreading
+guesses over many addresses gains nothing (the wall password may be as short
+as 6 characters and opens every photo on the wall). Walls that are logged in
+keep working, an admin session still passes, and a restart clears the lock.
+Every wrong password is audited (`wall.login_failed`).
 """
 
 from __future__ import annotations
 
+import logging
 import time
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Annotated, Any
@@ -24,13 +31,15 @@ from ...api.deps import CoreDep, admin_from_cookie
 from ...core import errors
 from ...core.clock import now_iso
 from ...core.passwords import verify_password
-from ...core.ratelimit import IpRateLimiter
+from ...core.ratelimit import IpRateLimiter, Lockout, RateLimiter
 from ...core.security import client_ip, cookie_secure
 from ...repositories.app_settings import AppSettingsRepo
 from .schemas import Via
 
 if TYPE_CHECKING:
     from ...runtime import Core
+
+log = logging.getLogger("virtubooth.wall")
 
 COOKIE = "vb_wall"
 COOKIE_PATH = "/livewall"
@@ -41,6 +50,10 @@ MAX_PASSWORD = 256
 # a cookie "issued" this far in the future (clock skew) still counts
 _FUTURE_SLACK = 300
 NO_STORE = {"Cache-Control": "no-store"}
+# wrong wall passwords from anywhere; running out locks every wall login
+FAILURES_GLOBAL = 20
+FAILURES_WINDOW = 15 * 60
+LOCK_SECONDS = 5 * 60
 
 
 # ------------------------------------------------------------------ errors
@@ -63,6 +76,15 @@ def no_password() -> errors.ApiError:
 
 def wrong_password() -> errors.ApiError:
     return errors.ApiError(403, "wrong_password", "Das Passwort stimmt nicht.", headers=NO_STORE)
+
+
+def login_locked(retry_after: int) -> errors.ApiError:
+    return errors.ApiError(
+        429,
+        "login_locked",
+        "Zu viele Fehlversuche. Die Anmeldung ist kurz gesperrt.",
+        headers={"Retry-After": str(max(1, retry_after)), **NO_STORE},
+    )
 
 
 def password_too_short() -> errors.ApiError:
@@ -179,23 +201,45 @@ WallDep = Annotated[Via, Depends(require_wall)]
 class LoginLimits:
     per_minute: IpRateLimiter
     per_hour: IpRateLimiter
+    # wrong passwords from any address; running out trips `lock`
+    failures: RateLimiter
+    lock: Lockout
 
     @classmethod
     def create(cls) -> LoginLimits:
-        return cls(per_minute=IpRateLimiter(5, 60), per_hour=IpRateLimiter(20, 3600))
+        return cls(
+            per_minute=IpRateLimiter(5, 60),
+            per_hour=IpRateLimiter(20, 3600),
+            failures=RateLimiter(FAILURES_GLOBAL, FAILURES_WINDOW),
+            lock=Lockout(LOCK_SECONDS),
+        )
 
 
 def login(core: Core, limits: LoginLimits, request: Request, password: str) -> PasswordState:
     """The password state when `password` is right; else an ApiError (409 no
-    password set, 429 too many attempts, 403 wrong password)."""
+    password set, 429 `login_locked` / `rate_limited`, 403 wrong password)."""
     state = password_state(core.repos.app_settings)
     if not state.is_set:
         raise no_password()
+    remaining = limits.lock.remaining()
+    if remaining:
+        # not even compared: a lucky guess must not get through either
+        raise login_locked(remaining)
     ip = client_ip(request)
     for limiter in (limits.per_minute, limits.per_hour):
         if not limiter.hit(ip):
             raise rate_limited(limiter.retry_after(ip))
     if state.hash is None or not verify_password(password, state.hash):
         core.repos.audit.log("anonymous", "wall.login_failed", f"ip:{ip}", at=now_iso())
+        limits.failures.hit("global")
+        if not limits.failures.available("global"):
+            limits.lock.trip()
+            log.warning(
+                "wall login locked for %d s: %d wrong passwords within %d min, from any address",
+                LOCK_SECONDS,
+                FAILURES_GLOBAL,
+                FAILURES_WINDOW // 60,
+            )
+            raise login_locked(limits.lock.remaining())
         raise wrong_password()
     return state

@@ -911,3 +911,377 @@ apps share it".
   streams; a fifth closes its oldest, which reconnects and replays."
 - §6.2 `archive`, `include_db`: "without admin sessions and export jobs,
   vacuumed".
+
+## Review 2: QR codes, settings, Live Wall (2026-10-14)
+
+Reviewer: security agent, branch `sec/review` (from `main` at `3b1daab`).
+
+**Scope.** The delta `0ff9bd4..main`:
+- admin password change (scrypt, `admin.password`, `POST /api/admin/settings/password`,
+  `virtubooth reset-admin-password`);
+- QR codes (`party_codes`, `party_code_tokens`, the new access cookie, the wrong-token
+  limiter);
+- the Live Wall (`/livewall`, its password and cookie, screen API, media, SSE, the admin
+  API under `/api/x/wall/admin/`);
+- the poster template upload;
+- the heartbeat `/api/here`;
+- the analysis worker and the guest opt-out;
+- CSP and static serving for `wall.html` and the pdf.js worker.
+
+**Method.** The same as review 1:
+1. The code was read end to end.
+2. Each suspicion was checked against a throwaway server on `127.0.0.1:8417`, with the
+   built `frontend/dist`, its own data dir and `VB_WALL_WORKER=off`.
+3. `X-Forwarded-For` stood in for distinct client addresses.
+
+The ML extra was not installed, so the analyzers themselves were only read, not run.
+
+### Summary
+
+| Severity | Count | IDs |
+|---|---|---|
+| Critical | 0 | |
+| High | 0 | |
+| Medium | 1 | WALL-01 (fixed) |
+| Low | 6 | ARCH-01 (fixed), QR-01, WALL-02, WALL-03, HERE-01, ANA-01 |
+| Info | 7 | R2-I1 … R2-I7 |
+
+The new auth paths hold:
+- **Wall cookie.** It reaches only `/livewall`. It cannot read guest or admin data,
+  and guest cookies cannot read the wall.
+- **Hidden photos.** They leave the wall feed and all three media sizes at once,
+  the cached 1280 px copy included.
+- **Password change.** It needs the current password and ends every other session.
+- **QR tokens.** They are looked up by hash and never reused. The audit log keeps only
+  their last 4 characters.
+- **Poster template.** It is admin-only and served sandboxed as an attachment.
+
+The one Medium was the wall login. It was rate limited per address only, and the wall
+password (6 characters minimum) opens every photo on the wall, which is more than a guest
+can see.
+
+### Findings
+
+#### WALL-01 · Medium · confirmed · fixed: the wall login has no global lock
+
+**Affected code:** `backend/src/virtubooth/extensions/wall/auth.py` (`login`, `LoginLimits`)
+
+**Description.** `POST /livewall/api/session` checks 5/min and 20/h per address (IPv6:
+per /64) and then always runs scrypt. The admin login (SEC-01) has a global failure
+lock; the wall login had none. So guesses spread over many addresses are only bounded by
+scrypt (2 parallel slots, about 12 guesses/s on the test machine, ~40,000 per hour). The
+password minimum is 6 characters.
+
+**What the wall password opens:**
+- every visible photo of every guest (guests only see their own);
+- authors' pseudonyms (and Instagram handles when shown);
+- with the QR overlay on, the active party token.
+
+**Repro** (`t1_wall_brute.py`, wall password `party1`):
+```python
+for i in range(200):                       # 200 addresses x 5 guesses
+    ip = f"198.51.{i//250}.{i%250+1}"
+    for j in range(5):
+        c.post("/livewall/api/session", json={"password": f"wrong{i}-{j}"},
+               headers={"X-Forwarded-For": ip})
+# -> {403: 1000}                            1000 checked guesses in 84 s, no lock
+c.post("/livewall/api/session", json={"password": "party1"},
+       headers={"X-Forwarded-For": "203.0.113.9"})
+# -> 200, vb_wall cookie; /livewall/api/feed -> 200 with every photo
+```
+
+**Fix (`5e541e0`).** The same model as SEC-01. After 20 wrong wall passwords within
+15 minutes, from any address, every wall login is refused for 5 minutes, the right
+password included: `429 login_locked` with `Retry-After` and `no-store`.
+- The lock is checked before the per-IP buckets and before scrypt.
+- Walls that are logged in keep their cookie, and admin sessions still pass.
+- A restart clears the lock (the buckets live in memory).
+- The wall login screen already shows the server's message ("Zu viele Fehlversuche. Die
+  Anmeldung ist kurz gesperrt.").
+
+Re-run of the PoC: 19 × `403`, then `429 login_locked`; the right password from a fresh
+address gets `429` with `Retry-After: 300`.
+
+Test: `tests/api/test_wall_auth.py::test_global_lockout`. FEATURES.md and ARCHITECTURE.md
+describe the lock.
+
+#### ARCH-01 · Low · confirmed · fixed: the archive's database copy holds the password hashes
+
+**Affected code:** `backend/src/virtubooth/tools/export.py` (`scrub_snapshot`)
+
+**Description.** Passwords can now be set in the admin, so `settings` holds the scrypt
+hashes `admin.password` and `x.wall.password`. The archive's DB copy (`include_db`)
+carried both. That lets anyone with the zip crack them offline. Before this change the
+admin password was only in the environment.
+
+**Repro.** `take_snapshot(data, tmp)` on the test data dir, then
+`SELECT key FROM settings` → `admin.password`, `x.wall.password` with `scrypt$15$8$1$…`.
+
+**Fix (`5aec2f2`).** The scrub also deletes `admin.password` and every
+`x.<id>.password` row before the VACUUM. A restored copy falls back to
+`VB_ADMIN_PASSWORD` and to a wall without a password. README.txt in the archive says so,
+and also that the QR codes with their tokens are in the copy (see the accepted risks).
+
+Test: `tests/api/test_security_fixes.py::test_snapshot_drops_password_hashes`.
+
+#### QR-01 · Low · confirmed · open: wrong tokens from one device lock new guests out of a shared network
+
+**Affected code:** `backend/src/virtubooth/middleware.py` (`_token_entry`),
+`core/ratelimit.py` (`TOKEN_FAILURES_PER_MIN`)
+
+**Description.** While an address's wrong-token bucket (60/min) is empty, every `?t=`
+gets the gate unchecked, valid tokens included. At a party, all guests on the venue
+Wi-Fi share one IPv4 (or one /64). One device sending a wrong token every second keeps
+every new guest on that network out. Guests on mobile data and guests who joined already
+are not affected.
+
+**Repro** (`t3_token.py`): 61 wrong tokens from `192.0.2.77`, then the valid token from
+the same address → `404`, `X-VB-Page: gate`. From `192.0.2.78` → `303`.
+
+**Recommendation.** Always check a token that is well-formed. The guessing oracle the
+limiter hides is worthless against 144-bit generated tokens and 16+ character custom
+tokens. Keep counting failures, and log or alert on bursts. If an oracle limit is still
+wanted, key it on address plus `vb_vid`, so one device cannot empty its neighbours'
+budget.
+
+#### WALL-02 · Low · confirmed (code) · open: the wall's 1280 px copy of a deleted photo can survive on disk
+
+**Affected code:** `extensions/wall/hub.py` (`_handle` → `drop_cached`), `extensions/wall/media.py`
+
+**Description.** The cached copy `<data>/wall/cache/m/<id>.jpg` is removed only when the
+wall's translator handles `photo.deleted` from the in-memory bus. It is missed when:
+- the wall extension is not loaded when the photo is deleted;
+- the translator falls behind and resyncs past the event;
+- the app stops right after the delete.
+
+The file is never served again, because `/livewall/media` checks visibility. But it stays
+in the data volume (and its backups), against the promise that deleted photos are gone
+for good.
+
+**Recommendation.** Two options:
+- In `WallHub.start()` and after a translator resync, sweep the cache. Delete every file
+  whose photo is deleted or unknown. It is a single query and a directory listing.
+- Or let `ModerationService.delete_photo` unlink the copy in its on-commit hook.
+
+#### WALL-03 · Low · open: no cap on wall event streams
+
+**Affected code:** `extensions/wall/screen_api.py` (`stream`)
+
+**Description.** The admin stream holds at most 4 streams per session (SEC-06).
+`/livewall/api/stream` has no limit per wall cookie or admin session. Whoever has the
+wall password (or a stolen wall cookie) can open streams until file descriptors or memory
+run out. Each stream also re-checks its cookie every 30 s.
+
+**Recommendation.** At most 4 open streams per wall cookie value (or per address), and
+close the oldest one, like SEC-06.
+
+#### HERE-01 · Low · open: the heartbeat writes on every request
+
+**Affected code:** `services/presence.py` (`here`), `repositories/presence.py` (`beat`)
+
+**Description.** Every `POST /api/here` of a joined guest is one write transaction, with
+no server-side interval. It is bounded only by the per-guest API budget. One guest
+reached 301 × `200` in 0.37 s, then `429`. One address can create 120 identities per
+10 minutes, each with its own budget, and so several hundred write transactions a second.
+Other guest writes (`PATCH /api/me`) behave the same way, so this adds no new class. The
+online time cannot be inflated: a beat adds only the real time since the last one, at most
+150 s.
+
+**Recommendation.** Skip the write for a visible beat less than ~20 s after the guest's
+previous one. A per-guest timestamp in memory is enough, as in `note()`. The accounting
+does not change, because the next beat adds the elapsed time.
+
+#### ANA-01 · Low · open: toggling the analysis opt-out requeues all of the guest's photos every time
+
+**Affected code:** `repositories/users.py` (`set_analysis_opt_out`), `PUT /api/me/analysis`
+
+**Description.** Each change deletes the guest's facts and resets every analysis row to
+`pending`. A guest flipping the switch (bounded only by the 300/min budget) keeps the
+worker re-analysing their photos. Newer photos still go first, so this wastes CPU at
+nice 10 rather than blocking anyone. The opt-out itself is correct:
+- `claim` reads it;
+- `finish` refuses rows that left `running`, so a flip during an analysis cannot store ML
+  facts;
+- categories that need ML exclude opted-out guests.
+
+**Recommendation.** A small per-guest limit on this route (e.g. 5 per minute).
+
+#### Info
+
+- **R2-I1 · revoked codes keep joined guests in.**
+  - By design (`has_access`): a revoked or re-tokened code shuts out only browsers that
+    never joined.
+  - To lock everyone out (a leaked code, the end of the party), rotate `VB_SECRET_KEY`.
+    That ends every cookie and every admin session.
+  - Worth a line in the admin's revoke dialog.
+- **R2-I2 · the QR overlay shows an active token to the wall.**
+  - With `overlay.qr` on, `/livewall/api/feed` and the `config` event carry an entry URL
+    with a live token, by design (the TV shows it).
+  - So the wall password also yields guest access.
+- **R2-I3 · the analysis worker's resources.**
+  - Bounds: nice 10, thread limits, a recycle at 200 photos or 900 MB RSS (checked after
+    each photo), and it parses only the stored, re-encoded JPEGs.
+  - No hard limit: in the default 1 GB container the OOM killer may pick uvicorn instead
+    of the worker. Writing `1000` to `/proc/self/oom_score_adj` in `tune_process()` would
+    make the kernel kill the worker, which the supervisor restarts.
+  - The worker inherits the whole environment (`VB_SECRET_KEY`, `VB_ADMIN_PASSWORD`). It
+    needs none of it, but it has DB write access anyway, so dropping them is
+    defence in depth only.
+- **R2-I4 · model downloads.**
+  - The safeguards: HTTPS, commit-pinned URLs, SHA256 checked while streaming, an atomic
+    rename, and downloads only by CLI or Docker build, never by the app.
+  - The stream has no byte cap (a hostile mirror could fill the disk before the hash
+    fails), and urllib follows redirects, also to http.
+  - Fix: stop reading after `model.size` bytes.
+- **R2-I5 · wall media cache.**
+  - Wall media are sent with `private, max-age=86400`. After a hide, the TV's browser
+    cache keeps the file for a day. The wall drops it from the playlist at once
+    (`photo.remove`).
+- **R2-I6 · small disclosures.**
+  - `GET /livewall/api/session` tells anyone whether a wall password is set (409 versus
+    401).
+  - Each valid `?t=` scan writes `visitors` and `code_visitors` outside the API budget
+    (needs a valid token).
+- **R2-I7 · weak custom tokens.**
+  - The custom token rule (16–128 characters from `[A-Za-z0-9_-]`, at least 6 distinct)
+    still allows guessable phrases such as `Geburtstag-Lena-30`.
+  - Generated tokens have 144 bits.
+  - The admin UI could warn on dictionary-like custom tokens.
+
+### Verified OK (coverage)
+
+**Admin password**
+- **Hashing** (`core/passwords.py`):
+  - scrypt with log2 N = 15, r = 8, p = 1, a 16-byte random salt and a 32-byte key;
+  - `verify` bounds the parameters read from the stored string (log2 N ≤ 20, r ≤ 32,
+    p ≤ 16) and decodes base64 strictly;
+  - `compare_digest`; at most 2 scrypt runs at once.
+- **Change endpoint:**
+  - router-level `require_admin` plus the current password;
+  - a wrong current password answers 403 and counts towards the global lock, with the
+    login's per-IP limits;
+  - length 12–256;
+  - the caller's session is re-tagged; every other session is deleted and its streams
+    closed on commit.
+- **Which password applies** (live): after a change, the old `VB_ADMIN_PASSWORD` gets
+  401 and the new one 200. Sessions carry an HMAC tag of the stored hash (or of the env
+  password), read on every request, so a CLI reset applies at once.
+- **CLI:**
+  - `reset-admin-password --from-env` deletes the hash; a new password must be 12–256
+    characters;
+  - every session ends; the reset is audited;
+  - startup warnings about weak passwords apply only to the env password.
+
+**QR codes**
+- **Lookup:** by SHA-256 in `party_code_tokens`, active codes and the current token
+  only. Every token a code ever had stays, so reuse answers `409 token_taken`
+  (verified live).
+- **Access cookie:**
+  - `sign("access", "<id>.<gen>")`, parsed with a strict regex (`[1-9]…\.[1-9]…`);
+  - a forged or tampered value is None;
+  - legacy MAC cookies count as code 1, generation 1. They are "current" only while
+    code 1 still has its first token, else "stale", which lets only joined guests in.
+- **Token exposure:**
+  - the audit log keeps `token_end` (4 characters); the full token was not in
+    `/api/admin/audit` (verified);
+  - full tokens appear only in `/api/admin/codes*` and the admin event stream (needed for
+    printing).
+- **Rules:**
+  - all code routes are behind `require_admin`;
+  - the target must be a loaded extension;
+  - notes may not contain control characters;
+  - incoming `?t=` longer than 128 characters is not hashed.
+
+**Live Wall**
+- **Cookie** (live): `HttpOnly; Max-Age=2592000; Path=/livewall; SameSite=strict`
+  (`Secure` behind https).
+  - The value is `sign("wall", "<gen>.<issued>")`; the generation grows on every password
+    change, removal and "Alle Wände abmelden".
+  - Its purpose differs from the access and visitor cookies, so the values cannot be
+    swapped.
+- **Separation** (live):
+  - wall cookie only: `/api/me/photos` → 404 gate, `/api/x/wall/admin/config` → 401;
+  - guest cookies: `/livewall/api/feed` → 401;
+  - CSRF: `POST /livewall/api/session` without `Origin` → 403;
+  - admin bypass only through a valid admin session (`SameSite=Strict`).
+- **Hidden and deleted photos** (live):
+  - after a hide, the feed is empty and `s`, `m` and `l` of the photo answer 404,
+    although the 1280 px copy is still cached;
+  - visibility is checked from the DB on every media request;
+  - a ban hides the guest's photos; deletion drops the copy (but see WALL-02).
+- **API budget:** the admin exemption on `/api/x/<id>/admin/` needs a valid admin
+  session. Anonymous and guest calls there still count against their budget and get 401.
+- **SQL:** the category SQL is built only from the static catalogue; values are bound.
+
+**Poster template**
+- **Upload checks:** `Content-Length` required, at most 8 MB, chunked bodies refused,
+  `%PDF-` within the first 1024 bytes.
+- **Storage:** a fixed path `<data>/poster/template.pdf`, written atomically.
+- **Serving:** only `GET /api/admin/poster/template`, as an attachment with
+  `CSP: sandbox`, `no-store` and `nosniff`.
+- **Auth before the body:** an anonymous 1 MB `PUT` gets 401 before the body is read
+  (live). The middleware's streamed-body exemption covers only this one path.
+
+**Heartbeat:** `AccessDep`, the per-guest budget (verified), and the online-time
+accounting described in HERE-01.
+
+**Analysis**
+- **Process:** a separate subprocess that exits on stdin EOF, runs at nice 10 with
+  limited threads, and is recycled.
+- **Input:** it reads stored photos only. Those were re-encoded at upload with their size
+  checked from the header. It decodes in draft mode to ≤ 1280 px, and the ML libraries
+  get numpy arrays, never files.
+- **What it stores:** numeric facts, boxes (rectangles and German labels) and detail
+  lines. Scratch data (face crops, landmarks, blendshapes, CLIP vectors) stays in memory
+  for one photo (`pipeline.merge`, `Outcome.data`).
+- **Admin-only output:** per-photo analysis and boxes. The wall gets only `people`,
+  `faces`, `hands` and `smiles`.
+
+**CSP and static serving**
+- **CSP:** unchanged: `default-src 'self'`, no `unsafe-eval`, no `blob:` workers.
+- **pdf.js:**
+  - version 6.4.299 (after the CVE-2024-4367 fix), with `useWasm: false`;
+  - its worker is a hashed `/assets/*.mjs`, served as `text/javascript`.
+- **wall.html:** served only via `/livewall`; `/wall.html` and its `.br`/`.gz` siblings
+  are 404.
+- **Frontend:** the new code has no HTML sinks (`innerHTML`,
+  `dangerouslySetInnerHTML`, `eval`).
+
+### Status
+
+| ID | Severity | Status | Commit |
+|---|---|---|---|
+| WALL-01 | Medium | fixed | `5e541e0` |
+| ARCH-01 | Low | fixed | `5aec2f2` |
+| QR-01 | Low | open (recommendation above) | – |
+| WALL-02 | Low | open | – |
+| WALL-03 | Low | open | – |
+| HERE-01 | Low | open | – |
+| ANA-01 | Low | open | – |
+| R2-I1 … R2-I7 | Info | accepted / notes | – |
+
+**Tests run.** Targeted backend tests: `uv run pytest -n 4` → 332 passed. The files:
+- the API tests `test_admin_password`, `test_code_access`, `test_codes`,
+  `test_code_guests`, `test_wall_auth`, `test_wall_feed`, `test_wall_admin`,
+  `test_wall_stream`, `test_wall_integration`, `test_wall_hooks`, `test_here`,
+  `test_admin_poster`, `test_enrich_analysis_api`, `test_admin_exports` and
+  `test_security_fixes`;
+- the unit tests `test_passwords`, `test_wall_passwords`, `test_enrich_jobs` and
+  `test_enrich_models`.
+
+`ruff check`, `ruff format --check` and `mypy` pass on the changed files. No OpenAPI or
+frontend change, so no Vitest or e2e run was needed.
+
+### Accepted risks
+
+- **Joined guests survive revoke and re-token (R2-I1).** That is the product decision
+  ("joined guests keep their session"). The escape hatch is a `VB_SECRET_KEY` rotation.
+- **The archive's DB copy keeps the QR codes' current tokens.** The copy is documented as
+  restorable, and blanking the tokens would break reprinting after a restore. The archive
+  already holds guest IPs and fingerprints and is for the host only. README.txt now names
+  the tokens. Revoke or re-token the codes after the party before passing an archive on.
+- **The wall password minimum stays at 6 characters.** It is typed on a TV remote. With
+  WALL-01 fixed, a distributed attack gets at most about 80 guesses an hour.
+- **The wall lock can be triggered from outside.** The trade-off is the same as for the
+  admin login: walls that are logged in keep running for 30 days, and admins still see
+  the wall.
