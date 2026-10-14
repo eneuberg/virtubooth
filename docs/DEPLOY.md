@@ -68,6 +68,13 @@ docker build -t virtubooth:local .     # what `docker compose build` does
 make docker-smoke                      # build + run on 127.0.0.1:8180 + check end to end
 ```
 
+`make docker-smoke` talks to the container from the host, through the published
+port. A host firewall that drops traffic to Docker's bridge networks (a VPN kill
+switch with LAN access blocked, for example) makes it fail with a diagnosis even
+though the container is healthy; allow LAN traffic (or `172.16.0.0/12`) there.
+If the same firewall breaks `pnpm install` in the build (ECONNRESET), build on
+the host network: `make docker-smoke DOCKER_BUILD_FLAGS=--network=host`.
+
 ## Docker Compose
 
 ### 1. Get the code onto the server

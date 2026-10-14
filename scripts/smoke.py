@@ -138,15 +138,17 @@ def jpeg(color: tuple[int, int, int]) -> bytes:
 
 def wait_healthy(base: str, timeout: float) -> None:
     deadline = time.monotonic() + timeout
+    last = "no answer"
     while True:
         try:
             with urllib.request.urlopen(base + "/healthz", timeout=3) as r:
                 if r.status == 200:
                     return
-        except (URLError, OSError, HTTPError):
-            pass
+                last = f"HTTP {r.status}"
+        except (URLError, OSError, HTTPError) as exc:
+            last = repr(exc)
         if time.monotonic() > deadline:
-            raise SmokeError(f"{base}/healthz did not answer within {timeout:.0f} s")
+            raise SmokeError(f"{base}/healthz did not answer within {timeout:.0f} s (last: {last})")
         time.sleep(0.5)
 
 
