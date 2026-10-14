@@ -10,6 +10,8 @@ fingerprint is recorded as a moderation hint (see UsersRepo.sharing_fingerprint)
 from __future__ import annotations
 
 import re
+import threading
+import time
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
@@ -118,12 +120,21 @@ class JoinResult:
     instagram_kept: bool
 
 
+# a guest's photos are queued again for the analysis at most once per this
+# many seconds, however often the opt-out is switched (ANA-01)
+ANALYSIS_REQUEUE_SECONDS = 300.0
+
+
 class IdentityService:
     def __init__(self, core: Core, db: Database, repos: Repositories, events: AdminEvents) -> None:
         self.core = core
         self.db = db
         self.repos = repos
         self.events = events
+        self.clock = time.monotonic
+        # user id -> when its photos were last queued again by an opt-out change
+        self._requeued: dict[int, float] = {}
+        self._requeue_lock = threading.Lock()
 
     def consent_info(self) -> ConsentInfo:
         s = self.core.settings
@@ -273,9 +284,25 @@ class IdentityService:
         )
 
     def set_analysis_opt_out(self, user: User, opt_out: bool) -> User:
-        """„Meine Fotos nicht automatisch auswerten“ on or off (see
-        UsersRepo.set_analysis_opt_out: the guest's photos are analysed again)."""
-        self.repos.users.set_analysis_opt_out(user.id, opt_out)
+        """„Meine Fotos nicht automatisch auswerten“ on or off. Only a real
+        change does anything. The guest's photos are queued again at once at
+        most every ANALYSIS_REQUEUE_SECONDS; a change within that window only
+        drops what the analysis found (switching it off) and leaves the redo to
+        the worker's sweep (enrich/worker.py), which compares each analysis with
+        what the guest's current choice expects. So switching back and forth
+        costs one analysis pass, not one per switch (ANA-01)."""
+        with self._requeue_lock:
+            now = self.clock()
+            last = self._requeued.get(user.id)
+            due = last is None or not 0 <= now - last < ANALYSIS_REQUEUE_SECONDS
+            changed = self.repos.users.set_analysis_opt_out(user.id, opt_out, requeue=due)
+            if changed and due:
+                if len(self._requeued) > 5000:
+                    self._requeued = {
+                        k: t for k, t in self._requeued.items()
+                        if now - t < ANALYSIS_REQUEUE_SECONDS
+                    }  # fmt: skip
+                self._requeued[user.id] = now
         updated = self.repos.users.get(user.id)
         assert updated is not None
         return updated

@@ -468,10 +468,27 @@ flowchart LR
   Heartbeat in the settings key `x.wall.worker`. Scratch (crops, landmarks,
   CLIP vectors) never leaves the worker's memory; deleted photos are purged.
   Categories (`categories.py`) are SQL over `wall_facts`.
+- **Re-analysis sweep** (`Worker.sweep`, `jobs.stale`): each `done` row stores
+  the versions of the analyzers that ran. At worker start, whenever the set a
+  run would use changes (an analyzer switched on in the admin, a model file
+  arrived) and every 5 minutes, rows that lack an expected analyzer or carry
+  another version (`AnalyzerInfo.version` bumped) are queued again, newest
+  first, their facts kept until the new run replaces them. Opted-out guests
+  expect `basic` only and no ML entry. Switching an analyzer off queues
+  nothing (its facts are ignored). The cheap static check (gate, model files)
+  runs first; only when it finds stale rows are the analyzers loaded for the
+  exact answer, so a model that fails to load never requeues every photo
+  after each recycle.
 - **Opt-out:** `users.analysis_opt_out` (join flag, `PUT /api/me/analysis`).
-  `UsersRepo.set_analysis_opt_out` drops the guest's facts and boxes and
-  requeues their rows (each with its own rev); the worker then runs only
-  `basic` for them, and categories that need an ML analyzer skip them. The
+  Only a real change does anything. `UsersRepo.set_analysis_opt_out` drops the
+  guest's facts and boxes and requeues their rows (each with its own rev); the
+  worker then runs only `basic` for them, and categories that need an ML
+  analyzer skip them. `IdentityService` requeues at most once per guest and
+  5 minutes (`ANALYSIS_REQUEUE_SECONDS`, in memory, ANA-01). Inside that
+  window, switching off still drops facts and boxes at once (rows keep their
+  state with empty versions; a running row goes back to `pending`, so its ML
+  result is refused) and switching on touches nothing; the sweep redoes what
+  no longer matches. Flipping the switch in a loop costs one pass per window. The
   join texts carry the analysis paragraph while the wall is loaded
   (`ConsentInfo.analysis`).
 - **Frontend:** `src/wall/` has no router or design system: a canvas

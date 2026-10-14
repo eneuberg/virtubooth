@@ -10,6 +10,11 @@ analysis, runs the pipeline and stores the result. Idle: a DB scan every 2 s.
 - SIGTERM / SIGINT → finishes the current photo, exits 0
 - after 200 photos or above 900 MB RSS → exits 75; the supervisor restarts
   it at once (a fresh process returns memory that fragmentation keeps)
+- the sweep (`sweep()`): at start, whenever the set of analyzers a run would
+  use changes (switched on in the admin, a model arrived) and every SWEEP_S,
+  analysed photos whose stored versions no longer match are queued again
+  (`jobs.stale`): a new analyzer version, a newly enabled analyzer, a guest
+  who changed the opt-out within the requeue limit (ANA-01)
 """
 
 from __future__ import annotations
@@ -43,6 +48,7 @@ MAX_RSS_MB = 900
 IDLE_S = 2.0
 NICE = 10
 BEAT_S = 10.0
+SWEEP_S = 300.0
 
 
 def tune_process(*, nice: bool = True) -> None:
@@ -119,6 +125,9 @@ class Worker:
         self._pipeline: Pipeline | None = None
         self._last_beat = 0.0
         self.processed = 0
+        self.sweep_s = SWEEP_S
+        self._swept: tuple[dict[str, str], dict[str, str]] | None = None
+        self._last_sweep = 0.0
 
     # ---------------------------------------------------------- pipeline
 
@@ -143,10 +152,7 @@ class Worker:
         if not path.is_file():
             jobs.skip(db, photo.id, "Fotodatei fehlt")
             return "skipped"
-        disabled = jobs.disabled_analyzers(repos.app_settings)
-        if photo.opt_out:
-            # „Meine Fotos nicht automatisch auswerten“: image values only
-            disabled |= {i.name for i in INFOS if i.kind != "basic"}
+        disabled = self._disabled(repos, opt_out=photo.opt_out)
         started = time.perf_counter()
         try:
             frame = load_frame(path, photo)
@@ -166,6 +172,41 @@ class Worker:
                 f"facts={ {k: round(v, 2) for k, v in outcome.facts.items()} }"
             )
         return "done"
+
+    def _disabled(self, repos: Repositories, *, opt_out: bool) -> set[str]:
+        disabled = jobs.disabled_analyzers(repos.app_settings)
+        if opt_out:
+            # „Meine Fotos nicht automatisch auswerten“: image values only
+            disabled |= {i.name for i in INFOS if i.kind != "basic"}
+        return disabled
+
+    def sweep(self, repos: Repositories, *, force: bool = False) -> int:
+        """Queue analysed photos again whose versions no longer match what a
+        run would use now. Runs when that changed, else every `sweep_s`. The
+        cheap static answer comes first; only when it finds stale photos are
+        the analyzers loaded for the exact one, so a model that fails to load
+        does not queue every photo again after each recycle."""
+        enabled, opted_out = (
+            self._disabled(repos, opt_out=False),
+            self._disabled(repos, opt_out=True),
+        )
+        expected = (self.pipeline.expected(enabled), self.pipeline.expected(opted_out))
+        now = time.monotonic()
+        if not force and expected == self._swept and now - self._last_sweep < self.sweep_s:
+            return 0
+        self._last_sweep = now
+        ids = jobs.stale(repos.db, *expected)
+        if ids:
+            expected = (
+                self.pipeline.expected(enabled, load=True),
+                self.pipeline.expected(opted_out, load=True),
+            )
+            ids = jobs.stale(repos.db, *expected)
+        self._swept = expected
+        n = jobs.requeue(repos.db, ids)
+        if n:
+            log.info("queued %d photos again (analyzers or opt-out changed)", n)
+        return n
 
     # --------------------------------------------------------- heartbeat
 
@@ -242,6 +283,7 @@ class Worker:
             while not self.stop.is_set():
                 self.beat(repos)
                 jobs.purge_deleted(db)
+                self.sweep(repos)
                 photo = jobs.claim(db) if jobs.has_work(db) else None
                 if photo is None:
                     if once:

@@ -208,6 +208,54 @@ def rerun(db: Database, scope: Literal["failed", "all"]) -> int:
     return len(ids)
 
 
+def stale(
+    db: Database, expected: Mapping[str, str], expected_opt_out: Mapping[str, str]
+) -> list[int]:
+    """Analysed photos (`done`) whose stored analyzer versions no longer match
+    what a run now would use: an analyzer was switched on (or its model
+    arrived), its version changed, or the guest changed the opt-out since
+    (`expected_opt_out` for opted-out guests: no ML entry may be left). Extra
+    entries of analyzers switched off since are fine: their facts are ignored
+    (categories check the active analyzers)."""
+    out: list[int] = []
+    rows = db.all(
+        "SELECT a.photo_id, a.versions, u.analysis_opt_out FROM wall_analysis a "
+        "JOIN photos p ON p.id = a.photo_id JOIN users u ON u.id = p.user_id "
+        "WHERE a.state = 'done' AND p.deleted_at IS NULL ORDER BY a.photo_id"
+    )
+    for r in rows:
+        try:
+            versions = json.loads(r["versions"] or "{}")
+        except ValueError:
+            versions = {}
+        if not isinstance(versions, dict):
+            versions = {}
+        want = expected_opt_out if r["analysis_opt_out"] else expected
+        if any(versions.get(k) != v for k, v in want.items()) or (
+            r["analysis_opt_out"] and any(k not in want for k in versions)
+        ):
+            out.append(int(r["photo_id"]))
+    return out
+
+
+def requeue(db: Database, photo_ids: list[int]) -> int:
+    """Queue these analysed photos again (facts stay until the new analysis
+    replaces them); each row gets its own rev. Rows that left `done` meanwhile
+    are left alone."""
+    if not photo_ids:
+        return 0
+    n = 0
+    with db.tx() as c:
+        base = _next_rev(c)
+        for i, pid in enumerate(photo_ids):
+            n += c.execute(
+                "UPDATE wall_analysis SET state='pending', attempts=0, error=NULL, rev=? "
+                "WHERE photo_id=? AND state='done'",
+                (base + i, pid),
+            ).rowcount
+    return n
+
+
 def get(db: Database, photo_id: int) -> AnalysisRow | None:
     row = db.one("SELECT * FROM wall_analysis WHERE photo_id=?", (photo_id,))
     if row is None:

@@ -121,12 +121,18 @@ class UsersRepo:
         with self.db.tx() as c:
             c.execute("UPDATE users SET instagram=? WHERE id=?", (handle, user_id))
 
-    def set_analysis_opt_out(self, user_id: int, opt_out: bool) -> bool:
-        """Switch the guest's photo analysis opt-out; False when unchanged. On a
-        change, the guest's photos lose what the Live-Wall analysis found (facts,
-        boxes, details; tables of migration 9) and are queued again, so the worker
-        redoes them with only the basic image values (opted out) or everything.
-        Every requeued row gets its own `rev` (the app polls changes by rev)."""
+    def set_analysis_opt_out(self, user_id: int, opt_out: bool, *, requeue: bool = True) -> bool:
+        """Switch the guest's photo analysis opt-out; False when unchanged.
+
+        On a change with `requeue`, the guest's photos lose what the Live-Wall
+        analysis found (facts, boxes, details; tables of migration 9) and are
+        queued again, so the worker redoes them with only the basic image values
+        (opted out) or everything. Without `requeue` (the caller's rate limit):
+        switching it off still drops all of that at once (the rows keep their
+        state, with empty versions, so the worker's sweep redoes them); a row
+        being analysed goes back to `pending` so its ML result is never stored.
+        Switching it on leaves the rows to the sweep. Every changed row gets its
+        own `rev` (the app polls changes by rev)."""
         with self.db.tx() as c:
             changed = c.execute(
                 "UPDATE users SET analysis_opt_out=? WHERE id=? AND analysis_opt_out != ?",
@@ -134,24 +140,32 @@ class UsersRepo:
             ).rowcount
             if not changed:
                 return False
+            if not requeue and not opt_out:
+                return True
             photos = "SELECT id FROM photos WHERE user_id=?"
             c.execute(f"DELETE FROM wall_facts WHERE photo_id IN ({photos})", (user_id,))
-            ids = [
-                r[0]
-                for r in c.execute(
-                    f"SELECT photo_id FROM wall_analysis WHERE photo_id IN ({photos}) "
-                    "ORDER BY photo_id",
-                    (user_id,),
-                )
-            ]
+            rows = c.execute(
+                f"SELECT photo_id, state FROM wall_analysis WHERE photo_id IN ({photos}) "
+                "ORDER BY photo_id",
+                (user_id,),
+            ).fetchall()
             base = int(
                 c.execute("SELECT COALESCE(MAX(rev), 0) + 1 FROM wall_analysis").fetchone()[0]
             )
-            c.executemany(
-                "UPDATE wall_analysis SET state='pending', attempts=0, error=NULL, data='{}', "
-                "versions='{}', rev=? WHERE photo_id=?",
-                [(base + i, pid) for i, pid in enumerate(ids)],
-            )
+            if requeue:
+                c.executemany(
+                    "UPDATE wall_analysis SET state='pending', attempts=0, error=NULL, "
+                    "data='{}', versions='{}', rev=? WHERE photo_id=?",
+                    [(base + i, r[0]) for i, r in enumerate(rows)],
+                )
+            else:
+                c.executemany(
+                    "UPDATE wall_analysis SET data='{}', versions='{}', rev=?, "
+                    "state=CASE WHEN state='running' THEN 'pending' ELSE state END, "
+                    "attempts=CASE WHEN state='running' THEN 0 ELSE attempts END "
+                    "WHERE photo_id=?",
+                    [(base + i, r[0]) for i, r in enumerate(rows)],
+                )
         return True
 
     def list(

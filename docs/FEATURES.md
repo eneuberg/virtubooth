@@ -780,7 +780,11 @@ aus. Nichts davon verlässt den Server.
   Beitritts-Sheet unter „Mehr dazu“ und im Du-Sheet. Dann gibt es für die Fotos dieses
   Gasts nur die Bildwerte; sie gewinnen keine Kategorie, die Gesichter, Hände oder
   Gegenstände braucht. Umschalten löscht die bisherige Auswertung seiner Fotos und
-  wertet sie neu aus.
+  wertet sie neu aus. Wer mehrmals hin- und herschaltet, löst höchstens alle 5 Minuten
+  eine neue Auswertung aus; Ausschalten löscht die Auswertung trotzdem sofort.
+- **Automatisch neu analysiert** werden fertige Fotos, wenn eine Analyse eingeschaltet
+  wird (oder ihr Modell nachträglich ankommt) und wenn ein Update eine Analyse
+  ändert (neue Version), die neuesten zuerst. Ausschalten stellt nichts neu an.
 
 ### Deep Links
 

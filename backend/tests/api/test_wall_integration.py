@@ -8,7 +8,7 @@ from fastapi.testclient import TestClient
 
 from virtubooth.app import create_app
 from virtubooth.extensions.wall import make_extension
-from virtubooth.services.identity import WALL_ANALYSIS_TEXT
+from virtubooth.services.identity import ANALYSIS_REQUEUE_SECONDS, WALL_ANALYSIS_TEXT
 
 from ..conftest import BASE_URL, ORIGIN, PARTY_TOKEN, fp, scan
 from .wall_support import (
@@ -82,6 +82,47 @@ def test_opt_out_at_join_and_later(client, core):
     r = client.put("/api/me/analysis", json={"opt_out": True}, headers=ORIGIN)
     assert r.json()["user"]["analysis_opt_out"] is True
     assert identify(client)["user"]["analysis_opt_out"] is True
+
+
+def test_switching_the_opt_out_back_and_forth_requeues_once(client, core):
+    """ANA-01: the photos are queued again at most once per
+    ANALYSIS_REQUEUE_SECONDS; switching off inside that window still drops the
+    findings at once, the rest is the worker's sweep."""
+    clock = [1000.0]
+    core.services.identity.clock = lambda: clock[0]
+    scan(client)
+    join(client)
+    photo_id = internal_id(core, upload(client))
+
+    def analysed() -> None:
+        with core.db.tx() as c:
+            c.execute(
+                "INSERT INTO wall_analysis (photo_id, state, data, versions, rev) "
+                "VALUES (?, 'done', '{\"boxes\": [1]}', '{\"faces\": \"1\"}', 50) "
+                "ON CONFLICT(photo_id) DO UPDATE SET state='done', data=excluded.data, "
+                "versions=excluded.versions",
+                (photo_id,),
+            )
+            c.execute("INSERT OR REPLACE INTO wall_facts VALUES (?, 'faces', 3)", (photo_id,))
+
+    def put(opt_out: bool) -> tuple[str, str, int]:
+        r = client.put("/api/me/analysis", json={"opt_out": opt_out}, headers=ORIGIN)
+        assert r.status_code == 200 and r.json()["user"]["analysis_opt_out"] is opt_out
+        row = core.db.one("SELECT state, versions FROM wall_analysis WHERE photo_id=?",
+                          (photo_id,))  # fmt: skip
+        facts = core.db.one("SELECT COUNT(*) FROM wall_facts WHERE photo_id=?", (photo_id,))
+        return row["state"], row["versions"], facts[0]
+
+    analysed()
+    assert put(True) == ("pending", "{}", 0)  # the first change: queued at once
+    analysed()
+    clock[0] += 10
+    assert put(True) == ("done", '{"faces": "1"}', 1)  # no change: nothing at all
+    assert put(False) == ("done", '{"faces": "1"}', 1)  # on: left to the sweep
+    assert put(True) == ("done", "{}", 0)  # off: the findings go, no requeue
+    clock[0] += ANALYSIS_REQUEUE_SECONDS
+    analysed()
+    assert put(False) == ("pending", "{}", 0)  # the window is over
 
 
 def test_opt_out_needs_a_guest(client):
