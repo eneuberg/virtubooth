@@ -4,8 +4,10 @@ GuardMiddleware, in order:
 1. `?t=<token of a QR code>` on a page URL: valid → set the access cookie
    (and a visitor id, if the browser has none), count the scan for that code
    and redirect to the same URL without the token; invalid → the "scan the
-   QR code" page. Wrong tokens are rate limited per IP; over the limit every
-   token gets that page without being checked.
+   QR code" page. A well-formed token is always checked, so one device
+   guessing on the venue Wi-Fi never locks its neighbours out. Wrong tokens
+   are counted per IP; over the limit their gate answer is delayed
+   (TOKEN_FAIL_DELAY) and the burst is logged once a minute.
 2. state-changing requests must carry a same-origin Origin/Referer (CSRF).
 3. request bodies: uploads stream through (they enforce their own cap), every
    other body must declare a Content-Length of at most MAX_JSON_BODY.
@@ -19,6 +21,8 @@ e.g. `/assets/` immutable and `/media/` private).
 
 from __future__ import annotations
 
+import asyncio
+import logging
 import re
 from urllib.parse import urlencode
 
@@ -30,7 +34,7 @@ from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
 from .api.deps import admin_from_cookie
 from .core import errors
-from .core.ratelimit import RateLimiter
+from .core.ratelimit import TOKEN_FAILURES_PER_MIN, RateLimiter
 from .core.security import (
     ACCESS_COOKIE,
     GUEST_COOKIE_MAX_AGE,
@@ -40,7 +44,10 @@ from .core.security import (
     origin_allowed,
     set_cookie,
 )
+from .domain.codes import TOKEN_RE
 from .runtime import Core
+
+log = logging.getLogger(__name__)
 
 UNSAFE_METHODS = {"POST", "PUT", "PATCH", "DELETE"}
 MAX_JSON_BODY = 64 * 1024
@@ -50,6 +57,9 @@ _STREAMED_PATH = re.compile(r"^(?:/api/x/[a-z][a-z0-9-]{1,30}/upload|/api/admin/
 _ADMIN_API = re.compile(r"^/api/(?:admin/|x/[a-z][a-z0-9-]{1,30}/admin/)")
 # paths where ?t= is never interpreted as a party token
 _NO_TOKEN_PREFIXES = ("/api/", "/admin", "/assets/", "/media/", "/healthz")
+# seconds a wrong token's gate is held back while its address is over the
+# failure limit (limits.token_fail_ip); a valid token is never delayed
+TOKEN_FAIL_DELAY = 1.0
 
 
 class GuardMiddleware:
@@ -71,7 +81,9 @@ class GuardMiddleware:
             and not path.startswith(_NO_TOKEN_PREFIXES)
         ):
             # a thread: a valid entry writes the visitor row (services/presence.py)
-            response = await run_in_threadpool(self._token_entry, request)
+            response, throttled = await run_in_threadpool(self._token_entry, request)
+            if throttled:
+                await asyncio.sleep(TOKEN_FAIL_DELAY)
             await response(scope, receive, send)
             return
 
@@ -113,17 +125,18 @@ class GuardMiddleware:
             return core.limits.api_guest, f"uid:{public_id}"
         return core.limits.api_ip, client_ip(request)
 
-    def _token_entry(self, request: Request) -> Response:
+    def _token_entry(self, request: Request) -> tuple[Response, bool]:
+        """The answer to a `?t=` scan, and whether it is a wrong token from an
+        address over the failure limit (the caller delays those)."""
         core = self.core
         codes = core.services.codes
-        failures, ip = core.limits.token_fail_ip, client_ip(request)
-        # guessing: over the limit nothing is checked, so the answer says nothing
-        if not failures.available(ip):
-            return core.web.gate()
-        code = codes.entry(request.query_params.get("t", ""))
+        token = request.query_params.get("t", "")
+        # well-formed tokens are always looked up: 144-bit generated and 16+
+        # character custom tokens can't be guessed, and an unchecked gate would
+        # let one device lock everyone on the same Wi-Fi out (QR-01)
+        code = codes.entry(token) if TOKEN_RE.match(token) else None
         if code is None:
-            failures.hit(ip)
-            return core.web.gate()
+            return core.web.gate(), self._token_failed(request)
         rest = [(k, v) for k, v in request.query_params.multi_items() if k != "t"]
         # "//evil.example/" would be a protocol-relative URL: always one leading slash
         target = "/" + request.url.path.lstrip("/") + (f"?{urlencode(rest)}" if rest else "")
@@ -140,7 +153,16 @@ class GuardMiddleware:
         # the dashboard's "Gescannt" and the code's statistics: a random
         # visitor id, kept when it has one
         core.services.presence.enter(request, response, code_id=code.id)
-        return response
+        return response, False
+
+    def _token_failed(self, request: Request) -> bool:
+        """Count a wrong token; True when its address is over the limit."""
+        limits, ip = self.core.limits, client_ip(request)
+        if limits.token_fail_ip.hit(ip):
+            return False
+        if limits.token_fail_log.hit(ip):
+            log.warning("wrong QR tokens: %s is over %s per minute", ip, TOKEN_FAILURES_PER_MIN)
+        return True
 
 
 async def _error(err: errors.ApiError, scope: Scope, receive: Receive, send: Send) -> None:

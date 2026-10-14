@@ -10,6 +10,7 @@ from typing import Any
 import pytest
 from fastapi.testclient import TestClient
 
+from virtubooth import middleware
 from virtubooth.core.security import Signer
 
 from ..conftest import BASE_URL, JPEG, ORIGIN, PARTY_TOKEN, SECRET_KEY, accept_consent, jpeg
@@ -337,37 +338,77 @@ def test_a_stale_cookie_without_a_guest_cookie_gets_the_gate(make_client, codes,
 # ------------------------------------------------------- the failure limit
 
 
-def test_wrong_tokens_are_limited_per_address(make_client, app, codes, core):
+@pytest.fixture
+def delays(monkeypatch):
+    """Records the failure delays instead of sleeping them."""
+    seen: list[float] = []
+
+    async def fake_sleep(seconds: float) -> None:
+        seen.append(seconds)
+
+    monkeypatch.setattr(middleware.asyncio, "sleep", fake_sleep)
+    return seen
+
+
+def test_wrong_tokens_never_block_valid_ones(make_client, app, codes, core, delays, caplog):
+    """QR-01: on the venue Wi-Fi every guest shares one address. A device
+    guessing there slows down only its own wrong tokens."""
     c = make_client()
     for _ in range(60):
         assert scan(c, "wrong-token-guessing-00").status_code == 404
-    # over the limit even the right token gets the gate, unchecked
+    assert delays == []
+    # over the limit: the right token still works at once ...
     r = scan(c, TOKEN_2)
-    assert r.status_code == 404 and "set-cookie" not in r.headers
-    assert core.db.one("SELECT COUNT(*) FROM code_visitors")[0] == 0
-    # another address is not affected
+    assert r.status_code == 303 and "vb_access" in r.headers["set-cookie"]
+    assert delays == []
+    # ... and wrong ones get their gate late, logged once per minute
+    with caplog.at_level("WARNING", logger="virtubooth.middleware"):
+        for _ in range(3):
+            r = scan(c, "wrong-token-guessing-00")
+            assert r.status_code == 404 and "set-cookie" not in r.headers
+    assert delays == [middleware.TOKEN_FAIL_DELAY] * 3
+    assert sum("wrong QR tokens" in m for m in caplog.messages) == 1
+    # another address is not slowed down
     with TestClient(app, base_url=BASE_URL, follow_redirects=False, client=("10.0.0.9", 4000)) as o:
-        assert scan(o, TOKEN_2).status_code == 303
-    core.limits.token_fail_ip.reset()
-    assert scan(c, TOKEN_2).status_code == 303
+        assert scan(o, "wrong-token-guessing-00").status_code == 404
+    assert len(delays) == 3
 
 
-def test_valid_scans_do_not_use_the_failure_budget(make_client, codes, core):
+def test_malformed_tokens_are_not_looked_up(make_client, codes, monkeypatch):
+    looked_up: list[str] = []
+    entry = codes.entry
+
+    def spy(token: str) -> Any:
+        looked_up.append(token)
+        return entry(token)
+
+    monkeypatch.setattr(codes, "entry", spy)
+    c = make_client()
+    for bad in ("short", "x" * 129, "has%20space-in-it-0000", "umlaut-%C3%A4-token-000000"):
+        assert scan(c, bad).status_code == 404
+    assert looked_up == []
+    assert scan(c, TOKEN_2).status_code == 303 and looked_up == [TOKEN_2]
+
+
+def test_valid_scans_do_not_use_the_failure_budget(make_client, codes, core, delays):
     c = make_client()
     for _ in range(70):
         assert scan(c, TOKEN_2).status_code == 303
-    for _ in range(59):
+    for _ in range(60):
         assert scan(c, "wrong-token-guessing-00").status_code == 404
-    assert scan(c, TOKEN_3).status_code == 303
+    assert delays == []
 
 
-def test_ipv6_neighbours_share_the_failure_budget(app, codes):
+def test_ipv6_neighbours_share_the_failure_budget(app, codes, delays):
     def client(ip: str) -> TestClient:
         return TestClient(app, base_url=BASE_URL, follow_redirects=False, client=(ip, 4000))
 
     with client("2001:db8:1:2::1") as a, client("2001:db8:1:2::ffff") as b:
         for _ in range(60):
             scan(a, "wrong-token-guessing-00")
-        assert scan(b, TOKEN_2).status_code == 404
+        assert scan(b, "wrong-token-guessing-01").status_code == 404
+        assert len(delays) == 1
+        assert scan(b, TOKEN_2).status_code == 303
     with client("2001:db8:1:3::1") as other:
-        assert scan(other, TOKEN_2).status_code == 303
+        assert scan(other, "wrong-token-guessing-01").status_code == 404
+    assert len(delays) == 1

@@ -50,8 +50,9 @@ Installation.
     zusätzlich: den Code lieber mit der Kamera-App scannen.
 - **Mit Zugang, aber falscher Adresse:** „Hier ist nichts.“ mit „Zum Start“.
 - Beide Seiten sind statisch und funktionieren ohne JavaScript.
-- Wer zu oft ein falsches Token probiert (60 pro Minute und IP), sieht für diese
-  Adresse eine Weile nur noch das Gate, auch mit einem richtigen Code.
+- Wer zu oft ein falsches Token probiert (mehr als 60 pro Minute und IP), bekommt
+  das Gate nur noch verzögert (1 s) und landet im Log. Ein richtiger Code öffnet
+  trotzdem sofort, auch für alle anderen Gäste im selben WLAN.
 
 ### Beitreten
 

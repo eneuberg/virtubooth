@@ -23,6 +23,7 @@ LOGIN_FAILURES_GLOBAL = 20
 LOGIN_FAILURES_WINDOW = 15 * 60
 LOGIN_LOCK_SECONDS = 5 * 60
 # wrong QR tokens per address and minute (middleware.py); valid scans are free
+# and always checked, over the limit a wrong token's answer is only delayed
 TOKEN_FAILURES_PER_MIN = 60
 
 
@@ -137,6 +138,7 @@ class Limits:
     login_failures_global: RateLimiter
     login_lock: Lockout
     token_fail_ip: RateLimiter
+    token_fail_log: RateLimiter
 
     @classmethod
     def from_settings(cls, s: Settings) -> Limits:
@@ -152,9 +154,11 @@ class Limits:
             # wrong passwords from anywhere; running out trips `login_lock`
             login_failures_global=RateLimiter(LOGIN_FAILURES_GLOBAL, LOGIN_FAILURES_WINDOW),
             login_lock=Lockout(LOGIN_LOCK_SECONDS),
-            # wrong QR tokens (?t=) per address; while it is empty, every
-            # token is answered with the gate unchecked (no guessing oracle)
+            # wrong QR tokens (?t=) per address; while it is empty, wrong
+            # tokens get their gate late (valid ones are always checked)
             token_fail_ip=IpRateLimiter(TOKEN_FAILURES_PER_MIN, 60),
+            # one log line per address and minute while it is over that limit
+            token_fail_log=IpRateLimiter(1, 60),
         )
 
     def reset(self) -> None:

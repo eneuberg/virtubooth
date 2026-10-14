@@ -287,12 +287,15 @@ startup log warns once that it no longer controls access.
 token is hashed and looked up among the current tokens of active codes
 (hash-then-lookup: timing tells nothing about stored tokens). A hit sets
 `vb_access`, counts the scan (`PresenceService.enter(code_id=…)` →
-`code_visitors`) and redirects without `t`; a miss shows the gate. Wrong
-tokens are limited per IP (`limits.token_fail_ip`, 60 per minute, IPv6 per
-/64; valid scans are free): while an address' budget is empty, every token
-gets the gate without being checked, so guessing gets no answer. The
-trade-off: a guest who keeps guessing on the venue Wi-Fi blocks first scans
-from that IP for as long as they keep it up.
+`code_visitors`) and redirects without `t`; a miss shows the gate. Only
+well-formed tokens (`TOKEN_RE`: 16–128 characters of `[A-Za-z0-9_-]`) are
+looked up, and they always are: guessing 144-bit generated or 16+ character
+custom tokens is hopeless, and an unchecked gate would let one device lock
+every guest on the venue Wi-Fi (one shared IP) out (QR-01). Wrong tokens are
+counted per IP (`limits.token_fail_ip`, 60 per minute, IPv6 per /64; valid
+scans are free). Over that budget a wrong token's gate is held back
+`TOKEN_FAIL_DELAY` (1 s, an `asyncio.sleep`, no thread) and the burst is logged
+once a minute per address (`limits.token_fail_log`).
 
 **Access cookie.** `vb_access` = `signer.sign("access", "<code id>.<token_gen>")`.
 `api/deps.py` `has_access()` (pages, `require_access`, media) asks
