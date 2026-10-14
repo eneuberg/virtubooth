@@ -35,6 +35,8 @@ from ..domain.constants import EXT_ID_PATTERN, EXT_ID_RE, META_KEY_RE
 from ..settings import ConfigError
 
 if TYPE_CHECKING:
+    from pathlib import Path
+
     from ..domain.models import Photo, User
     from ..runtime import Core
 
@@ -89,6 +91,10 @@ class Extension:
     # loop. An exception is logged, never fatal.
     on_start: Callable[[Core], None] | None = None
     on_stop: Callable[[Core], None] | None = None
+    # files the extension derived from a photo (by public id), e.g. the wall's
+    # cached copy; deleting the photo removes them with its own files, after
+    # the commit, whether or not the extension saw the event
+    derived_files: Callable[[Core, str], Sequence[Path]] | None = None
 
     @property
     def url(self) -> str:

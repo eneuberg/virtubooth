@@ -403,7 +403,7 @@ to start, unless `VB_DEV=1`, which serves placeholder pages for working with
 
 `extensions/wall/` (backend) and `frontend/wall.html` + `src/wall/` (the TV),
 `src/admin/wall/` (the admin tab). An extension without uploads and without a
-Start card (`show_on_home=False`); it uses three generic hooks of
+Start card (`show_on_home=False`); it uses four generic hooks of
 `Extension` (`sdk.py`):
 
 - `web_router`: mounted at the root, outside `/api/` (here: `/livewall`,
@@ -412,6 +412,13 @@ Start card (`show_on_home=False`); it uses three generic hooks of
 - `on_start(core)` / `on_stop(core)`: called in the app lifespan after
   `exports.attach()` / before `exports.detach()` (stop in reverse order);
   errors are logged, never fatal.
+- `derived_files(core, public_id)`: files the extension made from a photo.
+  `ModerationService.delete_photo` removes them with the photo's own files
+  after the commit, with no event involved. The wall's is its 1280 px copy
+  `<data>/wall/cache/m/<id>.jpg` (`media.py`). The hub also sweeps that
+  folder (`sweep_cache`) at start, after its translator missed events, and
+  hourly: copies of deleted, hidden or unknown photos and temp files older
+  than 10 minutes go; an unhidden photo gets a new copy on demand (WALL-02).
 
 ```mermaid
 flowchart LR

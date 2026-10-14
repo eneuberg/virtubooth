@@ -17,7 +17,7 @@ from fastapi import APIRouter
 
 from virtubooth.extensions.sdk import Extension
 
-from . import admin_api, screen_api
+from . import admin_api, media, screen_api
 from .enrich import admin_api as analysis_admin_api
 from .enrichment import Enrichment
 from .hub import Wall
@@ -42,6 +42,7 @@ def make_extension(enrichment: Enrichment | None = None) -> Extension:
         web_router=screen_api.build_router(wall),
         on_start=wall.on_start,
         on_stop=wall.on_stop,
+        derived_files=media.derived_files,
     )
 
 

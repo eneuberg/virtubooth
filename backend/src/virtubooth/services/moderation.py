@@ -1,8 +1,8 @@
 """Moderation: hide, unhide and delete photos; ban and unban guests and devices.
 
 Each operation is one transaction: the change, its audit entry and (via the
-on-commit hook) its events. Photo files are removed only after the deletion
-committed.
+on-commit hook) its events. Photo files (and what extensions derived from
+them, `Extension.derived_files`) are removed only after the deletion committed.
 
 Lifting a fingerprint ban also unbans the identities that started banned only
 because they joined showing it ("auto-banned"): one `user.unbanned` each.
@@ -10,7 +10,8 @@ because they joined showing it ("auto-banned"): one `user.unbanned` each.
 
 from __future__ import annotations
 
-from collections.abc import Sequence
+import logging
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -23,6 +24,8 @@ from ..domain.models import Photo, User
 from ..repositories.container import Repositories
 from .events import AdminEvents
 from .views import AdminViews
+
+log = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True)
@@ -58,12 +61,19 @@ class UnbanResult:
 
 class ModerationService:
     def __init__(
-        self, db: Database, repos: Repositories, events: AdminEvents, views: AdminViews
+        self,
+        db: Database,
+        repos: Repositories,
+        events: AdminEvents,
+        views: AdminViews,
+        derived_files: Callable[[str], list[Path]] = lambda public_id: [],
     ) -> None:
         self.db = db
         self.repos = repos
         self.events = events
         self.views = views
+        # what extensions derived from a photo (Extension.derived_files)
+        self.derived_files = derived_files
 
     # ------------------------------------------------------------- photos
 
@@ -99,6 +109,7 @@ class ModerationService:
                 return False
             self.repos.audit.log(actor, "photo.delete", f"photo:{public_id}", at=now_iso())
             tombstone = self.repos.photos.get(public_id, include_deleted=True)
+            files = [*files, *self.derived_files(public_id)]
             self.db.on_commit(lambda: _unlink(files))
             self.events.photo_deleted(public_id, AdminPhoto.of(tombstone) if tombstone else None)
         return True
@@ -241,4 +252,7 @@ class ModerationService:
 
 def _unlink(files: list[Path]) -> None:
     for path in files:
-        path.unlink(missing_ok=True)
+        try:
+            path.unlink(missing_ok=True)
+        except OSError:
+            log.warning("could not remove %s", path, exc_info=True)
