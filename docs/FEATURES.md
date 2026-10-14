@@ -23,7 +23,9 @@ QR-Code und sind mit einem Tipp dabei, ohne App und ohne Konto. Auf dem eigenen 
 spielen sie Foto-Aktivitäten: die Beer Cam für einen gemeinsamen Zeitraffer und die
 Fotobox für Selfies mit Filtern. Der Host moderiert live im Admin-Bereich, steuert
 Hochladen und Anmeldung, verwaltet mehrere QR-Codes mit Zahlen pro Code, druckt
-Plakate und nimmt nach der Party Archiv, Zeitraffer und Instagram-Liste mit.
+Plakate und nimmt nach der Party Archiv, Zeitraffer und Instagram-Liste mit. Eine
+Live-Wall zeigt die Fotos auf einem großen Bildschirm, mit lustigen Kategorien aus
+einer Fotoanalyse auf dem eigenen Server.
 
 ## 2. Für Gäste
 
@@ -62,6 +64,9 @@ Installation.
   Besucherzähler und was die Gastgeber pro Gast sehen („eine kleine Statistik“: Fotos,
   wie lange die Seite offen war, über welchen QR-Code der Gast kam). Wer den Satz als
   Teil der Einwilligung festhalten will, erhöht `VB_CONSENT_VERSION`.
+- Ist die [Live-Wall](#live-wall) geladen, steht unter „Mehr dazu“ auch, dass Fotos
+  für sie automatisch auf dem Server ausgewertet werden, und darunter der Schalter
+  „Meine Fotos nicht automatisch auswerten“ (siehe [Fotoanalyse](#fotoanalyse)).
 - Feld „Instagram-Name (freiwillig)“ mit „Dann können wir dich markieren.“
   - Nimmt `@name`, `name` oder einen Profil-Link.
   - Fehler werden konkret erklärt: Umlaute, Akzente, Leerzeichen, zwei Punkte, mehr
@@ -92,6 +97,8 @@ Installation.
   - Instagram-Namen eintragen oder ändern („Speichern“) oder löschen („Entfernen“).
     Geht auch, während Hochladen pausiert ist.
   - Abschnitt „Hochladen“: ob man gerade hochladen kann, in einem Satz.
+  - Mit der Live-Wall: der Schalter „Meine Fotos nicht automatisch auswerten“. Er
+    gilt sofort, auch für schon hochgeladene Fotos.
 
 ### Start
 
@@ -668,6 +675,110 @@ QR-Code hängt.
 - Alles entsteht im Browser des Admins; der Server speichert nur die Vorlage und das
   Feld. Hochladen, Feld setzen und Entfernen stehen im Protokoll.
 
+### Live-Wall
+
+Die Fotos der Party auf einem großen Bildschirm: ein Fernseher oder Beamer öffnet
+`/livewall` im Browser. Die Live-Wall ist eine Erweiterung (`wall`) ohne eigene
+Aktivität; sie steht nicht auf Start. Einstellungen im Tab „Live-Wall“ der Verwaltung
+(`/admin/manage?tab=livewall`).
+
+- **Zugang:** Unter „Zugang“ setzt der Host ein Live-Wall-Passwort (mindestens 6
+  Zeichen). Der Bildschirm fragt einmal danach („Live-Wall starten“) und merkt sich das
+  30 Tage (Cookie nur für `/livewall`). Ohne Passwort zeigt `/livewall` „Für die
+  Live-Wall ist noch kein Passwort gesetzt.“ Ein eingeloggter Admin sieht die Wall auch
+  ohne Passwort. Passwort ändern, entfernen oder „Alle Wände abmelden“ meldet jede
+  offene Wand sofort ab. „Live-Wall öffnen“ öffnet sie in einem neuen Tab; die Zahl der
+  offenen Wände steht daneben. Falsche Passwörter: höchstens 5 pro Minute und 20 pro
+  Stunde je Adresse, jedes im Protokoll.
+- **Ablauf:** drei Modi im Wechsel, Reihenfolge und Dauer frei (10 s bis 1 h, mindestens
+  einer an):
+  - **Einzelbild:** ein Foto groß mit „von <Pseudonym>“, optional dem Instagram-Namen
+    und dem Alter („vor 3 Min.“). Wechsel alle 3 bis 120 s, eine Runde zeigt N Fotos.
+  - **Galerie:** eine endlose Fotowand, 2 bis 6 Reihen, langsam, mittel oder schnell.
+  - **Kategorien:** die Gewinner der lustigen [Kategorien](#fotoanalyse), je 4 bis 60 s.
+    Einzelne Kategorien lassen sich ausschalten.
+- **Auswahl im Einzelbild:** „Die neuesten N im Kreis“, „Zufällig“, „Gemischt, ohne
+  Wiederholung“, „Fair: jeder Gast reihum“, „Selten gezeigte zuerst“, „Neue Fotos
+  sofort, sonst gemischt“ (Standard) und „Kategorie-Highlights“.
+- **Übergänge:** Überblenden, Langsamer Zoom, Federnd, Pixelrauschen, Verpixeln,
+  Glitch, Polaroid-Fall, Spielautomat, Wackelpudding, Stempel, Konfetti oder „Zufall
+  (alle gemischt)“; Dauer 0,3 bis 4 s. Kann ein Fernseher kein WebGL, wird überblendet.
+- **Aussehen:** Hintergrund „Farbblasen“ (Standard), „Polarlicht“, „Disco-Gitter“,
+  „Konfetti-Regen“ oder „Ruhig (ohne Animation)“; Haupt-, Zweit- und Hintergrundfarbe;
+  30 oder 60 Bilder pro Sekunde; „ruhig“ dämpft die Bewegung. Die Vorschau im Admin
+  zeigt den Hintergrund.
+- **Einblendungen:** Eventname, Fotozähler und ein QR-Code in einer wählbaren Ecke.
+  Der QR-Code ist einer der [QR-Codes](#qr-codes) („Erster aktiver Code“ oder ein
+  bestimmter); wird er gelöscht, verschwindet er von der Wall. Eventname und Code
+  ändern sich auf offenen Wänden sofort mit.
+- **Fotos:** neue Fotos erscheinen nach einer Verzögerung (Standard 20 s, 0 bis 600 s),
+  damit der Host vorher ausblenden kann. Quellen: alle Aktivitäten oder eine Auswahl.
+  Instagram-Namen nur, wenn eingeschaltet. Ausblenden, Löschen und Sperren nehmen
+  Fotos sofort von jeder Wand. Es zählen die neuesten 1000 Fotos.
+- „Speichern“ übernimmt alle Einstellungen auf allen offenen Wänden sofort;
+  „Verwerfen“ holt die gespeicherten zurück.
+- Der Bildschirm: Vollbild-Knopf (verschwindet ohne Bewegung), hält den Bildschirm
+  wach, wo der Browser es erlaubt (nur über https oder localhost; sonst den
+  Bildschirmschoner des Fernsehers ausschalten). Bricht die Verbindung ab, verbindet er
+  sich selbst neu und holt nach, was er verpasst hat.
+
+### Fotoanalyse
+
+Für die Kategorien der Live-Wall wertet ein eigener Prozess auf dem Server jedes Foto
+aus. Nichts davon verlässt den Server.
+
+- **Immer:** Bildwerte mit Pillow (Helligkeit, Farbigkeit, Schärfe), dazu die Details
+  „Aufgenommen“, „Quelle“, Filter bzw. Gefäß, „Gast“, „QR-Code“ und „Größe“.
+- **Mit dem KI-Paket** (Docker-Image mit `VB_ML=1`, lokal `make models`) und den
+  heruntergeladenen Modellen ([DEPLOY.md → Live-Wall](DEPLOY.md#live-wall-and-photo-analysis)):
+  „Gesichter“ (Anzahl, Lächeln, offene Augen und Münder, Größe), „Gesichtsausdruck“
+  (fröhlich, traurig, überrascht), „Hände und Gesten“ (Peace, Daumen hoch,
+  Pommesgabel), „Personen und Gläser“, „Brillen, Hüte, Altersgruppe“ und „Alter
+  (FairFace)“ (aus, bis der Host es einschaltet). Gespeichert werden nur Zahlen pro
+  Foto und Rahmen um Gesichter, Hände und Gegenstände: keine Gesichtsmerkmale, nichts,
+  was eine Person wiedererkennt.
+- **Analyse-Karte** im Tab „Live-Wall“: ob der Prozess läuft, wie viele Fotos fertig
+  sind, warten oder fehlschlugen, jede Analyse ein- und ausschalten (mit dem Grund,
+  wenn eine fehlt, z. B. „Modell fehlt“), „Fehlgeschlagene neu analysieren“ und „Alle neu analysieren…“.
+- **Analyse im Foto-Inspektor** (Verwaltung): Zustand, gefundene Werte, die Rahmen und
+  die Details; „Neu analysieren“ stellt das Foto wieder an.
+- Der Prozess läuft mit niedriger Priorität, ein Foto nach dem anderen (auf einem
+  Raspberry Pi 5 0,4 bis 2 s je Foto), startet bei einem Absturz neu und beginnt nach
+  200 Fotos oder 900 MB frisch. Gelöschte Fotos verlieren ihre Analyse.
+- **Kategorien** (Gewinner sind nur sichtbare Fotos nach der Verzögerung; bei Gleichstand
+  das neuere):
+
+| | Kategorie | Zeile | Gewinnt |
+|---|---|---|---|
+| 👥 | Volles Haus | Die meisten Leute auf einem Foto | die meisten Personen (ab 3) |
+| 🙌 | Hände hoch! | Die meisten Hände in der Luft | die meisten Hände (ab 3) |
+| 😁 | Grinsekatzen | Die meisten Lächeln auf einem Bild | die meisten Lächeln (ab 2) |
+| 🥺 | Herzschmerz-Pose | Der dramatischste Schmollblick des Abends | der traurigste Ausdruck (ab 50 %) |
+| 😱 | Ach du Schreck! | Das überraschteste Gesicht | der überraschteste Ausdruck (ab 50 %) |
+| 🤓 | Brillenbande | Die meisten Brillen auf einem Foto | die meisten Brillen (ab 1) |
+| 🎂 | Generationen-Foto | Die größte Altersspanne auf einem Bild | die meisten Altersgruppen (ab 2), dann die Spanne |
+| 👯 | Dream-Team | Zwei Leute, doppelt gute Laune | 2 Personen, 2 Lächeln |
+| 🌟 | Solo-Star | Ganz nah dran | ein Gesicht, möglichst groß (ab 12 % des Bildes) |
+| ✌️ | Peace! | Die meisten Victory-Zeichen | Peace-Zeichen (ab 1) |
+| 🤘 | Rock'n'Roll | Die meisten Pommesgabeln | Pommesgabeln (ab 1) |
+| 👍 | Daumen hoch | Die meisten Daumen nach oben | Daumen hoch (ab 1) |
+| 🥂 | Prost! | Die meisten Gläser im Bild | Gläser (ab 2) |
+| 🎩 | Hutparade | Die meisten Hüte und Kappen | Hüte (ab 1) |
+| 🎤 | Gesangseinlage | Die meisten offenen Münder | offene Münder (ab 2) |
+| 🌈 | Farbexplosion | Das bunteste Foto | die höchste Farbigkeit (ab 40) |
+| 💨 | Action-Shot | So viel Bewegung, die Kamera kam kaum mit | das unschärfste, nicht zu dunkle oder helle Foto |
+| 🎬 | Eröffnungsfoto | Das allererste Foto des Abends | das erste Foto |
+| 📸 | Dauerauslöser | Die meisten Fotos von einer Person (hier das neueste) | der Gast mit den meisten Fotos (ab 5) |
+
+- Keine Kategorie nennt die älteste oder jüngste Person oder bewertet Aussehen.
+- Im Tab „Live-Wall“ zeigt die Karte „Kategorien“ jede Kategorie mit Schalter und dem
+  aktuellen Gewinner, oder warum sie nichts gewinnen kann („Braucht die Analyse …“).
+- **Abschalten durch den Gast:** „Meine Fotos nicht automatisch auswerten“ im
+  Beitritts-Sheet unter „Mehr dazu“ und im Du-Sheet. Dann gibt es für die Fotos dieses
+  Gasts nur die Bildwerte; sie gewinnen keine Kategorie, die Gesichter, Hände oder
+  Gegenstände braucht. Umschalten löscht die bisherige Auswertung seiner Fotos und
+  wertet sie neu aus.
+
 ### Deep Links
 
 | Adresse | Öffnet |
@@ -678,7 +789,8 @@ QR-Code hängt.
 | `/admin/manage?tab=gaeste&q=<Suche>&show=paused` | die Gästeliste gefiltert (`banned`, `ok`, `paused`) |
 | `/admin/manage?tab=gaeste&code=<Nr.>` | die Gäste, die über diesen QR-Code beigetreten sind |
 | `/admin/manage?tab=qr&code=<Nr.>` | das Sheet eines QR-Codes (`&deleted=1`: mit den gelöschten) |
-| `/admin/manage?tab=<Tab>` | einen Tab der Verwaltung (auch `einstellungen`) |
+| `/admin/manage?tab=<Tab>` | einen Tab der Verwaltung (auch `einstellungen`, `livewall`) |
+| `/livewall` | die Live-Wall (Bildschirm) |
 | `/admin/user?id=<Nr.>&photo=<id>` | einen Gast, optional mit einem Foto groß |
 | `/admin/login?next=<Pfad>` | den Login, danach den Pfad |
 
@@ -772,7 +884,7 @@ startet der Server nicht und nennt die Variable. Die Limits stehen unter
 | `VB_PARTY_NAME` | `Party` | Standard-Eventname; im Admin überschreibbar. Auf Start, im Beitritts-Sheet, im Party-Rahmen, auf QR-Bogen und Plakaten |
 | `VB_INSTAGRAM_ACCOUNT` | leer | der Account, auf dem gepostet wird; steht im Beitritts-Sheet und auf Start |
 | `VB_PUBLIC_BASE_URL` | leer | öffentliche Adresse, z. B. `https://party.example.com`: QR-Codes, CSRF-Prüfung, Secure-Cookies |
-| `VB_EXTENSIONS` | alle | Aktivitäten und ihre Reihenfolge, z. B. `beer,booth`. Unbekannte IDs verhindern den Start |
+| `VB_EXTENSIONS` | alle | Aktivitäten und ihre Reihenfolge, z. B. `beer,booth,wall` (`wall` = Live-Wall). Unbekannte IDs verhindern den Start |
 | `VB_TIMEZONE` | `Europe/Berlin` | Uhrzeit in Foto- und Exportdateinamen |
 | `VB_CONSENT_VERSION` | `1` | Version der Beitrittstexte; erhöhen, wenn sich das Versprechen ändert, z. B. damit der Satz zur Statistik pro Gast als neue Textversion festgehalten wird |
 | `VB_COOKIE_SECURE` | `auto` | `auto`, `true` oder `false`. Hinter TLS-Proxy `true` |
@@ -786,6 +898,9 @@ startet der Server nicht und nennt die Variable. Die Limits stehen unter
 | `VB_PUBLISH_PORT` | `127.0.0.1:8000` | nur `compose.yaml`: Port auf dem Host |
 | `VB_IMAGE` | `virtubooth:local` | nur `compose.yaml`: Name des Images |
 | `VB_CPU_LIMIT`, `VB_MEM_LIMIT` | `1.0`, `1g` | nur `compose.yaml`: Grenzen des Containers |
+| `VB_WALL_WORKER` | an | `off`: der Server startet den Analyse-Prozess der Live-Wall nicht (z. B. weil er in einem anderen Container läuft) |
+| `VB_WALL_MODELS_DIR` | leer | Ordner der Analyse-Modelle; sonst `<data>/wall/models` und `/opt/vb-models` (im KI-Image) |
+| `VB_WALL_THREADS` | `3` | Threads je Analyse (0 = alle Kerne) |
 
 ### Kommandozeile
 
@@ -798,6 +913,7 @@ startet der Server nicht und nennt die Variable. Die Limits stehen unter
 | `python -m virtubooth.tools.qr` | QR-Codes und Druckbogen. `--base-url`, `--code <Nr.>` (Token dieses QR-Codes), `--token` (ein bestimmtes Token), `--extensions`, `--party-name` (Standard: der Eventname aus der Datenbank, ohne Datenbank `VB_PARTY_NAME`), `--no-home`, `--out`. Ohne `--code` und `--token`: der aktive QR-Code mit der kleinsten Nummer aus der Datenbank von `--data-dir`, ohne Datenbank `VB_PARTY_TOKEN` |
 | `python -m virtubooth.tools.timelapse` | Zeitraffer. `--extension`, `--fps`, `--crossfade`, `--fade`, `--out-fps`, `--size`, `--hold-last`, `--crf`, `--preset`, `--include-hidden`, `--limit` (Vorschau), `--dry-run`, `--out` |
 | `python -m virtubooth.tools.export` | alles als `.tar.gz`, auch im laufenden Betrieb. `--no-hidden`, `--no-db`, `--out` |
+| `python -m virtubooth.extensions.wall.enrich` | Fotoanalyse der Live-Wall: `models fetch` (Modelle laden, SHA256-geprüft; `--with-age` auch FairFace), `models list`, `status`, `run-once` (wartende Fotos jetzt auswerten), `worker`, `bench <Ordner>` |
 
 - Alle Werkzeuge haben `--data-dir` und `--help`. Sie schreiben nach `<data>/exports/`
   und behalten ihre Dateien, bis man sie löscht.
@@ -948,6 +1064,7 @@ Cookie-Hinweis aussieht. virtubooth vermeidet das:
 | Fotos mit Vorschaubild, Aktivität, Nummer, Zeit, Gefäß bzw. Filter und Kamera | die Party |
 | Anonyme Besucher-ID mit erstem und letztem Mal gesehen und dem Gast, zu dem sie wurde. Keine IP, kein User-Agent | „Gescannt“ in der Übersicht |
 | QR-Code des Beitritts; welche Besucher-ID welchen Code wie oft geöffnet hat (erstes und letztes Mal). Keine IP | Zahlen pro QR-Code |
+| Mit der Live-Wall: pro Foto Zahlen der [Fotoanalyse](#fotoanalyse) (Gesichter, Lächeln, Hände, geschätzter Ausdruck und Altersspanne u. a.) und Rahmen. Keine Gesichtsmerkmale, nichts, was eine Person wiedererkennt; beim Löschen des Fotos entfernt. Ob der Gast die Auswertung abgeschaltet hat | Kategorien der Live-Wall |
 
 - Admin-Aktionen und Login-Versuche (mit IP) stehen im Protokoll. Admin-Sitzungen
   speichern Token-Hash, IP und User-Agent.
