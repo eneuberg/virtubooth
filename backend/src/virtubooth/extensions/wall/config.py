@@ -172,17 +172,34 @@ def invalid_config(field: str) -> errors.ApiError:
     return errors.bad_request(f"Ungültige Einstellung: {field}.", "invalid_wall_config")
 
 
-def parse_settings(data: Any, upload_ids: Collection[str]) -> WallSettings:
-    """Validate admin input; raises 400 `invalid_wall_config` naming the field."""
+def parse_settings(
+    data: Any, upload_ids: Collection[str], stale_ok: Collection[str] = ()
+) -> WallSettings:
+    """Validate admin input; raises 400 `invalid_wall_config` naming the field.
+    A source in `stale_ok` (the stored config's) that is no longer loaded is
+    dropped, so a config saved before an extension went away saves again; any
+    other unknown source is refused."""
     if not isinstance(data, dict):
         raise invalid_config("config")
     try:
         settings = WallSettings.model_validate(data)
     except ValidationError as exc:
         raise invalid_config(_field(exc)) from None
-    if any(s not in upload_ids for s in settings.sources):
+    unknown = [s for s in settings.sources if s not in upload_ids]
+    if any(s not in stale_ok for s in unknown):
         raise invalid_config("sources")
+    if unknown:
+        settings.sources = [s for s in settings.sources if s in upload_ids]
     return settings
+
+
+def prune_sources(config: WallConfig, upload_ids: Collection[str]) -> WallConfig:
+    """The config without sources that are no longer loaded (a stale id never
+    reaches a screen or the admin). None left means all, as for an empty list."""
+    kept = [s for s in config.sources if s in upload_ids]
+    if kept == config.sources:
+        return config
+    return config.model_copy(update={"sources": kept})
 
 
 def load_config(repo: AppSettingsRepo) -> WallConfig:

@@ -438,6 +438,9 @@ flowchart LR
   and its own global lock: after 20 wrong wall passwords within 15 minutes, from
   any address, every wall login is refused for 5 minutes (429 `login_locked`),
   the right password too; logged-in walls and admin sessions keep working.
+  The screen's GET routes are rate limited per wall cookie (else per
+  address): 120 a minute for session, feed, categories and stream together,
+  1200 a minute for media (429 `rate_limited`).
   The cookie is `signer.sign("wall", "<gen>.<issued>.<nonce>")` (older
   cookies without the nonce stay valid); the generation in
   `x.wall.password` grows on every password change, removal or „Alle Wände
@@ -452,7 +455,13 @@ flowchart LR
   `created_at + delay_s` and, after a visibility re-check, publish
   `photo.add`; hidden, deleted and banned photos become `photo.remove` at
   once; `settings.event` and `code.changed` republish `config` (event name and
-  the corner QR code). A poller reads the analysis' change counter every 2 s
+  the corner QR code); `user.instagram` (a guest set, changed or removed the
+  handle) becomes `photo.update` for the guest's visible photos while the wall
+  shows handles. That event is in-process only (`INTERNAL_EVENT_TYPES`): the
+  admin stream leaves it out, so `AdminEvent` stays the stream's contract.
+  When the translator itself missed app events (a resync on resubscribe), it
+  publishes `stream.resync` on the wall bus, so every open wall refetches its
+  feed, and sweeps the media cache. A poller reads the analysis' change counter every 2 s
   (`photo.update`, `categories.changed` debounced 10 s). Admin saves publish
   `config` and `bye`. Each wall stream is a plain subscriber, so a reconnect
   with `Last-Event-ID` replays what it missed (else `stream.resync` → refetch
@@ -461,7 +470,11 @@ flowchart LR
   oldest (WALL-03, like SEC-06). The cookie's nonce keeps screens that logged
   in within the same second apart.
 - **Feed:** visible = not hidden, not deleted, from a configured source,
-  older than the delay; the newest 1000. `WallPhoto` carries the pseudonym,
+  older than the delay; the newest 1000. Configured sources that are no longer
+  loaded are ignored (none left = all) and left out of the config screens and
+  the admin get; a save may still carry them (they are dropped), a new unknown
+  one is refused. `analysis` is `off` for photos of guests who switched the
+  analysis off (no facts will come). `WallPhoto` carries the pseudonym,
   the Instagram name only when enabled, a non-reversible `author_key`, the
   public facts (`people`, `faces`, `hands`, `smiles`) and the analysis state.
   `qr` is the chosen (or lowest active) QR code's URL, absolute with

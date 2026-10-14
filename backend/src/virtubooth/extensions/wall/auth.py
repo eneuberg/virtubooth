@@ -21,6 +21,7 @@ Every wrong password is audited (`wall.login_failed`).
 
 from __future__ import annotations
 
+import hashlib
 import logging
 import re
 import secrets
@@ -34,7 +35,7 @@ from ...api.deps import CoreDep, admin_from_cookie
 from ...core import errors
 from ...core.clock import now_iso
 from ...core.passwords import verify_password
-from ...core.ratelimit import IpRateLimiter, Lockout, RateLimiter
+from ...core.ratelimit import IpRateLimiter, Lockout, RateLimiter, ip_bucket
 from ...core.security import client_ip, cookie_secure
 from ...repositories.app_settings import AppSettingsRepo
 from .schemas import Via
@@ -200,6 +201,37 @@ def require_wall(request: Request, core: CoreDep) -> Via:
 
 # the wall cookie or an admin session; else 401 `wall_login_required`
 WallDep = Annotated[Via, Depends(require_wall)]
+
+
+# ------------------------------------------------------------ screen limits
+
+# the screen's GET routes, per wall cookie (else per address): generous for a
+# TV (a feed refetch per reconnect, a few images a second), a ceiling for
+# someone with a stolen cookie or a script
+SCREEN_REQUESTS_PER_MIN = 120  # session, feed, categories, stream
+MEDIA_REQUESTS_PER_MIN = 1200
+
+
+@dataclass
+class ScreenLimits:
+    api: RateLimiter
+    media: RateLimiter
+
+    @classmethod
+    def create(cls) -> ScreenLimits:
+        return cls(
+            api=RateLimiter(SCREEN_REQUESTS_PER_MIN, 60),
+            media=RateLimiter(MEDIA_REQUESTS_PER_MIN, 60, burst=MEDIA_REQUESTS_PER_MIN // 2),
+        )
+
+
+def screen_key(core: Core, request: Request) -> str:
+    """Whose budget a screen request uses: its wall cookie when the signature
+    holds (no DB read), else its address (IPv6: the /64)."""
+    cookie = request.cookies.get(COOKIE)
+    if cookie and core.signer.unsign("wall", cookie) is not None:
+        return "w:" + hashlib.sha256(cookie.encode()).hexdigest()[:32]
+    return "ip:" + ip_bucket(client_ip(request))
 
 
 # ------------------------------------------------------------------- login

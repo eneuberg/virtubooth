@@ -23,6 +23,7 @@ from .feed import (
     config_payload,
     event_name,
     photo_filter,
+    screen_config,
     upload_ids,
     visible_by_ids,
 )
@@ -78,7 +79,7 @@ def category_infos(core: Core, hub: WallHub, config: WallConfig) -> list[WallCat
 def admin_out(core: Core, hub: WallHub, config: WallConfig) -> WallAdminOut:
     state = auth.password_state(core.repos.app_settings)
     return WallAdminOut(
-        config=config,
+        config=screen_config(core, config),
         defaults=WallConfig(),
         password=WallPasswordState(set=state.is_set, changed_at=state.changed_at),
         wall_path=WALL_PATH,
@@ -146,9 +147,9 @@ def build_router(wall: Wall) -> APIRouter:
     ) -> WallAdminOut:
         """Save the settings (body: WallConfig; `rev`, `updated_at`, `by` are
         ignored). Open walls get a `config` event."""
-        settings = parse_settings(body, upload_ids(core))
-        now = now_iso()
         repo = core.repos.app_settings
+        settings = parse_settings(body, upload_ids(core), load_config(repo).sources)
+        now = now_iso()
         with core.db.tx():
             old = load_config(repo)
             new = WallConfig.model_validate(

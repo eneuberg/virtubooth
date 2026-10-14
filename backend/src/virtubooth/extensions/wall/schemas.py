@@ -33,7 +33,10 @@ class WallPhoto(BaseModel):
     author_key: str = Field(description="Stable per guest, not reversible (12 chars).")
     urls: WallPhotoUrls
     facts: dict[str, float] = Field(description="people, faces, hands, smiles when analysed.")
-    analysis: AnalysisState
+    analysis: AnalysisState = Field(
+        description="The photo analysis' state; `off`: the guest switched the analysis "
+        "off, so no facts will come."
+    )
 
 
 class WallQr(BaseModel):
@@ -223,7 +226,8 @@ class WallByeEvent(BaseModel):
 
 
 class WallResyncEvent(BaseModel):
-    """The missed events are gone: refetch /livewall/api/feed."""
+    """The missed events are gone (this stream's, or the server's own wall
+    missed app events): refetch /livewall/api/feed."""
 
     type: Literal["stream.resync"]
     data: WallEmptyData

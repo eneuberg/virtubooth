@@ -253,3 +253,42 @@ def test_one_wall_cookie_keeps_at_most_four_streams(live, admin_c):
             s.close()
         wall.close()
         other.close()
+
+
+def test_an_instagram_change_updates_the_guests_photos(live, admin_c):
+    put_config(live, admin_c, delay_s=0, show_instagram=True)
+    wall = live_wall(live)
+    stream = Stream(wall, "/livewall/api/stream")
+    guest = live_guest(live)
+    try:
+        stream.until("hello")
+        pid = live_upload(live, guest)
+        assert stream.until("photo.add")["data"]["photo"]["instagram"] is None
+        r = guest.patch("/api/me", json={"instagram": "@anna.party"}, headers=live.origin)
+        assert r.status_code == 200, r.text
+        updated = stream.until("photo.update")["data"]["photo"]
+        assert (updated["id"], updated["instagram"]) == (pid, "anna.party")
+        # the same handle again: no event; removed: an update without it
+        guest.patch("/api/me", json={"instagram": "anna.party"}, headers=live.origin)
+        guest.patch("/api/me", json={"instagram": None}, headers=live.origin)
+        updated = stream.until("photo.update")["data"]["photo"]
+        assert (updated["id"], updated["instagram"]) == (pid, None)
+    finally:
+        stream.close()
+        wall.close()
+        guest.close()
+
+
+def test_missed_app_events_make_every_wall_resync(live, admin_c):
+    wall = live_wall(live)
+    stream = Stream(wall, "/livewall/api/stream")
+    try:
+        stream.until("hello")
+        hub = live.core.extensions["wall"].on_start.__self__.hub(live.core)
+        assert hub._loop is not None
+        hub._loop.call_soon_threadsafe(hub._missed)
+        message = stream.until("stream.resync")
+        assert message["data"] == {} and "id" in message
+    finally:
+        stream.close()
+        wall.close()

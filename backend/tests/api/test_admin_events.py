@@ -266,3 +266,33 @@ def test_overflow_ends_the_stream_and_a_reconnect_catches_up(core):
     assert messages[0].retry == 3000
     assert [m.event for m in messages[1:]] == ["photo.hidden"] * 5
     assert [m.raw_data for m in messages[1:]] == [f'{{"i": {i}}}' for i in range(5)]
+
+
+def test_internal_events_never_reach_the_admin_stream(core):
+    """`user.instagram` is for in-process listeners (the wall), not part of
+    the AdminEvent contract: left out live and on replay."""
+    token = core.services.admin_auth.login(ADMIN_PASSWORD, ip="10.0.0.1", user_agent="pytest")
+    request = Request(
+        {
+            "type": "http",
+            "method": "GET",
+            "path": "/api/admin/events",
+            "headers": [(b"cookie", f"vb_admin={token}".encode())],
+        }
+    )
+
+    async def scenario():
+        core.bus = EventBus()
+        core.bus.bind_loop(asyncio.get_running_loop())
+        core.bus.publish("user.instagram", {"id": 1, "instagram": "a"})
+        core.bus.publish("photo.hidden", {"i": 0})
+        cursor = core.bus.parse_cursor(f"{core.bus.epoch}-0")
+        stream = events_router.admin_event_stream(request, core, cursor)
+        replayed = [await anext(stream) for _ in range(2)]
+        core.bus.publish("user.instagram", {"id": 1, "instagram": "b"})
+        core.bus.publish("photo.hidden", {"i": 1})
+        live = await asyncio.wait_for(anext(stream), 2)
+        await stream.aclose()
+        return [m.event for m in [*replayed, live]]
+
+    assert asyncio.run(scenario()) == [None, "photo.hidden", "photo.hidden"]

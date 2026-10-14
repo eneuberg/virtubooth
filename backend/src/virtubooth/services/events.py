@@ -28,6 +28,7 @@ from ..api.schemas.events import (
     UploadStopData,
     UserBanData,
     UserCreatedData,
+    UserInstagramData,
 )
 from ..api.schemas.exports import ExportJob
 from ..api.schemas.host_settings import EventSettings
@@ -70,6 +71,11 @@ class AdminEvents:
                 uploads_paused=user.uploads_paused,
             ),
         )
+
+    def user_instagram(self, user_id: int, instagram: str | None) -> None:
+        """A guest set, changed or removed their handle (internal: not sent to
+        admin streams; the wall updates the guest's photos)."""
+        self._emit("user.instagram", UserInstagramData(id=user_id, instagram=instagram))
 
     def user_banned(self, user: AdminUser, photos: list[AdminPhoto]) -> None:
         self._emit("user.banned", UserBanData(user=user, photos=photos))

@@ -252,7 +252,9 @@ class IdentityService:
             if user.instagram:
                 kept = True
             else:
-                self.repos.users.set_instagram(user.id, handle)
+                with self.db.tx():
+                    self.repos.users.set_instagram(user.id, handle)
+                    self.events.user_instagram(user.id, handle)
                 user = self.repos.users.get(user.id) or user
         return JoinResult(user, created=False, instagram_kept=kept)
 
@@ -308,7 +310,11 @@ class IdentityService:
         return updated
 
     def set_instagram(self, user: User, raw: str | None) -> User:
-        self.repos.users.set_instagram(user.id, normalize_instagram(raw))
+        handle = normalize_instagram(raw)
+        if handle != user.instagram:
+            with self.db.tx():
+                self.repos.users.set_instagram(user.id, handle)
+                self.events.user_instagram(user.id, handle)
         updated = self.repos.users.get(user.id)
         assert updated is not None
         return updated

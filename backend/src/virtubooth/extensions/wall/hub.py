@@ -4,6 +4,9 @@
   for `created_at + delay_s`, then (visibility re-checked) `photo.add`;
   `photo.unhidden` / `user.unbanned` add photos past the delay (or arm a timer);
   `photo.hidden` / `photo.deleted` / `user.banned` → `photo.remove` at once;
+  `user.instagram` (in-process only) → `photo.update` for the guest's photos
+  while the wall shows handles; when it misses app events (fell behind,
+  restart gap) → `stream.resync`, so every open wall refetches its feed;
 - a poller: every POLL_SECONDS the analysis' changes → `photo.update` for
   visible photos, and `categories.changed` CATEGORIES_DEBOUNCE_SECONDS after
   the first change (more changes in between are folded in);
@@ -27,10 +30,17 @@ from typing import TYPE_CHECKING, Any
 from anyio import to_thread
 
 from ...core.events import Closed, Event, EventBus
-from .auth import LoginLimits
+from .auth import LoginLimits, ScreenLimits
 from .config import WallConfig, load_config
 from .enrichment import Enrichment, load_enrichment
-from .feed import Visibility, config_payload, visibility, visible_by_ids, wall_photos
+from .feed import (
+    Visibility,
+    config_payload,
+    visibility,
+    visible_by_ids,
+    visible_of_user,
+    wall_photos,
+)
 from .media import SWEEP_SECONDS, drop_cached, sweep_cache
 from .schemas import WallPhoto
 
@@ -60,6 +70,7 @@ class WallHub:
         self.enrichment = enrichment
         self.bus = EventBus()
         self.login_limits = LoginLimits.create()
+        self.screen_limits = ScreenLimits.create()
         self._loop: asyncio.AbstractEventLoop | None = None
         self._tasks: set[asyncio.Task[None]] = set()
         # photos waiting for their delay: public id -> (created timestamp, timer)
@@ -129,8 +140,8 @@ class WallHub:
             sub = bus.subscribe(after)
             try:
                 if sub.resync is not None:
-                    log.warning("wall: missed app events (%s); walls may lag", sub.resync)
-                    self._sweep_soon()
+                    log.warning("wall: missed app events (%s); walls resync", sub.resync)
+                    self._missed()
                 for event in sub.replay:
                     after = event["id"]
                     await self._handle(event)
@@ -140,8 +151,8 @@ class WallHub:
                     await self._handle(event)
             except Closed:
                 # overflowed: catch up from the bus history
+                # (the next subscribe replays what it missed, or reports a resync)
                 log.warning("wall: the translator fell behind; resubscribing")
-                self._sweep_soon()
             finally:
                 bus.unsubscribe(sub)
 
@@ -162,6 +173,10 @@ class WallHub:
                 await to_thread.run_sync(drop_cached, self.core, data["id"])
             elif type_ == "user.banned":
                 self._remove([p["id"] for p in data.get("photos", [])])
+            elif type_ == "user.instagram":
+                photos = await to_thread.run_sync(self._user_photos, int(data["id"]))
+                for photo in photos:
+                    self.publish_photo("photo.update", photo)
             elif type_ in ("settings.event", "code.changed"):
                 # the event name or the corner QR code may have changed
                 payload = await to_thread.run_sync(self._config_payload)
@@ -169,6 +184,22 @@ class WallHub:
         except Exception:
             # never let one odd event stop the translator
             log.exception("wall: handling a %s event failed", type_)
+
+    def _missed(self) -> None:
+        """Events the translator never saw: every open wall refetches its feed
+        (`stream.resync`, the same as a reconnect whose events are gone), and
+        the media cache is swept (a `photo.deleted` may be among them)."""
+        self.bus.publish("stream.resync", {})
+        self._sweep_soon()
+
+    def _user_photos(self, user_id: int) -> list[WallPhoto]:
+        """A guest's visible photos as the wall shows them; none while the wall
+        hides Instagram handles (nothing it shows changed)."""
+        config = load_config(self.core.repos.app_settings)
+        if not config.show_instagram:
+            return []
+        photos = visible_of_user(self.core, config, user_id)
+        return wall_photos(self.core, config, self.enrichment, photos)
 
     def _remove(self, ids: Iterable[str]) -> None:
         ids = list(dict.fromkeys(ids))
