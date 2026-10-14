@@ -74,3 +74,28 @@ def test_registry_pins_versioned_urls():
         "clip_vision",
     ]  # fmt: skip
     assert models.wanted(with_age=True)[-1].name == "fairface_age"
+
+
+def test_the_short_cli_and_the_long_one(tmp_path, monkeypatch, capsys):
+    """`virtubooth wall models …` is `python -m virtubooth.extensions.wall.enrich
+    models …`; both keep working."""
+    from virtubooth.__main__ import main as cli
+    from virtubooth.extensions.wall.enrich.__main__ import main as long_cli
+
+    monkeypatch.delenv("VB_WALL_MODELS_DIR", raising=False)
+    data = tmp_path / "data"
+    data.mkdir()
+    with pytest.raises(SystemExit) as done:
+        cli(["wall", "models", "list", "--data-dir", str(data)])
+    assert done.value.code == 0
+    short = capsys.readouterr().out
+    assert long_cli(["models", "list", "--data-dir", str(data)]) == 0
+    assert capsys.readouterr().out == short and "searched:" in short
+    with pytest.raises(SystemExit):
+        cli(["wall", "--help"])
+    assert capsys.readouterr().out.startswith("usage: virtubooth wall ")
+    fetched: list[object] = []
+    monkeypatch.setattr(models, "fetch", lambda dest, with_age: fetched.append((dest, with_age)))
+    with pytest.raises(SystemExit) as done:
+        cli(["wall", "models", "fetch", "--with-age", "--dest", str(tmp_path / "m")])
+    assert done.value.code == 0 and fetched == [((tmp_path / "m").resolve(), True)]

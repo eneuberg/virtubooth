@@ -1,5 +1,7 @@
 """CLI: `virtubooth serve` (default), `virtubooth gen-env`, `virtubooth export-openapi`,
-`virtubooth reset-admin-password`."""
+`virtubooth reset-admin-password`, `virtubooth wall …` (the Live-Wall analysis:
+`models fetch`, `models list`, `status`, ...; the same as
+`python -m virtubooth.extensions.wall.enrich …`)."""
 
 from __future__ import annotations
 
@@ -75,6 +77,18 @@ def main(argv: list[str] | None = None) -> None:
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     admin_password.add_arguments(reset)
+    sub.add_parser(
+        "wall",
+        help="Live-Wall photo analysis: models fetch/list, status, run-once, worker, bench "
+        "(virtubooth wall -h)",
+        add_help=False,
+    )
+    raw = sys.argv[1:] if argv is None else argv
+    if raw[:1] == ["wall"]:
+        # everything after `wall` belongs to the analysis CLI (its own -h)
+        from .extensions.wall.enrich.__main__ import main as wall_main
+
+        raise SystemExit(wall_main(raw[1:], prog="virtubooth wall"))
     args = parser.parse_args(argv)
 
     if args.cmd == "gen-env":
