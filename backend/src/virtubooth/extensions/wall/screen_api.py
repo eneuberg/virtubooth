@@ -13,12 +13,17 @@ wall cookie can be scoped to this one prefix.
 
 Everything but the page and `session` needs the wall cookie or an admin session
 (401 `wall_login_required`). JSON answers are `Cache-Control: no-store`.
+
+One wall cookie (or admin session) keeps at most `EventBus.per_session` (4)
+streams open; a fifth closes its oldest, whose screen reconnects and replays
+what it missed (WALL-03, like the admin stream's SEC-06).
 """
 
 # no `from __future__ import annotations`: FastAPI must resolve the routes'
 # annotations, and some name dependencies local to build_router()
 
 import asyncio
+import hashlib
 import json
 import time
 from collections.abc import AsyncIterator
@@ -29,7 +34,7 @@ from fastapi import APIRouter, Depends, Header, Query, Request, Response
 from fastapi.responses import FileResponse, RedirectResponse
 from fastapi.sse import EventSourceResponse, ServerSentEvent
 
-from ...api.deps import CoreDep
+from ...api.deps import CoreDep, admin_from_cookie
 from ...core import errors
 from ...core.clock import now_iso
 from ...core.errors import error_responses, json_error_responses
@@ -83,15 +88,31 @@ def _sse(bus: EventBus, event: Event) -> ServerSentEvent:
     )
 
 
+def stream_owner(request: Request, core: Core) -> str | None:
+    """Whose stream this is, for the cap on open streams: the wall cookie, else
+    the admin session (hashed: the bus keeps it in memory)."""
+    cookie = request.cookies.get(auth.COOKIE)
+    state = auth.password_state(core.repos.app_settings)
+    if cookie and auth.cookie_valid(core, request, state):
+        return "wall:" + hashlib.sha256(cookie.encode()).hexdigest()[:32]
+    admin = admin_from_cookie(request, core)
+    return f"admin:{admin.session_hash}" if admin is not None else None
+
+
 async def wall_event_stream(
-    request: Request, core: Core, hub: WallHub, cursor: int | Resync | None
+    request: Request,
+    core: Core,
+    hub: WallHub,
+    cursor: int | Resync | None,
+    *,
+    owner: str | None = None,
 ) -> AsyncIterator[ServerSentEvent]:
     """`retry: 3000`, `hello`, then (after a `stream.resync` when the missed events
     are gone) every wall event. Ends when the screen is logged out (`bye`, or
     the cookie check every RECHECK_SECONDS) or falls behind (the browser
-    reconnects and catches up)."""
+    reconnects and catches up), or when `owner` opens one stream too many."""
     bus = hub.bus
-    sub = bus.subscribe(cursor)
+    sub = bus.subscribe(cursor, session=owner)
 
     async def authorized() -> bool:
         return await to_thread.run_sync(wall_auth, request, core) is not None
@@ -246,7 +267,8 @@ def build_router(wall: Wall) -> APIRouter:
     ) -> AsyncIterator[WallEvent]:
         """The wall's live events (resume with `Last-Event-ID` or `?since=<feed cursor>`)."""
         cursor = hub.bus.parse_cursor(last_event_id if last_event_id else since)
-        async for message in wall_event_stream(request, core, hub, cursor):
+        owner = await to_thread.run_sync(stream_owner, request, core)
+        async for message in wall_event_stream(request, core, hub, cursor, owner=owner):
             # FastAPI writes ServerSentEvent items as they are; `WallEvent` only
             # documents the messages in the OpenAPI schema
             yield message  # type: ignore[misc]

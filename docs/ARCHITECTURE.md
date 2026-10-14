@@ -438,7 +438,8 @@ flowchart LR
   and its own global lock: after 20 wrong wall passwords within 15 minutes, from
   any address, every wall login is refused for 5 minutes (429 `login_locked`),
   the right password too; logged-in walls and admin sessions keep working.
-  The cookie is `signer.sign("wall", "<gen>.<issued>")`; the generation in
+  The cookie is `signer.sign("wall", "<gen>.<issued>.<nonce>")` (older
+  cookies without the nonce stay valid); the generation in
   `x.wall.password` grows on every password change, removal or „Alle Wände
   abmelden“, which ends every wall. An admin session passes too. The password
   hash uses `core/passwords.py` (scrypt).
@@ -455,7 +456,10 @@ flowchart LR
   (`photo.update`, `categories.changed` debounced 10 s). Admin saves publish
   `config` and `bye`. Each wall stream is a plain subscriber, so a reconnect
   with `Last-Event-ID` replays what it missed (else `stream.resync` → refetch
-  the feed).
+  the feed). One wall cookie (or admin session) keeps at most 4 streams open
+  (`EventBus.per_session`, keyed by a hash of the cookie); a fifth closes its
+  oldest (WALL-03, like SEC-06). The cookie's nonce keeps screens that logged
+  in within the same second apart.
 - **Feed:** visible = not hidden, not deleted, from a configured source,
   older than the delay; the newest 1000. `WallPhoto` carries the pseudonym,
   the Instagram name only when enabled, a non-reversible `author_key`, the

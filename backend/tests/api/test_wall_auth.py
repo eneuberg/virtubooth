@@ -246,6 +246,8 @@ def test_forged_and_expired_cookies(make_client, admin, core):
         "old generation": core.signer.sign("wall", f"{gen - 1}.{now}"),
         "expired": core.signer.sign("wall", f"{gen}.{now - 31 * 24 * 3600}"),
         "garbage": core.signer.sign("wall", "x.y"),
+        "bad nonce": core.signer.sign("wall", f"{gen}.{now}.XYZ"),
+        "too many parts": core.signer.sign("wall", f"{gen}.{now}.0011aabb.1"),
     }
     for name, value in cases.items():
         c = make_client()
@@ -253,6 +255,10 @@ def test_forged_and_expired_cookies(make_client, admin, core):
         assert c.get("/livewall/api/session").status_code == 401, name
     good = make_client()
     good.cookies.set(COOKIE, core.signer.sign("wall", f"{gen}.{now - 3600}"), path="/livewall")
+    assert good.get("/livewall/api/session").json()["via"] == "password"
+    # the current format carries a nonce; cookies from before it stay valid (above)
+    nonce = core.signer.sign("wall", f"{gen}.{now}.0011aabb")
+    good.cookies.set(COOKIE, nonce, path="/livewall")
     assert good.get("/livewall/api/session").json()["via"] == "password"
 
 

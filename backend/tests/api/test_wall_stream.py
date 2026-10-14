@@ -232,3 +232,24 @@ def test_without_auth(live):
     with httpx.Client(base_url=live.base_url, timeout=5) as anonymous:
         r = anonymous.get("/livewall/api/stream")
         assert r.status_code == 401 and r.json()["error"] == "wall_login_required"
+
+
+def test_one_wall_cookie_keeps_at_most_four_streams(live, admin_c):
+    """WALL-03: a fifth stream of the same cookie closes the oldest; another
+    wall (its own cookie) is not affected."""
+    wall, other = live_wall(live), live_wall(live)
+    streams = [Stream(wall, "/livewall/api/stream") for _ in range(4)]
+    theirs = Stream(other, "/livewall/api/stream")
+    try:
+        for s in [*streams, theirs]:
+            s.until("hello")
+        streams.append(Stream(wall, "/livewall/api/stream"))
+        streams[-1].until("hello")
+        while (message := streams[0].next()) is not None:
+            assert message.get("event") != "photo.add"
+        assert admin_c.get("/api/x/wall/admin/config").json()["open_walls"] == 5
+    finally:
+        for s in [*streams, theirs]:
+            s.close()
+        wall.close()
+        other.close()
