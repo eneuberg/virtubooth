@@ -5,13 +5,14 @@
  * Empty: blank frames and an invitation.
  */
 import { ImagePlus } from 'lucide-react';
-import { useId, useState } from 'react';
+import { useEffect, useId, useState } from 'react';
 import type { GuestPhoto } from '@/api/types';
 import { formatNumber, formatTime, frameLabel } from '@/lib/format';
 import { Button } from '@/ui/Button';
 import { cx } from '@/ui/cx';
 import { PhotoTile } from '@/ui/PhotoTile';
 import { Skeleton } from '@/ui/Skeleton';
+import { showToast } from '@/ui/Toast';
 import { firstPhotoText } from './copy';
 import { useMyPhotos } from './photos';
 import { PhotoViewer } from './PhotoViewer';
@@ -49,9 +50,24 @@ export function MyPhotos({ activityTitles, className }: MyPhotosProps) {
   const titleId = useId();
   const { data: photos, isPending, isError, refetch } = useMyPhotos();
   const [expanded, setExpanded] = useState(false);
-  const [index, setIndex] = useState<number | null>(null);
+  // the open photo by id: when the list changes under the viewer, it stays on that photo
+  const [openId, setOpenId] = useState<string | null>(null);
   const list: ReadonlyArray<GuestPhoto> = photos ?? [];
   const shown = expanded ? list : list.slice(0, COLLAPSED);
+  const found = openId === null ? -1 : list.findIndex((p) => p.id === openId);
+  const index = found === -1 ? null : found;
+  const setIndex = (i: number | null) => setOpenId(i === null ? null : (list[i]?.id ?? null));
+
+  // the host hid (or deleted) the open photo: close the viewer and say why, instead of
+  // jumping to whatever photo now sits at that place
+  const [vanished, setVanished] = useState(0);
+  if (openId !== null && photos !== undefined && found === -1) {
+    setOpenId(null);
+    setVanished((n) => n + 1);
+  }
+  useEffect(() => {
+    if (vanished > 0) showToast({ message: 'Dieses Bild ist nicht mehr zu sehen.', tone: 'info' });
+  }, [vanished]);
 
   return (
     <section

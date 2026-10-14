@@ -5,6 +5,7 @@
 import { useQueryClient } from '@tanstack/react-query';
 import { RefreshCw, ScanFace } from 'lucide-react';
 import { useState } from 'react';
+import { formatDateTime } from '@/lib/format';
 import { Badge } from '@/ui/Badge';
 import { Button } from '@/ui/Button';
 import { ConfirmDialog } from '@/ui/ConfirmDialog';
@@ -18,7 +19,7 @@ import { Card } from './fields';
 import { useAnalysisStatus } from './hooks';
 import { wk } from './keys';
 import { ANALYZER_KIND_LABELS, WORKER_LABELS } from './labels';
-import { countsText } from './text';
+import { countsText, lastBeatText, memoryText, processedText } from './text';
 import type { AnalysisStatus, WorkerState } from './types';
 
 const WORKER_TONE: Record<WorkerState, 'ok' | 'amber' | 'neutral' | 'mark'> = {
@@ -28,6 +29,72 @@ const WORKER_TONE: Record<WorkerState, 'ok' | 'amber' | 'neutral' | 'mark'> = {
   stopped: 'neutral',
   crashed: 'mark',
 };
+
+/**
+ * The worker's heartbeat: state, when it last reported, and (once the API passes them
+ * on) how many photos it did, its memory and the analyzers that failed to load.
+ */
+function WorkerStatus({
+  worker,
+  analyzers,
+}: {
+  worker: AnalysisStatus['worker'];
+  analyzers: AnalysisStatus['analyzers'];
+}) {
+  const titles = new Map(analyzers.map((a) => [a.name, a.title]));
+  const loadErrors = Object.entries(worker.load_errors ?? {});
+  return (
+    <div className="grid gap-2" data-testid="wall-worker">
+      <dl className="grid grid-cols-[auto_minmax(0,1fr)] items-baseline gap-x-5 gap-y-1.5 text-sm">
+        <dt className="text-ink-muted">Status</dt>
+        <dd className="flex flex-wrap items-center gap-2">
+          <Badge tone={WORKER_TONE[worker.state]}>{WORKER_LABELS[worker.state]}</Badge>
+          {worker.ml ? null : <span className="text-ink-muted">nur Basis</span>}
+        </dd>
+        <dt className="text-ink-muted">Zuletzt gemeldet</dt>
+        <dd data-testid="wall-worker-beat">
+          {worker.last_beat_at ? (
+            <time dateTime={worker.last_beat_at} title={formatDateTime(worker.last_beat_at)}>
+              {lastBeatText(worker.last_beat_at)}
+            </time>
+          ) : (
+            lastBeatText(null)
+          )}
+        </dd>
+        {typeof worker.processed === 'number' ? (
+          <>
+            <dt className="text-ink-muted">Verarbeitet</dt>
+            <dd className="tabular" data-testid="wall-worker-processed">
+              {processedText(worker.processed)}
+            </dd>
+          </>
+        ) : null}
+        {typeof worker.rss_mb === 'number' ? (
+          <>
+            <dt className="text-ink-muted">Speicher</dt>
+            <dd className="tabular" data-testid="wall-worker-rss">
+              {memoryText(worker.rss_mb)}
+            </dd>
+          </>
+        ) : null}
+      </dl>
+      {worker.message ? <p className="text-sm text-ink-muted">{worker.message}</p> : null}
+      {loadErrors.length > 0 ? (
+        <div className="grid gap-1 text-sm" data-testid="wall-worker-load-errors">
+          <p className="font-semibold text-danger">Nicht geladen:</p>
+          <ul className="grid gap-0.5">
+            {loadErrors.map(([name, error]) => (
+              <li key={name} className="min-w-0 break-words">
+                <span className="font-semibold">{titles.get(name) ?? name}</span>{' '}
+                <span className="text-ink-muted">{error}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
+    </div>
+  );
+}
 
 function queuedText(n: number): string {
   return n === 1 ? '1 Foto wird neu analysiert.' : `${n} Fotos werden neu analysiert.`;
@@ -91,17 +158,10 @@ export function AnalysisCard() {
         <p className="text-sm text-danger">{errorText(status.error)}</p>
       ) : (
         <>
-          <div className="grid gap-1" data-testid="wall-worker">
-            <p className="flex flex-wrap items-center gap-2 text-sm">
-              <span className="font-semibold">Analyse</span>
-              <Badge tone={WORKER_TONE[data.worker.state]}>{WORKER_LABELS[data.worker.state]}</Badge>
-              {data.worker.ml ? null : <span className="text-ink-muted">nur Basis</span>}
-            </p>
-            {data.worker.message ? <p className="text-sm text-ink-muted">{data.worker.message}</p> : null}
-            <p className="text-sm tabular" data-testid="wall-counts">
-              {countsText(data.counts)}
-            </p>
-          </div>
+          <WorkerStatus worker={data.worker} analyzers={data.analyzers} />
+          <p className="text-sm tabular" data-testid="wall-counts">
+            {countsText(data.counts)}
+          </p>
           <ul className="grid border-t border-line" aria-label="Auswertungen">
             {data.analyzers.map((a) => (
               <li key={a.name} data-analyzer={a.name} className="grid gap-1 border-b border-line py-2">

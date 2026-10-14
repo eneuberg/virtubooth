@@ -23,6 +23,8 @@ export interface TextFieldProps extends Omit<
   prefix?: string;
   /** decorative leading icon, e.g. Search */
   icon?: LucideIcon;
+  /** a control at the start of the field box, e.g. a colour swatch (labels itself) */
+  start?: ReactNode;
   /** keep the label for screen readers only (search fields) */
   hideLabel?: boolean;
   /** ends with "…" and shows an example pattern */
@@ -42,6 +44,7 @@ export function TextField({
   errorMessage,
   prefix,
   icon: Icon,
+  start,
   hideLabel = false,
   placeholder,
   size = 'md',
@@ -66,6 +69,7 @@ export function TextField({
           size === 'md' ? 'h-12' : 'h-10',
         )}
       >
+        {start}
         {Icon ? (
           <Icon aria-hidden="true" className="size-4 shrink-0 text-ink-muted" strokeWidth={2.25} />
         ) : null}

@@ -329,6 +329,11 @@
     background-color: var(--s-surface);
     color: var(--s-ink);
   }
+  /* while a toast shows on a scrolling page: room to scroll the last row out from under
+     it (ToastSlot reserveRoom) */
+  html[data-vb-toast-room] body {
+    padding-bottom: var(--vb-toast-room, 0px);
+  }
   /* rubber-band only off for mouse users: phones keep pull-to-refresh */
   @media (pointer: fine) {
     html {

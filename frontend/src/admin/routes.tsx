@@ -10,6 +10,7 @@ import { LinkButton } from '@/ui/Button';
 import { Notice } from '@/ui/Notice';
 import { Spinner } from '@/ui/Spinner';
 import { UiProvider } from '@/ui/UiProvider';
+import { guardedNavigate } from './lib/leaveGuard';
 import { LivePage } from './live/LivePage';
 import { LoginPage } from './login/LoginPage';
 import { useDocumentSurface } from './surface';
@@ -51,7 +52,10 @@ function Routes() {
   const [, navigate] = useLocation();
   return (
     <UiProvider
-      navigate={(path) => (APP_ROUTE.test(path) ? navigate(path) : location.assign(path))}
+      // a screen with unsaved changes may hold the navigation (lib/leaveGuard.ts)
+      navigate={(path) =>
+        guardedNavigate(() => (APP_ROUTE.test(path) ? navigate(path) : location.assign(path)))
+      }
       useHref={(href) => (APP_ROUTE.test(href) ? `/admin${href}` : href)}
     >
       <Suspense fallback={<Loading />}>

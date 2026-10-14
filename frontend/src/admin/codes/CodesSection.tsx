@@ -20,13 +20,14 @@ import { showToast } from '@/ui/Toast';
 import { errorText } from '../common/usePhotoActions';
 import { parseCodeParam, withParams } from '../manage/manageUrl';
 import { partyOrigin, revokeCode, useActivities, useCodes, type Activities, type AdminCode } from './api';
+import { CodeRowMenu } from './CodeRowMenu';
 import { CodeSheet, type CodeAction } from './CodeSheet';
 import { codeNumber, countText, revokedTitle, targetLabel } from './codeUrl';
 import { EditCodeSheet } from './EditCodeSheet';
 import { NewCodeSheet } from './NewCodeSheet';
 import { TokenSheet } from './TokenSheet';
 
-function columns(activities: Activities): ReadonlyArray<DataColumn<AdminCode>> {
+function columns(activities: Activities, baseUrl: string | null): ReadonlyArray<DataColumn<AdminCode>> {
   return [
     { id: 'id', label: 'Nr.', width: 'w-16', render: (c) => codeNumber(c.id) },
     {
@@ -103,6 +104,12 @@ function columns(activities: Activities): ReadonlyArray<DataColumn<AdminCode>> {
           </span>
         ),
     },
+    {
+      id: 'menu',
+      label: 'Drucken',
+      width: 'w-12',
+      render: (c) => (c.active ? <CodeRowMenu code={c} baseUrl={baseUrl} activities={activities} /> : null),
+    },
   ];
 }
 
@@ -142,7 +149,7 @@ export function CodesSection() {
     }
   };
 
-  const columnList = columns(activities);
+  const columnList = columns(activities, data?.base_url ?? null);
   return (
     <section aria-labelledby="section-title" className="grid content-start gap-4 px-4 py-4 lg:px-6 lg:py-5">
       <header className="flex flex-wrap items-center gap-x-4 gap-y-3">

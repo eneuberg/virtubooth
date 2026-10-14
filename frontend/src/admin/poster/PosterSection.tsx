@@ -27,6 +27,7 @@ import { showToast } from '@/ui/Toast';
 import { toastAvoid } from '@/ui/toastPlacement';
 import { fetchCodes, useActivities, type Activities } from '../codes/api';
 import { exportErrorText, printInput } from '../codes/printInput';
+import { codeUrl } from '../codes/codeUrl';
 import { codesKey, type CodesList } from '../codes/keys';
 import { errorText, showError } from '../common/usePhotoActions';
 import { DESKTOP, useMediaQuery } from '../lib/browser';
@@ -92,7 +93,13 @@ function usePrintChoice() {
   const options = useMemo(() => printChoices(codes.data), [codes.data]);
   const [picked, setPicked] = useState(SAMPLE);
   const choice = options.some((o) => o.id === picked) ? picked : SAMPLE;
+  // the address the chosen code's QR carries: the preview shows that QR, not the sample
+  const code = codes.data?.codes.find((c) => c.id === choice && c.active);
+  const url = code
+    ? codeUrl(codes.data?.base_url ?? null, code.entry_path, window.location.origin)
+    : sampleCode().url;
   return {
+    url,
     select: (
       <Select
         label="Code für den Probedruck"
@@ -305,19 +312,20 @@ function usePageSize(doc: PDFDocumentProxy | null, page: number): PageSize | nul
   return sizes && sizes.doc === doc && sizes.page === page ? sizes.size : null;
 }
 
-/** The sample code's modules for the preview inside the green square. */
-function useSampleMatrix(): boolean[][] | null {
-  const [matrix, setMatrix] = useState<boolean[][] | null>(null);
+/** The modules of the QR for `url` (the test print's code), for the green square. */
+function useQrMatrix(url: string): boolean[][] | null {
+  const [matrix, setMatrix] = useState<{ url: string; modules: boolean[][] } | null>(null);
   useEffect(() => {
     let alive = true;
     void import('@/print').then((print) => {
-      if (alive) setMatrix(print.qrMatrix(sampleCode().url));
+      if (alive) setMatrix({ url, modules: print.qrMatrix(url) });
     });
     return () => {
       alive = false;
     };
-  }, []);
-  return matrix;
+  }, [url]);
+  // while a new code's modules load, the old ones stay (no flash of an empty square)
+  return matrix?.modules ?? null;
 }
 
 type Busy = 'save' | 'print' | null;
@@ -335,8 +343,8 @@ function TemplateEditor({ template, maxBytes }: { template: PosterTemplate; maxB
   const { doc, error: openError } = usePdfDocument(bytes.data);
   const [renderError, setRenderError] = useState<string | null>(null);
   const onRenderError = useCallback(() => setRenderError(UNREADABLE), []);
-  const matrix = useSampleMatrix();
   const print = usePrintChoice();
+  const matrix = useQrMatrix(print.url);
   const [measure, width] = useContainerWidth(MAX_PAGE_WIDTH);
 
   // the unsaved choice; null = what the server has

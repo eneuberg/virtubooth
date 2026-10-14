@@ -1,7 +1,8 @@
 /**
- * The photo inspector's "Analyse" block: what the Live Wall's analysis found on this
- * photo (state, boxes over the thumb, details, raw facts) and "Neu analysieren".
- * Renders nothing when the wall extension is off on this server.
+ * The photo inspector's (and the phone viewer's) "Analyse" block: what the Live Wall's
+ * analysis found on this photo (state, details, raw facts), the switch for the frames
+ * and "Neu analysieren". The frames themselves ({@link AnalysisBoxes}) lie on the big
+ * photo of the screen. Both render nothing when the wall extension is off here.
  */
 import { useQueryClient } from '@tanstack/react-query';
 import { RefreshCw } from 'lucide-react';
@@ -28,13 +29,57 @@ const STATE_TONE: Record<AnalysisState, 'neutral' | 'ok' | 'mark' | 'amber'> = {
   skipped: 'neutral',
 };
 
-export function AnalysisPanel({ photo }: { photo: AdminPhoto }) {
-  const enabled = useWallEnabled();
-  if (!enabled) return null;
-  return <Panel key={photo.id} photo={photo} />;
+export interface AnalysisPanelProps {
+  photo: AdminPhoto;
+  /** the frames on the photo are shown (the switch „Rahmen zeigen“) */
+  showBoxes: boolean;
+  onShowBoxesChange: (show: boolean) => void;
 }
 
-function Panel({ photo }: { photo: AdminPhoto }) {
+export function AnalysisPanel(props: AnalysisPanelProps) {
+  const enabled = useWallEnabled();
+  if (!enabled) return null;
+  return <Panel key={props.photo.id} {...props} />;
+}
+
+/**
+ * The analysis frames over a photo: put it inside a box that covers exactly the photo
+ * (FittedPhoto); the frames are placed in % of it.
+ */
+export function AnalysisBoxes({ photo, visible }: { photo: AdminPhoto; visible: boolean }) {
+  const enabled = useWallEnabled();
+  if (!enabled || !visible) return null;
+  return <Boxes photoId={photo.id} />;
+}
+
+function Boxes({ photoId }: { photoId: string }) {
+  const { data } = usePhotoAnalysis(photoId);
+  if (!data || data.boxes.length === 0) return null;
+  return (
+    <div aria-hidden="true" className="pointer-events-none absolute inset-0" data-testid="analysis-boxes">
+      {data.boxes.map((box, i) => (
+        <div
+          // boxes have no id; their order is the server's
+          // oxlint-disable-next-line react/no-array-index-key
+          key={i}
+          data-testid="analysis-box"
+          data-kind={box.kind}
+          className="absolute rounded-[2px] border-2"
+          style={{ ...boxStyle(box), borderColor: BOX_KIND_COLORS[box.kind] }}
+        >
+          <span
+            className="absolute -top-px -left-px max-w-[12rem] truncate px-1 text-[0.6875rem] leading-4 font-semibold text-black"
+            style={{ backgroundColor: BOX_KIND_COLORS[box.kind] }}
+          >
+            {box.label || BOX_KIND_LABELS[box.kind]}
+          </span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function Panel({ photo, showBoxes, onShowBoxesChange }: AnalysisPanelProps) {
   const qc = useQueryClient();
   const query = usePhotoAnalysis(photo.id);
   const [busy, setBusy] = useState(false);
@@ -73,7 +118,7 @@ function Panel({ photo }: { photo: AdminPhoto }) {
       {query.isPending ? (
         <Spinner label="Analyse lädt…" />
       ) : data ? (
-        <Result photo={photo} analysis={data} />
+        <Result analysis={data} showBoxes={showBoxes} onShowBoxesChange={onShowBoxesChange} />
       ) : (
         <p className="text-sm text-ink-muted" data-testid="analysis-empty">
           {isNoAnalysis(query.error)
@@ -95,45 +140,23 @@ function Panel({ photo }: { photo: AdminPhoto }) {
   );
 }
 
-function Result({ photo, analysis }: { photo: AdminPhoto; analysis: PhotoAnalysis }) {
-  const [showBoxes, setShowBoxes] = useState(true);
+function Result({
+  analysis,
+  showBoxes,
+  onShowBoxesChange,
+}: {
+  analysis: PhotoAnalysis;
+  showBoxes: boolean;
+  onShowBoxesChange: (show: boolean) => void;
+}) {
   const facts = Object.entries(analysis.facts);
   return (
     <>
       {analysis.error ? <p className="text-sm text-danger">{analysis.error}</p> : null}
       {analysis.boxes.length > 0 ? (
-        <>
-          <div
-            className="relative w-full overflow-hidden bg-surface-sunk"
-            style={{ aspectRatio: `${photo.width} / ${photo.height}` }}
-            data-testid="analysis-photo"
-          >
-            <img src={photo.thumb_url} alt="" className="absolute inset-0 size-full" />
-            {showBoxes
-              ? analysis.boxes.map((box, i) => (
-                  <div
-                    // boxes have no id; their order is the server's
-                    // oxlint-disable-next-line react/no-array-index-key
-                    key={i}
-                    data-testid="analysis-box"
-                    data-kind={box.kind}
-                    className="pointer-events-none absolute rounded-[2px] border-2"
-                    style={{ ...boxStyle(box), borderColor: BOX_KIND_COLORS[box.kind] }}
-                  >
-                    <span
-                      className="absolute -top-px -left-px max-w-[12rem] truncate px-1 text-[0.6875rem] leading-4 font-semibold text-black"
-                      style={{ backgroundColor: BOX_KIND_COLORS[box.kind] }}
-                    >
-                      {box.label || BOX_KIND_LABELS[box.kind]}
-                    </span>
-                  </div>
-                ))
-              : null}
-          </div>
-          <Switch isSelected={showBoxes} onChange={setShowBoxes} data-testid="analysis-boxes">
-            Rahmen zeigen
-          </Switch>
-        </>
+        <Switch isSelected={showBoxes} onChange={onShowBoxesChange} data-testid="analysis-boxes-switch">
+          Rahmen auf dem Foto zeigen
+        </Switch>
       ) : null}
       {analysis.details.length > 0 ? (
         <dl

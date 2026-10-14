@@ -21,6 +21,7 @@ import { copyText, DESKTOP, focusLater, sortedCopy, thumbFor, useMediaQuery } fr
 import { photoCount } from '../lib/labels';
 import { bulkSetHidden } from '../store/actions';
 import { incomingPhotos, listedPhotos } from '../store/cache';
+import { AnalysisBoxes, AnalysisPanel } from '../wall/AnalysisPanel';
 import {
   useExtensionMap,
   useExtensions,
@@ -84,6 +85,8 @@ export function PhotosSection() {
   const select = (ids: ReadonlySet<string>) => setSelection({ key: filterKey, ids });
   const [deleting, setDeleting] = useState<AdminPhoto[]>([]);
   const [bulkBusy, setBulkBusy] = useState<'hide' | 'unhide' | null>(null);
+  // the analysis frames on the phone viewer's photo (the inspector keeps its own)
+  const [showBoxes, setShowBoxes] = useState(true);
 
   const photos = listedPhotos(list.data);
   const incoming = incomingPhotos(list.data);
@@ -301,6 +304,7 @@ export function PhotosSection() {
           <div className="sticky top-0 max-h-dvh overflow-y-auto">
             <PhotoInspector
               photo={current}
+              selection={chosen}
               gone={Boolean(photoId) && !current && (deepLinked.isError || Boolean(deepLinked.data?.deleted))}
               extension={current ? extensionMap.get(current.extension) : undefined}
               onClose={closePhoto}
@@ -317,6 +321,10 @@ export function PhotosSection() {
           list={photos}
           extensions={extensionMap}
           onNavigate={(id) => openPhoto(id, 'replace')}
+          renderOverlay={(photo) => <AnalysisBoxes photo={photo} visible={showBoxes} />}
+          renderDetails={(photo) => (
+            <AnalysisPanel photo={photo} showBoxes={showBoxes} onShowBoxesChange={setShowBoxes} />
+          )}
           onClose={() => {
             const last = current?.id;
             closePhoto();

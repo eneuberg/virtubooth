@@ -2,8 +2,9 @@
  * Filter swatches made from the guest's own picture: once the camera runs, the frame
  * on screen goes through every filter at thumbnail size (one shader pass each), one
  * after the other so the preview keeps running; each swatch appears when it is ready.
- * They stay (object URLs) until the page goes; a filter whose swatch fails shows its
- * catalogue icon instead.
+ * They stay (object URLs) until the page goes. The map holds an object URL per filter
+ * once its swatch is there, or null when it failed (the strip shows the catalogue icon
+ * then); until then the strip shows a neutral placeholder.
  */
 import { useEffect, useRef, useState } from 'react';
 import type { Filter } from '@/sdk/camera/filters';
@@ -21,8 +22,8 @@ export function useSwatches(
   filters: ReadonlyArray<Filter>,
   info: OverlayInfo | null,
   live: boolean,
-): ReadonlyMap<string, string> {
-  const [urls, setUrls] = useState<ReadonlyMap<string, string>>(() => new Map());
+): ReadonlyMap<string, string | null> {
+  const [urls, setUrls] = useState<ReadonlyMap<string, string | null>>(() => new Map());
   const made = useRef<string[]>([]);
   const ready = live && !!session && !!info && filters.length > 0;
 
@@ -45,7 +46,8 @@ export function useSwatches(
             made.current.push(url);
             if (!cancelled) setUrls((current) => new Map(current).set(filter.id, url));
           } catch {
-            // this filter keeps its icon
+            // this filter shows its icon
+            if (!cancelled) setUrls((current) => new Map(current).set(filter.id, null));
           }
           // yield to the render loop between swatches
           // oxlint-disable-next-line no-await-in-loop -- on purpose

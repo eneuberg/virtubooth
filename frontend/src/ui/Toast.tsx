@@ -23,7 +23,7 @@ import {
 } from 'react-aria-components';
 import { cx } from './cx';
 import { useSurface } from './Surface';
-import { measureToastLift } from './toastPlacement';
+import { measureToastLift, measureToastRoom } from './toastPlacement';
 
 export type ToastTone = 'info' | 'success' | 'error';
 
@@ -78,6 +78,12 @@ export interface ToastSlotProps {
    * pass the offset of their control row, admin pages the bottom bar height.
    */
   className?: string;
+  /**
+   * Pages that scroll (grids of photos): while a toast shows, the page gets that much
+   * room at the bottom (`<html data-vb-toast-room>`, app.css), so the last row can be
+   * scrolled out from under it. Not for full-screen pages (the camera).
+   */
+  reserveRoom?: boolean;
 }
 
 /**
@@ -97,7 +103,7 @@ const WATCH: MutationObserverInit = {
  * Measured before the first paint (it appears in its place) and again whenever a sheet
  * opens or finishes sliding in, a bar appears, or the window changes size.
  */
-function useToastLift(region: HTMLElement | null): { lift: number; settled: boolean } {
+function useToastLift(region: HTMLElement | null, reserveRoom: boolean): { lift: number; settled: boolean } {
   const [lift, setLift] = useState(0);
   // later moves glide; the first position is taken without a slide
   const [settled, setSettled] = useState(false);
@@ -106,9 +112,15 @@ function useToastLift(region: HTMLElement | null): { lift: number; settled: bool
     const doc = region.ownerDocument;
     const win = doc.defaultView ?? window;
     let frame = 0;
+    const root = doc.documentElement;
     const measure = () => {
       frame = 0;
-      setLift(measureToastLift(region));
+      const next = measureToastLift(region);
+      setLift(next);
+      if (reserveRoom) {
+        root.style.setProperty('--vb-toast-room', `${measureToastRoom(region, next)}px`);
+        root.setAttribute('data-vb-toast-room', '');
+      }
     };
     const schedule = () => {
       if (!frame) frame = win.requestAnimationFrame(measure);
@@ -133,19 +145,23 @@ function useToastLift(region: HTMLElement | null): { lift: number; settled: bool
       win.visualViewport?.removeEventListener('resize', schedule);
       doc.removeEventListener('animationend', schedule, true);
       doc.removeEventListener('transitionend', schedule, true);
+      if (reserveRoom) {
+        root.removeAttribute('data-vb-toast-room');
+        root.style.removeProperty('--vb-toast-room');
+      }
       setLift(0);
       setSettled(false);
     };
-  }, [region]);
+  }, [region, reserveRoom]);
   return { lift, settled };
 }
 
 /** Mount once per app, where the layout wants the toast. */
-export function ToastSlot({ className }: ToastSlotProps) {
+export function ToastSlot({ className, reserveRoom = false }: ToastSlotProps) {
   const surface = useSurface();
   // the region only exists while a toast shows
   const [region, setRegion] = useState<HTMLDivElement | null>(null);
-  const { lift, settled } = useToastLift(region);
+  const { lift, settled } = useToastLift(region, reserveRoom);
   return (
     <AriaToastRegion
       ref={setRegion}

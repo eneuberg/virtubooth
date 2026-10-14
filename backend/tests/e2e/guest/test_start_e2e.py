@@ -94,6 +94,30 @@ def test_deine_bilder_shows_only_own_visible_photos(guest_page: Page, live: Live
     assert page.js_errors == []  # type: ignore[attr-defined]
 
 
+def test_viewer_closes_when_the_host_hides_its_photo(page: Page, live: LiveServer):
+    """The host hides the photo a guest is looking at: on the next refresh of "Deine
+    Bilder" the viewer closes and says so, instead of jumping to the next photo."""
+    page.clock.install()
+    join_via_api(page, live)
+    older = upload(page, "beer", (200, 60, 40))["photo"]
+    newer = upload(page, "beer", (60, 200, 40))["photo"]
+    reload(page)
+    page.get_by_test_id(f"photo-{newer['id']}").get_by_role("button").click()
+    viewer = page.get_by_test_id("photo-viewer")
+    expect(viewer.get_by_role("img")).to_have_attribute("src", newer["url"])
+    live.core.services.moderation.hide_photo(newer["id"], actor="admin")
+    page.clock.fast_forward(20_000)  # the photos are stale now
+    wake(page)
+    expect(page.get_by_text("Dieses Bild ist nicht mehr zu sehen.")).to_be_visible()
+    expect(viewer.get_by_role("dialog")).to_have_count(0)
+    # the other photo is still there and opens as before
+    tiles = page.locator("[data-testid=my-photos] [data-testid^=photo-]")
+    expect(tiles).to_have_count(1)
+    page.get_by_test_id(f"photo-{older['id']}").get_by_role("button").click()
+    expect(viewer.get_by_role("img")).to_have_attribute("src", older["url"])
+    assert page.js_errors == []  # type: ignore[attr-defined]
+
+
 def test_a_new_shot_shows_in_deine_bilder_on_the_way_back(guest_page: Page, live: LiveServer):
     """Start -> Beer Cam -> shot -> back, all inside the app (no reload): the photo is
     in "Deine Bilder" right away, not "Noch keine Bilder" from before the shot."""

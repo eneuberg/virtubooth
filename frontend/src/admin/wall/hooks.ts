@@ -1,6 +1,6 @@
 /**
  * Live Wall admin queries. No admin events for the wall (D11): the config refetches on
- * focus, the analysis status polls every 5 s while its card is on screen, a photo's
+ * focus and every 15 s while the section is open (the open-walls count), the analysis status polls every 5 s while its card is on screen, a photo's
  * analysis every 2 s while it waits or runs.
  */
 import { useQuery } from '@tanstack/react-query';
@@ -21,6 +21,8 @@ export function useWallAdmin(enabled = true) {
     enabled,
     staleTime: 0,
     refetchOnWindowFocus: true,
+    // "2 Wände offen" stays current; the draft is separate, so a refetch never moves a field
+    refetchInterval: 15_000,
     retry: false,
   });
 }

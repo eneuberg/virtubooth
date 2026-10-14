@@ -12,7 +12,7 @@ interface Drag {
   last: RelRect;
 }
 
-/** The sample code as an SVG path (modules as 1×1 squares, 2 modules of margin). */
+/** The test print's code (the sample, or the code chosen) as an SVG path (modules as 1×1 squares, 2 modules of margin). */
 function QrPreview({ matrix }: { matrix: boolean[][] | null }) {
   if (!matrix) return null;
   const size = matrix.length + 4;
@@ -27,6 +27,7 @@ function QrPreview({ matrix }: { matrix: boolean[][] | null }) {
       viewBox={`0 0 ${size} ${size}`}
       aria-hidden="true"
       shapeRendering="crispEdges"
+      data-testid="qr-preview"
       className="pointer-events-none absolute inset-0 size-full bg-white/60"
     >
       <path d={d} className="fill-black/70" />

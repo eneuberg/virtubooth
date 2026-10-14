@@ -1,4 +1,5 @@
-import { AtSign, Download, Eye, EyeOff, ImageOff, Trash2, X } from 'lucide-react';
+import { AtSign, Download, Eye, EyeOff, ImageOff, SquareCheck, Trash2, X } from 'lucide-react';
+import { useState } from 'react';
 import { Link } from 'react-aria-components';
 import type { AdminExtension, AdminPhoto } from '@/api/types';
 import { formatDateTime, formatRelative } from '@/lib/format';
@@ -9,11 +10,14 @@ import { cx } from '@/ui/cx';
 import { EmptyState } from '@/ui/EmptyState';
 import { GreaseX } from '@/ui/GreaseMarks';
 import { IconButton } from '@/ui/IconButton';
-import { metaRows, photoLabel } from '../lib/labels';
-import { AnalysisPanel } from '../wall/AnalysisPanel';
+import { FittedPhoto } from '../common/FittedPhoto';
+import { metaRows, photoCount, photoLabel, photoName } from '../lib/labels';
+import { AnalysisBoxes, AnalysisPanel } from '../wall/AnalysisPanel';
 
 export interface PhotoInspectorProps {
   photo: AdminPhoto | null;
+  /** the photos ticked in the contact sheet: while there are any, they are shown instead */
+  selection?: ReadonlyArray<AdminPhoto>;
   /** the deep-linked photo does not exist (any more) */
   gone?: boolean;
   extension: AdminExtension | undefined;
@@ -36,8 +40,52 @@ const LINK =
  * The right column of the desktop contact sheet: the open photo big, who took it, when,
  * with which settings, and every action on it. `?photo=<id>` opens it.
  */
+const NONE: ReadonlyArray<AdminPhoto> = [];
+
+/** How many of the ticked photos show as small frames. */
+const SELECTION_PREVIEW = 12;
+
+function SelectionSummary({ photos }: { photos: ReadonlyArray<AdminPhoto> }) {
+  const shown = photos.slice(0, SELECTION_PREVIEW);
+  const rest = photos.length - shown.length;
+  return (
+    <aside
+      aria-label="Auswahl"
+      className="grid content-start gap-4 px-5 py-4"
+      data-testid="inspector"
+      data-selection={photos.length}
+    >
+      <h2 className="flex items-center gap-2 text-lg font-bold tabular">
+        <SquareCheck aria-hidden="true" className="size-5" strokeWidth={2} />
+        {photoCount(photos.length)} ausgewählt
+      </h2>
+      <ul className="grid grid-cols-4 gap-1.5" aria-label="Ausgewählte Fotos">
+        {shown.map((p) => (
+          <li key={p.id} className="relative aspect-[3/4] overflow-hidden bg-surface-sunk">
+            <img
+              src={p.thumb_url}
+              alt={photoLabel(p)}
+              className={cx('size-full object-cover', p.hidden && 'opacity-45 grayscale-[0.6]')}
+            />
+          </li>
+        ))}
+        {rest > 0 ? (
+          <li className="grid aspect-[3/4] place-items-center bg-surface-sunk text-sm font-semibold text-ink-muted tabular">
+            +{rest}
+          </li>
+        ) : null}
+      </ul>
+      <p className="text-sm text-ink-muted">
+        Ausblenden, Einblenden und Löschen gelten für alle ausgewählten Fotos: unten in der Leiste. Ein Klick
+        auf ein Foto nimmt es dazu oder heraus, Esc hebt die Auswahl auf.
+      </p>
+    </aside>
+  );
+}
+
 export function PhotoInspector({
   photo,
+  selection = NONE,
   gone = false,
   extension,
   onClose,
@@ -46,6 +94,8 @@ export function PhotoInspector({
   onCopyHandle,
   busy,
 }: PhotoInspectorProps) {
+  const [showBoxes, setShowBoxes] = useState(true);
+  if (selection.length > 0) return <SelectionSummary photos={selection} />;
   if (!photo && gone) {
     return (
       <aside aria-label="Foto" className="grid content-start px-5 py-4" data-testid="inspector">
@@ -68,22 +118,25 @@ export function PhotoInspector({
   const label = photoLabel(photo);
   return (
     <aside
-      aria-label={`Foto ${label}`}
+      aria-label={photoName(photo)}
       className="grid content-start gap-4 px-5 py-4"
       data-testid="inspector"
     >
       <div className="relative aspect-[3/4] overflow-hidden bg-surface-sunk">
-        <img
-          key={photo.id}
-          src={photo.url}
-          alt={label}
-          width={photo.width}
-          height={photo.height}
-          className={cx('size-full object-cover', photo.hidden && 'opacity-45 grayscale-[0.6]')}
-        />
-        {photo.hidden ? (
-          <GreaseX className="pointer-events-none absolute inset-[8%] size-[84%] text-mark" />
-        ) : null}
+        <FittedPhoto width={photo.width} height={photo.height}>
+          <img
+            key={photo.id}
+            src={photo.url}
+            alt={label}
+            width={photo.width}
+            height={photo.height}
+            className={cx('size-full object-cover', photo.hidden && 'opacity-45 grayscale-[0.6]')}
+          />
+          {photo.hidden ? (
+            <GreaseX className="pointer-events-none absolute inset-[8%] size-[84%] text-mark" />
+          ) : null}
+          <AnalysisBoxes photo={photo} visible={showBoxes} />
+        </FittedPhoto>
       </div>
       <div className="flex items-start gap-2">
         <div className="grid min-w-0 flex-1 gap-1">
@@ -122,7 +175,7 @@ export function PhotoInspector({
           </div>
         ))}
       </dl>
-      <AnalysisPanel photo={photo} />
+      <AnalysisPanel photo={photo} showBoxes={showBoxes} onShowBoxesChange={setShowBoxes} />
       <div className="grid gap-2">
         <Button
           size="sm"

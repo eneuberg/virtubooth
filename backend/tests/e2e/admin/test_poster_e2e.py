@@ -181,6 +181,17 @@ def test_desktop_upload_place_save_switch_print_remove(
     wait_drawn(page)
     assert close(field_rect(page), saved_rect(live))
 
+    # the preview carries the QR of the code chosen for the test print, not the sample
+    qr = page.get_by_test_id("qr-preview").locator("path")
+    sample = qr.get_attribute("d")
+    assert sample
+    page.get_by_test_id("poster-print-code").get_by_role("button").click()
+    page.get_by_role("option").nth(1).click()
+    expect(qr).not_to_have_attribute("d", sample)
+    page.get_by_test_id("poster-print-code").get_by_role("button").click()
+    page.get_by_role("option", name="Muster", exact=True).click()
+    expect(qr).to_have_attribute("d", sample)
+
     # the test print: one PDF page with the sample code
     with page.expect_download() as download:
         page.get_by_test_id("poster-test-print").click()

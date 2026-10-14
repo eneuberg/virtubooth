@@ -54,6 +54,28 @@ describe('admin labels', () => {
     expect(lockoutText(new ApiError(401, 'wrong_password', 'Falsches Passwort.'))).toBeNull();
   });
 
+  it('says the per-address rate limit once, not the general "Langsam! … Warte kurz" text', () => {
+    const at = new Date('2026-10-13T22:41:00').getTime();
+    const rate = (wait: number | null) => {
+      const err = new ApiError(
+        429,
+        'rate_limited',
+        'Langsam! Zu viele Anfragen. Warte kurz (in 3 s nochmal).',
+        {
+          error: 'rate_limited',
+          message: 'Langsam! Zu viele Anfragen. Warte kurz.',
+        },
+      );
+      err.retryAfter = wait;
+      return lockoutText(err, at);
+    };
+    expect(rate(3)).toBe('Zu viele Versuche hintereinander. Versuch es in 3\u00a0Sekunden nochmal.');
+    expect(rate(120)).toBe(
+      'Zu viele Versuche hintereinander. Versuch es in 2\u00a0Minuten nochmal (um 22:43).',
+    );
+    expect(rate(null)).toBe('Zu viele Versuche hintereinander. Warte kurz und versuch es dann nochmal.');
+  });
+
   it('turns meta ids into words', () => {
     const photo = { meta: { vessel: 'cup', facing: 'environment', filter: 'neon', empty: null } };
     const ext = {
