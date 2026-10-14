@@ -28,6 +28,10 @@ DATA_DIR ?= $(CURDIR)/data
 IMAGE ?= virtubooth:local
 # docker-smoke publishes its throwaway container on 127.0.0.1:SMOKE_PORT
 SMOKE_PORT ?= 8180
+# setup with the Live-Wall analysis extra (mediapipe, onnxruntime, OpenCV): ML=1
+ML ?=
+# extra arguments for `make models`, e.g. --with-age (FairFace, 87 MB)
+MODELS_ARGS ?=
 # extra pytest arguments for test / the e2e targets
 PYTEST_ARGS ?=
 E2E_ARGS ?=
@@ -52,7 +56,7 @@ ifeq ($(strip $(WEB_INPUTS)),)
 WEB_INPUTS := FORCE
 endif
 
-.PHONY: help setup browsers dev dev-web build-web openapi openapi-check lint \
+.PHONY: help setup browsers models dev dev-web build-web openapi openapi-check lint \
         typecheck test e2e e2e-firefox e2e-webkit e2e-changed docker docker-smoke \
         check check-all clean FORCE
 # a failed build leaves no frontend/dist/index.html that looks up to date
@@ -65,8 +69,8 @@ help: ## list the targets
 	@grep -E '^[a-z0-9-]+:.*## ' $(MAKEFILE_LIST) \
 	  | awk -F':.*## ' '{ printf "  %-14s %s\n", $$1, $$2 }'
 
-setup: ## install the backend (uv sync) and frontend (pnpm install) dependencies
-	cd backend && uv sync
+setup: ## install the backend (uv sync; ML=1 adds the Live-Wall analysis extra) and frontend (pnpm install) dependencies
+	cd backend && uv sync $(if $(filter 1,$(ML)),--extra ml)
 	cd frontend && pnpm install --frozen-lockfile
 
 browsers: ## download the Playwright browsers for e2e (Linux CI: add --with-deps)
@@ -75,6 +79,14 @@ browsers: ## download the Playwright browsers for e2e (Linux CI: add --with-deps
 $(ENV_FILE):
 	cd backend && uv run virtubooth gen-env > $(abspath $(ENV_FILE))
 	@echo "wrote $(ENV_FILE) with fresh secrets (VB_PARTY_TOKEN, VB_ADMIN_PASSWORD, ...)"
+
+models: $(ENV_FILE) ## Live-Wall analysis: install the ml extra, download the models into <data>/wall/models
+	cd backend && uv sync --extra ml
+	@set -a && . $(abspath $(ENV_FILE)) && set +a && \
+	  VB_DATA_DIR="$${VB_DATA_DIR:-$(DATA_DIR)}" && \
+	  case "$$VB_DATA_DIR" in /*) ;; *) VB_DATA_DIR="$(CURDIR)/$$VB_DATA_DIR" ;; esac && \
+	  cd backend && uv run python -m virtubooth.extensions.wall.enrich models fetch \
+	    --data-dir "$$VB_DATA_DIR" $(MODELS_ARGS)
 
 dev: $(ENV_FILE) ## backend on :PORT with reload; serves frontend/dist, or placeholders + API without a build
 	@if [ -f frontend/dist/index.html ]; then \

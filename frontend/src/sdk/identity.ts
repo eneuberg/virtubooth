@@ -7,6 +7,12 @@ export function shortName(name: string): string {
   return name.replace(/\s*#\d+$/, '');
 }
 
+/** „Meine Fotos nicht automatisch auswerten“ (join sheet and the „Du“ sheet). */
+export const ANALYSIS_OPT_OUT = {
+  label: 'Meine Fotos nicht automatisch auswerten',
+  help: 'Dann zählt die Live-Wall auf deinen Fotos keine Gesichter oder Hände, nur Helligkeit und Farben.',
+} as const;
+
 /** 30 characters is Instagram's limit */
 export const HANDLE_MAX = 30;
 

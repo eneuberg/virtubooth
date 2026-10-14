@@ -31,6 +31,7 @@ Contents:
 [Transactions, audit, events](#transactions-audit-events) ·
 [The admin event stream](#the-admin-event-stream) ·
 [Web serving](#web-serving) ·
+[The Live-Wall](#the-live-wall) ·
 [Frontend](#frontend) ·
 [Adding an activity](#adding-an-activity) ·
 [Testing](#testing) ·
@@ -53,7 +54,7 @@ touches SQL, and a repository never publishes an event.
 | services | `services/` | the business logic and the only place that opens a write transaction: identity, uploads, moderation, upload_controls, admin_auth, exports (+ `export_runners.py`, one worker thread), instagram, images, views, `events.py` (typed admin events) |
 | api | `api/` | `deps.py` (the access dependencies), `schemas/` (Pydantic `*In`/`*Out` models, `AdminEvent` union), `routers/` (guest, uploads, media, health, `admin/*`) |
 | web | `web/` | serves the built frontend from `VB_WEB_DIR`: HTML entries, the gate/404 page, `/assets` (see [Web serving](#web-serving)) |
-| extensions | `extensions/` | `sdk.py` (`Extension`, `UploadPolicy`, `UploadContext`, discovery) and one package per activity: `beer/`, `booth/` |
+| extensions | `extensions/` | `sdk.py` (`Extension`, `UploadPolicy`, `UploadContext`, discovery), one package per activity (`beer/`, `booth/`) and the Live-Wall (`wall/`, see [The Live-Wall](#the-live-wall)) |
 | tools | `tools/` | `qr`, `timelapse`, `export`: CLI tools (`python -m virtubooth.tools.<x>`) whose functions the admin's export jobs reuse |
 
 Access levels are FastAPI dependencies from `api/deps.py`, used on every
@@ -79,7 +80,9 @@ The full contract is in [overhaul/contracts/api.md](overhaul/contracts/api.md).
 The database tables are `users`, `user_fingerprints`, `fingerprint_bans`,
 `photos`, `admin_sessions`, `audit_log`, `settings` (a small key/value store
 for the upload and join switches and Instagram marks), `export_jobs` and
-`visitors` (random browser ids for the dashboard's „Gescannt“). A schema
+`visitors` (random browser ids for the dashboard's „Gescannt“), the QR code
+tables, and the Live-Wall's `wall_analysis` and `wall_facts` (migration 9;
+migration 10 adds `users.analysis_opt_out`). A schema
 change is a new step appended to `db/migrations.py`; never edit a released one.
 
 ## A request, end to end
@@ -387,6 +390,84 @@ to start, unless `VB_DEV=1`, which serves placeholder pages for working with
   style-src 'self'; img-src 'self' blob: data:; media-src 'self' blob:;
   connect-src 'self'; font-src 'self'; object-src 'none'; base-uri 'none';
   form-action 'self'; frame-ancestors 'none'`.
+
+## The Live-Wall
+
+`extensions/wall/` (backend) and `frontend/wall.html` + `src/wall/` (the TV),
+`src/admin/wall/` (the admin tab). An extension without uploads and without a
+Start card (`show_on_home=False`); it uses three generic hooks of
+`Extension` (`sdk.py`):
+
+- `web_router`: mounted at the root, outside `/api/` (here: `/livewall`,
+  `/livewall/api/*`, `/livewall/media/*`). `WebFrontend.extra_page("wall.html")`
+  serves the optional extra HTML entry (404 page when the build lacks it).
+- `on_start(core)` / `on_stop(core)`: called in the app lifespan after
+  `exports.attach()` / before `exports.detach()` (stop in reverse order);
+  errors are logged, never fatal.
+
+```mermaid
+flowchart LR
+  core["core.bus<br/>photo.*, user.banned,<br/>settings.event, code.changed"] --> tr["translator task"]
+  tr -- "delay timers,<br/>visibility re-check" --> wb["wall bus<br/>(own EventBus)"]
+  poll["poller (2 s)<br/>wall_analysis.rev"] --> wb
+  admin["/api/x/wall/admin<br/>config, password"] --> wb
+  wb -- SSE --> tv["/livewall on the TV"]
+  worker["analysis worker<br/>(own process)"] -- "rows + rev" --> db[("SQLite")]
+  poll --> db
+```
+
+- **Screen API under `/livewall/api`, not `/api/x/wall`:** the wall cookie
+  `vb_wall` is scoped to `Path=/livewall` (page, API and images, nothing else),
+  and the TV never shares the per-IP `/api/` budget of the venue Wi-Fi (the same
+  reasoning as `/media/`). The login has its own limiter (5/min, 20/h per IP).
+  The cookie is `signer.sign("wall", "<gen>.<issued>")`; the generation in
+  `x.wall.password` grows on every password change, removal or „Alle Wände
+  abmelden“, which ends every wall. An admin session passes too. The password
+  hash uses `core/passwords.py` (scrypt).
+- **Admin API under `/api/x/wall/admin/…`** (the extension router; admin
+  session): config, password, logout, categories, and the analysis routes
+  (`enrich/admin_api.py`). The middleware exempts admin sessions from the API
+  budget on `/api/admin/` and on any `/api/x/<id>/admin/`.
+- **The wall bus:** a second `EventBus`. One translator task subscribes to
+  `core.bus`: `photo.created`/`photo.unhidden`/`user.unbanned` arm a timer for
+  `created_at + delay_s` and, after a visibility re-check, publish
+  `photo.add`; hidden, deleted and banned photos become `photo.remove` at
+  once; `settings.event` and `code.changed` republish `config` (event name and
+  the corner QR code). A poller reads the analysis' change counter every 2 s
+  (`photo.update`, `categories.changed` debounced 10 s). Admin saves publish
+  `config` and `bye`. Each wall stream is a plain subscriber, so a reconnect
+  with `Last-Event-ID` replays what it missed (else `stream.resync` → refetch
+  the feed).
+- **Feed:** visible = not hidden, not deleted, from a configured source,
+  older than the delay; the newest 1000. `WallPhoto` carries the pseudonym,
+  the Instagram name only when enabled, a non-reversible `author_key`, the
+  public facts (`people`, `faces`, `hands`, `smiles`) and the analysis state.
+  `qr` is the chosen (or lowest active) QR code's URL, absolute with
+  `VB_PUBLIC_BASE_URL` or the request origin, a path in events.
+- **Photo analysis** (`extensions/wall/enrich/`): `EnrichmentService(core)`
+  is the port the wall uses (`enrichment.py`: summaries, `changes_since(rev)`,
+  catalogue, winners, active analyzers). `start()` spawns the worker
+  (`python -m virtubooth.extensions.wall.enrich worker`) under a supervisor
+  thread: stdin is a pipe (EOF = the app is gone, the worker exits), restart
+  with backoff, exit 75 = recycle (200 photos or 900 MB RSS), nice 10,
+  `VB_WALL_WORKER=off` never spawns. The worker finds work by a DB scan
+  (photos without a row or `pending`), claims the newest, runs the analyzer
+  pipeline (topological by `needs`; basic always, ML with the `ml` extra and
+  models) and writes facts and boxes; every write sets `rev = MAX(rev)+1`.
+  Heartbeat in the settings key `x.wall.worker`. Scratch (crops, landmarks,
+  CLIP vectors) never leaves the worker's memory; deleted photos are purged.
+  Categories (`categories.py`) are SQL over `wall_facts`.
+- **Opt-out:** `users.analysis_opt_out` (join flag, `PUT /api/me/analysis`).
+  `UsersRepo.set_analysis_opt_out` drops the guest's facts and boxes and
+  requeues their rows (each with its own rev); the worker then runs only
+  `basic` for them, and categories that need an ML analyzer skip them. The
+  join texts carry the analysis paragraph while the wall is loaded
+  (`ConsentInfo.analysis`).
+- **Frontend:** `src/wall/` has no router or design system: a canvas
+  background (`background/`, `mountBackground` is framework-free; the admin
+  preview lazy-loads it), modes, selection algorithms and transitions in plain
+  TS (Vitest), the QR corner drawn with `print/qrMatrix`. `app.css` excludes
+  `src/wall` from Tailwind's source scan.
 
 ## Frontend
 

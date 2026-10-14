@@ -42,6 +42,9 @@ not belong, and takes home the photo archive and the timelapse.
 - **The "Kontaktbogen" design.** Every photo is a frame on the party's film
   roll. Guests work in a darkroom with an amber safelight; the host reviews
   on a light table with grease-pencil marks.
+- **Live-Wall.** The photos on a TV at `/livewall`, with transitions, an
+  animated background and fun categories from a photo analysis that runs on
+  your own server (nothing leaves it; guests can switch it off for their photos).
 - **Modular.** Each game is an extension. New games plug in without changes
   to the core.
 
@@ -146,6 +149,7 @@ every relevant event.
 | Sperren | Bans and **device bans** ("Gerätemerkmal"). A device ban starts new identities with that device trait banned ("Automatisch gesperrt"); lifting it releases them. |
 | Protokoll | The audit log of every moderation action. |
 | QR-Codes | **Several QR codes**, each with a fixed number, an animal name ("Gorilla 2"), its own token, an optional target activity and note, and its numbers (scanned, joined, photos, online). Change a token or delete a code without locking out guests who already joined. Each code's sheet saves it as PNG, as a big QR on A4, or as a poster PDF. |
+| Live-Wall | The **Live-Wall** for a TV at `/livewall`: its password, the playlist (Einzelbild, Galerie, Kategorien), selection algorithm, transitions, animated background and colours, the corner overlays (event name, photo count, a QR code), the delay before new photos appear, and the **photo analysis** behind the fun categories („Grinsekatzen“, „Volles Haus“, …). |
 | Plakat | Upload your own **poster template** (PDF) and drag the green square to where the QR code goes; without one, a standard poster in the app's style. |
 | Export | The archive (ZIP with photos, CSVs and optionally the database), the timelapse (MP4 via ffmpeg) and the QR sheet for a chosen code, as background jobs with progress and a download. |
 
@@ -215,6 +219,7 @@ Node 22.22 (`frontend/.node-version`) and pnpm 11
 make setup        # uv sync + pnpm install
 make build-web    # the production frontend build into frontend/dist
 make dev          # one server on :8000; creates .env with fresh secrets if missing, prints the guest URL
+make models       # optional: the Live-Wall's photo analysis (ml extra + models into ./data/wall/models)
 ```
 
 - **Hot reload for the UI:** run `make dev` (the API on :8000, placeholder
@@ -369,8 +374,9 @@ Each activity is an extension in two halves that share an id:
 The core does the rest: discovery (`VB_EXTENSIONS` picks and orders them),
 the gate, joining, the upload pipeline and storage, rate limits, moderation,
 the Start card, the activity switcher, the admin views, the QR codes, the
-exports and the timelapse. The Live Wall for a TV from the original spec can
-come back the same way.
+exports and the timelapse. The Live-Wall is an extension too, without an
+activity: it brings its own page (`web_router`) and a lifecycle
+(`on_start`/`on_stop`) for its worker process.
 [ARCHITECTURE.md → Adding an activity](docs/ARCHITECTURE.md#adding-an-activity)
 walks through a complete, working example.
 

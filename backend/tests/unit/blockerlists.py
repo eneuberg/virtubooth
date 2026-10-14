@@ -105,8 +105,8 @@ def app_requests(app, token: str, web_dirs: Sequence[Path] = ()) -> list[Request
 
     # pages and the QR codes' entry URLs
     admin_pages = ["/admin/live", "/admin/manage", "/admin/user"]
-    tabs = ("fotos", "gaeste", "instagram", "sperren", "protokoll", "qr", "plakat", "export",
-            "uebersicht", "einstellungen")  # fmt: skip
+    tabs = ("fotos", "gaeste", "instagram", "livewall", "sperren", "protokoll", "qr", "plakat",
+            "export", "uebersicht", "einstellungen")  # fmt: skip
     for path in [
         "/",
         "/healthz",
@@ -137,6 +137,14 @@ def app_requests(app, token: str, web_dirs: Sequence[Path] = ()) -> list[Request
         ):
             add(path, "document")
 
+    # the Live-Wall screen (a TV): its page, its photos, its event stream
+    add("/livewall", "document")
+    for size in ("s", "m", "l"):
+        add(f"/livewall/media/{photo}?s={size}", "image", source="/livewall")
+    add("/livewall/api/stream", "other", source="/livewall")
+    add(f"/livewall/api/stream?since={cursor}", "other", source="/livewall")
+    add("/livewall/api/feed?limit=500", "xmlhttprequest", source="/livewall")
+
     # photos: <img> on the result/admin screens, ?download=1 links
     for typ in ("image", "other"):
         add(f"/media/{photo}", typ, source="/admin/live")
@@ -145,7 +153,7 @@ def app_requests(app, token: str, web_dirs: Sequence[Path] = ()) -> list[Request
 
     # API: every route, with the query strings the admin UI sends
     for path, methods in _routes(app.routes):
-        if not path.startswith("/api/"):
+        if not path.startswith(("/api/", "/livewall/api/")):
             continue
         paths = [path.replace("{ext_id}", e.id) for e in exts] if "{ext_id}" in path else [path]
         for p in paths:

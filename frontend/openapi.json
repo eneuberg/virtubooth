@@ -636,6 +636,200 @@
         "title": "AdminUser",
         "type": "object"
       },
+      "AnalysisBox": {
+        "properties": {
+          "h": {
+            "title": "H",
+            "type": "number"
+          },
+          "kind": {
+            "enum": [
+              "face",
+              "hand",
+              "person",
+              "object"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "score": {
+            "title": "Score",
+            "type": "number"
+          },
+          "w": {
+            "title": "W",
+            "type": "number"
+          },
+          "x": {
+            "description": "0..1 from the left",
+            "title": "X",
+            "type": "number"
+          },
+          "y": {
+            "description": "0..1 from the top",
+            "title": "Y",
+            "type": "number"
+          }
+        },
+        "required": [
+          "kind",
+          "x",
+          "y",
+          "w",
+          "h",
+          "label",
+          "score"
+        ],
+        "title": "AnalysisBox",
+        "type": "object"
+      },
+      "AnalysisCounts": {
+        "properties": {
+          "done": {
+            "title": "Done",
+            "type": "integer"
+          },
+          "failed": {
+            "title": "Failed",
+            "type": "integer"
+          },
+          "pending": {
+            "title": "Pending",
+            "type": "integer"
+          },
+          "running": {
+            "title": "Running",
+            "type": "integer"
+          },
+          "skipped": {
+            "title": "Skipped",
+            "type": "integer"
+          },
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "pending",
+          "running",
+          "done",
+          "failed",
+          "skipped",
+          "total"
+        ],
+        "title": "AnalysisCounts",
+        "type": "object"
+      },
+      "AnalysisStatus": {
+        "properties": {
+          "analyzers": {
+            "items": {
+              "$ref": "#/components/schemas/AnalyzerStatus"
+            },
+            "title": "Analyzers",
+            "type": "array"
+          },
+          "counts": {
+            "$ref": "#/components/schemas/AnalysisCounts"
+          },
+          "worker": {
+            "$ref": "#/components/schemas/WorkerStatus"
+          }
+        },
+        "required": [
+          "worker",
+          "counts",
+          "analyzers"
+        ],
+        "title": "AnalysisStatus",
+        "type": "object"
+      },
+      "AnalyzerStatus": {
+        "properties": {
+          "available": {
+            "title": "Available",
+            "type": "boolean"
+          },
+          "enabled": {
+            "title": "Enabled",
+            "type": "boolean"
+          },
+          "facts": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Facts",
+            "type": "array"
+          },
+          "kind": {
+            "enum": [
+              "basic",
+              "ml"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Why it cannot run (German); null when available.",
+            "title": "Reason"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          },
+          "version": {
+            "title": "Version",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "title",
+          "kind",
+          "version",
+          "enabled",
+          "available",
+          "reason",
+          "facts"
+        ],
+        "title": "AnalyzerStatus",
+        "type": "object"
+      },
+      "AnalyzersIn": {
+        "properties": {
+          "disabled": {
+            "description": "The complete set of analyzers to switch off.",
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 50,
+            "title": "Disabled",
+            "type": "array"
+          }
+        },
+        "required": [
+          "disabled"
+        ],
+        "title": "AnalyzersIn",
+        "type": "object"
+      },
       "ArchiveExportIn": {
         "properties": {
           "kind": {
@@ -1349,6 +1543,11 @@
             "title": "Accept Label",
             "type": "string"
           },
+          "analysis": {
+            "default": false,
+            "title": "Analysis",
+            "type": "boolean"
+          },
           "instagram_account": {
             "title": "Instagram Account",
             "type": "string"
@@ -1406,6 +1605,24 @@
           "id"
         ],
         "title": "DeletePhotoOut",
+        "type": "object"
+      },
+      "DetailLine": {
+        "properties": {
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "value": {
+            "title": "Value",
+            "type": "string"
+          }
+        },
+        "required": [
+          "label",
+          "value"
+        ],
+        "title": "DetailLine",
         "type": "object"
       },
       "DeviceBanOut": {
@@ -1519,6 +1736,10 @@
               "consent_outdated",
               "invalid_instagram",
               "join_closed",
+              "wall_login_required",
+              "wall_no_password",
+              "wall_password_too_short",
+              "invalid_wall_config",
               "uploads_paused",
               "uploads_stopped",
               "unsupported_type",
@@ -1533,6 +1754,7 @@
               "wrong_password",
               "login_locked",
               "invalid_filter",
+              "unknown_analyzer",
               "invalid_cursor",
               "no_fingerprint",
               "restore_required",
@@ -2303,6 +2525,10 @@
       "GuestUser": {
         "description": "What the guest's own browser may see about itself (exactly these keys).",
         "properties": {
+          "analysis_opt_out": {
+            "title": "Analysis Opt Out",
+            "type": "boolean"
+          },
           "banned": {
             "title": "Banned",
             "type": "boolean"
@@ -2331,7 +2557,8 @@
           "name",
           "instagram",
           "banned",
-          "uploads_paused"
+          "uploads_paused",
+          "analysis_opt_out"
         ],
         "title": "GuestUser",
         "type": "object"
@@ -2639,6 +2866,11 @@
             "title": "Accept",
             "type": "boolean"
           },
+          "analysis_opt_out": {
+            "default": false,
+            "title": "Analysis Opt Out",
+            "type": "boolean"
+          },
           "fp": {
             "$ref": "#/components/schemas/Fingerprint"
           },
@@ -2763,6 +2995,20 @@
           "password"
         ],
         "title": "LoginIn",
+        "type": "object"
+      },
+      "MeAnalysisIn": {
+        "description": "„Meine Fotos nicht automatisch auswerten“: true = the Live-Wall analysis\nlooks only at image values (brightness, colour, sharpness) of my photos.",
+        "properties": {
+          "opt_out": {
+            "title": "Opt Out",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "opt_out"
+        ],
+        "title": "MeAnalysisIn",
         "type": "object"
       },
       "MeIn": {
@@ -3353,6 +3599,93 @@
         "title": "PauseState",
         "type": "object"
       },
+      "PhotoAnalysis": {
+        "properties": {
+          "attempts": {
+            "title": "Attempts",
+            "type": "integer"
+          },
+          "boxes": {
+            "items": {
+              "$ref": "#/components/schemas/AnalysisBox"
+            },
+            "title": "Boxes",
+            "type": "array"
+          },
+          "details": {
+            "items": {
+              "$ref": "#/components/schemas/DetailLine"
+            },
+            "title": "Details",
+            "type": "array"
+          },
+          "error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error"
+          },
+          "facts": {
+            "additionalProperties": {
+              "type": "number"
+            },
+            "title": "Facts",
+            "type": "object"
+          },
+          "finished_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Finished At"
+          },
+          "photo_id": {
+            "description": "The photo's public id.",
+            "title": "Photo Id",
+            "type": "string"
+          },
+          "state": {
+            "enum": [
+              "pending",
+              "running",
+              "done",
+              "failed",
+              "skipped"
+            ],
+            "title": "State",
+            "type": "string"
+          },
+          "versions": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "title": "Versions",
+            "type": "object"
+          }
+        },
+        "required": [
+          "photo_id",
+          "state",
+          "attempts",
+          "error",
+          "finished_at",
+          "versions",
+          "facts",
+          "boxes",
+          "details"
+        ],
+        "title": "PhotoAnalysis",
+        "type": "object"
+      },
       "PhotoChangeOut": {
         "properties": {
           "changed": {
@@ -3881,6 +4214,36 @@
           }
         },
         "title": "QrOptions",
+        "type": "object"
+      },
+      "RerunIn": {
+        "properties": {
+          "scope": {
+            "enum": [
+              "failed",
+              "all"
+            ],
+            "title": "Scope",
+            "type": "string"
+          }
+        },
+        "required": [
+          "scope"
+        ],
+        "title": "RerunIn",
+        "type": "object"
+      },
+      "RerunOut": {
+        "properties": {
+          "queued": {
+            "title": "Queued",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "queued"
+        ],
+        "title": "RerunOut",
         "type": "object"
       },
       "SessionOut": {
@@ -4768,6 +5131,1289 @@
           "changed"
         ],
         "title": "UserUploadsOut",
+        "type": "object"
+      },
+      "WallAdminCategoriesOut": {
+        "properties": {
+          "categories": {
+            "items": {
+              "$ref": "#/components/schemas/WallAdminCategory"
+            },
+            "title": "Categories",
+            "type": "array"
+          }
+        },
+        "required": [
+          "categories"
+        ],
+        "title": "WallAdminCategoriesOut",
+        "type": "object"
+      },
+      "WallAdminCategory": {
+        "properties": {
+          "available": {
+            "title": "Available",
+            "type": "boolean"
+          },
+          "emoji": {
+            "title": "Emoji",
+            "type": "string"
+          },
+          "enabled": {
+            "title": "Enabled",
+            "type": "boolean"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "line": {
+            "title": "Line",
+            "type": "string"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Why it can't win anything (German), or null.",
+            "title": "Reason"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          },
+          "winners": {
+            "items": {
+              "$ref": "#/components/schemas/WallAdminWinner"
+            },
+            "title": "Winners",
+            "type": "array"
+          }
+        },
+        "required": [
+          "id",
+          "emoji",
+          "title",
+          "line",
+          "enabled",
+          "available",
+          "reason",
+          "winners"
+        ],
+        "title": "WallAdminCategory",
+        "type": "object"
+      },
+      "WallAdminOut": {
+        "properties": {
+          "categories": {
+            "items": {
+              "$ref": "#/components/schemas/WallCategoryInfo"
+            },
+            "title": "Categories",
+            "type": "array"
+          },
+          "config": {
+            "$ref": "#/components/schemas/WallConfig"
+          },
+          "defaults": {
+            "$ref": "#/components/schemas/WallConfig"
+          },
+          "event_name": {
+            "title": "Event Name",
+            "type": "string"
+          },
+          "open_walls": {
+            "description": "Wall screens connected right now.",
+            "title": "Open Walls",
+            "type": "integer"
+          },
+          "password": {
+            "$ref": "#/components/schemas/WallPasswordState"
+          },
+          "sources": {
+            "description": "The upload extensions a wall can show.",
+            "items": {
+              "$ref": "#/components/schemas/WallSource"
+            },
+            "title": "Sources",
+            "type": "array"
+          },
+          "wall_path": {
+            "const": "/livewall",
+            "title": "Wall Path",
+            "type": "string"
+          }
+        },
+        "required": [
+          "config",
+          "defaults",
+          "password",
+          "wall_path",
+          "sources",
+          "categories",
+          "open_walls",
+          "event_name"
+        ],
+        "title": "WallAdminOut",
+        "type": "object"
+      },
+      "WallAdminWinner": {
+        "properties": {
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "photo_id": {
+            "title": "Photo Id",
+            "type": "string"
+          },
+          "thumb_url": {
+            "title": "Thumb Url",
+            "type": "string"
+          },
+          "value": {
+            "title": "Value",
+            "type": "number"
+          }
+        },
+        "required": [
+          "photo_id",
+          "thumb_url",
+          "value",
+          "label"
+        ],
+        "title": "WallAdminWinner",
+        "type": "object"
+      },
+      "WallByeData": {
+        "properties": {
+          "reason": {
+            "enum": [
+              "password",
+              "logout"
+            ],
+            "title": "Reason",
+            "type": "string"
+          }
+        },
+        "required": [
+          "reason"
+        ],
+        "title": "WallByeData",
+        "type": "object"
+      },
+      "WallByeEvent": {
+        "description": "This wall was logged out; the stream ends.",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/WallByeData"
+          },
+          "id": {
+            "description": "`<epoch>-<n>`: the SSE `id:` line.",
+            "title": "Id",
+            "type": "string"
+          },
+          "type": {
+            "const": "bye",
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "type",
+          "id",
+          "data"
+        ],
+        "title": "WallByeEvent",
+        "type": "object"
+      },
+      "WallCategoriesChangedEvent": {
+        "description": "Refetch /livewall/api/categories.",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/WallEmptyData"
+          },
+          "id": {
+            "description": "`<epoch>-<n>`: the SSE `id:` line.",
+            "title": "Id",
+            "type": "string"
+          },
+          "type": {
+            "const": "categories.changed",
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "type",
+          "id",
+          "data"
+        ],
+        "title": "WallCategoriesChangedEvent",
+        "type": "object"
+      },
+      "WallCategoriesConfig": {
+        "properties": {
+          "disabled": {
+            "description": "Category ids switched off (unknown ids are kept and ignored).",
+            "items": {
+              "pattern": "^[a-z][a-z0-9_]{1,40}$",
+              "type": "string"
+            },
+            "maxItems": 200,
+            "title": "Disabled",
+            "type": "array"
+          },
+          "per_category_s": {
+            "default": 10,
+            "maximum": 60.0,
+            "minimum": 4.0,
+            "title": "Per Category S",
+            "type": "integer"
+          }
+        },
+        "title": "WallCategoriesConfig",
+        "type": "object"
+      },
+      "WallCategoriesOut": {
+        "properties": {
+          "categories": {
+            "description": "Enabled ones with winners, in order.",
+            "items": {
+              "$ref": "#/components/schemas/WallCategory"
+            },
+            "title": "Categories",
+            "type": "array"
+          }
+        },
+        "required": [
+          "categories"
+        ],
+        "title": "WallCategoriesOut",
+        "type": "object"
+      },
+      "WallCategory": {
+        "properties": {
+          "emoji": {
+            "title": "Emoji",
+            "type": "string"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "line": {
+            "title": "Line",
+            "type": "string"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          },
+          "winners": {
+            "description": "1–3, best first.",
+            "items": {
+              "$ref": "#/components/schemas/WallWinner"
+            },
+            "title": "Winners",
+            "type": "array"
+          }
+        },
+        "required": [
+          "id",
+          "emoji",
+          "title",
+          "line",
+          "winners"
+        ],
+        "title": "WallCategory",
+        "type": "object"
+      },
+      "WallCategoryInfo": {
+        "properties": {
+          "available": {
+            "title": "Available",
+            "type": "boolean"
+          },
+          "emoji": {
+            "title": "Emoji",
+            "type": "string"
+          },
+          "enabled": {
+            "title": "Enabled",
+            "type": "boolean"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "line": {
+            "title": "Line",
+            "type": "string"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Why it can't win anything (German), or null.",
+            "title": "Reason"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "emoji",
+          "title",
+          "line",
+          "enabled",
+          "available",
+          "reason"
+        ],
+        "title": "WallCategoryInfo",
+        "type": "object"
+      },
+      "WallConfig": {
+        "description": "The wall's settings as stored and sent.",
+        "properties": {
+          "by": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Who saved last (server-set).",
+            "title": "By"
+          },
+          "categories": {
+            "$ref": "#/components/schemas/WallCategoriesConfig"
+          },
+          "delay_s": {
+            "default": 20,
+            "description": "New photos appear after this delay.",
+            "maximum": 600.0,
+            "minimum": 0.0,
+            "title": "Delay S",
+            "type": "integer"
+          },
+          "gallery": {
+            "$ref": "#/components/schemas/WallGallery"
+          },
+          "look": {
+            "$ref": "#/components/schemas/WallLook"
+          },
+          "overlay": {
+            "$ref": "#/components/schemas/WallOverlay"
+          },
+          "playlist": {
+            "description": "Every mode exactly once, in playing order; at least one enabled.",
+            "items": {
+              "$ref": "#/components/schemas/WallPlaylistEntry"
+            },
+            "title": "Playlist",
+            "type": "array"
+          },
+          "rev": {
+            "default": 0,
+            "description": "Counts saves (server-set).",
+            "title": "Rev",
+            "type": "integer"
+          },
+          "show_instagram": {
+            "default": false,
+            "title": "Show Instagram",
+            "type": "boolean"
+          },
+          "sources": {
+            "description": "Upload extensions shown on the wall; empty = all of them.",
+            "items": {
+              "pattern": "^[a-z][a-z0-9-]{1,30}$",
+              "type": "string"
+            },
+            "maxItems": 50,
+            "title": "Sources",
+            "type": "array"
+          },
+          "spotlight": {
+            "$ref": "#/components/schemas/WallSpotlight"
+          },
+          "updated_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Server-set.",
+            "title": "Updated At"
+          }
+        },
+        "title": "WallConfig",
+        "type": "object"
+      },
+      "WallConfigData": {
+        "properties": {
+          "config": {
+            "$ref": "#/components/schemas/WallConfig"
+          },
+          "event_name": {
+            "title": "Event Name",
+            "type": "string"
+          },
+          "qr": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/WallQr"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "config",
+          "event_name",
+          "qr"
+        ],
+        "title": "WallConfigData",
+        "type": "object"
+      },
+      "WallConfigEvent": {
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/WallConfigData"
+          },
+          "id": {
+            "description": "`<epoch>-<n>`: the SSE `id:` line.",
+            "title": "Id",
+            "type": "string"
+          },
+          "type": {
+            "const": "config",
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "type",
+          "id",
+          "data"
+        ],
+        "title": "WallConfigEvent",
+        "type": "object"
+      },
+      "WallEmptyData": {
+        "properties": {},
+        "title": "WallEmptyData",
+        "type": "object"
+      },
+      "WallEvent": {
+        "description": "One message of the wall's event stream, discriminated by `type`.",
+        "discriminator": {
+          "mapping": {
+            "bye": "#/components/schemas/WallByeEvent",
+            "categories.changed": "#/components/schemas/WallCategoriesChangedEvent",
+            "config": "#/components/schemas/WallConfigEvent",
+            "hello": "#/components/schemas/WallHelloEvent",
+            "photo.add": "#/components/schemas/WallPhotoAddEvent",
+            "photo.remove": "#/components/schemas/WallPhotoRemoveEvent",
+            "photo.update": "#/components/schemas/WallPhotoUpdateEvent",
+            "stream.resync": "#/components/schemas/WallResyncEvent"
+          },
+          "propertyName": "type"
+        },
+        "oneOf": [
+          {
+            "$ref": "#/components/schemas/WallHelloEvent"
+          },
+          {
+            "$ref": "#/components/schemas/WallPhotoAddEvent"
+          },
+          {
+            "$ref": "#/components/schemas/WallPhotoUpdateEvent"
+          },
+          {
+            "$ref": "#/components/schemas/WallPhotoRemoveEvent"
+          },
+          {
+            "$ref": "#/components/schemas/WallConfigEvent"
+          },
+          {
+            "$ref": "#/components/schemas/WallCategoriesChangedEvent"
+          },
+          {
+            "$ref": "#/components/schemas/WallByeEvent"
+          },
+          {
+            "$ref": "#/components/schemas/WallResyncEvent"
+          }
+        ],
+        "title": "WallEvent"
+      },
+      "WallFeed": {
+        "properties": {
+          "config": {
+            "$ref": "#/components/schemas/WallConfig"
+          },
+          "cursor": {
+            "description": "Pass as `?since=` to the stream: nothing is missed.",
+            "title": "Cursor",
+            "type": "string"
+          },
+          "event_name": {
+            "title": "Event Name",
+            "type": "string"
+          },
+          "photos": {
+            "description": "Newest first, at most `limit`.",
+            "items": {
+              "$ref": "#/components/schemas/WallPhoto"
+            },
+            "title": "Photos",
+            "type": "array"
+          },
+          "qr": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/WallQr"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The corner QR code (overlay.qr on), else null."
+          },
+          "server_time": {
+            "title": "Server Time",
+            "type": "string"
+          },
+          "total": {
+            "description": "Every photo visible on the wall.",
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "config",
+          "event_name",
+          "qr",
+          "total",
+          "photos",
+          "cursor",
+          "server_time"
+        ],
+        "title": "WallFeed",
+        "type": "object"
+      },
+      "WallGallery": {
+        "properties": {
+          "rows": {
+            "default": 3,
+            "maximum": 6.0,
+            "minimum": 2.0,
+            "title": "Rows",
+            "type": "integer"
+          },
+          "speed": {
+            "default": "medium",
+            "enum": [
+              "slow",
+              "medium",
+              "fast"
+            ],
+            "title": "Speed",
+            "type": "string"
+          }
+        },
+        "title": "WallGallery",
+        "type": "object"
+      },
+      "WallHelloData": {
+        "properties": {
+          "config_rev": {
+            "title": "Config Rev",
+            "type": "integer"
+          },
+          "server_time": {
+            "title": "Server Time",
+            "type": "string"
+          }
+        },
+        "required": [
+          "config_rev",
+          "server_time"
+        ],
+        "title": "WallHelloData",
+        "type": "object"
+      },
+      "WallHelloEvent": {
+        "description": "Sent first on every connect (no id).",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/WallHelloData"
+          },
+          "type": {
+            "const": "hello",
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "type",
+          "data"
+        ],
+        "title": "WallHelloEvent",
+        "type": "object"
+      },
+      "WallLoginIn": {
+        "properties": {
+          "password": {
+            "maxLength": 256,
+            "title": "Password",
+            "type": "string"
+          }
+        },
+        "required": [
+          "password"
+        ],
+        "title": "WallLoginIn",
+        "type": "object"
+      },
+      "WallLook": {
+        "properties": {
+          "background": {
+            "default": "#2b2b31",
+            "pattern": "^#[0-9a-f]{6}$",
+            "title": "Background",
+            "type": "string"
+          },
+          "calm": {
+            "default": false,
+            "title": "Calm",
+            "type": "boolean"
+          },
+          "fps": {
+            "default": 30,
+            "enum": [
+              30,
+              60
+            ],
+            "title": "Fps",
+            "type": "integer"
+          },
+          "preset": {
+            "default": "blobs",
+            "enum": [
+              "blobs",
+              "aurora",
+              "disco",
+              "confetti",
+              "plain"
+            ],
+            "title": "Preset",
+            "type": "string"
+          },
+          "primary": {
+            "default": "#a855f7",
+            "pattern": "^#[0-9a-f]{6}$",
+            "title": "Primary",
+            "type": "string"
+          },
+          "secondary": {
+            "default": "#ff4fa3",
+            "pattern": "^#[0-9a-f]{6}$",
+            "title": "Secondary",
+            "type": "string"
+          }
+        },
+        "title": "WallLook",
+        "type": "object"
+      },
+      "WallOk": {
+        "properties": {
+          "ok": {
+            "const": true,
+            "title": "Ok",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "ok"
+        ],
+        "title": "WallOk",
+        "type": "object"
+      },
+      "WallOverlay": {
+        "properties": {
+          "corner": {
+            "default": "bottom-right",
+            "enum": [
+              "bottom-right",
+              "bottom-left",
+              "top-right",
+              "top-left"
+            ],
+            "title": "Corner",
+            "type": "string"
+          },
+          "counter": {
+            "default": true,
+            "title": "Counter",
+            "type": "boolean"
+          },
+          "event_name": {
+            "default": true,
+            "title": "Event Name",
+            "type": "boolean"
+          },
+          "qr": {
+            "default": false,
+            "title": "Qr",
+            "type": "boolean"
+          },
+          "qr_code_id": {
+            "anyOf": [
+              {
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The QR code shown in the corner; null = the lowest active one.",
+            "title": "Qr Code Id"
+          }
+        },
+        "title": "WallOverlay",
+        "type": "object"
+      },
+      "WallPasswordIn": {
+        "properties": {
+          "password": {
+            "description": "6–256 characters.",
+            "maxLength": 256,
+            "title": "Password",
+            "type": "string"
+          }
+        },
+        "required": [
+          "password"
+        ],
+        "title": "WallPasswordIn",
+        "type": "object"
+      },
+      "WallPasswordState": {
+        "properties": {
+          "changed_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Changed At"
+          },
+          "set": {
+            "title": "Set",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "set",
+          "changed_at"
+        ],
+        "title": "WallPasswordState",
+        "type": "object"
+      },
+      "WallPhoto": {
+        "properties": {
+          "analysis": {
+            "enum": [
+              "pending",
+              "running",
+              "done",
+              "failed",
+              "skipped",
+              "off"
+            ],
+            "title": "Analysis",
+            "type": "string"
+          },
+          "author": {
+            "description": "The guest's pseudonym.",
+            "title": "Author",
+            "type": "string"
+          },
+          "author_key": {
+            "description": "Stable per guest, not reversible (12 chars).",
+            "title": "Author Key",
+            "type": "string"
+          },
+          "facts": {
+            "additionalProperties": {
+              "type": "number"
+            },
+            "description": "people, faces, hands, smiles when analysed.",
+            "title": "Facts",
+            "type": "object"
+          },
+          "height": {
+            "title": "Height",
+            "type": "integer"
+          },
+          "id": {
+            "description": "Public photo id.",
+            "title": "Id",
+            "type": "string"
+          },
+          "instagram": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Only when the wall shows Instagram handles.",
+            "title": "Instagram"
+          },
+          "seq": {
+            "title": "Seq",
+            "type": "integer"
+          },
+          "source": {
+            "description": "Extension id.",
+            "title": "Source",
+            "type": "string"
+          },
+          "taken_at": {
+            "title": "Taken At",
+            "type": "string"
+          },
+          "urls": {
+            "$ref": "#/components/schemas/WallPhotoUrls"
+          },
+          "width": {
+            "title": "Width",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "source",
+          "seq",
+          "taken_at",
+          "width",
+          "height",
+          "author",
+          "instagram",
+          "author_key",
+          "urls",
+          "facts",
+          "analysis"
+        ],
+        "title": "WallPhoto",
+        "type": "object"
+      },
+      "WallPhotoAddEvent": {
+        "description": "A photo became visible (after the delay, unhidden, unbanned).",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/WallPhotoData"
+          },
+          "id": {
+            "description": "`<epoch>-<n>`: the SSE `id:` line.",
+            "title": "Id",
+            "type": "string"
+          },
+          "type": {
+            "const": "photo.add",
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "type",
+          "id",
+          "data"
+        ],
+        "title": "WallPhotoAddEvent",
+        "type": "object"
+      },
+      "WallPhotoData": {
+        "properties": {
+          "photo": {
+            "$ref": "#/components/schemas/WallPhoto"
+          }
+        },
+        "required": [
+          "photo"
+        ],
+        "title": "WallPhotoData",
+        "type": "object"
+      },
+      "WallPhotoRemoveEvent": {
+        "description": "Photos to take down at once (hidden, deleted, banned).",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/WallRemoveData"
+          },
+          "id": {
+            "description": "`<epoch>-<n>`: the SSE `id:` line.",
+            "title": "Id",
+            "type": "string"
+          },
+          "type": {
+            "const": "photo.remove",
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "type",
+          "id",
+          "data"
+        ],
+        "title": "WallPhotoRemoveEvent",
+        "type": "object"
+      },
+      "WallPhotoUpdateEvent": {
+        "description": "A visible photo changed (e.g. its analysis finished).",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/WallPhotoData"
+          },
+          "id": {
+            "description": "`<epoch>-<n>`: the SSE `id:` line.",
+            "title": "Id",
+            "type": "string"
+          },
+          "type": {
+            "const": "photo.update",
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "type",
+          "id",
+          "data"
+        ],
+        "title": "WallPhotoUpdateEvent",
+        "type": "object"
+      },
+      "WallPhotoUrls": {
+        "properties": {
+          "l": {
+            "description": "The stored photo (≤ 2400 px).",
+            "title": "L",
+            "type": "string"
+          },
+          "m": {
+            "description": "1280 px (cached derivative).",
+            "title": "M",
+            "type": "string"
+          },
+          "s": {
+            "description": "400 px thumbnail.",
+            "title": "S",
+            "type": "string"
+          }
+        },
+        "required": [
+          "s",
+          "m",
+          "l"
+        ],
+        "title": "WallPhotoUrls",
+        "type": "object"
+      },
+      "WallPlaylistEntry": {
+        "properties": {
+          "duration_s": {
+            "default": 60,
+            "maximum": 3600.0,
+            "minimum": 10.0,
+            "title": "Duration S",
+            "type": "integer"
+          },
+          "enabled": {
+            "default": true,
+            "title": "Enabled",
+            "type": "boolean"
+          },
+          "mode": {
+            "enum": [
+              "spotlight",
+              "gallery",
+              "categories"
+            ],
+            "title": "Mode",
+            "type": "string"
+          }
+        },
+        "required": [
+          "mode"
+        ],
+        "title": "WallPlaylistEntry",
+        "type": "object"
+      },
+      "WallQr": {
+        "properties": {
+          "name": {
+            "description": "The code's name, e.g. „Otter 1“.",
+            "title": "Name",
+            "type": "string"
+          },
+          "url": {
+            "description": "What the code opens: absolute with VB_PUBLIC_BASE_URL (or in the feed), else a path to resolve against the wall's own origin.",
+            "title": "Url",
+            "type": "string"
+          }
+        },
+        "required": [
+          "url",
+          "name"
+        ],
+        "title": "WallQr",
+        "type": "object"
+      },
+      "WallRemoveData": {
+        "properties": {
+          "ids": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Ids",
+            "type": "array"
+          }
+        },
+        "required": [
+          "ids"
+        ],
+        "title": "WallRemoveData",
+        "type": "object"
+      },
+      "WallResyncEvent": {
+        "description": "The missed events are gone: refetch /livewall/api/feed.",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/WallEmptyData"
+          },
+          "type": {
+            "const": "stream.resync",
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "type",
+          "data"
+        ],
+        "title": "WallResyncEvent",
+        "type": "object"
+      },
+      "WallSessionOut": {
+        "properties": {
+          "ok": {
+            "const": true,
+            "title": "Ok",
+            "type": "boolean"
+          },
+          "via": {
+            "enum": [
+              "password",
+              "admin"
+            ],
+            "title": "Via",
+            "type": "string"
+          }
+        },
+        "required": [
+          "ok",
+          "via"
+        ],
+        "title": "WallSessionOut",
+        "type": "object"
+      },
+      "WallSource": {
+        "properties": {
+          "emoji": {
+            "title": "Emoji",
+            "type": "string"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "title",
+          "emoji"
+        ],
+        "title": "WallSource",
+        "type": "object"
+      },
+      "WallSpotlight": {
+        "properties": {
+          "algorithm": {
+            "default": "fresh_first",
+            "enum": [
+              "newest",
+              "random",
+              "shuffle",
+              "fair",
+              "least_shown",
+              "fresh_first",
+              "highlights"
+            ],
+            "title": "Algorithm",
+            "type": "string"
+          },
+          "interval_s": {
+            "default": 8,
+            "maximum": 120.0,
+            "minimum": 3.0,
+            "title": "Interval S",
+            "type": "integer"
+          },
+          "n": {
+            "default": 12,
+            "description": "How many photos one round shows.",
+            "maximum": 100.0,
+            "minimum": 1.0,
+            "title": "N",
+            "type": "integer"
+          },
+          "transition": {
+            "default": "random",
+            "enum": [
+              "crossfade",
+              "kenburns",
+              "spring",
+              "dither",
+              "pixelate",
+              "glitch",
+              "polaroid",
+              "slot",
+              "jelly",
+              "stamp",
+              "confetti",
+              "random"
+            ],
+            "title": "Transition",
+            "type": "string"
+          },
+          "transition_ms": {
+            "default": 1200,
+            "maximum": 4000.0,
+            "minimum": 300.0,
+            "title": "Transition Ms",
+            "type": "integer"
+          }
+        },
+        "title": "WallSpotlight",
+        "type": "object"
+      },
+      "WallWinner": {
+        "properties": {
+          "label": {
+            "description": "German, e.g. „7 Personen“.",
+            "title": "Label",
+            "type": "string"
+          },
+          "photo": {
+            "$ref": "#/components/schemas/WallPhoto"
+          },
+          "value": {
+            "title": "Value",
+            "type": "number"
+          }
+        },
+        "required": [
+          "photo",
+          "value",
+          "label"
+        ],
+        "title": "WallWinner",
+        "type": "object"
+      },
+      "WorkerStatus": {
+        "properties": {
+          "last_beat_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Beat At"
+          },
+          "message": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "German hint for the admin, e.g. missing models.",
+            "title": "Message"
+          },
+          "ml": {
+            "description": "The worker has the ML packages (`ml` extra).",
+            "title": "Ml",
+            "type": "boolean"
+          },
+          "state": {
+            "enum": [
+              "running",
+              "starting",
+              "stopped",
+              "off",
+              "crashed"
+            ],
+            "title": "State",
+            "type": "string"
+          }
+        },
+        "required": [
+          "state",
+          "ml",
+          "message",
+          "last_beat_at"
+        ],
+        "title": "WorkerStatus",
         "type": "object"
       }
     }
@@ -11124,6 +12770,118 @@
         ]
       }
     },
+    "/api/me/analysis": {
+      "put": {
+        "description": "„Meine Fotos nicht automatisch auswerten“ on or off. The guest's photos\nare analysed again: with it on, only image values (no faces, hands,\nexpressions), and they never win a category that needs more.",
+        "operationId": "update_my_analysis_api_me_analysis_put",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MeAnalysisIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MeOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Invalid input (see `error`)"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Needs consent or an admin session"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Forbidden: banned, paused, stopped, joining closed or a foreign Origin (CSRF)"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Not found, or no party access (`scan_qr`)"
+          },
+          "411": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Content-Length required"
+          },
+          "413": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Request too large"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Request validation failed (`invalid_request`)"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Rate limited (`Retry-After` header)"
+          }
+        },
+        "summary": "Update My Analysis",
+        "tags": [
+          "guest"
+        ]
+      }
+    },
     "/api/me/photos": {
       "get": {
         "description": "The guest's own photos that are still up (not hidden, not deleted),\nnewest first, at most 60.",
@@ -11372,6 +13130,969 @@
         ]
       }
     },
+    "/api/x/wall/admin/analysis": {
+      "get": {
+        "description": "Worker state, photo counts per state and the analyzers.",
+        "operationId": "analysis_status_api_x_wall_admin_analysis_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AnalysisStatus"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Invalid input (see `error`)"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Needs consent or an admin session"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Forbidden: banned, paused, stopped, joining closed or a foreign Origin (CSRF)"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Not found, or no party access (`scan_qr`)"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Request validation failed (`invalid_request`)"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Rate limited (`Retry-After` header)"
+          }
+        },
+        "summary": "Analysis Status",
+        "tags": [
+          "extension:wall",
+          "wall"
+        ]
+      }
+    },
+    "/api/x/wall/admin/analysis/analyzers": {
+      "put": {
+        "description": "Switch analyzers off: `disabled` is the complete set (an empty list\nswitches everything on, FairFace age included). `basic` always runs.",
+        "operationId": "set_analyzers_api_x_wall_admin_analysis_analyzers_put",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AnalyzersIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AnalysisStatus"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Invalid input (see `error`)"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Needs consent or an admin session"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Forbidden: banned, paused, stopped, joining closed or a foreign Origin (CSRF)"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Not found, or no party access (`scan_qr`)"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Request validation failed (`invalid_request`)"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Rate limited (`Retry-After` header)"
+          }
+        },
+        "summary": "Set Analyzers",
+        "tags": [
+          "extension:wall",
+          "wall"
+        ]
+      }
+    },
+    "/api/x/wall/admin/analysis/rerun": {
+      "post": {
+        "description": "Analyse failed (or all) photos again; the worker picks them up newest first.",
+        "operationId": "rerun_api_x_wall_admin_analysis_rerun_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RerunIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RerunOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Invalid input (see `error`)"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Needs consent or an admin session"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Forbidden: banned, paused, stopped, joining closed or a foreign Origin (CSRF)"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Not found, or no party access (`scan_qr`)"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Request validation failed (`invalid_request`)"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Rate limited (`Retry-After` header)"
+          }
+        },
+        "summary": "Rerun",
+        "tags": [
+          "extension:wall",
+          "wall"
+        ]
+      }
+    },
+    "/api/x/wall/admin/categories": {
+      "get": {
+        "description": "Every category (disabled ones too) with what would win right now.",
+        "operationId": "categories_api_x_wall_admin_categories_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WallAdminCategoriesOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Invalid input (see `error`)"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Needs consent or an admin session"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Forbidden: banned, paused, stopped, joining closed or a foreign Origin (CSRF)"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Not found, or no party access (`scan_qr`)"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Request validation failed (`invalid_request`)"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Rate limited (`Retry-After` header)"
+          }
+        },
+        "summary": "Categories",
+        "tags": [
+          "extension:wall"
+        ]
+      }
+    },
+    "/api/x/wall/admin/config": {
+      "get": {
+        "description": "The wall's settings, password state, sources, categories, open walls.",
+        "operationId": "get_config_api_x_wall_admin_config_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WallAdminOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Invalid input (see `error`)"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Needs consent or an admin session"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Forbidden: banned, paused, stopped, joining closed or a foreign Origin (CSRF)"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Not found, or no party access (`scan_qr`)"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Request validation failed (`invalid_request`)"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Rate limited (`Retry-After` header)"
+          }
+        },
+        "summary": "Get Config",
+        "tags": [
+          "extension:wall"
+        ]
+      },
+      "put": {
+        "description": "Save the settings (body: WallConfig; `rev`, `updated_at`, `by` are\nignored). Open walls get a `config` event.",
+        "operationId": "put_config_api_x_wall_admin_config_put",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WallConfig"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WallAdminOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Invalid input (see `error`)"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Needs consent or an admin session"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Forbidden: banned, paused, stopped, joining closed or a foreign Origin (CSRF)"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Not found, or no party access (`scan_qr`)"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Request validation failed (`invalid_request`)"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Rate limited (`Retry-After` header)"
+          }
+        },
+        "summary": "Put Config",
+        "tags": [
+          "extension:wall"
+        ]
+      }
+    },
+    "/api/x/wall/admin/logout": {
+      "post": {
+        "description": "Log every wall out (the password stays).",
+        "operationId": "logout_walls_api_x_wall_admin_logout_post",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WallOk"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Invalid input (see `error`)"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Needs consent or an admin session"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Forbidden: banned, paused, stopped, joining closed or a foreign Origin (CSRF)"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Not found, or no party access (`scan_qr`)"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Request validation failed (`invalid_request`)"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Rate limited (`Retry-After` header)"
+          }
+        },
+        "summary": "Logout Walls",
+        "tags": [
+          "extension:wall"
+        ]
+      }
+    },
+    "/api/x/wall/admin/password": {
+      "delete": {
+        "description": "Remove the wall password: every wall is logged out, none can log in.",
+        "operationId": "clear_password_api_x_wall_admin_password_delete",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WallPasswordState"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Invalid input (see `error`)"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Needs consent or an admin session"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Forbidden: banned, paused, stopped, joining closed or a foreign Origin (CSRF)"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Not found, or no party access (`scan_qr`)"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Request validation failed (`invalid_request`)"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Rate limited (`Retry-After` header)"
+          }
+        },
+        "summary": "Clear Password",
+        "tags": [
+          "extension:wall"
+        ]
+      },
+      "put": {
+        "description": "Set or change the wall password: every wall is logged out.",
+        "operationId": "set_password_api_x_wall_admin_password_put",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WallPasswordIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WallPasswordState"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Invalid input (see `error`)"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Needs consent or an admin session"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Forbidden: banned, paused, stopped, joining closed or a foreign Origin (CSRF)"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Not found, or no party access (`scan_qr`)"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Request validation failed (`invalid_request`)"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Rate limited (`Retry-After` header)"
+          }
+        },
+        "summary": "Set Password",
+        "tags": [
+          "extension:wall"
+        ]
+      }
+    },
+    "/api/x/wall/admin/photos/{public_id}/analysis": {
+      "get": {
+        "description": "One photo's analysis: facts, boxes, German details. A photo the worker\nhas not reached yet is `pending`.",
+        "operationId": "photo_analysis_api_x_wall_admin_photos__public_id__analysis_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "public_id",
+            "required": true,
+            "schema": {
+              "title": "Public Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PhotoAnalysis"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Invalid input (see `error`)"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Needs consent or an admin session"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Forbidden: banned, paused, stopped, joining closed or a foreign Origin (CSRF)"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Not found, or no party access (`scan_qr`)"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Request validation failed (`invalid_request`)"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Rate limited (`Retry-After` header)"
+          }
+        },
+        "summary": "Photo Analysis",
+        "tags": [
+          "extension:wall",
+          "wall"
+        ]
+      },
+      "post": {
+        "description": "„Neu analysieren“: queue this photo again (state `pending`).",
+        "operationId": "request_analysis_api_x_wall_admin_photos__public_id__analysis_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "public_id",
+            "required": true,
+            "schema": {
+              "title": "Public Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PhotoAnalysis"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Invalid input (see `error`)"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Needs consent or an admin session"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Forbidden: banned, paused, stopped, joining closed or a foreign Origin (CSRF)"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Not found, or no party access (`scan_qr`)"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Request validation failed (`invalid_request`)"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Rate limited (`Retry-After` header)"
+          }
+        },
+        "summary": "Request Analysis",
+        "tags": [
+          "extension:wall",
+          "wall"
+        ]
+      }
+    },
     "/api/x/{ext_id}/upload": {
       "post": {
         "description": "Upload one JPEG for an activity. Answers 201 with the stored photo\nand the activity's extra fields (beer: `beer_number`, `total`; booth:\n`booth_number`).",
@@ -11524,6 +14245,338 @@
         "summary": "Healthz",
         "tags": [
           "health"
+        ]
+      }
+    },
+    "/livewall/api/categories": {
+      "get": {
+        "description": "The enabled categories that have winners, in catalogue order.",
+        "operationId": "categories_livewall_api_categories_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WallCategoriesOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Needs consent or an admin session"
+          }
+        },
+        "summary": "Categories",
+        "tags": [
+          "wall"
+        ]
+      }
+    },
+    "/livewall/api/feed": {
+      "get": {
+        "description": "The config and the newest visible photos. `cursor` resumes the stream\nright after this answer (`?since=`).",
+        "operationId": "feed_livewall_api_feed_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 500,
+              "maximum": 1000,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WallFeed"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Needs consent or an admin session"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Request validation failed (`invalid_request`)"
+          }
+        },
+        "summary": "Feed",
+        "tags": [
+          "wall"
+        ]
+      }
+    },
+    "/livewall/api/session": {
+      "delete": {
+        "description": "Log this screen out (only this one).",
+        "operationId": "logout_livewall_api_session_delete",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WallOk"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Forbidden: banned, paused, stopped, joining closed or a foreign Origin (CSRF)"
+          }
+        },
+        "summary": "Logout",
+        "tags": [
+          "wall"
+        ]
+      },
+      "get": {
+        "description": "Whether this screen may watch: 401 log in, 409 no wall password yet.",
+        "operationId": "session_livewall_api_session_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WallSessionOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Needs consent or an admin session"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Conflict"
+          }
+        },
+        "summary": "Session",
+        "tags": [
+          "wall"
+        ]
+      },
+      "post": {
+        "description": "Log this screen in with the wall password (sets the `vb_wall` cookie).",
+        "operationId": "login_livewall_api_session_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WallLoginIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WallSessionOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Forbidden: banned, paused, stopped, joining closed or a foreign Origin (CSRF)"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Request validation failed (`invalid_request`)"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Rate limited (`Retry-After` header)"
+          }
+        },
+        "summary": "Login",
+        "tags": [
+          "wall"
+        ]
+      }
+    },
+    "/livewall/api/stream": {
+      "get": {
+        "description": "The wall's live events (resume with `Last-Event-ID` or `?since=<feed cursor>`).",
+        "operationId": "stream_livewall_api_stream_get",
+        "parameters": [
+          {
+            "description": "Resume after this event id.",
+            "in": "query",
+            "name": "since",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 64,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Resume after this event id.",
+              "title": "Since"
+            }
+          },
+          {
+            "in": "header",
+            "name": "last-event-id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 64,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Last-Event-Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "text/event-stream": {
+                "itemSchema": {
+                  "properties": {
+                    "data": {
+                      "contentMediaType": "application/json",
+                      "contentSchema": {
+                        "$ref": "#/components/schemas/WallEvent"
+                      },
+                      "type": "string"
+                    },
+                    "event": {
+                      "type": "string"
+                    },
+                    "id": {
+                      "type": "string"
+                    },
+                    "retry": {
+                      "minimum": 0,
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "data"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Server-Sent Events; each message's `data` is the event's `data`."
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Needs consent or an admin session"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Request validation failed (`invalid_request`)"
+          }
+        },
+        "summary": "Stream",
+        "tags": [
+          "wall"
         ]
       }
     },

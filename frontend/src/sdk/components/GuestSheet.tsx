@@ -1,15 +1,18 @@
 /**
  * The "Du" sheet, opened from the guest pass: who you are at this party (the random
- * name and why it is random), your Instagram name (edit, remove), and whether you
- * can upload, in plain words. Test id `guest-sheet`.
+ * name and why it is random), your Instagram name (edit, remove), „Meine Fotos nicht
+ * automatisch auswerten“ while the Live-Wall analysis runs, and whether you can upload,
+ * in plain words. Test id `guest-sheet`.
  */
 import { useId, useRef, useState, type FormEvent } from 'react';
 import { isApiError } from '@/api/errors';
 import { msg, t } from '@/lib/messages.de';
 import { Button } from '@/ui/Button';
 import { Sheet } from '@/ui/Sheet';
+import { Switch } from '@/ui/Switch';
 import { showToast } from '@/ui/Toast';
-import { setInstagram, useSession } from '../session';
+import { ANALYSIS_OPT_OUT } from '../identity';
+import { setAnalysisOptOut, setInstagram, useJoinText, useSession } from '../session';
 import { useGuestStatus } from '../status';
 import { HandleField } from './HandleField';
 import { StatusDot } from './StatusSlot';
@@ -22,6 +25,7 @@ export interface GuestSheetProps {
 function Body({ onDone }: { onDone: () => void }) {
   const session = useSession();
   const status = useGuestStatus();
+  const joinText = useJoinText();
   const user = session.status === 'ready' || session.status === 'banned' ? session.user : null;
   const saved = user?.instagram ?? '';
   const [value, setValue] = useState(saved);
@@ -109,6 +113,8 @@ function Body({ onDone }: { onDone: () => void }) {
         </div>
       </form>
 
+      {joinText?.analysis ? <AnalysisSection optOut={user.analysis_opt_out} /> : null}
+
       <section aria-labelledby={titleId} className="grid gap-1.5 border-t border-line pt-4">
         <h3 id={titleId} className="text-sm font-semibold">
           {t.upload}
@@ -119,6 +125,38 @@ function Body({ onDone }: { onDone: () => void }) {
         </p>
       </section>
     </div>
+  );
+}
+
+/** „Meine Fotos nicht automatisch auswerten“ (the Live-Wall's photo analysis): saved at once. */
+function AnalysisSection({ optOut }: { optOut: boolean }) {
+  const [busy, setBusy] = useState(false);
+  const change = async (next: boolean) => {
+    setBusy(true);
+    try {
+      await setAnalysisOptOut(next);
+      showToast({
+        tone: 'success',
+        message: next ? 'Deine Fotos werden nicht mehr ausgewertet' : 'Deine Fotos werden wieder ausgewertet',
+      });
+    } catch (err) {
+      showToast({ tone: 'error', message: isApiError(err) ? err.message : msg.generic });
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <section className="grid gap-1.5 border-t border-line pt-4">
+      <Switch
+        isSelected={optOut}
+        isPending={busy}
+        onChange={(next) => void change(next)}
+        description={ANALYSIS_OPT_OUT.help}
+        data-testid="guest-analysis-opt-out"
+      >
+        {ANALYSIS_OPT_OUT.label}
+      </Switch>
+    </section>
   );
 }
 

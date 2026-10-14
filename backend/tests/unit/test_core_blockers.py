@@ -293,3 +293,10 @@ def test_source_paths_survive_vendored_rules():
 
 def test_public_files_and_sources_survive_full_lists(full_lists):
     assert network_hits(frontend_public() + frontend_sources(), full_lists) == []
+
+
+def test_livewall_urls_are_checked(requests_):  # type: ignore[no-untyped-def]
+    urls = {r.url.removeprefix(bl.BASE) for r in requests_}
+    assert {"/livewall", "/livewall/api/session", "/livewall/api/categories"} <= urls
+    assert "/admin/manage?tab=livewall" in urls
+    assert any(u.startswith("/api/x/wall/admin/analysis") for u in urls)

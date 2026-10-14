@@ -1,0 +1,800 @@
+/*
+ * Live-Wall (wall.html): a TV screen, 1080p or 4K, viewed from across the room.
+ * Sizes in vmin/vh with clamp(); everything that must stay readable sits inside the
+ * overscan-safe padding (--wall-pad). Colours come from config.look via CSSOM
+ * (--wall-primary, --wall-secondary, --wall-bg). CSP: this file only, no runtime <style>.
+ * Class names stay neutral (content blockers hide .banner, .notice, .modal, …).
+ */
+@import '@fontsource-variable/bricolage-grotesque/opsz.css';
+@import '@fontsource-variable/doto/full.css';
+
+:root {
+  --wall-primary: #a855f7;
+  --wall-secondary: #ff4fa3;
+  --wall-bg: #2b2b31;
+  --wall-ink: #fbf7ff;
+  --wall-ink-muted: rgb(251 247 255 / 0.74);
+  --wall-paper: #fdfbf7;
+  --wall-paper-ink: #24212b;
+  --wall-pad: 3.5vmin;
+  --wall-ring: 0.55vmin;
+  --wall-radius: 1.8vmin;
+  --wall-font: 'Bricolage Grotesque Variable', ui-sans-serif, system-ui, sans-serif;
+  --wall-dots: 'Doto Variable', ui-monospace, monospace;
+  color-scheme: dark;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  height: 100%;
+  overflow: hidden;
+  background: var(--wall-bg);
+  color: var(--wall-ink);
+  font-family: var(--wall-font);
+  -webkit-font-smoothing: antialiased;
+}
+
+#app {
+  height: 100%;
+}
+
+.wall {
+  position: fixed;
+  inset: 0;
+  overflow: hidden;
+  user-select: none;
+}
+
+.wall[data-idle] {
+  cursor: none;
+}
+
+.wall-bg-canvas {
+  position: absolute;
+  inset: 0;
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+/* overscan-safe area: TVs cut a few percent off every edge */
+.wall-safe {
+  position: absolute;
+  inset: var(--wall-pad);
+}
+
+.wall-mode {
+  position: absolute;
+  inset: 0;
+  animation: wall-mode-in 900ms ease-out both;
+}
+
+@keyframes wall-mode-in {
+  from {
+    opacity: 0;
+    transform: scale(0.985);
+  }
+}
+
+/* ------------------------------------------------------------------ spotlight */
+
+.wall-stage {
+  position: absolute;
+  inset: 0;
+}
+
+.wall-slide {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+}
+
+.wall-frame {
+  position: relative;
+  margin: 0;
+}
+
+.wall-card {
+  position: absolute;
+  inset: 0;
+  border-radius: var(--wall-radius);
+  background: linear-gradient(135deg, var(--wall-primary), var(--wall-secondary));
+  box-shadow:
+    0 3vmin 8vmin rgb(0 0 0 / 0.5),
+    0 0 12vmin color-mix(in srgb, var(--wall-primary) 32%, transparent);
+}
+
+.wall-pic {
+  position: absolute;
+  inset: var(--wall-ring);
+  overflow: hidden;
+  border-radius: calc(var(--wall-radius) - var(--wall-ring));
+  background: #111;
+}
+
+.wall-pic img,
+.wall-gl {
+  position: absolute;
+  inset: 0;
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.wall-caption {
+  position: absolute;
+  left: -2.6vmin;
+  bottom: -3.2vmin;
+  display: flex;
+  flex-direction: column;
+  gap: 0.3vmin;
+  max-width: 90%;
+  padding: 1.4vmin 2.6vmin 1.5vmin;
+  border-radius: 1.4vmin;
+  background: var(--wall-paper);
+  color: var(--wall-paper-ink);
+  transform: rotate(-3deg);
+  box-shadow: 0 1.4vmin 3.5vmin rgb(0 0 0 / 0.4);
+}
+
+.wall-caption-by {
+  font-size: clamp(20px, 4.4vmin, 130px);
+  font-weight: 760;
+  line-height: 1.05;
+  letter-spacing: -0.01em;
+}
+
+.wall-caption-ig {
+  font-size: clamp(14px, 2.6vmin, 76px);
+  font-weight: 650;
+  color: color-mix(in srgb, var(--wall-primary) 80%, black);
+}
+
+.wall-caption-ago {
+  font-size: clamp(13px, 2.1vmin, 60px);
+  color: rgb(36 33 43 / 0.62);
+}
+
+/* polaroid: a white instant-photo frame, the caption written on its wide bottom edge */
+.is-polaroid .wall-card {
+  border-radius: 0.5vmin;
+  background: var(--wall-paper);
+  box-shadow: 0 3vmin 7vmin rgb(0 0 0 / 0.55);
+}
+
+.is-polaroid .wall-pic {
+  inset: 1.6vmin 1.6vmin 8vmin;
+  border-radius: 0.2vmin;
+}
+
+.is-polaroid .wall-caption {
+  inset: auto 0 0;
+  height: 8vmin;
+  max-width: none;
+  flex-direction: row;
+  align-items: center;
+  justify-content: center;
+  gap: 2.4vmin;
+  padding: 0 2vmin;
+  background: none;
+  box-shadow: none;
+  transform: none;
+}
+
+.is-polaroid .wall-caption-by {
+  font-size: clamp(18px, 3.6vmin, 110px);
+}
+
+/* glitch: three colour channels (multiply → one channel, screen → recombined) */
+.wall-glitch,
+.wall-glitch-layer,
+.wall-glitch-tint,
+.wall-slot {
+  position: absolute;
+  inset: 0;
+}
+
+.wall-glitch {
+  background: #000;
+  isolation: isolate;
+}
+
+.wall-glitch-layer {
+  mix-blend-mode: screen;
+  isolation: isolate;
+}
+
+.wall-glitch-tint {
+  mix-blend-mode: multiply;
+}
+
+.wall-glitch img,
+.wall-slot img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.wall-slot {
+  overflow: hidden;
+}
+
+.wall-slot-strip {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  height: 700%;
+}
+
+.wall-slot-cell {
+  flex: 1 1 0;
+  min-height: 0;
+}
+
+.wall-confetti {
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+
+/* -------------------------------------------------------------------- gallery */
+
+.wall-gallery {
+  position: absolute;
+  inset: 0 calc(-1 * var(--wall-pad));
+  overflow: hidden;
+}
+
+.wall-row {
+  position: absolute;
+  left: 0;
+  right: 0;
+}
+
+.wall-strip {
+  position: absolute;
+  inset: 0;
+  will-change: transform;
+}
+
+.wall-tile {
+  position: absolute;
+  top: 0;
+  left: 0;
+  height: 100%;
+  overflow: hidden;
+  border-radius: 1.4vmin;
+  background: rgb(255 255 255 / 0.06);
+  box-shadow: 0 1vmin 3vmin rgb(0 0 0 / 0.35);
+}
+
+.wall-tile[hidden] {
+  display: none;
+}
+
+.wall-tile img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.wall-tile-by {
+  position: absolute;
+  left: 1vmin;
+  bottom: 1vmin;
+  max-width: calc(100% - 2vmin);
+  overflow: hidden;
+  padding: 0.35vmin 1.1vmin;
+  border-radius: 999px;
+  background: rgb(18 16 24 / 0.6);
+  color: #fff;
+  font-size: clamp(11px, 1.7vmin, 48px);
+  font-weight: 600;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+/* ----------------------------------------------------------------- categories */
+
+.wall-cats {
+  position: absolute;
+  inset: 0;
+}
+
+.wall-cat {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 0.85fr) minmax(0, 1.4fr);
+  align-items: center;
+  gap: 5vmin;
+}
+
+.wall-cat-head {
+  display: grid;
+  justify-items: start;
+  gap: 1.8vmin;
+  padding-left: 2vmin;
+  animation: wall-slide-in 900ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.wall-cat-emoji {
+  display: inline-block;
+  font-size: 15vmin;
+  line-height: 1;
+  animation:
+    wall-pop 900ms cubic-bezier(0.34, 1.56, 0.64, 1) both,
+    wall-wiggle 2.6s ease-in-out 1.2s infinite;
+}
+
+.wall-cat-title {
+  margin: 0;
+  font-size: clamp(32px, 8.4vmin, 240px);
+  font-weight: 820;
+  line-height: 0.95;
+  letter-spacing: -0.025em;
+}
+
+.wall-cat-line {
+  margin: 0;
+  max-width: 22ch;
+  font-size: clamp(17px, 3.6vmin, 100px);
+  line-height: 1.2;
+  color: var(--wall-ink-muted);
+}
+
+.wall-cat-head::after {
+  content: '';
+  width: 14vmin;
+  height: 1.1vmin;
+  border-radius: 999px;
+  background: linear-gradient(90deg, var(--wall-primary), var(--wall-secondary));
+}
+
+.wall-cat-winners {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4vmin;
+  height: 100%;
+}
+
+.wall-cat-photo {
+  position: relative;
+  margin: 0;
+  animation: wall-drop-in 1000ms cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+
+.wall-cat-photo[data-index='1'] {
+  animation-delay: 180ms;
+}
+
+.wall-cat-photo[data-index='2'] {
+  animation-delay: 360ms;
+}
+
+.wall-cat-pic {
+  overflow: hidden;
+  max-width: 100%;
+  border: var(--wall-ring) solid transparent;
+  border-radius: var(--wall-radius);
+  background:
+    linear-gradient(#111, #111) padding-box,
+    linear-gradient(135deg, var(--wall-primary), var(--wall-secondary)) border-box;
+  box-shadow: 0 3vmin 7vmin rgb(0 0 0 / 0.5);
+}
+
+.wall-cat-winners[data-count='1'] .wall-cat-pic {
+  height: 76vh;
+}
+
+.wall-cat-winners[data-count='2'] .wall-cat-pic {
+  height: 60vh;
+}
+
+.wall-cat-winners[data-count='3'] .wall-cat-pic {
+  height: 46vh;
+}
+
+.wall-cat-pic img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  opacity: 0;
+  transition: opacity 500ms ease-out;
+}
+
+.wall-cat-pic img[data-loaded] {
+  opacity: 1;
+}
+
+.wall-cat-value {
+  position: absolute;
+  top: -2.4vmin;
+  right: -2.4vmin;
+  padding: 1vmin 2.2vmin;
+  border-radius: 999px;
+  background: linear-gradient(135deg, var(--wall-primary), var(--wall-secondary));
+  color: #fff;
+  font-size: clamp(15px, 3vmin, 90px);
+  font-weight: 800;
+  white-space: nowrap;
+  transform: rotate(5deg);
+  box-shadow: 0 1vmin 2.5vmin rgb(0 0 0 / 0.4);
+}
+
+.wall-cat-by {
+  margin-top: 1.4vmin;
+  font-size: clamp(14px, 2.6vmin, 80px);
+  font-weight: 650;
+  text-align: center;
+}
+
+@keyframes wall-slide-in {
+  from {
+    opacity: 0;
+    transform: translateX(-6vmin);
+  }
+}
+
+@keyframes wall-pop {
+  from {
+    opacity: 0;
+    transform: scale(0.2) rotate(-20deg);
+  }
+}
+
+@keyframes wall-wiggle {
+  0%,
+  100% {
+    transform: rotate(0deg);
+  }
+  25% {
+    transform: rotate(-8deg) scale(1.04);
+  }
+  50% {
+    transform: rotate(6deg);
+  }
+}
+
+@keyframes wall-drop-in {
+  from {
+    opacity: 0;
+    transform: translateY(-14vh) rotate(-6deg) scale(0.85);
+  }
+}
+
+/* ---------------------------------------------------------------- the corner */
+
+.wall-corner {
+  position: absolute;
+  z-index: 5;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 0.2vmin;
+  padding: 1.3vmin 2.2vmin;
+  border-radius: 1.8vmin;
+  background: rgb(22 20 28 / 0.62);
+  box-shadow: inset 0 0 0 1px rgb(255 255 255 / 0.08);
+}
+
+.wall-corner[data-corner='bottom-right'] {
+  right: var(--wall-pad);
+  bottom: var(--wall-pad);
+}
+
+.wall-corner[data-corner='bottom-left'] {
+  left: var(--wall-pad);
+  bottom: var(--wall-pad);
+  align-items: flex-start;
+}
+
+.wall-corner[data-corner='top-right'] {
+  right: var(--wall-pad);
+  top: var(--wall-pad);
+}
+
+.wall-corner[data-corner='top-left'] {
+  left: var(--wall-pad);
+  top: var(--wall-pad);
+  align-items: flex-start;
+}
+
+.wall-corner-name {
+  font-size: clamp(15px, 2.6vmin, 80px);
+  font-weight: 750;
+}
+
+.wall-corner-count {
+  display: flex;
+  align-items: baseline;
+  gap: 0.8vmin;
+  font-size: clamp(13px, 2.1vmin, 64px);
+  color: var(--wall-ink-muted);
+}
+
+.wall-corner-num {
+  font-family: var(--wall-dots);
+  font-size: clamp(24px, 5vmin, 150px);
+  font-weight: 800;
+  line-height: 1;
+  color: var(--wall-ink);
+  font-variant-numeric: tabular-nums;
+}
+
+.wall-qr {
+  display: grid;
+  justify-items: center;
+  gap: 0.6vmin;
+  margin: 0 0 0.8vmin;
+}
+
+.wall-qr-code {
+  display: block;
+  width: clamp(96px, 17vmin, 420px);
+  height: auto;
+  aspect-ratio: 1;
+  border-radius: 0.8vmin;
+  image-rendering: pixelated;
+}
+
+.wall-qr-name {
+  font-size: clamp(11px, 1.6vmin, 48px);
+  color: var(--wall-ink-muted);
+}
+
+/* ---------------------------------------------------------- TV controls, hints */
+
+.wall-fs {
+  position: absolute;
+  top: var(--wall-pad);
+  right: var(--wall-pad);
+  z-index: 10;
+  padding: 0.6em 1.2em;
+  border: 1px solid rgb(255 255 255 / 0.28);
+  border-radius: 999px;
+  background: rgb(22 20 28 / 0.7);
+  color: var(--wall-ink);
+  font: inherit;
+  font-size: clamp(14px, 2vmin, 48px);
+  font-weight: 650;
+  cursor: pointer;
+  transition:
+    opacity 400ms,
+    visibility 0s;
+}
+
+.wall-fs[data-side='left'] {
+  right: auto;
+  left: var(--wall-pad);
+}
+
+.wall-fs:hover {
+  background: rgb(40 36 50 / 0.85);
+}
+
+.wall-fs:focus-visible {
+  outline: 3px solid var(--wall-primary);
+  outline-offset: 3px;
+}
+
+.wall[data-idle] .wall-fs {
+  opacity: 0;
+  visibility: hidden;
+  transition:
+    opacity 400ms,
+    visibility 0s 400ms;
+}
+
+.wall-offline {
+  position: absolute;
+  top: var(--wall-pad);
+  left: 50%;
+  z-index: 6;
+  display: flex;
+  align-items: center;
+  gap: 1.2vmin;
+  padding: 1vmin 2.4vmin;
+  border-radius: 999px;
+  background: rgb(22 20 28 / 0.85);
+  font-size: clamp(14px, 2.2vmin, 64px);
+  font-weight: 600;
+  transform: translateX(-50%);
+}
+
+.wall-offline-dot {
+  width: 1.4vmin;
+  height: 1.4vmin;
+  border-radius: 50%;
+  background: #ffb020;
+  animation: wall-pulse 1.4s ease-in-out infinite;
+}
+
+@keyframes wall-pulse {
+  50% {
+    opacity: 0.3;
+    transform: scale(0.7);
+  }
+}
+
+/* -------------------------------------------------------------- full screens */
+
+.wall-screen {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  display: grid;
+  place-items: center;
+  padding: var(--wall-pad);
+  text-align: center;
+}
+
+.wall-panel {
+  display: grid;
+  gap: clamp(14px, 2.6vh, 48px);
+  width: min(92vw, 44rem);
+  padding: clamp(24px, 5vmin, 96px);
+  border-radius: clamp(18px, 3.2vmin, 56px);
+  background: rgb(24 22 30 / 0.74);
+  box-shadow:
+    0 3vmin 8vmin rgb(0 0 0 / 0.45),
+    inset 0 0 0 1px rgb(255 255 255 / 0.09);
+  animation: wall-mode-in 700ms ease-out both;
+}
+
+.wall-panel--quiet {
+  justify-items: center;
+  width: auto;
+  min-width: min(92vw, 26rem);
+}
+
+.wall-title {
+  margin: 0;
+  font-size: clamp(38px, 8vmin, 180px);
+  font-weight: 820;
+  line-height: 1;
+  letter-spacing: -0.03em;
+  background: linear-gradient(100deg, var(--wall-ink) 30%, var(--wall-secondary) 70%, var(--wall-primary));
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+.wall-text {
+  margin: 0;
+  font-size: clamp(17px, 2.8vmin, 72px);
+  line-height: 1.35;
+}
+
+.wall-hint {
+  margin: 0;
+  font-size: clamp(14px, 2vmin, 52px);
+  line-height: 1.4;
+  color: var(--wall-ink-muted);
+}
+
+.wall-field {
+  display: grid;
+  gap: 8px;
+  font-size: clamp(15px, 2.1vmin, 52px);
+  font-weight: 600;
+  text-align: left;
+}
+
+.wall-input {
+  width: 100%;
+  padding: 0.6em 0.8em;
+  border: 2px solid rgb(255 255 255 / 0.22);
+  border-radius: 0.6em;
+  background: rgb(0 0 0 / 0.32);
+  color: var(--wall-ink);
+  font: inherit;
+  font-size: clamp(18px, 2.6vmin, 64px);
+}
+
+.wall-input:focus-visible {
+  border-color: transparent;
+  outline: 3px solid var(--wall-primary);
+  outline-offset: 2px;
+}
+
+.wall-button {
+  padding: 0.7em 1.4em;
+  border: 0;
+  border-radius: 999px;
+  background: linear-gradient(135deg, var(--wall-primary), var(--wall-secondary));
+  color: #fff;
+  font: inherit;
+  font-size: clamp(18px, 2.6vmin, 64px);
+  font-weight: 760;
+  cursor: pointer;
+  box-shadow: 0 1.2vmin 3vmin color-mix(in srgb, var(--wall-secondary) 35%, transparent);
+}
+
+.wall-button:focus-visible {
+  outline: 3px solid var(--wall-ink);
+  outline-offset: 3px;
+}
+
+.wall-button:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
+.wall-error {
+  margin: 0;
+  color: #ffb8cf;
+  font-size: clamp(15px, 2.2vmin, 56px);
+  font-weight: 600;
+}
+
+.wall-spinner {
+  width: clamp(36px, 7vmin, 160px);
+  height: clamp(36px, 7vmin, 160px);
+  border: clamp(4px, 0.8vmin, 16px) solid rgb(255 255 255 / 0.15);
+  border-top-color: var(--wall-secondary);
+  border-right-color: var(--wall-primary);
+  border-radius: 50%;
+  animation: wall-spin 1s linear infinite;
+}
+
+@keyframes wall-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.wall-empty {
+  display: grid;
+  justify-items: center;
+  gap: 2vmin;
+  max-width: 60rem;
+}
+
+.wall-empty-icon {
+  font-size: 18vmin;
+  line-height: 1;
+  animation: wall-bounce 2.2s cubic-bezier(0.34, 1.56, 0.64, 1) infinite;
+}
+
+.wall-empty-title {
+  margin: 0;
+  font-size: clamp(32px, 7vmin, 180px);
+  font-weight: 820;
+  letter-spacing: -0.02em;
+}
+
+@keyframes wall-bounce {
+  0%,
+  100% {
+    transform: translateY(0) rotate(-4deg);
+  }
+  40% {
+    transform: translateY(-3vmin) rotate(5deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .wall-cat-emoji,
+  .wall-empty-icon,
+  .wall-spinner {
+    animation-duration: 0s;
+    animation-iteration-count: 1;
+  }
+}

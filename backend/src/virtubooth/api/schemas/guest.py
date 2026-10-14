@@ -45,6 +45,8 @@ class JoinIn(BaseModel):
     accept: Literal[True]
     version: str = Field(max_length=32)
     instagram: str | None = Field(default=None, max_length=100)
+    # „Meine Fotos nicht automatisch auswerten“ (Live-Wall photo analysis)
+    analysis_opt_out: bool = False
     # required: leaving it out would skip the fingerprint-ban check
     fp: Fingerprint
 
@@ -53,6 +55,13 @@ class MeIn(BaseModel):
     """null or blank clears the handle."""
 
     instagram: str | None = Field(default=None, max_length=100)
+
+
+class MeAnalysisIn(BaseModel):
+    """„Meine Fotos nicht automatisch auswerten“: true = the Live-Wall analysis
+    looks only at image values (brightness, colour, sharpness) of my photos."""
+
+    opt_out: bool
 
 
 # ----------------------------------------------------------------- responses
@@ -67,6 +76,7 @@ class GuestUser(BaseModel):
     instagram: str | None
     banned: bool
     uploads_paused: bool
+    analysis_opt_out: bool
 
     @classmethod
     def of(cls, user: User) -> GuestUser:
@@ -81,6 +91,8 @@ class ConsentInfo(BaseModel):
     accept_label: str
     party_name: str
     instagram_account: str
+    # the Live-Wall's photo analysis runs: offer „Meine Fotos nicht automatisch auswerten“
+    analysis: bool = False
 
 
 class NeedsConsentOut(BaseModel):

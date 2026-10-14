@@ -2,7 +2,7 @@
  * The manage area's state in the URL (manageUrl.test.ts). Section names are the
  * pre-overhaul tab names, so old bookmarks keep working:
  *
- *   /admin/manage?tab=uebersicht|fotos|gaeste|instagram|sperren|protokoll|qr|plakat|export
+ *   /admin/manage?tab=uebersicht|fotos|gaeste|instagram|livewall|sperren|protokoll|qr|plakat|export
  *   /admin/manage?tab=einstellungen   (sidebar footer / phone header, not in the list)
  *   Fotos: &ext=<activity>&status=visible|hidden&user=<id>&photo=<id>
  *   Gäste: &q=<search>&show=banned|ok|paused&code=<QR code number>
@@ -16,6 +16,7 @@ export const SECTIONS = [
   'fotos',
   'gaeste',
   'instagram',
+  'livewall',
   'sperren',
   'protokoll',
   'qr',

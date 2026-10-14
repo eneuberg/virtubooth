@@ -217,20 +217,27 @@ export function getSession(): SessionState {
 // ------------------------------------------------------------------ actions
 
 /**
- * POST /api/join with the version of the texts the guest saw and the optional
- * Instagram name. Rejects with the ApiError (the sheet shows its message).
+ * POST /api/join with the version of the texts the guest saw, the optional
+ * Instagram name and „Meine Fotos nicht automatisch auswerten“ (`analysisOptOut`).
+ * Rejects with the ApiError (the sheet shows its message).
  * `consent_outdated`: the texts changed meanwhile; the session identifies again, so
  * the sheet shows the new texts (or closes when another tab joined), then rejects.
  */
-export async function joinParty(input: { instagram: string | null }): Promise<void> {
+export async function joinParty(input: {
+  instagram: string | null;
+  analysisOptOut?: boolean;
+}): Promise<void> {
   const s = get();
   if (s.status !== 'needs_join') return;
   const fp = await getDeviceTraits();
   const instagram = input.instagram?.trim() || null;
+  const analysis_opt_out = input.analysisOptOut ?? false;
   let res: JoinResponse;
   try {
     res = await unwrap(
-      api.POST('/api/join', { body: { accept: true, version: s.join.version, instagram, fp } }),
+      api.POST('/api/join', {
+        body: { accept: true, version: s.join.version, instagram, fp, analysis_opt_out },
+      }),
     );
   } catch (err) {
     if (isApiError(err) && err.code === 'consent_outdated') {
@@ -258,6 +265,23 @@ export async function setInstagram(handle: string | null): Promise<GuestUser> {
   const instagram = handle?.trim().replace(/^@+/, '') || null;
   try {
     const { user } = await unwrap(api.PATCH('/api/me', { body: { instagram } }));
+    const s = get();
+    if (s.status === 'ready') set({ ...s, user });
+    else if (s.status === 'banned') set({ ...s, user });
+    return user;
+  } catch (err) {
+    if (isApiError(err) && (err.code === 'banned' || err.code === 'needs_consent')) void refreshSession();
+    throw err;
+  }
+}
+
+/**
+ * PUT /api/me/analysis: „Meine Fotos nicht automatisch auswerten“ on (true) or off.
+ * Rejects with the ApiError.
+ */
+export async function setAnalysisOptOut(optOut: boolean): Promise<GuestUser> {
+  try {
+    const { user } = await unwrap(api.PUT('/api/me/analysis', { body: { opt_out: optOut } }));
     const s = get();
     if (s.status === 'ready') set({ ...s, user });
     else if (s.status === 'banned') set({ ...s, user });

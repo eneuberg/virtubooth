@@ -54,6 +54,9 @@ class User:
     online_at: str | None = None
     # the QR code it joined through (party_codes.id; None: unknown)
     code_id: int | None = None
+    # „Meine Fotos nicht automatisch auswerten“: the Live-Wall analysis runs
+    # only the basic image values on this guest's photos
+    analysis_opt_out: bool = False
 
     @property
     def banned(self) -> bool:

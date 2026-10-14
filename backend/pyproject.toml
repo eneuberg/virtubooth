@@ -16,6 +16,16 @@ dependencies = [
     "tzdata==2026.5",
 ]
 
+[project.optional-dependencies]
+# Live-Wall photo analysis (extensions/wall/enrich): `uv sync --extra ml`, Docker
+# `--build-arg VB_ML=1`. Without it only the basic image values (Pillow) run.
+ml = [
+    "mediapipe==1.1.0",
+    "onnxruntime==1.31.0",
+    "opencv-python-headless==5.0.0.93",
+    "numpy==2.5.4",
+]
+
 [project.scripts]
 virtubooth = "virtubooth.__main__:main"
 
@@ -27,6 +37,14 @@ dev = [
     "playwright==1.63.0",
     "ruff==0.17.0",
     "mypy==2.4.0",
+]
+
+[tool.uv]
+# mediapipe pins the GUI OpenCV (needs libGL, clashes with the headless cv2) and
+# an audio lib we never use
+override-dependencies = [
+    "opencv-contrib-python; sys_platform == 'never'",
+    "sounddevice; sys_platform == 'never'",
 ]
 
 [build-system]
@@ -87,6 +105,14 @@ packages = ["virtubooth"]
 init_forbid_extra = true
 init_typed = true
 warn_required_dynamic_aliases = true
+
+[[tool.mypy.overrides]]
+# the `ml` extra (live wall analysis): onnxruntime and mediapipe ship no type
+# information; numpy and cv2 do, but are absent without the extra.
+# tokenizers: only make_clip_prompts.py uses it (uv run --with tokenizers)
+module = ["onnxruntime", "onnxruntime.*", "mediapipe", "mediapipe.*", "numpy", "numpy.*",
+          "cv2", "cv2.*", "tokenizers", "tokenizers.*"]
+ignore_missing_imports = true
 
 [[tool.mypy.overrides]]
 # segno ships no type information

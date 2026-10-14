@@ -10,7 +10,7 @@ GuardMiddleware, in order:
 3. request bodies: uploads stream through (they enforce their own cap), every
    other body must declare a Content-Length of at most MAX_JSON_BODY.
 4. request budget for /api/: per guest device when identified, else per IP;
-   admin sessions are exempt.
+   admin sessions are exempt on admin routes (/api/admin/, /api/x/<id>/admin/).
 
 SecurityHeadersMiddleware adds CSP & co. and a default Cache-Control
 (`no-store` for /api/, `private, no-cache` for pages; routes may set their own,
@@ -46,6 +46,8 @@ UNSAFE_METHODS = {"POST", "PUT", "PATCH", "DELETE"}
 MAX_JSON_BODY = 64 * 1024
 # bodies that stream with their own cap: activity uploads and the poster template
 _STREAMED_PATH = re.compile(r"^(?:/api/x/[a-z][a-z0-9-]{1,30}/upload|/api/admin/poster/template)$")
+# admin routes: the core's and an extension's own (/api/x/<id>/admin/..., e.g. the wall's)
+_ADMIN_API = re.compile(r"^/api/(?:admin/|x/[a-z][a-z0-9-]{1,30}/admin/)")
 # paths where ?t= is never interpreted as a party token
 _NO_TOKEN_PREFIXES = ("/api/", "/admin", "/assets/", "/media/", "/healthz")
 
@@ -102,7 +104,7 @@ class GuardMiddleware:
     def _api_budget(self, request: Request, path: str) -> tuple[RateLimiter | None, str]:
         core = self.core
         # the admin shares the venue WiFi IP with every guest; never throttle moderation
-        if path.startswith("/api/admin/") and admin_from_cookie(request, core) is not None:
+        if _ADMIN_API.match(path) and admin_from_cookie(request, core) is not None:
             return None, ""
         # identified guests get their own bucket, so one noisy device on the
         # venue WiFi can't use up the budget of everyone behind the same IP

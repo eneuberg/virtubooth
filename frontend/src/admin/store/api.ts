@@ -24,8 +24,9 @@ import type { GuestFilter, PhotoFilter, PhotoPage } from './types';
 
 type ClientResult = { data?: unknown; error?: unknown; response: Response };
 
-/** 401 admin_required: leave for the login page; the request never settles. */
-function authGate(err: unknown): Promise<never> {
+/** 401 admin_required: leave for the login page; the request never settles. Anything
+ * else is thrown again. */
+export function authGate(err: unknown): Promise<never> {
   if (isApiError(err) && err.status === 401 && err.code === 'admin_required') {
     goLogin();
     return never();

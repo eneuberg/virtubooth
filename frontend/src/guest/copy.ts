@@ -46,6 +46,10 @@ export function splitPrompt(prompt: string): { label: string; help: string | nul
   return { label: m[1], help: m[2] };
 }
 
+/** The Live-Wall's photo analysis, in the join texts (the server's own words). */
+export const WALL_ANALYSIS_TEXT =
+  'Für die Live-Wall der Party werden Fotos automatisch auf dem Server ausgewertet: Gesichter und Hände zählen, Gesichtsausdruck und ungefähres Alter schätzen – nur zum Spaß, für Kategorien wie „Grinsekatzen“. Nichts davon verlässt den Server, und du kannst es für deine Fotos ausschalten.';
+
 /**
  * "Was passiert mit meinen Fotos?" before the session knows the server's join texts
  * (every identified answer carries them, so this is a safety net). Says the same as
@@ -57,6 +61,7 @@ export function fallbackJoinText(instagramAccount: string): string[] {
     `Deine Fotos speichert die Party-Seite, die Gastgeber sehen sie und dürfen sie${where} posten.`,
     'Damit sie Missbrauch verhindern können, erkennt die Seite dein Gerät wieder: eine anonyme Geräte-ID, kein Name.',
     'Die Gastgeber sehen zu jedem Gast eine kleine Statistik: wie viele Fotos du gemacht hast, wie lange die Seite bei dir offen war und über welchen QR-Code du gekommen bist.',
+    WALL_ANALYSIS_TEXT,
     'Wenn du das nicht möchtest, mach hier bitte keine Fotos.',
   ];
 }

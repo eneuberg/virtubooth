@@ -23,6 +23,7 @@ Contents:
 [Reverse proxy and HTTPS](#reverse-proxy-and-https) ·
 [Coolify](#coolify) ·
 [Settings](#settings) ·
+[Live-Wall and photo analysis](#live-wall-and-photo-analysis) ·
 [Party-night checklist](#party-night-checklist) ·
 [Exports](#exports) ·
 [Backups](#backups) ·
@@ -342,8 +343,8 @@ naming the variable when one is missing or invalid.
 | `VB_INSTAGRAM_ACCOUNT` | empty | The account you may post photos to, named in the join sheet. |
 | `VB_PUBLIC_BASE_URL` | empty | Public URL without a trailing slash, e.g. `https://party.example.com`: the QR codes, the admin's QR form, and Secure cookies with `auto`. |
 | `VB_TIMEZONE` | `Europe/Berlin` | The time in photo and export file names (admin UI and CLI tools). |
-| `VB_CONSENT_VERSION` | `1` | Stored with each join. Bump it when the join sheet's promise changes (for example to record the sentence about the per-guest statistics as a new text version); devices that already joined are not asked again. |
-| `VB_EXTENSIONS` | all | Comma-separated activity ids to enable, in this order, e.g. `beer,booth`. |
+| `VB_CONSENT_VERSION` | `1` | Stored with each join. Bump it when the join sheet's promise changes (for example to record the sentence about the per-guest statistics, or the Live-Wall's photo analysis paragraph, as a new text version); devices that already joined are not asked again. |
+| `VB_EXTENSIONS` | all | Comma-separated extension ids to enable, in this order, e.g. `beer,booth`. `wall` is the Live-Wall: when you set the variable, list it too, or `/livewall` is gone. |
 | `VB_COOKIE_SECURE` | `auto` | `auto` (Secure when the request came over https), `true` or `false`. `true` behind a TLS proxy. |
 | `VB_FORWARDED_ALLOW_IPS` | `127.0.0.1` | Proxies (IPs or CIDR ranges, comma-separated) whose `X-Forwarded-For`/`-Proto` are trusted. `*` is refused at startup. |
 | `VB_ALLOWED_ORIGINS` | empty | Extra origins for the CSRF check, compared exactly (scheme, host, port), e.g. `https://party.example.com`. Rarely needed: `VB_PUBLIC_BASE_URL` is accepted anyway. The only way to allow an `http://` origin on an https deployment. |
@@ -362,12 +363,57 @@ naming the variable when one is missing or invalid.
 | `VB_PUBLISH_PORT` | `127.0.0.1:8000` | *compose.yaml only*: the host address and port. `8000` alone publishes on all interfaces. |
 | `VB_IMAGE` | `virtubooth:local` | *compose.yaml only*: the image the build produces and `up` runs. |
 | `VB_CPU_LIMIT` / `VB_MEM_LIMIT` | `1.0` / `1g` | *compose.yaml only*: container limits. The CPU limit must not exceed the host's CPU count. |
+| `VB_WALL_WORKER` | on | `off`: the app does not spawn the Live-Wall's analysis worker (tests, or a worker running in another container on the same `/data`). |
+| `VB_WALL_MODELS_DIR` | empty | Where the analysis models are looked up first (then `<data>/wall/models`, then `/opt/vb-models`), and where `models fetch` writes. |
+| `VB_WALL_THREADS` | `3` | Threads per inference in the worker (`0` = all cores). |
 
 Guests on the same venue Wi-Fi (or behind carrier NAT) share one IP. So API
 requests of joined guests count per device, only first visits count per IP,
 and admin sessions are never throttled. Uploads count per guest first; the
 per-IP and global budgets count only valid photos. For a big crowd on one
 network raise `VB_UPLOADS_PER_IP_PER_MIN` and `VB_NEW_USERS_PER_IP_PER_10MIN`.
+
+## Live-Wall and photo analysis
+
+The Live-Wall (`/livewall`, extension `wall`) works in every image: set its
+password in Admin → Verwaltung → Live-Wall and open `/livewall` on the TV.
+Wake Lock (keeping the TV awake) needs https or localhost; on a plain LAN IP
+switch the TV's screensaver off.
+
+Its fun categories come from a photo analysis in a separate worker process the
+app starts and supervises (nice 10, one photo at a time, restarted after a
+crash, recycled after 200 photos or 900 MB RSS, it exits with the app). Without
+extras it computes only image values (brightness, colour, sharpness: two
+categories). Faces, expressions, hands, glasses and the like need the `ml`
+extra (MediaPipe, ONNX Runtime, OpenCV; about +400 MB image size) and the
+model files (about 145 MB, 230 MB with the optional FairFace age model):
+
+```bash
+docker build --build-arg VB_ML=1 -t virtubooth:ml .        # the ML image
+docker build --build-arg VB_ML=1 --build-arg VB_BAKE_MODELS=1 -t virtubooth:ml .
+                                                            # ... with the models in /opt/vb-models
+# or download them into the volume once (versioned URLs, SHA256-checked):
+docker compose run --rm app python -m virtubooth.extensions.wall.enrich models fetch
+docker compose run --rm app python -m virtubooth.extensions.wall.enrich models list
+```
+
+`models fetch` writes to `$VB_WALL_MODELS_DIR` or `/data/wall/models`;
+`--with-age` adds FairFace (switched off in the admin until you turn it on).
+The models: YuNet (MIT), MediaPipe face landmarker, gesture recogniser and
+EfficientDet-Lite2 (Apache-2.0), FER+ emotion (MIT), CLIP ViT-B/32 int8 (MIT),
+FairFace age (Apache-2.0, data CC BY 4.0).
+
+- **Raspberry Pi 5:** 0.4 to 2 s per photo; the worker holds about 500 MB. On a
+  4 GB Pi raise `VB_MEM_LIMIT` (e.g. `2g`). If the booth lags, lower
+  `VB_WALL_THREADS` or switch analyzers off in the admin's „Analyse“ card.
+- `python -m virtubooth.extensions.wall.enrich status` shows the worker's
+  heartbeat and the counts; `run-once` works off what is pending by hand.
+- **Join texts:** while the wall is loaded, the join sheet's „Mehr dazu“ names
+  the analysis and offers „Meine Fotos nicht automatisch auswerten“. To record
+  that paragraph as part of what guests accepted, bump `VB_CONSENT_VERSION`
+  (e.g. to `2`); devices that joined already are not asked again.
+- Local development: `make models` (installs the extra, fetches into
+  `<data>/wall/models`), then `make dev` starts the app with the worker.
 
 ## Party-night checklist
 
@@ -389,6 +435,8 @@ network raise `VB_UPLOADS_PER_IP_PER_MIN` and `VB_NEW_USERS_PER_IP_PER_10MIN`.
   (not the generated one from `.env` or Coolify).
 - Admin logged in on a laptop or tablet; the password is on no printout.
   Sessions last `VB_ADMIN_SESSION_HOURS` (12 h): log in shortly before.
+- Live-Wall: password set, `/livewall` open on the TV in full screen, the
+  analysis card says the worker runs (ML image only).
 - Enough disk space: `df -h /var/lib/docker`.
 - No updates or rebuilds on party night.
 

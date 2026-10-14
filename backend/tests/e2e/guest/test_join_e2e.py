@@ -108,6 +108,8 @@ def test_join_sheet_has_one_action_and_works_by_keyboard_only(page: Page, live: 
     expect(more).to_be_focused()
     page.keyboard.press("Enter")
     expect(dialog).to_contain_text("erkennt die Seite dein Gerät")
+    page.keyboard.press("Tab")  # the Live-Wall opt-out under „Mehr dazu“
+    expect(page.get_by_test_id("analysis-opt-out").get_by_role("switch")).to_be_focused()
     page.keyboard.press("Tab")
     expect(field).to_be_focused()
     page.keyboard.press("Tab")
@@ -263,4 +265,32 @@ def test_join_sheet_marks_more_text_below_until_the_end(make_page, live: LiveSer
         "(el) => { el.scrollTop = el.scrollHeight; }"
     )
     expect(footer).to_have_count(0)
+    assert page.js_errors == []  # type: ignore[attr-defined]
+
+
+def test_live_wall_analysis_opt_out(page: Page, live: LiveServer):
+    """„Meine Fotos nicht automatisch auswerten“: in the join sheet's „Mehr dazu“
+    and later in the Du sheet."""
+    page.goto(live.entry("/"))
+    sheet = page.get_by_test_id("join")
+    sheet.get_by_role("button", name="Mehr dazu").click()
+    expect(sheet).to_contain_text("Für die Live-Wall der Party werden Fotos automatisch")
+    switch = page.get_by_test_id("analysis-opt-out").get_by_role("switch")
+    page.get_by_test_id("analysis-opt-out").get_by_text("Meine Fotos nicht").click()
+    expect(switch).to_be_checked()
+    accept_consent_in_browser(page)
+    expect(page.get_by_test_id("start")).to_be_visible()
+    assert only_user(live).analysis_opt_out is True
+
+    page.get_by_test_id("guest-pass").click()
+    du = page.get_by_test_id("guest-analysis-opt-out").get_by_role("switch")
+    expect(du).to_be_checked()
+    page.get_by_test_id("guest-analysis-opt-out").get_by_text("Meine Fotos nicht").click()
+    expect(du).not_to_be_checked()
+    expect(page.get_by_text("Deine Fotos werden wieder ausgewertet")).to_be_visible()
+    for _ in range(50):  # the PUT lands right after the switch flips
+        if not only_user(live).analysis_opt_out:
+            break
+        page.wait_for_timeout(100)
+    assert only_user(live).analysis_opt_out is False
     assert page.js_errors == []  # type: ignore[attr-defined]

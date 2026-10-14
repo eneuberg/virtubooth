@@ -22,6 +22,7 @@ from ..schemas.guest import (
     IdentifyOut,
     JoinIn,
     JoinOut,
+    MeAnalysisIn,
     MeIn,
     MeOut,
     MyPhotosOut,
@@ -95,6 +96,7 @@ def join(body: JoinIn, request: Request, response: Response, core: CoreDep) -> J
         ip=client_ip(request),
         user_agent=_user_agent(request),
         code_id=core.services.codes.code_of_request(request),
+        analysis_opt_out=body.analysis_opt_out,
     )
     if not result.created:
         response.status_code = 200
@@ -112,6 +114,15 @@ def update_me(body: MeIn, user: MeDep, core: CoreDep) -> MeOut:
     """Set or clear (null/blank) the guest's Instagram handle. Paused guests may;
     banned ones get 403 `banned`."""
     updated = core.services.identity.set_instagram(user, body.instagram)
+    return MeOut(user=GuestUser.of(updated))
+
+
+@router.put("/me/analysis", responses=error_responses(400, 401))
+def update_my_analysis(body: MeAnalysisIn, user: MeDep, core: CoreDep) -> MeOut:
+    """„Meine Fotos nicht automatisch auswerten“ on or off. The guest's photos
+    are analysed again: with it on, only image values (no faces, hands,
+    expressions), and they never win a category that needs more."""
+    updated = core.services.identity.set_analysis_opt_out(user, body.opt_out)
     return MeOut(user=GuestUser.of(updated))
 
 
