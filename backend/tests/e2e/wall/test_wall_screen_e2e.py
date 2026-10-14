@@ -150,9 +150,13 @@ def test_playlist_rotates_through_the_modes(tv_page: Page, wall_fake: WallFake) 
         for m in ("spotlight", "gallery", "categories")
     ]
     open_wall(tv_page, wall_fake)
-    mode = tv_page.locator(".wall-mode")
+    # the mode that ends fades out (data-leaving) while the next one comes in
+    mode = tv_page.locator(".wall-mode:not([data-leaving])")
+    leaving = tv_page.locator(".wall-mode[data-leaving]")
     expect(mode).to_have_attribute("data-mode", "spotlight")
     expect(mode).to_have_attribute("data-mode", "gallery", timeout=6000)
+    expect(leaving).to_have_attribute("data-mode", "spotlight")
+    expect(leaving).to_have_count(0, timeout=3000)
     expect(tv_page.locator(".wall-tile img").first).to_have_attribute(
         "src", re.compile(r"/livewall/media/")
     )

@@ -76,10 +76,23 @@ body {
   animation: wall-mode-in 900ms ease-out both;
 }
 
+/* the mode that ends fades out on top of the next one fading in (App: MODE_FADE_MS) */
+.wall-mode[data-leaving] {
+  pointer-events: none;
+  animation: wall-mode-out 800ms ease-in both;
+}
+
 @keyframes wall-mode-in {
   from {
     opacity: 0;
     transform: scale(0.985);
+  }
+}
+
+@keyframes wall-mode-out {
+  to {
+    opacity: 0;
+    transform: scale(1.02);
   }
 }
 
