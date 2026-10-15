@@ -1,6 +1,7 @@
 /**
  * „Erscheinungsbild“: the colours of the guest pages and the Live Wall (the admin keeps
- * its look). A preset („Neon Nacht“, „Klassisch“) or own colours, with a live preview
+ * its look). A preset („Neon Nacht“, „Klassisch“, „Rummel“) or own colours and a style
+ * (Ruhig, Party, Verspielt; the default is Neon Nacht, Verspielt), with a live preview
  * of a guest card and a wall tile. The server checks that text stays readable (4.5:1);
  * the card shows the same check before saving. Guests get a new theme when their page
  * comes back to the foreground, open walls at once.
@@ -47,7 +48,7 @@ const CHOICES: { id: ThemeChoice; label: string }[] = [
   { id: 'custom', label: 'Eigene' },
 ];
 
-// party is the default (Neon Nacht): the calm look plus a few deliberate gags
+// goofy (Verspielt) is the default, with Neon Nacht: the fairground look
 const STYLES: { id: ThemeStyle; label: string }[] = [
   { id: 'elegant', label: 'Ruhig' },
   { id: 'party', label: 'Party' },
@@ -150,6 +151,9 @@ export function ThemeCard({ data }: { data: AdminThemeOut }) {
               className="justify-self-start"
               data-testid="theme-style"
             />
+            <p className="-mt-2 text-xs text-ink-muted" data-testid="theme-default">
+              Standard: „Neon Nacht“ im Stil „Verspielt“.
+            </p>
             <div className="grid gap-3 sm:grid-cols-[repeat(auto-fill,minmax(11rem,1fr))]">
               {THEME_COLOR_KEYS.map((key) => (
                 <div key={key} className="grid min-w-0 gap-1">

@@ -76,9 +76,9 @@ describe('GooglyEyes', () => {
     expect(eyes?.getAttribute('data-mood')).toBe('shut');
   });
 
-  it('applyStyle knows three styles; anything else is the default, party', () => {
+  it('applyStyle knows three styles; anything else is the default, goofy', () => {
     applyStyle(undefined);
-    expect(document.documentElement.getAttribute('data-vb-style')).toBe('party');
+    expect(document.documentElement.getAttribute('data-vb-style')).toBe('goofy');
     expect(isThemeStyle('wild')).toBe(false);
     document.documentElement.setAttribute('data-vb-style', 'wild');
     expect(currentStyle()).toBeNull();

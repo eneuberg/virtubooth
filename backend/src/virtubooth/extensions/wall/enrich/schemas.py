@@ -194,6 +194,20 @@ class PhotoAnalysis(BaseModel):
 class SummaryObject(BaseModel):
     label_de: str
     source: str = Field(description="local | claude | mistral")
+    score: float = Field(description="0..1, to 2 places.")
+    box: ObjectBox | None = Field(
+        description="On the full photo (0..1, to 3 places); null when the source gives none."
+    )
+
+
+class SummaryBox(BaseModel):
+    """A face or hand frame for a tile (on the full photo, 0..1, to 3 places)."""
+
+    kind: Literal["face", "hand"]
+    x: float
+    y: float
+    w: float
+    h: float
 
 
 class CategoryWin(BaseModel):
@@ -204,9 +218,10 @@ class CategoryWin(BaseModel):
 
 
 class PhotoAnalysisSummary(BaseModel):
-    """What the Live screen shows under a photo tile: the state, the key facts,
-    the object labels, the guest's opt-outs and the categories it currently wins.
-    The full analysis (boxes, details, scores) is `/admin/photos/{id}/analysis`."""
+    """What the Live screen shows on and under a photo tile: the state, the key
+    facts, the objects (label, score, frame), the face and hand frames, the guest's
+    opt-outs and the categories it currently wins. The full analysis (details,
+    runs, scores) is `/admin/photos/{id}/analysis`."""
 
     photo_id: str
     state: AnalysisState
@@ -215,6 +230,7 @@ class PhotoAnalysisSummary(BaseModel):
         "thumbs_up, peace, rock, glasses, hats, age_groups (those measured)."
     )
     objects: list[SummaryObject]
+    boxes: list[SummaryBox] = Field(description="Face and hand frames (objects carry their own).")
     opt_out: OptOutState
     wins: list[CategoryWin]
 

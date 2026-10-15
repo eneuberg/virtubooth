@@ -1,7 +1,9 @@
 /**
- * The analysis on the Live screen: compact chips under each photo tile („3 Personen ·
- * 2 lächeln · Flasche, Becher“), and the switch „Analyse zeigen“ (remembered in this
- * browser) that turns chips, frames and the viewer's analysis block on and off. The
+ * The analysis on the Live screen: the frames of the objects, faces and hands on each
+ * photo tile (mapped onto the tile's 3:4 crop, tileFrames.ts), compact chips under it
+ * („3 Personen · 2 lächeln · Flasche, Becher“), and the switch „Analyse zeigen“
+ * (remembered in this browser, with the frames' legend) that turns frames, chips and
+ * the viewer's analysis block on and off. The
  * full analysis (frames on the photo, objects with score and source, details, property
  * scores) is the manage area's {@link AnalysisPanel}, shown in the photo viewer.
  *
@@ -13,8 +15,10 @@ import { Sparkles } from 'lucide-react';
 import { cx } from '@/ui/cx';
 import { Switch } from '@/ui/Switch';
 import { useWallEnabled } from './hooks';
+import { BOX_KIND_COLORS } from './labels';
 import { useAnalysisSummary, useLiveAnalysis, useShowAnalysis } from './liveAnalysisState';
 import { analysisChips, chipsLabel, type ChipTone } from './summaryText';
+import { frameStyle, tileFrames } from './tileFrames';
 
 /** The header switch; nothing while the wall extension is off. */
 export function AnalysisToggle({ className }: { className?: string }) {
@@ -26,6 +30,72 @@ export function AnalysisToggle({ className }: { className?: string }) {
     <Switch isSelected={show} onChange={setShow} className={className} data-testid="analysis-toggle">
       Analyse zeigen
     </Switch>
+  );
+}
+
+const LEGEND = [
+  { kind: 'object', label: 'Objekte' },
+  { kind: 'face', label: 'Gesichter' },
+  { kind: 'hand', label: 'Hände' },
+] as const;
+
+/** What the frames' colours mean (next to the switch, while the analysis shows). */
+export function AnalysisLegend({ className }: { className?: string }) {
+  const show = useLiveAnalysis();
+  if (!show) return null;
+  return (
+    <ul
+      aria-label="Rahmen auf den Fotos"
+      className={cx('flex gap-2 text-[0.6875rem] leading-4 text-ink-muted', className)}
+      data-testid="analysis-legend"
+    >
+      {LEGEND.map(({ kind, label }) => (
+        <li key={kind} className="inline-flex items-center gap-1" data-kind={kind}>
+          <span
+            aria-hidden="true"
+            className="size-2.5 rounded-[2px] border-2"
+            style={{ borderColor: BOX_KIND_COLORS[kind] }}
+          />
+          {label}
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+/**
+ * The frames on one tile's thumbnail (inside PhotoTile's photo frame); `aspect` is the
+ * photo's width / height. Nothing while the analysis is hidden or off.
+ */
+export function AnalysisTileFrames({ photoId, aspect }: { photoId: string; aspect: number }) {
+  const show = useLiveAnalysis();
+  const { data } = useAnalysisSummary(photoId, show);
+  if (!show || !data) return null;
+  const frames = tileFrames(data, aspect);
+  if (frames.length === 0) return null;
+  return (
+    <div aria-hidden="true" className="pointer-events-none absolute inset-0" data-testid="tile-frames">
+      {frames.map((f, i) => (
+        <div
+          // frames have no id; their order is stable for one summary
+          // oxlint-disable-next-line react/no-array-index-key
+          key={i}
+          data-testid="tile-frame"
+          data-kind={f.kind}
+          className="absolute rounded-[2px] border-2 shadow-[0_0_0_1px_rgb(0_0_0/0.35)]"
+          style={{ ...frameStyle(f), borderColor: BOX_KIND_COLORS[f.kind] }}
+        >
+          {f.label ? (
+            <span
+              className="absolute -top-px -left-px max-w-[calc(100%+2px)] truncate px-0.5 text-[0.625rem] leading-3.5 font-semibold text-black"
+              style={{ backgroundColor: BOX_KIND_COLORS[f.kind] }}
+            >
+              {f.label}
+            </span>
+          ) : null}
+        </div>
+      ))}
+    </div>
   );
 }
 

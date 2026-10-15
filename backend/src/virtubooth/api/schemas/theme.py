@@ -11,8 +11,8 @@ from pydantic import BaseModel, ConfigDict, Field
 
 ThemePresetId = Literal["neon_nacht", "klassisch", "rummel", "custom"]
 # the layer on top of the colours (<html data-vb-style>): "elegant" (calm), "party" (the
-# default: the calm look plus a few deliberate gags, e.g. the googly-eyed shutter) or
-# "goofy" (the „Rummel“ fairground look: chasing bulbs everywhere, Bungee, an awning)
+# calm look plus a few deliberate gags, e.g. the googly-eyed shutter) or "goofy" (the
+# default, with Neon Nacht: the fairground look, chasing bulbs, Bungee, an awning)
 ThemeStyle = Literal["elegant", "party", "goofy"]
 THEME_COLOR_PATTERN = r"^#[0-9a-f]{6}$"
 ThemeColor = Annotated[str, Field(pattern=THEME_COLOR_PATTERN)]
@@ -83,5 +83,5 @@ class ThemeIn(BaseModel):
         None, description="All colours of ThemeColors as #rrggbb; null: the preset's."
     )
     style: ThemeStyle | None = Field(
-        None, description="The layer; null: the preset's (`custom`: party)."
+        None, description="The layer; null: the preset's (`custom`: goofy, the default)."
     )

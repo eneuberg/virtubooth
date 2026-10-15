@@ -159,6 +159,9 @@ class WallFake:
         self.held: list[Route] = []
         html = (WEB_DIR / "wall.html").read_text(encoding="utf-8")
         self.html = html
+        # the theme's style layer on <html data-vb-style> (the real server writes it,
+        # by default "goofy"); None: the plain page, the calm base most tests measure
+        self.style: str | None = None
 
     # ------------------------------------------------------------- test API
 
@@ -313,7 +316,9 @@ class WallFake:
                 "Content-Type": "text/html; charset=utf-8",
                 "Cache-Control": "private, no-cache",
             },
-            body=self.html,
+            body=self.html
+            if self.style is None
+            else self.html.replace("<html", f'<html data-vb-style="{self.style}"', 1),
         )
 
 

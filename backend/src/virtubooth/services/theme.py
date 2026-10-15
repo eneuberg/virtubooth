@@ -1,9 +1,15 @@
 """The theme: colours of the guest UI and the Live Wall, set in Allgemeines.
 
 Stored as `x.theme` = {preset, colors, style, rev, updated_at, by}; absent =
-„Neon Nacht“. `style` is the layer on top of the colours: "elegant" (calm),
-"party" (the default: calm plus a few deliberate gags) or "goofy" (the „Rummel“
-fairground look); a stored theme without one gets its preset's. The server writes
+the default: „Neon Nacht“ in the style "goofy" (Verspielt). `style` is the layer
+on top of the colours: "elegant" (calm), "party" (calm plus a few deliberate gags)
+or "goofy" (the fairground look: signs, bulbs, googly eyes, tickets).
+
+Migration rule (as when "party" came): a stored theme keeps what the host saved;
+one WITHOUT a (known) style gets its preset's style, own colours the default
+style — so Neon Nacht and own colours stored before there were styles become
+goofy, Klassisch stays party, Rummel goofy. One without a known preset gets the
+default preset's id with its stored colours kept. The server writes
 it into the guest pages' <html data-vb-style> (WebFrontend.theme_style), so the
 style's CSS applies before the first paint. Every guest page (index.html, gate.html, wall.html) links
 `/api/theme.css?v=<rev>` in its <head> (WebFrontend.theme_head), so the
@@ -86,12 +92,14 @@ RUMMEL = ThemeColors(
     text="#fff8ec",
     text_muted="#cdc6f2",
 )
+STYLES: Final = ("elegant", "party", "goofy")
+# the default look: Neon Nacht's colours with the goofy layer (preset first = default)
+DEFAULT_STYLE: Final[ThemeStyle] = "goofy"
 PRESETS: Final = (
-    ThemePreset(id="neon_nacht", label="Neon Nacht", colors=NEON_NACHT, style="party"),
+    ThemePreset(id="neon_nacht", label="Neon Nacht", colors=NEON_NACHT, style=DEFAULT_STYLE),
     ThemePreset(id="klassisch", label="Klassisch", colors=KLASSISCH, style="party"),
     ThemePreset(id="rummel", label="Rummel", colors=RUMMEL, style="goofy"),
 )
-STYLES: Final = ("elegant", "party", "goofy")
 DEFAULT_PRESET: Final = PRESETS[0]
 
 LABELS: Final = {
@@ -206,8 +214,8 @@ def parse_colors(raw: Any) -> ThemeColors:
 
 
 def _preset_style(preset: str) -> ThemeStyle:
-    """The style a preset comes with (own colours and unknown: party, the default)."""
-    return next((p.style for p in PRESETS if p.id == preset), "party")
+    """The style a preset comes with (own colours and unknown: the default, goofy)."""
+    return next((p.style for p in PRESETS if p.id == preset), DEFAULT_STYLE)
 
 
 def css_variables(theme: PublicTheme) -> str:

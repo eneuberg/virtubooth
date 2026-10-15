@@ -357,14 +357,19 @@ Nur mit der Live-Wall (sie bringt die Analyse mit).
   die das Foto gerade gewinnt, und die Wünsche des Gasts („Keine Auswertung (Gast)“,
   „Keine externe KI“). Solange nichts fertig ist: „Analyse wartet“ bzw. „Analyse
   läuft…“, sonst „Analyse fehlgeschlagen“ oder „Nicht ausgewertet“.
+- **Rahmen auf den Kacheln:** jede Kachel zeigt die erkannten Objekte (pink), Gesichter
+  (orange) und Hände (grün) als Rahmen über dem Vorschaubild, richtig auf den
+  3:4-Ausschnitt umgerechnet (was außerhalb liegt, fällt weg). Große Rahmen tragen
+  ihren Namen („Flasche“), kleine nur den Rahmen. Die Legende steht unter dem Schalter.
 - Das große Foto zeigt die volle Analyse wie in der Verwaltung: Rahmen für Objekte,
   Gesichter und Hände auf dem Foto, die Objektliste mit Wert und Quelle (Zeigen auf
   ein Objekt hebt seinen Rahmen hervor), Details, Eigenschaftswerte, Kategorien.
 - Fertige Analysen kommen über den Ereignisstrom (`photo.analyzed`): die Kachel ändert
   sich ohne Neuladen und ohne Abfragen im Takt. Die Chips laden gebündelt (bis zu 100
-  Fotos pro Anfrage), die volle Analyse erst beim Öffnen.
-- „Analyse zeigen“ in der Kopfzeile blendet Chips, Rahmen und Analyse aus; der Browser
-  merkt es sich.
+  Fotos pro Anfrage, mit den Rahmen: Objekte mit Name, Wert und Rahmen, Gesichter und
+  Hände nur als Rahmen, auf drei Stellen gerundet), die volle Analyse erst beim Öffnen.
+- „Analyse zeigen“ in der Kopfzeile blendet Chips, Rahmen (auch auf den Kacheln) und
+  Analyse aus; der Browser merkt es sich.
 
 ### Übersicht und Live-Zahlen
 
@@ -1010,6 +1015,18 @@ Admin-Geräte sehen sie sofort.
   anderes Gerät abgemeldet.“), dieses bleibt angemeldet. Es gelten die Limits des
   Logins; ein falsches aktuelles Passwort zählt wie ein falscher Login. „Passwort
   vergessen?“ nennt den Befehl für den Server.
+- **„Erscheinungsbild“:** Farben und Stil der Gästeseiten und der Live-Wall (die
+  Verwaltung behält ihr Aussehen). „Vorlage“: „Neon Nacht“, „Klassisch“, „Rummel“ oder
+  „Eigene“ Farben (Text muss auf Hintergrund und Fläche 4,5:1 erreichen). „Stil“:
+  „Ruhig“, „Party“ (ruhig plus ein paar Gags) oder „Verspielt“ (Rummel-Look:
+  Schilder in Bungee, Lauflichter, Wackelaugen, ein Buzzer als Auslöser,
+  Eintrittskarten, eine Markise über Start; auf der Wall Glühbirnen-Girlande und
+  Preisschleifen). **Standard: „Neon Nacht“ im Stil „Verspielt“** (die Karte sagt es
+  unter dem Stil). Eine Vorlage bringt ihren Stil mit (Neon Nacht und Rummel:
+  Verspielt, Klassisch: Party), danach ist er frei wählbar. Ein gespeicherter Stil
+  bleibt, wie der Host ihn gewählt hat; ein Theme, das vor den Stilen gespeichert
+  wurde, bekommt den Stil seiner Vorlage, eigene Farben den Standard. „Zurücksetzen“
+  führt zum Standard zurück. Bei reduzierter Bewegung stehen alle Animationen still.
 - **„Öffentliche Adresse“** (z. B. `https://party.example.com`; „Leer lassen =
   automatisch aus dem Aufruf“): sie steht in allen QR-Codes, auf Plakaten und in der
   Ecke der Live-Wall und geht vor `VB_PUBLIC_BASE_URL`. Beim Speichern (und mit

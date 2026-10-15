@@ -4439,11 +4439,17 @@ export interface components {
         };
         /**
          * PhotoAnalysisSummary
-         * @description What the Live screen shows under a photo tile: the state, the key facts,
-         *     the object labels, the guest's opt-outs and the categories it currently wins.
-         *     The full analysis (boxes, details, scores) is `/admin/photos/{id}/analysis`.
+         * @description What the Live screen shows on and under a photo tile: the state, the key
+         *     facts, the objects (label, score, frame), the face and hand frames, the guest's
+         *     opt-outs and the categories it currently wins. The full analysis (details,
+         *     runs, scores) is `/admin/photos/{id}/analysis`.
          */
         PhotoAnalysisSummary: {
+            /**
+             * Boxes
+             * @description Face and hand frames (objects carry their own).
+             */
+            boxes: components["schemas"]["SummaryBox"][];
             /**
              * Facts
              * @description Only the key values: people, faces, smiles, happy_max, hands, thumbs_up, peace, rock, glasses, hats, age_groups (those measured).
@@ -5018,10 +5024,36 @@ export interface components {
              */
             type: "stream.resync";
         };
+        /**
+         * SummaryBox
+         * @description A face or hand frame for a tile (on the full photo, 0..1, to 3 places).
+         */
+        SummaryBox: {
+            /** H */
+            h: number;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "face" | "hand";
+            /** W */
+            w: number;
+            /** X */
+            x: number;
+            /** Y */
+            y: number;
+        };
         /** SummaryObject */
         SummaryObject: {
+            /** @description On the full photo (0..1, to 3 places); null when the source gives none. */
+            box: components["schemas"]["ObjectBox"] | null;
             /** Label De */
             label_de: string;
+            /**
+             * Score
+             * @description 0..1, to 2 places.
+             */
+            score: number;
             /**
              * Source
              * @description local | claude | mistral
@@ -5151,7 +5183,7 @@ export interface components {
             preset: "neon_nacht" | "klassisch" | "rummel" | "custom";
             /**
              * Style
-             * @description The layer; null: the preset's (`custom`: party).
+             * @description The layer; null: the preset's (`custom`: goofy, the default).
              */
             style?: ("elegant" | "party" | "goofy") | null;
         };

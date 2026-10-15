@@ -784,8 +784,9 @@ def test_everything_fits(guest: Page, live: LiveServer, size: tuple[int, int]):
     page.set_viewport_size({"width": size[0], "height": size[1]})
     open_booth(page, live)
     name = SIZES[size]
-    # the default look: the party style (googly-eyed shutter with its ring of lights)
-    expect(page.locator("html")).to_have_attribute("data-vb-style", "party")
+    # the default look: Neon Nacht, Verspielt (the buzzer with googly eyes, its ring of
+    # bulbs, the Bungee signs): everything still fits
+    expect(page.locator("html")).to_have_attribute("data-vb-style", "goofy")
     for testid in (
         "shutter",
         "countdown-toggle",

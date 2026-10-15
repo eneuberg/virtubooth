@@ -31,12 +31,14 @@ export const THEME_COLOR_KEYS = [
 export type ThemeColorKey = (typeof THEME_COLOR_KEYS)[number];
 export type ThemeColors = Record<ThemeColorKey, string>;
 
-/** The layer on top of the colours: calm, „party“ (the default: calm plus a few deliberate
- * gags, styles/party.css) or the „Rummel“ fairground (styles/goofy.css). */
+/** The layer on top of the colours: calm, „party“ (calm plus a few deliberate gags,
+ * styles/party.css) or „goofy“ (Verspielt, the default: the fairground look,
+ * styles/goofy.css). */
 export type ThemeStyle = 'elegant' | 'party' | 'goofy';
 export const THEME_STYLES: readonly ThemeStyle[] = ['elegant', 'party', 'goofy'];
-/** what a theme without a (known) style gets, like the server (services/theme.py) */
-export const DEFAULT_STYLE: ThemeStyle = 'party';
+/** what a theme without a (known) style gets, like the server (services/theme.py):
+ * the default look is Neon Nacht in the goofy style */
+export const DEFAULT_STYLE: ThemeStyle = 'goofy';
 
 export function isThemeStyle(value: unknown): value is ThemeStyle {
   return typeof value === 'string' && (THEME_STYLES as readonly string[]).includes(value);
@@ -55,7 +57,7 @@ export interface PublicTheme {
 export const MIN_CONTRAST = 4.5;
 export const HEX_RE = /^#[0-9a-f]{6}$/;
 
-/** „Neon Nacht“, the default (services/theme.py NEON_NACHT). */
+/** „Neon Nacht“, the default colours (services/theme.py NEON_NACHT; style goofy). */
 export const NEON_NACHT: ThemeColors = {
   background: '#1b1b1a',
   surface: '#252229',

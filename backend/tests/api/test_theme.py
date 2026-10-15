@@ -40,12 +40,14 @@ def colors(**changes: str) -> dict[str, str]:
     return NEON_NACHT.model_dump() | changes
 
 
-def test_public_default_is_neon_nacht(client):
+def test_public_default_is_neon_nacht_goofy(client):
     r = client.get("/api/theme")
     assert r.status_code == 200
     body = r.json()
+    # the default look: Neon Nacht's colours with the goofy layer (Verspielt)
     assert body["preset"] == "neon_nacht"
     assert body["colors"] == NEON_NACHT.model_dump()
+    assert body["style"] == "goofy"
     assert body["rev"] == 0
     # no admin details in the public answer
     assert "by" not in body and "updated_at" not in body
@@ -93,9 +95,10 @@ def test_admin_get_lists_presets(admin):
     body = r.json()
     assert [p["id"] for p in body["presets"]] == ["neon_nacht", "klassisch", "rummel"]
     assert [p["label"] for p in body["presets"]] == ["Neon Nacht", "Klassisch", "Rummel"]
-    assert [p["style"] for p in body["presets"]] == ["party", "party", "goofy"]
-    # the default: Neon Nacht in the party style (calm plus a few deliberate gags)
-    assert body["theme"]["style"] == "party"
+    assert [p["style"] for p in body["presets"]] == ["goofy", "party", "goofy"]
+    # the default: Neon Nacht in the goofy style (the fairground look)
+    assert body["theme"]["preset"] == "neon_nacht"
+    assert body["theme"]["style"] == "goofy"
     assert body["theme"]["custom"] is False
     assert body["theme"]["by"] is None
 
@@ -137,9 +140,11 @@ def test_rummel_brings_the_goofy_style(admin, client, core):
         ({"preset": "rummel", "style": "party"}, "party"),
         ({"preset": "neon_nacht", "style": "goofy"}, "goofy"),
         ({"preset": "neon_nacht", "style": "elegant"}, "elegant"),
-        ({"preset": "neon_nacht"}, "party"),
+        ({"preset": "neon_nacht"}, "goofy"),
+        ({"preset": "neon_nacht", "style": "party"}, "party"),
         ({"preset": "klassisch"}, "party"),
-        ({"preset": "custom", "colors": NEON_NACHT.model_dump()}, "party"),
+        ({"preset": "custom", "colors": NEON_NACHT.model_dump()}, "goofy"),
+        ({"preset": "custom", "colors": KLASSISCH.model_dump(), "style": "party"}, "party"),
         ({"preset": "custom", "colors": RUMMEL.model_dump(), "style": "goofy"}, "goofy"),
     ],
 )
@@ -168,13 +173,38 @@ def test_stored_without_style_follows_the_preset(client, core):
     assert client.get("/api/theme").json()["style"] == "party"
 
 
-@pytest.mark.parametrize("preset", ["neon_nacht", "klassisch", "custom"])
-def test_themes_saved_before_the_styles_get_party(client, core, preset):
-    # a theme stored before there were styles (main): the new default, not the calm one
-    colors = (KLASSISCH if preset == "klassisch" else NEON_NACHT).model_dump()
+@pytest.mark.parametrize(
+    ("preset", "style"),
+    [("neon_nacht", "goofy"), ("custom", "goofy"), ("klassisch", "party"), ("rummel", "goofy")],
+)
+def test_themes_saved_without_a_style_get_their_presets(client, core, preset, style):
+    # stored before there were styles: the preset's style, own colours the default
+    from ..conftest import scan
+
+    colors = {"klassisch": KLASSISCH, "rummel": RUMMEL}.get(preset, NEON_NACHT).model_dump()
     core.repos.app_settings.put(THEME_KEY, {"preset": preset, "colors": colors, "rev": 3}, at="now")
-    assert client.get("/api/theme").json()["style"] == "party"
-    assert '<html data-vb-style="party"' in client.get("/").text
+    assert client.get("/api/theme").json()["style"] == style
+    scan(client)
+    assert f'<html data-vb-style="{style}"' in client.get("/").text
+
+
+@pytest.mark.parametrize("style", ["elegant", "party"])
+def test_an_explicitly_saved_style_stays(client, core, style):
+    # the host chose it: the new default never overrides it
+    core.repos.app_settings.put(
+        THEME_KEY,
+        {"preset": "neon_nacht", "colors": NEON_NACHT.model_dump(), "style": style, "rev": 4},
+        at="now",
+    )
+    assert client.get("/api/theme").json()["style"] == style
+
+
+def test_stored_without_a_known_preset_keeps_its_colours(client, core):
+    custom = colors(primary="#22c55e")
+    core.repos.app_settings.put(THEME_KEY, {"colors": custom, "rev": 1}, at="now")
+    body = client.get("/api/theme").json()
+    assert body["preset"] == "neon_nacht" and body["style"] == "goofy"
+    assert body["colors"] == custom
 
 
 def test_the_calm_style_stays_selectable(admin, client):
@@ -255,6 +285,7 @@ def test_reset(admin, core, published):
     r = admin.delete("/api/admin/theme", headers=ORIGIN)
     assert r.status_code == 200
     assert r.json()["theme"]["preset"] == "neon_nacht"
+    assert r.json()["theme"]["style"] == "goofy"
     assert r.json()["theme"]["custom"] is False
     assert core.repos.app_settings.get(THEME_KEY) == {}
     assert ("theme.changed", {}) in published
@@ -271,7 +302,8 @@ def test_needs_origin(admin):
 
 def test_stored_garbage_falls_back(client, core):
     core.repos.app_settings.put(THEME_KEY, {"preset": "x", "colors": {"primary": 1}}, at="now")
-    assert client.get("/api/theme").json()["colors"] == NEON_NACHT.model_dump()
+    body = client.get("/api/theme").json()
+    assert body["colors"] == NEON_NACHT.model_dump() and body["style"] == "goofy"
 
 
 def test_readable_on_and_css_variables():
@@ -360,16 +392,16 @@ def test_guest_pages_link_the_theme_admin_does_not(client, admin):
     again = client.get("/")
     assert again.headers["etag"] != etag
     assert f"theme.css?v={link}" not in again.text
-    assert '<html data-vb-style="party" lang="de">' in again.text
+    assert '<html data-vb-style="party" lang="de">' in again.text  # Klassisch: party
 
 
 def test_guest_pages_carry_the_style_before_the_first_paint(client, admin):
     from ..conftest import scan
 
     scan(client)
-    assert 'data-vb-style="party"' in client.get("/").text
-    admin.put("/api/admin/theme", json={"preset": "rummel"}, headers=ORIGIN)
+    assert 'data-vb-style="goofy"' in client.get("/").text  # the default
+    admin.put("/api/admin/theme", json={"preset": "klassisch"}, headers=ORIGIN)
     page = client.get("/").text
     assert page.count("data-vb-style=") == 1
-    assert '<html data-vb-style="goofy"' in page
+    assert '<html data-vb-style="party"' in page
     assert "data-vb-style" not in admin.get("/admin/live").text

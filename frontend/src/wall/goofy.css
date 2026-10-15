@@ -1,11 +1,12 @@
 /*
- * The Live Wall's goofy layer („Rummel“, see styles/goofy.css for the guest pages).
+ * The Live Wall's goofy layer (Verspielt, the default style; see styles/goofy.css for
+ * the guest pages). Colours only from the theme, so it fits any preset.
  * Only under <html data-vb-style="goofy">; imported after wall.css (main.tsx).
  *
  *   1. a garland of chasing bulbs along the top of the screen
  *   2. spotlight: every photo is a prize on a nail; it swings in and rings to rest,
  *      in a frame of bulbs
- *   3. gallery: the photos hang a little crooked in thick bulb-yellow frames
+ *   3. gallery: the photos hang a little crooked in thick frames in the primary colour
  *   4. categories: a painted sign with a bulb string, winners swing on their nails,
  *      the values are prize ribbons
  *   5. the corner: the googly-eyed peeker from Start looks over the QR code
@@ -303,7 +304,7 @@
   right: 3vmin;
   padding: 1vmin 1.4vmin 2vmin;
   border-radius: 999px 999px 0 0;
-  background: var(--t-tertiary, #7fe3d0);
+  background: var(--t-tertiary, #b6b6d8);
   animation: wall-g-peek 900ms cubic-bezier(0.34, 1.7, 0.5, 1) 1.5s both;
 }
 .wall-corner[data-corner^='top'] .wall-peeker {
