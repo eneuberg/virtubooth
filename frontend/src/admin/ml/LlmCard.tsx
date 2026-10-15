@@ -10,6 +10,7 @@ import { useState, type FormEvent } from 'react';
 import { formatDateTime, formatRelative, formatTime } from '@/lib/format';
 import { Badge } from '@/ui/Badge';
 import { Button } from '@/ui/Button';
+import { cx } from '@/ui/cx';
 import { Checkbox } from '@/ui/Checkbox';
 import { ConfirmDialog } from '@/ui/ConfirmDialog';
 import { Select } from '@/ui/Select';
@@ -122,7 +123,7 @@ function KeyBlock({ status }: { status: LlmStatus }) {
         <form
           noValidate
           onSubmit={(e) => void submit(e)}
-          className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-start"
+          className="grid gap-2 @md:grid-cols-[minmax(0,1fr)_auto] @md:items-start"
           autoComplete="off"
         >
           <TextField
@@ -142,7 +143,8 @@ function KeyBlock({ status }: { status: LlmStatus }) {
             description="Wird verschlüsselt gespeichert und nie wieder angezeigt."
             data-testid="ml-key-input"
           />
-          <div className="flex gap-2 sm:mt-6.5">
+          {/* level with the input: below the label when it is shown */}
+          <div className={cx('flex flex-wrap gap-2', key.set && '@md:mt-6.5')}>
             <Button
               type="submit"
               size="sm"
@@ -338,7 +340,7 @@ export function LlmCard({ status }: { status: LlmStatus }) {
       <Switch isSelected={f.enabled} onChange={(on) => set({ enabled: on })} data-testid="ml-llm-enabled">
         Externe KI verwenden
       </Switch>
-      <div className="grid gap-3 sm:grid-cols-2">
+      <div className="grid gap-3 @md:grid-cols-2">
         <Select
           label="Anbieter"
           size="sm"

@@ -38,6 +38,26 @@ describe('ActivityShell', () => {
     expect(document.querySelectorAll('[role="region"]').length).toBeLessThanOrEqual(1);
   });
 
+  it("wraps the result's buttons instead of letting them run off a narrow screen", () => {
+    render(
+      <ActivityShell
+        heading="Fotobox"
+        title="Fotobox"
+        stage={null}
+        controlsLayout="actions"
+        controls={
+          <>
+            <button type="button">Speichern</button>
+            <button type="button">Neues Foto</button>
+          </>
+        }
+      />,
+      { wrapper: UiProvider },
+    );
+    const row = screen.getByRole('button', { name: 'Neues Foto' }).parentElement;
+    expect(row?.className).toMatch(/\bflex-wrap\b/);
+  });
+
   it('leaves out an empty hint', () => {
     render(<ActivityShell heading="Fotobox" title="Fotobox" stage={null} controls={<span />} />, {
       wrapper: UiProvider,

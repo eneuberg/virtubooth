@@ -326,3 +326,56 @@ def test_ml_section_on_a_phone(admin_page: Page, live: LiveServer) -> None:
     page.get_by_role("heading", name="Budget", level=2).scroll_into_view_if_needed()
     shot(page, "ui1_ml_phone_budget", 300)
     assert errors(page) == []
+
+
+# every box of the analyzer settings form: labels, fields, helper texts, „Speichern“
+OVERLAPS = """(form) => {
+    const parts = [...form.querySelectorAll('label, input, [slot=description], button')]
+        .map((el) => [el, el.getBoundingClientRect()]);
+    const out = [];
+    for (const [i, [a, ra]] of parts.entries()) {
+        for (const [b, rb] of parts.slice(i + 1)) {
+            if (a.contains(b) || b.contains(a)) continue;
+            const w = Math.min(ra.right, rb.right) - Math.max(ra.left, rb.left);
+            const h = Math.min(ra.bottom, rb.bottom) - Math.max(ra.top, rb.top);
+            if (w > 0.5 && h > 0.5) out.push(`${a.textContent || a.tagName} / ${b.textContent || b.tagName}`);
+        }
+    }
+    const f = form.getBoundingClientRect();
+    for (const [el, r] of parts)
+        if (r.left < f.left - 0.5 || r.right > f.right + 0.5) out.push(`${el.textContent || el.tagName} sticks out`);
+    return out;
+}"""
+
+
+@pytest.mark.parametrize(
+    "viewport",
+    [{"width": 1280, "height": 800}, {"width": 768, "height": 1024}, {"width": 320, "height": 640}],
+    ids=["laptop", "tablet", "small-phone"],
+)
+def test_analyzer_settings_do_not_overlap(
+    browser: Any, live: LiveServer, viewport: dict[str, int]
+) -> None:
+    """„Mindest-Sicherheit“ and „Höchstens Objekte pro Foto“ (the real analyzers): each
+    label, field, range and the button in its own box, inside the card (they ran into
+    each other in the 1280 px laptop's narrow column)."""
+    from .conftest import admin_context, login_api
+
+    ctx = admin_context(browser, viewport)
+    try:
+        page = ctx.new_page()
+        login_api(page, live)
+        goto(page, live, "/admin/manage?tab=ml")
+        forms = page.get_by_test_id("ml-analyzer-settings")
+        expect(forms.first).to_be_visible()
+        objects = page.locator("[data-analyzer=objects] [data-testid=ml-analyzer-settings]")
+        expect(objects.get_by_role("textbox", name="Höchstens Objekte pro Foto")).to_be_visible()
+        for i in range(forms.count()):
+            form = forms.nth(i)
+            form.scroll_into_view_if_needed()
+            assert form.evaluate(OVERLAPS) == []
+        assert no_horizontal_scroll(page)
+        objects.scroll_into_view_if_needed()
+        shot(page, f"ml_analyzer_settings_{viewport['width']}", 300)
+    finally:
+        ctx.close()

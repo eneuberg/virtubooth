@@ -13,6 +13,7 @@ import { EmptyState } from '@/ui/EmptyState';
 import { Spinner } from '@/ui/Spinner';
 import { showToast } from '@/ui/Toast';
 import { toastAvoid } from '@/ui/toastPlacement';
+import { ADMIN_COLUMNS } from '../common/layout';
 import { errorText, showError } from '../common/usePhotoActions';
 import { useLeaveGuard } from '../lib/leaveGuard';
 import { AccessCard } from './AccessCard';
@@ -30,7 +31,10 @@ export function WallSection() {
   const admin = useWallAdmin(enabled === true);
   const off = enabled === false || (admin.isError && isRouteMissing(admin.error));
   return (
-    <section aria-labelledby="section-title" className="grid content-start gap-5 px-4 py-4 lg:px-6 lg:py-5">
+    <section
+      aria-labelledby="section-title"
+      className="@container grid content-start gap-5 px-4 py-4 lg:px-6 lg:py-5"
+    >
       <header className="grid gap-2">
         <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
           <h1 id="section-title" tabIndex={-1} className="text-xl font-bold outline-none">
@@ -135,7 +139,7 @@ function Editor({ admin }: { admin: WallAdminOut }) {
   return (
     <>
       {/* two independent stacks on wide screens: a short card never leaves a hole */}
-      <div className="grid items-start gap-x-10 gap-y-8 xl:grid-cols-2">
+      <div className={ADMIN_COLUMNS}>
         <div className="grid min-w-0 content-start gap-y-8" data-testid="wall-column">
           <AccessCard admin={admin} />
           <PlaylistCard {...props} />

@@ -24,8 +24,10 @@ const styles = tv({
       },
     },
     size: {
-      md: { group: 'h-12', item: 'text-sm' },
-      sm: { group: 'h-10', item: 'text-sm' },
+      // min heights, not fixed ones: a group that may wrap (className "flex-wrap", e.g. four
+      // presets on a phone) grows a second row inside its background instead of spilling out
+      md: { group: 'min-h-12', item: 'min-h-[42px] text-sm' },
+      sm: { group: 'min-h-10', item: 'min-h-[34px] text-sm' },
     },
   },
   defaultVariants: { tone: 'surface', size: 'md' },
@@ -56,7 +58,7 @@ export interface SegmentedControlProps<K extends string> {
   'data-testid'?: string;
 }
 
-/** 2–4 exclusive options as one radiogroup. Never wraps; with more options use Select. */
+/** 2–4 exclusive options as one radiogroup. One row unless className adds flex-wrap; with more options use Select. */
 export function SegmentedControl<K extends string>({
   label,
   options,

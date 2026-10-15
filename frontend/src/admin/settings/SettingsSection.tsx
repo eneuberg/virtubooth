@@ -20,14 +20,22 @@ export function SettingsSection() {
   const data = settings.data;
   const theme = useAdminTheme();
   return (
-    <section aria-labelledby="section-title" className="grid content-start gap-6 px-4 py-4 lg:px-6 lg:py-5">
+    <section
+      aria-labelledby="section-title"
+      className="@container grid content-start gap-6 px-4 py-4 lg:px-6 lg:py-5"
+    >
       <header className="grid gap-1">
         <h1 id="section-title" tabIndex={-1} className="text-xl font-bold outline-none">
           Allgemeines
         </h1>
       </header>
       {data ? (
-        <div className="grid items-start gap-8 md:grid-cols-2 xl:grid-cols-3" data-testid="settings">
+        // by the section's width (not the window's, which includes the sidebar): two
+        // cards side by side from 40rem, three from 66rem
+        <div
+          className="grid items-start gap-8 @[40rem]:grid-cols-2 @[66rem]:grid-cols-3"
+          data-testid="settings"
+        >
           <EventNameCard event={data.event} />
           <PublicAddressCard state={data.public_address} />
           <PasswordCard state={data.password} />

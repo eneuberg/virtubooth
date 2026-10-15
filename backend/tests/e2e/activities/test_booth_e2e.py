@@ -38,6 +38,7 @@ from .conftest import (
     leaving_is_blocked,
     media_size,
     network_errors_only,
+    open_beer,
     open_booth,
     photos,
     reload,
@@ -763,17 +764,21 @@ def inside(page: Page, testid: str) -> dict:
     return box
 
 
-@pytest.mark.parametrize(
-    "size", [(390, 844), (360, 640), (844, 390)], ids=["phone", "small", "landscape"]
-)
+SIZES = {(390, 844): "phone", (360, 640): "small", (320, 640): "tiny", (844, 390): "landscape"}
+
+
+@pytest.mark.parametrize("size", list(SIZES), ids=list(SIZES.values()))
 def test_everything_fits(guest: Page, live: LiveServer, size: tuple[int, int]):
     page = guest
     page.set_viewport_size({"width": size[0], "height": size[1]})
     open_booth(page, live)
-    name = {(390, 844): "phone", (360, 640): "small", (844, 390): "landscape"}[size]
+    name = SIZES[size]
+    # the default look: the party style (googly-eyed shutter with its ring of lights)
+    expect(page.locator("html")).to_have_attribute("data-vb-style", "party")
     for testid in (
         "shutter",
         "countdown-toggle",
+        "switch-camera",
         "back",
         "guest-pass",
         "preview",
@@ -795,4 +800,33 @@ def test_everything_fits(guest: Page, live: LiveServer, size: tuple[int, int]):
     photo = page.get_by_test_id("result-photo").bounding_box()
     assert photo and photo["height"] > 250, photo
     shot(page, f"booth-result-{name}", 900)
+    assert page.js_errors == []
+
+
+# Chrome on Android offers the share sheet for files (the headless browser does not)
+WEB_SHARE = """(() => {
+  Object.defineProperty(Navigator.prototype, 'canShare', {configurable: true, value: () => true});
+  Object.defineProperty(Navigator.prototype, 'share', {configurable: true, value: async () => undefined});
+})();"""
+
+
+@pytest.mark.parametrize("width", [320, 360, 390])
+@pytest.mark.parametrize("activity", ["booth", "beer"])
+def test_result_buttons_stay_on_screen_with_share(
+    guest: Page, live: LiveServer, activity: str, width: int
+):
+    """The Fotobox result's „Speichern“, Teilen and „Neues Foto“ on a narrow Android
+    phone: they wrap onto a second line instead of running off the right edge (they did
+    at 390 px with the share button, at 320 px without it). The Beer Cam's one button
+    („Noch ein Bier“) shares the layout."""
+    page = guest
+    page.context.add_init_script(WEB_SHARE)
+    page.set_viewport_size({"width": width, "height": 780})
+    (open_booth if activity == "booth" else open_beer)(page, live)
+    shoot(page)
+    for testid in ("save", "share", "again") if activity == "booth" else ("again",):
+        inside(page, testid)
+    sizes = page.evaluate("() => [document.documentElement.scrollWidth, innerWidth]")
+    assert sizes[0] <= sizes[1] + 1, sizes
+    shot(page, f"{activity}-result-share-{width}", 600)
     assert page.js_errors == []

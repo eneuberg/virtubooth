@@ -257,18 +257,22 @@ function Guest({ detail }: { detail: UserDetail }) {
         <p className="flex flex-wrap items-center text-md text-ink-muted">
           {user.instagram ? (
             <>
-              <a
-                href={`https://www.instagram.com/${encodeURIComponent(user.instagram)}/`}
-                target="_blank"
-                rel="noopener noreferrer"
-                translate="no"
-                className={cx(LINK, 'inline-flex items-center gap-1')}
-                data-testid="user-insta"
-              >
-                @{user.instagram}
-                <ExternalLink aria-hidden="true" className="size-4" strokeWidth={2} />
-              </a>
-              <span>, seit {formatTime(user.created_at)} dabei</span>
+              {/* the comma stays with the name when the line wraps */}
+              <span className="inline-flex min-w-0 items-center">
+                <a
+                  href={`https://www.instagram.com/${encodeURIComponent(user.instagram)}/`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  translate="no"
+                  className={cx(LINK, 'inline-flex min-w-0 items-center gap-1 break-all')}
+                  data-testid="user-insta"
+                >
+                  @{user.instagram}
+                  <ExternalLink aria-hidden="true" className="size-4 shrink-0" strokeWidth={2} />
+                </a>
+                ,
+              </span>
+              <span className="ml-1">seit {formatTime(user.created_at)} dabei</span>
               <IconButton
                 label="Instagram-Namen kopieren"
                 icon={Copy}
@@ -279,8 +283,10 @@ function Guest({ detail }: { detail: UserDetail }) {
             </>
           ) : (
             <>
-              <span data-testid="user-insta">ohne Instagram</span>
-              <span>, seit {formatTime(user.created_at)} dabei</span>
+              <span>
+                <span data-testid="user-insta">ohne Instagram</span>,
+              </span>
+              <span className="ml-1">seit {formatTime(user.created_at)} dabei</span>
             </>
           )}
         </p>
