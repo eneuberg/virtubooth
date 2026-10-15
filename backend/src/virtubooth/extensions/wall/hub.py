@@ -196,8 +196,8 @@ class WallHub:
                 photos = await to_thread.run_sync(self._user_photos, int(data["id"]))
                 for photo in photos:
                     self.publish_photo("photo.update", photo)
-            elif type_ in ("settings.event", "code.changed"):
-                # the event name or the corner QR code may have changed
+            elif type_ in ("settings.event", "code.changed", "theme.changed"):
+                # the event name, the corner QR code or the theme may have changed
                 payload = await to_thread.run_sync(self._config_payload)
                 self.bus.publish("config", payload)
         except Exception:

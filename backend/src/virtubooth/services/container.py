@@ -18,6 +18,7 @@ from .join_controls import JoinControlsService
 from .moderation import ModerationService
 from .posters import PosterService
 from .presence import PresenceService
+from .theme import ThemeService
 from .upload_controls import UploadControlsService
 from .uploads import UploadService
 from .views import AdminViews
@@ -47,6 +48,7 @@ class Services:
     join_controls: JoinControlsService
     posters: PosterService
     presence: PresenceService
+    theme: ThemeService
 
     @classmethod
     def create(cls, core: Core) -> Services:
@@ -70,6 +72,7 @@ class Services:
             join_controls=JoinControlsService(db, repos, events),
             posters=PosterService(core, db, repos),
             presence=PresenceService(core, repos),
+            theme=ThemeService(db, repos, events),
         )
 
 

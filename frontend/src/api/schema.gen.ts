@@ -697,6 +697,36 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/admin/theme": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Theme
+         * @description The theme in use and the presets.
+         */
+        get: operations["get_theme_api_admin_theme_get"];
+        /**
+         * Put Theme
+         * @description Save a preset (without `colors`) or own colours. 400 `invalid_theme`
+         *     names the field, or the pair of text and background that is not readable
+         *     (4.5:1). Guests get it on their next page view, open walls at once.
+         */
+        put: operations["put_theme_api_admin_theme_put"];
+        post?: never;
+        /**
+         * Reset Theme
+         * @description Back to the default preset („Neon Nacht“).
+         */
+        delete: operations["reset_theme_api_admin_theme_delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/admin/upload-pause": {
         parameters: {
             query?: never;
@@ -1072,6 +1102,27 @@ export interface paths {
          *     files gone, analysis purged). 404 for any other photo.
          */
         delete: operations["delete_my_photo_api_me_photos__public_id__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/theme": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Theme
+         * @description The colours of the guest UI and the wall (the default preset when the
+         *     host never saved one).
+         */
+        get: operations["get_theme_api_theme_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
         options?: never;
         head?: never;
         patch?: never;
@@ -1971,6 +2022,45 @@ export interface components {
             event: components["schemas"]["EventSettings"];
             password: components["schemas"]["PasswordState"];
             public_address: components["schemas"]["PublicAddress"];
+        };
+        /** AdminTheme */
+        AdminTheme: {
+            /** By */
+            by: string | null;
+            colors: components["schemas"]["ThemeColors"];
+            /**
+             * Custom
+             * @description The host saved a theme (false: the default applies).
+             */
+            custom: boolean;
+            /**
+             * On Accent
+             * @description Text on an `accent` fill (best contrast).
+             */
+            on_accent: string;
+            /**
+             * On Primary
+             * @description Text on a `primary` fill (best contrast).
+             */
+            on_primary: string;
+            /**
+             * Preset
+             * @enum {string}
+             */
+            preset: "neon_nacht" | "klassisch" | "custom";
+            /**
+             * Rev
+             * @description Counts saves; 0 = never saved (the default).
+             */
+            rev: number;
+            /** Updated At */
+            updated_at: string | null;
+        };
+        /** AdminThemeOut */
+        AdminThemeOut: {
+            /** Presets */
+            presets: components["schemas"]["ThemePreset"][];
+            theme: components["schemas"]["AdminTheme"];
         };
         /**
          * AdminUser
@@ -2968,7 +3058,7 @@ export interface components {
              * @description Machine-readable error code.
              * @enum {string}
              */
-            error: "scan_qr" | "needs_consent" | "banned" | "consent_outdated" | "invalid_instagram" | "join_closed" | "invalid_display_name" | "display_name_taken" | "wall_login_required" | "wall_no_password" | "wall_password_too_short" | "invalid_wall_config" | "invalid_category" | "category_exists" | "invalid_analyzer_settings" | "worker_off" | "uploads_paused" | "uploads_stopped" | "unsupported_type" | "too_large" | "invalid_meta" | "empty_upload" | "invalid_image" | "invalid_pdf" | "invalid_layout" | "no_template" | "admin_required" | "wrong_password" | "login_locked" | "invalid_filter" | "unknown_analyzer" | "invalid_cursor" | "no_fingerprint" | "restore_required" | "invalid_event_name" | "invalid_public_address" | "password_too_short" | "password_unchanged" | "no_filter_enabled" | "unknown_filter" | "export_not_ready" | "export_running" | "invalid_token" | "token_taken" | "code_revoked" | "invalid_target" | "invalid_note" | "invalid_llm_config" | "llm_not_configured" | "llm_key_invalid" | "llm_budget_exhausted" | "invalid_property" | "property_exists" | "bad_origin" | "length_required" | "rate_limited" | "invalid_request" | "not_found" | "http_404" | "http_405";
+            error: "scan_qr" | "needs_consent" | "banned" | "consent_outdated" | "invalid_instagram" | "join_closed" | "invalid_display_name" | "display_name_taken" | "wall_login_required" | "wall_no_password" | "wall_password_too_short" | "invalid_wall_config" | "invalid_category" | "category_exists" | "invalid_analyzer_settings" | "worker_off" | "uploads_paused" | "uploads_stopped" | "unsupported_type" | "too_large" | "invalid_meta" | "empty_upload" | "invalid_image" | "invalid_pdf" | "invalid_layout" | "no_template" | "admin_required" | "wrong_password" | "login_locked" | "invalid_filter" | "unknown_analyzer" | "invalid_cursor" | "no_fingerprint" | "restore_required" | "invalid_event_name" | "invalid_public_address" | "invalid_theme" | "password_too_short" | "password_unchanged" | "no_filter_enabled" | "unknown_filter" | "export_not_ready" | "export_running" | "invalid_token" | "token_taken" | "code_revoked" | "invalid_target" | "invalid_note" | "invalid_llm_config" | "llm_not_configured" | "llm_key_invalid" | "llm_budget_exhausted" | "invalid_property" | "property_exists" | "bad_origin" | "length_required" | "rate_limited" | "invalid_request" | "not_found" | "http_404" | "http_405";
             /**
              * Field
              * @description The form field a 400 is about, when the answer names one (e.g. `invalid_category`: title, line, where, by, count, verdict, ...).
@@ -4490,6 +4580,33 @@ export interface components {
             /** Url */
             url: string;
         };
+        /**
+         * PublicTheme
+         * @description What every guest page and the wall read (no auth).
+         */
+        PublicTheme: {
+            colors: components["schemas"]["ThemeColors"];
+            /**
+             * On Accent
+             * @description Text on an `accent` fill (best contrast).
+             */
+            on_accent: string;
+            /**
+             * On Primary
+             * @description Text on a `primary` fill (best contrast).
+             */
+            on_primary: string;
+            /**
+             * Preset
+             * @enum {string}
+             */
+            preset: "neon_nacht" | "klassisch" | "custom";
+            /**
+             * Rev
+             * @description Counts saves; 0 = never saved (the default).
+             */
+            rev: number;
+        };
         /** RestoreOut */
         RestoreOut: {
             /** Added */
@@ -4644,6 +4761,96 @@ export interface components {
             };
             /** Width */
             width: number;
+        };
+        /**
+         * ThemeColors
+         * @description Every colour as `#rrggbb` (lower case).
+         */
+        ThemeColors: {
+            /**
+             * Accent
+             * @description Beat accents: badges, live marks, transitions.
+             */
+            accent: string;
+            /**
+             * Background
+             * @description Main background of every guest page.
+             */
+            background: string;
+            /**
+             * Depth
+             * @description Shadows, sunk areas, fields.
+             */
+            depth: string;
+            /**
+             * Highlight
+             * @description Small specular highlights.
+             */
+            highlight: string;
+            /**
+             * Hit
+             * @description Brief flashes only (a photo was taken).
+             */
+            hit: string;
+            /**
+             * Primary
+             * @description Main actions, the shutter ring, the glow.
+             */
+            primary: string;
+            /**
+             * Secondary
+             * @description The event name (wordmark), soft accents.
+             */
+            secondary: string;
+            /**
+             * Surface
+             * @description Raised areas: cards, sheets, the guest pass.
+             */
+            surface: string;
+            /**
+             * Tertiary
+             * @description Cool detail: counters' units, quiet icons.
+             */
+            tertiary: string;
+            /**
+             * Text
+             * @description Readable text (≥ 4.5:1 on background and surface).
+             */
+            text: string;
+            /**
+             * Text Muted
+             * @description Secondary text (≥ 4.5:1 on background and surface).
+             */
+            text_muted: string;
+        };
+        /**
+         * ThemeIn
+         * @description Save a theme. Without `colors` the preset's colours apply.
+         */
+        ThemeIn: {
+            /**
+             * Colors
+             * @description All colours of ThemeColors as #rrggbb; null: the preset's.
+             */
+            colors?: {
+                [key: string]: string;
+            } | null;
+            /**
+             * Preset
+             * @enum {string}
+             */
+            preset: "neon_nacht" | "klassisch" | "custom";
+        };
+        /** ThemePreset */
+        ThemePreset: {
+            colors: components["schemas"]["ThemeColors"];
+            /**
+             * Id
+             * @enum {string}
+             */
+            id: "neon_nacht" | "klassisch";
+            /** Label */
+            label: string;
         };
         /** TimelapseExportIn */
         TimelapseExportIn: {
@@ -5219,6 +5426,7 @@ export interface components {
             /** Event Name */
             event_name: string;
             qr: components["schemas"]["WallQr"] | null;
+            theme: components["schemas"]["PublicTheme"];
         };
         /** WallConfigEvent */
         WallConfigEvent: {
@@ -5243,6 +5451,7 @@ export interface components {
         WallEvent: components["schemas"]["WallHelloEvent"] | components["schemas"]["WallPhotoAddEvent"] | components["schemas"]["WallPhotoUpdateEvent"] | components["schemas"]["WallPhotoRemoveEvent"] | components["schemas"]["WallConfigEvent"] | components["schemas"]["WallCategoriesChangedEvent"] | components["schemas"]["WallByeEvent"] | components["schemas"]["WallResyncEvent"];
         /** WallFeed */
         WallFeed: {
+            /** @description The look's colours are always set (theme filled in). */
             config: components["schemas"]["WallConfig"];
             /**
              * Cursor
@@ -5260,6 +5469,8 @@ export interface components {
             qr: components["schemas"]["WallQr"] | null;
             /** Server Time */
             server_time: string;
+            /** @description The guest UI's theme (Erscheinungsbild). */
+            theme: components["schemas"]["PublicTheme"];
             /**
              * Total
              * @description Every photo visible on the wall.
@@ -5308,9 +5519,9 @@ export interface components {
         WallLook: {
             /**
              * Background
-             * @default #2b2b31
+             * @description Theme `background` when null: wie Theme (Erscheinungsbild).
              */
-            background: string;
+            background?: string | null;
             /**
              * Calm
              * @default false
@@ -5330,14 +5541,14 @@ export interface components {
             preset: "blobs" | "aurora" | "disco" | "confetti" | "plain";
             /**
              * Primary
-             * @default #a855f7
+             * @description Theme `primary` when null: wie Theme (Erscheinungsbild).
              */
-            primary: string;
+            primary?: string | null;
             /**
              * Secondary
-             * @default #ff4fa3
+             * @description Theme `accent` when null: wie Theme (Erscheinungsbild).
              */
-            secondary: string;
+            secondary?: string | null;
         };
         /** WallOk */
         WallOk: {
@@ -9608,6 +9819,286 @@ export interface operations {
             };
         };
     };
+    get_theme_api_admin_theme_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminThemeOut"];
+                };
+            };
+            /** @description Invalid input (see `error`) */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Needs consent or an admin session */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Forbidden: banned, paused, stopped, joining closed or a foreign Origin (CSRF) */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Not found, or no party access (`scan_qr`) */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Content-Length required */
+            411: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Request too large */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Request validation failed (`invalid_request`) */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Rate limited (`Retry-After` header) */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    put_theme_api_admin_theme_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ThemeIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminThemeOut"];
+                };
+            };
+            /** @description Invalid input (see `error`) */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Needs consent or an admin session */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Forbidden: banned, paused, stopped, joining closed or a foreign Origin (CSRF) */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Not found, or no party access (`scan_qr`) */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Content-Length required */
+            411: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Request too large */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Request validation failed (`invalid_request`) */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Rate limited (`Retry-After` header) */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    reset_theme_api_admin_theme_delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminThemeOut"];
+                };
+            };
+            /** @description Invalid input (see `error`) */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Needs consent or an admin session */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Forbidden: banned, paused, stopped, joining closed or a foreign Origin (CSRF) */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Not found, or no party access (`scan_qr`) */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Content-Length required */
+            411: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Request too large */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Request validation failed (`invalid_request`) */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Rate limited (`Retry-After` header) */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
     get_upload_pause_api_admin_upload_pause_get: {
         parameters: {
             query?: never;
@@ -11545,6 +12036,33 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["ErrorBody"];
                 };
+            };
+        };
+    };
+    get_theme_api_theme_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PublicTheme"];
+                };
+            };
+            /** @description unchanged */
+            304: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
         };
     };
