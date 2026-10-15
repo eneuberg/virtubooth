@@ -203,12 +203,14 @@ export function ThemePreview({ colors }: { colors: ThemeColors }) {
           color: v('text'),
         }}
       >
-        <span className="text-2xl font-semibold tracking-[-0.03em]" style={{ color: v('secondary') }}>
+        <span className="text-2xl font-semibold" style={{ color: v('secondary'), letterSpacing: '-0.03em' }}>
           Sommerfest
         </span>
         <div className="grid gap-1 rounded-[18px] p-4" style={{ background: v('surface') }}>
           <span className="flex items-center justify-between gap-2">
-            <span className="text-lg font-semibold tracking-[-0.015em]">Fotobox</span>
+            <span className="text-lg font-semibold" style={{ letterSpacing: '-0.015em' }}>
+              Fotobox
+            </span>
             <span
               className="rounded-full px-2 py-0.5 text-xs font-semibold"
               style={{ background: v('accent'), color: v('on-accent') }}

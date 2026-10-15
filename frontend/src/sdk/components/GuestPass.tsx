@@ -34,7 +34,7 @@ export function GuestPass({ compact = false, className }: GuestPassProps) {
       <span
         aria-hidden="true"
         className={cx(
-          'inline-block h-11 w-40 rounded-control bg-surface-raised motion-ok:animate-shimmer',
+          'inline-block h-11 w-40 rounded-full bg-surface-raised motion-ok:animate-shimmer',
           className,
         )}
       />
@@ -53,7 +53,7 @@ export function GuestPass({ compact = false, className }: GuestPassProps) {
         data-status={status.kind}
         onPress={() => setOpen(true)}
         className={cx(
-          'group inline-flex h-11 max-w-full min-w-0 cursor-pointer items-center gap-2.5 rounded-control bg-surface-raised pr-3 pl-1.5 text-left outline-none',
+          'group inline-flex h-12 max-w-full min-w-0 cursor-pointer items-center gap-2.5 rounded-full bg-surface-raised pr-4 pl-1.5 text-left outline-none',
           'transition-[background-color,transform] duration-(--duration-quick) hover:bg-surface-hover pressed:scale-[0.98]',
           'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus',
           className,
@@ -61,7 +61,7 @@ export function GuestPass({ compact = false, className }: GuestPassProps) {
       >
         <span
           aria-hidden="true"
-          className="relative grid size-8 shrink-0 place-items-center rounded-small bg-surface-sunk text-xs font-bold text-accent-ink"
+          className="relative grid size-9 shrink-0 place-items-center rounded-full bg-accent-tint text-xs font-bold text-accent-ink"
         >
           {initials(name)}
           {flagged ? (

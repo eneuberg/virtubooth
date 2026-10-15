@@ -44,7 +44,7 @@ export function Shutter({
         isDisabled={state === 'not-ready'}
         aria-label={blocked ? blockedLabel : label}
         data-state={state}
-        className="group relative grid size-20 cursor-pointer place-items-center rounded-full outline-none focus-visible:outline-3 focus-visible:outline-offset-3 focus-visible:outline-focus disabled:cursor-not-allowed"
+        className="vb-shutter group relative grid size-20 cursor-pointer place-items-center rounded-full outline-none focus-visible:outline-3 focus-visible:outline-offset-3 focus-visible:outline-focus disabled:cursor-not-allowed"
       >
         <svg
           viewBox="0 0 80 80"

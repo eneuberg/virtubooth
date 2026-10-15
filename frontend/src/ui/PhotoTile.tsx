@@ -84,7 +84,7 @@ export function PhotoTile({
       aria-busy={isBusy || undefined}
       className={cx('relative grid min-w-0 content-start gap-1.5', className)}
     >
-      <div className="relative aspect-[3/4] overflow-hidden bg-surface-sunk">
+      <div className="relative aspect-[3/4] overflow-hidden rounded-photo bg-surface-sunk">
         {onOpen ? (
           <AriaButton
             onPress={onOpen}
@@ -123,7 +123,7 @@ export function PhotoTile({
         />
       ) : null}
       <figcaption className="grid min-w-0 text-xs">
-        <span className="truncate font-semibold tabular">{label}</span>
+        <span className="vb-tile-label truncate font-semibold tabular">{label}</span>
         {isHidden ? (
           <span className="truncate font-semibold text-mark">{hiddenLabel}</span>
         ) : sublabel ? (

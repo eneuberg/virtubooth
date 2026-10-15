@@ -45,7 +45,7 @@ export function Start() {
 
       <div className="grid content-start gap-4 lg:col-start-1">
         {partyName ? (
-          <h1 translate="no" className="text-3xl font-bold break-words">
+          <h1 translate="no" className="text-3xl font-bold break-words text-wordmark">
             {partyName}
           </h1>
         ) : (
@@ -61,7 +61,7 @@ export function Start() {
       >
         {isPending && !error
           ? Array.from({ length: 2 }, (_, i) => (
-              <Skeleton key={i} shape="block" className="h-44 rounded-none" />
+              <Skeleton key={i} shape="block" className="h-36 rounded-card" />
             ))
           : activities.map((activity) => <ActivityCard key={activity.id} activity={activity} />)}
         {error ? (
@@ -85,7 +85,7 @@ export function Start() {
         <button
           type="button"
           onClick={() => setHelp('photos')}
-          className="min-h-11 cursor-pointer text-left underline decoration-line-strong underline-offset-4 outline-none hover:decoration-current focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus"
+          className="min-h-11 cursor-pointer text-left underline decoration-line-strong underline-offset-[5px] transition-colors duration-(--duration-quick) outline-none hover:decoration-accent-ink focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus"
         >
           Was passiert mit meinen Fotos?
         </button>
