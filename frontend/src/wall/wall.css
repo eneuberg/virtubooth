@@ -460,6 +460,22 @@ body {
   height: 46vh;
 }
 
+.wall-cat-winners[data-cols='2'] {
+  --cols: 2;
+}
+
+.wall-cat-winners[data-cols='3'] {
+  --cols: 3;
+}
+
+.wall-cat-winners[data-cols='4'] {
+  --cols: 4;
+}
+
+.wall-cat-winners[data-cols='5'] {
+  --cols: 5;
+}
+
 .wall-cat-winners[data-compact] .wall-cat-pic {
   aspect-ratio: 3 / 4;
   height: 30vh;

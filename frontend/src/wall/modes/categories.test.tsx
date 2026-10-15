@@ -58,7 +58,7 @@ describe('category winners and verdicts', () => {
     const winners = screen.getByTestId('wall-category').querySelector('.wall-cat-winners');
     expect(winners?.getAttribute('data-compact')).toBe('');
     expect(winners?.getAttribute('data-count')).toBe('7');
-    expect((winners as HTMLElement | null)?.style.getPropertyValue('--cols')).toBe('4');
+    expect(winners?.getAttribute('data-cols')).toBe('4');
     expect(screen.getAllByRole('img')).toHaveLength(7);
     const verdict = screen.getByTestId('wall-verdict');
     expect(verdict.closest('figure')).toBeNull();

@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { describe, expect, it } from 'vitest';
 import type { AdminExtension, AdminPhoto } from '@/api/types';
 import { UiProvider } from '@/ui/UiProvider';
-import { json, stubApi, testClient, type Route } from '../testing';
+import { json, must, stubApi, testClient, type Route } from '../testing';
 import { AnalysisBoxes, AnalysisPanel } from './AnalysisPanel';
 import { photoAnalysis } from './fixtures';
 
@@ -126,9 +126,9 @@ describe('AnalysisPanel', () => {
     // faces and hands from boxes, plus the one object with a box
     const frames = screen.getAllByTestId('analysis-box');
     expect(frames.map((f) => f.dataset.kind)).toEqual(['face', 'hand', 'object']);
-    fireEvent.pointerEnter(objects[0] as HTMLElement);
+    fireEvent.pointerEnter(must(objects[0]));
     await waitFor(() => expect(frames[2]?.dataset.lit).toBe('true'));
-    fireEvent.pointerLeave(objects[0] as HTMLElement);
+    fireEvent.pointerLeave(must(objects[0]));
     await waitFor(() => expect(screen.getAllByTestId('analysis-box')[2]?.dataset.lit).toBeUndefined());
   });
 

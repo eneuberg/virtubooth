@@ -95,7 +95,7 @@ function WinnerPhoto({
       <div
         className="wall-cat-pic"
         // --a: the aspect for wall.css, which fits the pictures into the row's width
-        style={(compact ? {} : { aspectRatio: aspect, '--a': aspect }) as CSSProperties}
+        style={compact ? undefined : ({ aspectRatio: aspect, '--a': aspect } as CSSProperties)}
       >
         <img
           src={photo.urls.m}
@@ -138,7 +138,7 @@ function CategoryCard({ category }: { category: WallCategory }) {
           data-count={count}
           data-compact={compact ? '' : undefined}
           data-verdict={verdict && !compact ? '' : undefined}
-          style={compact ? ({ '--cols': String(compactColumns(count)) } as CSSProperties) : undefined}
+          data-cols={compact ? compactColumns(count) : undefined}
         >
           {category.winners.map((w, i) => (
             <WinnerPhoto
