@@ -10,8 +10,10 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import '@/styles/app.css';
-// after app.css: the goofy layer wins over the theme's component rules
+// after app.css: the style layers win over the theme's component rules (goofy brings the
+// googly eyes' CSS that party reuses, so it comes first)
 import '@/styles/goofy.css';
+import '@/styles/party.css';
 import { isApiError } from '@/api/errors';
 import { installPreloadRecovery } from '@/lib/boot';
 import { installDebug } from '@/sdk/debug';
@@ -27,7 +29,7 @@ void startSession();
 startPresence();
 // the host may change the theme during the party: re-read it when the page comes back
 followTheme();
-// the goofy style's jelly presses (nothing happens while the style is elegant)
+// the party and goofy styles' jelly presses (nothing happens while the style is elegant)
 installJelly();
 
 const queryClient = new QueryClient({

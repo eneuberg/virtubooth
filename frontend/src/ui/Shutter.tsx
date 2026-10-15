@@ -68,6 +68,16 @@ export function Shutter({
             strokeLinecap={counting ? 'round' : 'butt'}
             className="transition-[stroke-dashoffset] duration-(--duration-base) ease-linear"
           />
+          {/* the party style's second set of ring lights (styles/party.css); invisible otherwise */}
+          <circle
+            className="vb-shutter-lights"
+            cx="40"
+            cy="40"
+            r="38"
+            fill="none"
+            stroke="none"
+            pathLength={1}
+          />
         </svg>
         <span
           className={cx(
@@ -81,7 +91,7 @@ export function Shutter({
           {blocked ? (
             <Lock aria-hidden="true" className="size-6 text-white" strokeWidth={2.25} />
           ) : (
-            // goofy style only: the camera looks at you, asleep while it starts, cross-eyed
+            // party and goofy styles: the camera looks at you, asleep while it starts, cross-eyed
             // during the countdown, and it blinks when it takes the photo
             <GooglyEyes
               mood={

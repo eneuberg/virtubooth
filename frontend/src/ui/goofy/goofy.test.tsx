@@ -1,6 +1,6 @@
 import { act, render, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, it } from 'vitest';
-import { applyStyle, type ThemeStyle } from '@/styles/theme';
+import { applyStyle, isThemeStyle } from '@/styles/theme';
 import { aim, settled, SPRINGS, step, type Pupil } from './eyes';
 import { GooglyEyes } from './GooglyEyes';
 import { currentStyle, isPlayful } from './style';
@@ -79,8 +79,10 @@ describe('GooglyEyes', () => {
   it('applyStyle knows three styles; anything else is the default, party', () => {
     applyStyle(undefined);
     expect(document.documentElement.getAttribute('data-vb-style')).toBe('party');
-    applyStyle('wild' as ThemeStyle);
-    expect(document.documentElement.getAttribute('data-vb-style')).toBe('party');
+    expect(isThemeStyle('wild')).toBe(false);
+    document.documentElement.setAttribute('data-vb-style', 'wild');
+    expect(currentStyle()).toBeNull();
+    expect(isPlayful()).toBe(false);
     for (const style of ['elegant', 'party', 'goofy'] as const) {
       applyStyle(style);
       expect(document.documentElement.getAttribute('data-vb-style')).toBe(style);

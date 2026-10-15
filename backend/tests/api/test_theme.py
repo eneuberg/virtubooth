@@ -181,7 +181,9 @@ def test_the_calm_style_stays_selectable(admin, client):
     from ..conftest import scan
 
     scan(client)
-    r = admin.put("/api/admin/theme", json={"preset": "neon_nacht", "style": "elegant"}, headers=ORIGIN)
+    r = admin.put(
+        "/api/admin/theme", json={"preset": "neon_nacht", "style": "elegant"}, headers=ORIGIN
+    )
     assert r.status_code == 200, r.text
     assert client.get("/api/theme").json()["style"] == "elegant"
     assert '<html data-vb-style="elegant"' in client.get("/").text
