@@ -324,8 +324,28 @@ def browser(playwright: Playwright) -> Iterator[Browser]:
         b = playwright.firefox.launch(firefox_user_prefs=FIREFOX_PREFS)
     else:
         b = playwright.chromium.launch(args=args)
+    _gl_debug(b, "launch")
     yield b
+    _gl_debug(b, "teardown")
     b.close()
+
+
+def _gl_debug(b: Browser, when: str) -> None:  # DEBUG, to be dropped
+    import time as _t
+
+    worker = os.environ.get("PYTEST_XDIST_WORKER", "main")
+    try:
+        p = b.new_page()
+        res = p.evaluate(
+            """() => { const c = document.createElement('canvas'); let msg = null;
+            c.addEventListener('webglcontextcreationerror', e => { msg = e.statusMessage; });
+            const gl = c.getContext('webgl'); return gl ? gl.getParameter(gl.RENDERER) : 'NO WEBGL ' + msg; }"""
+        )
+        p.close()
+    except Exception as e:  # noqa: BLE001
+        res = f"probe failed {e}"
+    with open(f"/tmp/gl-{worker}.log", "a") as f:
+        f.write(f"{_t.strftime('%H:%M:%S')} {worker} {when}: {res}\n")
 
 
 def new_context(browser: Browser, device: str = "phone", **options: Any) -> BrowserContext:
@@ -367,6 +387,12 @@ def _is_error(msg: Any) -> bool:
     return not ("downloadable font: download failed" in text and ABORTED_FONT in text)
 
 
+def _gl_console(text: str) -> None:  # DEBUG, to be dropped
+    worker = os.environ.get("PYTEST_XDIST_WORKER", "main")
+    with open(f"/tmp/gl-{worker}.log", "a") as f:
+        f.write(f"{time.strftime('%H:%M:%S')} {worker} console: {text[:300]}\n")
+
+
 def track_errors(page: Page) -> Page:
     """page.js_errors: uncaught exceptions and console errors."""
     errors: list[str] = []
@@ -376,6 +402,10 @@ def track_errors(page: Page) -> Page:
         lambda msg: (
             errors.append(f"{msg.text} @ {msg.location.get('url', '')}") if _is_error(msg) else None
         ),
+    )
+    page.on(
+        "console",
+        lambda msg: _gl_console(msg.text) if "WebGL" in msg.text or "webgl" in msg.text else None,
     )
     page.js_errors = errors  # type: ignore[attr-defined]
     return page
