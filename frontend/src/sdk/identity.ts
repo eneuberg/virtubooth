@@ -46,9 +46,9 @@ export function passName(user: {
 /** 30 characters is Instagram's limit */
 export const HANDLE_MAX = 30;
 
-/** "@party.anna" → "party.anna"; leading spaces and @ go. */
+/** "@party.anna" → "party.anna": leading spaces and every "@" go (typed or pasted; the field shows its own). */
 export function cleanHandle(value: string): string {
-  return value.replace(/^[\s@]+/, '');
+  return value.replace(/[@＠]/g, '').replace(/^\s+/, '');
 }
 
 /** The handle inside a pasted profile link, or null for plain text. */

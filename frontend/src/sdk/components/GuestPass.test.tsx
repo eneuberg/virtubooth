@@ -177,6 +177,12 @@ describe('GuestPass', () => {
     const field = await screen.findByRole<HTMLInputElement>('textbox', { name: 'Instagram-Name' });
     fireEvent.change(field, { target: { value: '@anna' } });
     await waitFor(() => expect(field.value).toBe('anna'));
+    fireEvent.change(field, { target: { value: ' ＠an@na' } });
+    await waitFor(() => expect(field.value).toBe('anna'));
+    // the „@“ sits inside the field, outside the input: never part of the value
+    const prefix = field.parentElement?.querySelector('[aria-hidden=true]');
+    expect(prefix?.textContent).toBe('@');
+    expect(prefix?.className).toContain('select-none');
     fireEvent.paste(field, {
       clipboardData: { getData: () => 'https://www.instagram.com/party.anna/?igsh=xyz' },
     });
