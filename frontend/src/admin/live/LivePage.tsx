@@ -66,8 +66,12 @@ export function LivePage() {
 function LiveHeader({ desktop }: { desktop: boolean }) {
   const { data: stats } = useStats();
   return (
-    <header className="flex items-center gap-3 border-b border-line bg-surface py-2 pt-[max(0.5rem,env(safe-area-inset-top))] pr-3 pl-4">
-      <div className="mr-auto grid min-w-0">
+    // a narrow phone (under ~380 px) has no room beside the title, badges and count:
+    // the switch wraps onto its own full-width row (label left, track right, like the
+    // „Filter zeigen“ row) instead of pushing over them
+    <header className="flex flex-wrap items-center gap-x-3 gap-y-1 border-b border-line bg-surface py-2 pt-[max(0.5rem,env(safe-area-inset-top))] pr-3 pl-4">
+      {/* at least as wide as the widest party badge, „Anmeldung gestoppt“ */}
+      <div className="grid min-w-42 flex-1">
         <div className="flex items-baseline gap-2.5">
           <h1 className="text-lg font-bold">Live</h1>
           <ConnectionBadge />
@@ -89,7 +93,7 @@ function LiveHeader({ desktop }: { desktop: boolean }) {
         </p>
       </div>
       {desktop ? <FilterToggle className="shrink-0" /> : null}
-      <AnalysisToggle className="shrink-0" />
+      <AnalysisToggle className="shrink-0 grow lg:grow-0" />
       {desktop ? (
         <LinkButton href="/manage" variant="secondary" size="sm" icon={LayoutGrid}>
           Verwaltung
