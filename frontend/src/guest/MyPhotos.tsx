@@ -31,7 +31,7 @@ function EmptyFrames({ activityTitles }: { activityTitles: ReadonlyArray<string>
         {Array.from({ length: 4 }, (_, i) => (
           <span
             key={i}
-            className="grid aspect-[3/4] place-items-center border border-dashed border-line-strong text-accent-ink"
+            className="grid aspect-[3/4] place-items-center rounded-photo bg-surface-raised text-accent-ink first:bg-accent-tint"
           >
             {i === 0 ? <ImagePlus className="size-6" strokeWidth={1.75} /> : null}
           </span>
@@ -79,10 +79,10 @@ export function MyPhotos({ activityTitles, className }: MyPhotosProps) {
       data-state={isPending ? 'loading' : isError ? 'error' : 'ready'}
       className={cx('grid content-start gap-3', className)}
     >
-      <h2 id={titleId} className="flex items-baseline gap-2 text-lg font-bold">
+      <h2 id={titleId} className="flex items-baseline gap-2 text-xl font-semibold">
         Deine Bilder
         {list.length ? (
-          <span className="font-semibold text-ink-muted tabular">{formatNumber(list.length)}</span>
+          <span className="font-normal text-ink-muted tabular">{formatNumber(list.length)}</span>
         ) : null}
       </h2>
       {isPending ? (

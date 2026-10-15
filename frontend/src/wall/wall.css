@@ -2,23 +2,35 @@
  * Live-Wall (wall.html): a TV screen, 1080p or 4K, viewed from across the room.
  * Sizes in vmin/vh with clamp(); everything that must stay readable sits inside the
  * overscan-safe padding (--wall-pad). Colours come from config.look via CSSOM
- * (--wall-primary, --wall-secondary, --wall-bg). CSP: this file only, no runtime <style>.
+ * (--wall-primary, --wall-secondary, --wall-bg; „wie Theme“ is filled in by the server)
+ * and from the guest UI's theme (--t-*: /api/theme.css in the page's head, then the
+ * feed's `theme`, styles/theme.ts). CSP: this file only, no runtime <style>.
  * Class names stay neutral (content blockers hide .banner, .notice, .modal, …).
  */
 @import '@fontsource-variable/bricolage-grotesque/opsz.css';
 @import '@fontsource-variable/doto/full.css';
 
 :root {
-  --wall-primary: #a855f7;
-  --wall-secondary: #ff4fa3;
-  --wall-bg: #2b2b31;
-  --wall-ink: #fbf7ff;
-  --wall-ink-muted: rgb(251 247 255 / 0.74);
+  --wall-primary: #c026ff;
+  --wall-secondary: #ff2fb0;
+  --wall-bg: #1b1b1a;
+  /* the theme (defaults: Neon Nacht, like app.css) */
+  --wall-ink: var(--t-text, #fcf2f9);
+  --wall-ink-muted: var(--t-text-muted, #bdb3c4);
+  --wall-wordmark: var(--t-secondary, #eba6c6);
+  --wall-accent: var(--t-accent, #ff2fb0);
+  --wall-on-accent: var(--t-on-accent, #1b1b1a);
+  --wall-on-primary: var(--t-on-primary, #000);
+  --wall-primary-ink: var(--t-primary-ink, #cc4ffe);
+  --wall-depth: var(--t-depth, #1a0733);
+  --wall-highlight: var(--t-highlight, #cee4f7);
   --wall-paper: #fdfbf7;
   --wall-paper-ink: #24212b;
+  /* a dark plate for text over photos and the background */
+  --wall-plate: color-mix(in oklab, var(--wall-depth) 78%, transparent);
   --wall-pad: 3.5vmin;
-  --wall-ring: 0.55vmin;
-  --wall-radius: 1.8vmin;
+  --wall-ring: 0.32vmin;
+  --wall-radius: 1.4vmin;
   --wall-font: 'Bricolage Grotesque Variable', ui-sans-serif, system-ui, sans-serif;
   --wall-dots: 'Doto Variable', ui-monospace, monospace;
   color-scheme: dark;
@@ -128,10 +140,15 @@ body {
   position: absolute;
   inset: 0;
   border-radius: var(--wall-radius);
-  background: linear-gradient(135deg, var(--wall-primary), var(--wall-secondary));
+  background: linear-gradient(
+    135deg,
+    color-mix(in oklab, var(--wall-primary), var(--wall-highlight) 18%),
+    var(--wall-primary) 45%,
+    color-mix(in oklab, var(--wall-primary), var(--wall-secondary) 50%)
+  );
   box-shadow:
-    0 3vmin 8vmin rgb(0 0 0 / 0.5),
-    0 0 12vmin color-mix(in srgb, var(--wall-primary) 32%, transparent);
+    0 3vmin 8vmin -1vmin color-mix(in oklab, var(--wall-depth) 70%, black),
+    0 0 10vmin color-mix(in srgb, var(--wall-primary) 16%, transparent);
 }
 
 .wall-pic {
@@ -154,36 +171,40 @@ body {
 
 .wall-caption {
   position: absolute;
-  left: -2.6vmin;
-  bottom: -3.2vmin;
+  left: 2.4vmin;
+  bottom: -2.8vmin;
   display: flex;
   flex-direction: column;
   gap: 0.3vmin;
   max-width: 90%;
-  padding: 1.4vmin 2.6vmin 1.5vmin;
-  border-radius: 1.4vmin;
-  background: var(--wall-paper);
-  color: var(--wall-paper-ink);
-  transform: rotate(-3deg);
-  box-shadow: 0 1.4vmin 3.5vmin rgb(0 0 0 / 0.4);
+  padding: 1.3vmin 2.4vmin 1.4vmin;
+  transform: rotate(-1.5deg);
+  border-radius: 1.2vmin;
+  background: var(--wall-plate);
+  color: var(--wall-ink);
+  -webkit-backdrop-filter: blur(1.4vmin);
+  backdrop-filter: blur(1.4vmin);
+  box-shadow:
+    0 1.4vmin 3.5vmin rgb(0 0 0 / 0.4),
+    inset 0 1px 0 color-mix(in oklab, var(--wall-highlight) 14%, transparent);
 }
 
 .wall-caption-by {
-  font-size: clamp(20px, 4.4vmin, 130px);
-  font-weight: 760;
+  font-size: clamp(20px, 4.2vmin, 124px);
+  font-weight: 640;
   line-height: 1.05;
-  letter-spacing: -0.01em;
+  letter-spacing: -0.02em;
 }
 
 .wall-caption-ig {
-  font-size: clamp(14px, 2.6vmin, 76px);
-  font-weight: 650;
-  color: color-mix(in srgb, var(--wall-primary) 80%, black);
+  font-size: clamp(14px, 2.5vmin, 72px);
+  font-weight: 560;
+  color: var(--wall-primary-ink);
 }
 
 .wall-caption-ago {
-  font-size: clamp(13px, 2.1vmin, 60px);
-  color: rgb(36 33 43 / 0.62);
+  font-size: clamp(13px, 2vmin, 58px);
+  color: var(--wall-ink-muted);
 }
 
 /* polaroid: a white instant-photo frame, the caption written on its wide bottom edge */
@@ -200,6 +221,10 @@ body {
 
 .is-polaroid .wall-caption {
   inset: auto 0 0;
+  transform: none;
+  color: var(--wall-paper-ink);
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
   height: 8vmin;
   max-width: none;
   flex-direction: row;
@@ -214,6 +239,14 @@ body {
 
 .is-polaroid .wall-caption-by {
   font-size: clamp(18px, 3.6vmin, 110px);
+}
+
+.is-polaroid .wall-caption-ig {
+  color: color-mix(in srgb, var(--wall-primary) 80%, black);
+}
+
+.is-polaroid .wall-caption-ago {
+  color: rgb(36 33 43 / 0.62);
 }
 
 /* glitch: per colour channel the new photo in a band, the old one around it
@@ -327,10 +360,10 @@ body {
   overflow: hidden;
   padding: 0.35vmin 1.1vmin;
   border-radius: 999px;
-  background: rgb(18 16 24 / 0.6);
-  color: #fff;
+  background: var(--wall-plate);
+  color: var(--wall-ink);
   font-size: clamp(11px, 1.7vmin, 48px);
-  font-weight: 600;
+  font-weight: 540;
   white-space: nowrap;
   text-overflow: ellipsis;
 }
@@ -356,24 +389,26 @@ body {
   justify-items: start;
   gap: 1.8vmin;
   padding-left: 2vmin;
-  animation: wall-slide-in 900ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  animation: wall-slide-in 650ms cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 
 .wall-cat-emoji {
   display: inline-block;
-  font-size: 15vmin;
+  font-size: 14vmin;
   line-height: 1;
+  transform-origin: 50% 85%;
   animation:
-    wall-pop 900ms cubic-bezier(0.34, 1.56, 0.64, 1) both,
-    wall-wiggle 2.6s ease-in-out 1.2s infinite;
+    wall-pop 800ms cubic-bezier(0.34, 1.45, 0.64, 1) both,
+    wall-wiggle 3.4s ease-in-out 1.1s infinite;
 }
 
 .wall-cat-title {
   margin: 0;
-  font-size: clamp(32px, 8.4vmin, 240px);
-  font-weight: 820;
-  line-height: 0.95;
-  letter-spacing: -0.025em;
+  font-size: clamp(32px, 8.2vmin, 236px);
+  font-weight: 740;
+  line-height: 0.98;
+  letter-spacing: -0.035em;
+  color: var(--wall-ink);
 }
 
 .wall-cat-line {
@@ -386,10 +421,11 @@ body {
 
 .wall-cat-head::after {
   content: '';
-  width: 14vmin;
-  height: 1.1vmin;
+  width: 13vmin;
+  height: 0.8vmin;
   border-radius: 999px;
-  background: linear-gradient(90deg, var(--wall-primary), var(--wall-secondary));
+  background: linear-gradient(90deg, var(--wall-primary), var(--wall-accent));
+  box-shadow: 0 0 2.4vmin color-mix(in srgb, var(--wall-primary) 60%, transparent);
 }
 
 /* the winners and (on a compact grid) the AI's verdict under them */
@@ -433,7 +469,7 @@ body {
 .wall-cat-photo {
   position: relative;
   margin: 0;
-  animation: wall-drop-in 1000ms cubic-bezier(0.34, 1.56, 0.64, 1) both;
+  animation: wall-drop-in 850ms cubic-bezier(0.34, 1.3, 0.64, 1) both;
 }
 
 .wall-cat-photo[data-index='1'] {
@@ -554,19 +590,22 @@ body {
   right: -2.4vmin;
   padding: 1vmin 2.2vmin;
   border-radius: 999px;
-  background: linear-gradient(135deg, var(--wall-primary), var(--wall-secondary));
-  color: #fff;
-  font-size: clamp(15px, 3vmin, 90px);
-  font-weight: 800;
+  background: linear-gradient(135deg, var(--wall-accent), var(--wall-primary));
+  color: var(--wall-on-accent);
+  font-size: clamp(15px, 2.9vmin, 88px);
+  font-weight: 720;
+  letter-spacing: -0.01em;
   white-space: nowrap;
-  transform: rotate(5deg);
-  box-shadow: 0 1vmin 2.5vmin rgb(0 0 0 / 0.4);
+  transform: rotate(3deg);
+  box-shadow:
+    0 1vmin 2.5vmin rgb(0 0 0 / 0.4),
+    0 0 3vmin color-mix(in srgb, var(--wall-accent) 35%, transparent);
 }
 
 .wall-cat-by {
   margin-top: 1.4vmin;
-  font-size: clamp(14px, 2.6vmin, 80px);
-  font-weight: 650;
+  font-size: clamp(14px, 2.5vmin, 76px);
+  font-weight: 560;
   text-align: center;
 }
 
@@ -601,10 +640,10 @@ body {
   height: 4.4vmin;
   padding: 0 1vmin;
   border-radius: 999px;
-  background: rgb(0 0 0 / 0.62);
-  color: #fff;
+  background: var(--wall-plate);
+  color: var(--wall-ink);
   font-size: clamp(14px, 2.4vmin, 70px);
-  font-weight: 800;
+  font-weight: 640;
 }
 
 /* the AI's verdict, two lines at most. Under one of 1–3 photos it hangs below the
@@ -614,14 +653,16 @@ body {
   display: -webkit-box;
   overflow: hidden;
   margin: 0;
-  font-size: clamp(16px, 2.5vmin, 76px);
-  font-weight: 650;
-  line-height: 1.25;
+  font-size: clamp(16px, 2.6vmin, 78px);
+  font-weight: 460;
+  line-height: 1.3;
+  letter-spacing: -0.005em;
   text-align: center;
+  color: var(--wall-ink);
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 2;
   line-clamp: 2;
-  animation: wall-verdict-in 900ms ease-out 1.1s both;
+  animation: wall-verdict-in 600ms cubic-bezier(0.22, 1, 0.36, 1) 0.9s both;
 }
 
 .wall-cat-photo .wall-cat-verdict {
@@ -654,8 +695,8 @@ body {
 
 /* the compact cell the verdict is about */
 .wall-cat-winners[data-compact] .wall-cat-photo[data-verdict] .wall-cat-pic {
-  outline: 0.7vmin solid var(--wall-secondary);
-  outline-offset: 0.5vmin;
+  outline: 0.35vmin solid var(--wall-accent);
+  outline-offset: 0.6vmin;
 }
 
 .wall-cat-verdict-emoji {
@@ -679,27 +720,28 @@ body {
 @keyframes wall-pop {
   from {
     opacity: 0;
-    transform: scale(0.2) rotate(-20deg);
+    transform: scale(0.3) rotate(-14deg);
   }
 }
 
+/* the category's emoji keeps dancing a little */
 @keyframes wall-wiggle {
   0%,
   100% {
     transform: rotate(0deg);
   }
   25% {
-    transform: rotate(-8deg) scale(1.04);
+    transform: rotate(-7deg) scale(1.04);
   }
-  50% {
-    transform: rotate(6deg);
+  60% {
+    transform: rotate(5deg);
   }
 }
 
 @keyframes wall-drop-in {
   from {
     opacity: 0;
-    transform: translateY(-14vh) rotate(-6deg) scale(0.85);
+    transform: translateY(-4vh) scale(0.96);
   }
 }
 
@@ -713,9 +755,11 @@ body {
   align-items: flex-end;
   gap: 0.2vmin;
   padding: 1.3vmin 2.2vmin;
-  border-radius: 1.8vmin;
-  background: rgb(22 20 28 / 0.62);
-  box-shadow: inset 0 0 0 1px rgb(255 255 255 / 0.08);
+  border-radius: 1.6vmin;
+  background: var(--wall-plate);
+  -webkit-backdrop-filter: blur(1.4vmin);
+  backdrop-filter: blur(1.4vmin);
+  box-shadow: inset 0 1px 0 color-mix(in oklab, var(--wall-highlight) 12%, transparent);
 }
 
 .wall-corner[data-corner='bottom-right'] {
@@ -742,7 +786,9 @@ body {
 
 .wall-corner-name {
   font-size: clamp(15px, 2.6vmin, 80px);
-  font-weight: 750;
+  font-weight: 640;
+  letter-spacing: -0.02em;
+  color: var(--wall-wordmark);
 }
 
 .wall-corner-count {
@@ -875,11 +921,11 @@ body {
   width: min(92vw, 44rem);
   padding: clamp(24px, 5vmin, 96px);
   border-radius: clamp(18px, 3.2vmin, 56px);
-  background: rgb(24 22 30 / 0.74);
+  background: var(--wall-plate);
   box-shadow:
     0 3vmin 8vmin rgb(0 0 0 / 0.45),
-    inset 0 0 0 1px rgb(255 255 255 / 0.09);
-  animation: wall-mode-in 700ms ease-out both;
+    inset 0 1px 0 color-mix(in oklab, var(--wall-highlight) 12%, transparent);
+  animation: wall-mode-in 500ms ease-out both;
 }
 
 .wall-panel--quiet {
@@ -891,13 +937,10 @@ body {
 .wall-title {
   margin: 0;
   font-size: clamp(38px, 8vmin, 180px);
-  font-weight: 820;
+  font-weight: 660;
   line-height: 1;
-  letter-spacing: -0.03em;
-  background: linear-gradient(100deg, var(--wall-ink) 30%, var(--wall-secondary) 70%, var(--wall-primary));
-  -webkit-background-clip: text;
-  background-clip: text;
-  color: transparent;
+  letter-spacing: -0.04em;
+  color: var(--wall-wordmark);
 }
 
 .wall-text {
@@ -924,9 +967,9 @@ body {
 .wall-input {
   width: 100%;
   padding: 0.6em 0.8em;
-  border: 2px solid rgb(255 255 255 / 0.22);
+  border: 1px solid color-mix(in oklab, var(--wall-ink) 24%, transparent);
   border-radius: 0.6em;
-  background: rgb(0 0 0 / 0.32);
+  background: color-mix(in oklab, var(--wall-depth) 60%, transparent);
   color: var(--wall-ink);
   font: inherit;
   font-size: clamp(18px, 2.6vmin, 64px);
@@ -942,13 +985,13 @@ body {
   padding: 0.7em 1.4em;
   border: 0;
   border-radius: 999px;
-  background: linear-gradient(135deg, var(--wall-primary), var(--wall-secondary));
-  color: #fff;
+  background: var(--wall-primary);
+  color: var(--wall-on-primary);
   font: inherit;
   font-size: clamp(18px, 2.6vmin, 64px);
-  font-weight: 760;
+  font-weight: 620;
   cursor: pointer;
-  box-shadow: 0 1.2vmin 3vmin color-mix(in srgb, var(--wall-secondary) 35%, transparent);
+  box-shadow: 0 1.2vmin 3vmin -0.6vmin color-mix(in srgb, var(--wall-primary) 70%, transparent);
 }
 
 .wall-button:focus-visible {
@@ -994,28 +1037,32 @@ body {
 .wall-empty-icon {
   font-size: 18vmin;
   line-height: 1;
-  animation: wall-bounce 2.2s cubic-bezier(0.34, 1.56, 0.64, 1) infinite;
+  animation: wall-float 4s ease-in-out infinite;
 }
 
 .wall-empty-title {
   margin: 0;
   font-size: clamp(32px, 7vmin, 180px);
-  font-weight: 820;
-  letter-spacing: -0.02em;
+  font-weight: 660;
+  letter-spacing: -0.035em;
+  color: var(--wall-wordmark);
 }
 
-@keyframes wall-bounce {
+@keyframes wall-float {
   0%,
   100% {
-    transform: translateY(0) rotate(-4deg);
+    transform: translateY(0);
   }
-  40% {
-    transform: translateY(-3vmin) rotate(5deg);
+  50% {
+    transform: translateY(-1.6vmin);
   }
 }
 
 @media (prefers-reduced-motion: reduce) {
   .wall-cat-emoji,
+  .wall-cat-head,
+  .wall-cat-photo,
+  .wall-cat-verdict,
   .wall-empty-icon,
   .wall-spinner {
     animation-duration: 0s;

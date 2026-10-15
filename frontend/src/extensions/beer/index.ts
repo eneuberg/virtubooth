@@ -5,4 +5,5 @@ export default defineExtension({
   id: 'beer',
   load: () => import('./BeerPage'),
   card: () => import('./BeerCard'),
+  emoji: '🍺',
 });

@@ -23,6 +23,7 @@ from . import (
     instagram,
     overview,
     photos,
+    theme,
     upload_controls,
     users,
 )
@@ -40,3 +41,4 @@ for _module in (
 ):  # fmt: skip
     router.include_router(_module.router)
 router.include_router(host_settings.router)
+router.include_router(theme.router)

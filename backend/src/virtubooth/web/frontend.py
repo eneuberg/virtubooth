@@ -25,6 +25,7 @@ import hashlib
 import logging
 import mimetypes
 import re
+from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Literal
@@ -140,6 +141,9 @@ class WebFrontend:
     def __init__(self, root: Path | None) -> None:
         self.root = root
         self._html: dict[str, _Html] = {}
+        # the theme's <link> (Core sets it: ThemeService.head_html) for every
+        # guest-facing page; the admin keeps its own look
+        self.theme_head: Callable[[], str] | None = None
 
     @classmethod
     def from_settings(cls, settings: Settings) -> WebFrontend:
@@ -184,9 +188,18 @@ class WebFrontend:
             headers["X-VB-Page"] = page
         return HTMLResponse(text, status_code=status, headers=headers)
 
+    def _themed(self, page: _Html, text: str | None = None) -> tuple[str, str]:
+        """The page with the theme's stylesheet link before </head> (built
+        pages only), and its ETag."""
+        text = page.text if text is None else text
+        if self.root is None or self.theme_head is None or "</head>" not in text:
+            return text, page.etag if text is page.text else _etag(text)
+        text = text.replace("</head>", self.theme_head() + "</head>", 1)
+        return text, _etag(text)
+
     def guest_app(self) -> HTMLResponse:
-        page = self._read("index.html")
-        return self._html_response(page.text, page.etag, 200)
+        text, etag = self._themed(self._read("index.html"))
+        return self._html_response(text, etag, 200)
 
     def admin_app(self) -> HTMLResponse:
         page = self._read("admin.html")
@@ -207,7 +220,8 @@ class WebFrontend:
             page = self._read(name)
         except OSError:  # removed between the check and the read
             return None
-        return self._html_response(page.text, page.etag, 200)
+        text, etag = self._themed(page)
+        return self._html_response(text, etag, 200)
 
     def page_404(self, mode: PageMode) -> HTMLResponse:
         """gate.html as a 404: "scan the QR code" (gate) or "nothing here" (notfound)."""
@@ -220,7 +234,8 @@ class WebFrontend:
                 log.warning(
                     "gate.html has no %s: the 404 page shows the gate text", GATE_PLACEHOLDER
                 )
-        return self._html_response(text, _etag(text), 404, mode)
+        text, etag = self._themed(page, text)
+        return self._html_response(text, etag, 404, mode)
 
     def gate(self) -> HTMLResponse:
         return self.page_404("gate")

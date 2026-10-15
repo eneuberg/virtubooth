@@ -95,13 +95,23 @@ class WallCategoriesConfig(BaseModel):
         return []
 
 
+# the colours before the theme (Allgemeines → Erscheinungsbild): a stored
+# config that still has them never chose them, so it follows the theme
+LEGACY_LOOK_COLORS: dict[str, str] = {
+    "primary": "#a855f7",
+    "secondary": "#ff4fa3",
+    "background": "#2b2b31",
+}
+_WIE_THEME = "null: wie Theme (Erscheinungsbild)."
+
+
 class WallLook(BaseModel):
     model_config = _STRICT
 
     preset: Preset = "blobs"
-    primary: Color = "#a855f7"
-    secondary: Color = "#ff4fa3"
-    background: Color = "#2b2b31"
+    primary: Color | None = Field(None, description="Theme `primary` when " + _WIE_THEME)
+    secondary: Color | None = Field(None, description="Theme `accent` when " + _WIE_THEME)
+    background: Color | None = Field(None, description="Theme `background` when " + _WIE_THEME)
     fps: Literal[30, 60] = 30
     calm: bool = False
 
@@ -216,6 +226,11 @@ def load_config(repo: AppSettingsRepo) -> WallConfig:
     raw = repo.get(CONFIG_KEY)
     if not raw:
         return WallConfig()
+    look = raw.get("look")
+    if isinstance(look, dict):
+        raw = raw | {
+            "look": {k: (None if LEGACY_LOOK_COLORS.get(k) == v else v) for k, v in look.items()}
+        }
     try:
         return WallConfig.model_validate(raw, strict=False)
     except ValidationError:

@@ -6,6 +6,7 @@ from typing import Annotated, Literal
 
 from pydantic import BaseModel, Field, RootModel
 
+from ...api.schemas.theme import PublicTheme
 from .config import WallConfig
 
 AnalysisState = Literal["pending", "running", "done", "failed", "skipped", "off"]
@@ -51,7 +52,8 @@ class WallQr(BaseModel):
 
 
 class WallFeed(BaseModel):
-    config: WallConfig
+    config: WallConfig = Field(description="The look's colours are always set (theme filled in).")
+    theme: PublicTheme = Field(description="The guest UI's theme (Erscheinungsbild).")
     event_name: str
     qr: WallQr | None = Field(description="The corner QR code (overlay.qr on), else null.")
     total: int = Field(description="Every photo visible on the wall.")
@@ -160,6 +162,7 @@ class WallRemoveData(BaseModel):
 
 class WallConfigData(BaseModel):
     config: WallConfig
+    theme: PublicTheme
     event_name: str
     qr: WallQr | None
 

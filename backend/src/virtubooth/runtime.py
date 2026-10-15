@@ -34,6 +34,8 @@ class Core:
 
     def __post_init__(self) -> None:
         self.services = Services.create(self)
+        # every guest page links the theme's stylesheet (before the first paint)
+        self.web.theme_head = self.services.theme.head_html
 
     @classmethod
     def create(cls, settings: Settings, extensions: list[Extension], web: WebFrontend) -> Core:

@@ -8,7 +8,8 @@ import { cx } from '@/ui/cx';
 import type { BackgroundHandle } from '@/wall/background';
 import type { WallConfig } from './types';
 
-type Look = WallConfig['look'];
+/** the look with its colours resolved (a null colour follows the theme) */
+type Look = WallConfig['look'] & { primary: string; secondary: string; background: string };
 
 /** The CSS background of each preset in the given colours (a = primary, b = secondary). */
 const PRESET_BACKGROUND: Record<Look['preset'], (a: string, b: string) => CSSProperties> = {

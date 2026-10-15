@@ -207,3 +207,56 @@ def test_public_address_check_and_qr_warning(desktop_page: Page, live: LiveServe
     expect(page.get_by_role("heading", name="QR-Codes", level=1)).to_be_visible()
     expect(page.get_by_test_id("address-warning")).to_have_count(0)
     assert errors(page) == []
+
+
+def css_var(page: Page, name: str) -> str:
+    value: str = page.evaluate(
+        "(n) => getComputedStyle(document.documentElement).getPropertyValue(n).trim()", name
+    )
+    return value
+
+
+def test_the_theme_reaches_the_guests_but_not_the_admin(
+    desktop_page: Page, browser: Browser, live: LiveServer
+) -> None:
+    admin = desktop_page
+    open_settings(admin, live)
+    card = admin.get_by_test_id("settings-theme")
+    expect(card.get_by_role("heading", name="Erscheinungsbild")).to_be_visible()
+    expect(card.get_by_role("radio", name="Neon Nacht")).to_be_checked()
+    admin_bg = admin.evaluate("getComputedStyle(document.body).backgroundColor")
+
+    ctx = new_context(browser)
+    guest = track_errors(ctx.new_page())
+    join_via_api(guest, live)
+    # Neon Nacht from /api/theme.css, before any script ran
+    assert css_var(guest, "--t-background") == "#1b1b1a"
+
+    card.get_by_text("Klassisch", exact=True).click()
+    expect(admin.get_by_test_id("theme-preview")).to_have_attribute(
+        "style", re.compile(r"--t-background:\s*#2b0f0c")
+    )
+    card.scroll_into_view_if_needed()
+    shot(admin, "admin-theme-card")
+    card.get_by_test_id("theme-save").click()
+    expect(toast(admin)).to_have_text("Erscheinungsbild gespeichert.")
+    assert live.core.services.theme.public().preset == "klassisch"
+    # the admin keeps its own look
+    assert admin.evaluate("getComputedStyle(document.body).backgroundColor") == admin_bg
+
+    # the guest page follows when it comes back to the foreground (no reload)
+    guest.evaluate("document.dispatchEvent(new Event('visibilitychange'))")
+    guest.wait_for_function(
+        "getComputedStyle(document.documentElement).getPropertyValue('--t-background').trim()"
+        " === '#2b0f0c'"
+    )
+    assert guest.evaluate("getComputedStyle(document.body).backgroundColor") != "rgb(27, 27, 26)"
+    shot(guest, "guest-start-klassisch")
+
+    card.get_by_test_id("theme-reset").click()
+    expect(toast(admin)).to_have_text("Erscheinungsbild zurückgesetzt.")
+    guest.reload()
+    assert css_var(guest, "--t-background") == "#1b1b1a"
+    assert guest.js_errors == []  # type: ignore[attr-defined]
+    ctx.close()
+    assert errors(admin) == []

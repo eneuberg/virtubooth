@@ -15,12 +15,15 @@ import { installPreloadRecovery } from '@/lib/boot';
 import { installDebug } from '@/sdk/debug';
 import { startPresence } from '@/sdk/presence';
 import { startSession } from '@/sdk/session';
+import { followTheme } from '@/styles/theme';
 import { GuestApp } from './routes';
 
 installDebug();
 installPreloadRecovery();
 void startSession();
 startPresence();
+// the host may change the theme during the party: re-read it when the page comes back
+followTheme();
 
 const queryClient = new QueryClient({
   defaultOptions: {

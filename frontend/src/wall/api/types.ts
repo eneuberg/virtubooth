@@ -2,6 +2,7 @@
  * Live-Wall screen API types, written by hand from the wall contract (PLAN-WALL §4.1–4.2).
  * JSON is snake_case like the rest of the API. WINT may replace these with generated types.
  */
+import type { PublicTheme } from '@/styles/theme';
 
 export const MODES = ['spotlight', 'gallery', 'categories'] as const;
 export type WallMode = (typeof MODES)[number];
@@ -112,7 +113,10 @@ export interface WallPhoto {
 export type WallCursor = string | number | null;
 
 export interface WallFeed {
+  /** the look's colours are always set here (the server fills in the theme) */
   config: WallConfig;
+  /** the guest UI's theme (Allgemeines → Erscheinungsbild); older servers send none */
+  theme?: PublicTheme;
   event_name: string;
   /** `overlay.qr` on and the code active, else null */
   qr: WallQr | null;
@@ -163,7 +167,10 @@ export type WallEvent =
   | { type: 'photo.add'; data: { photo: WallPhoto } }
   | { type: 'photo.update'; data: { photo: WallPhoto } }
   | { type: 'photo.remove'; data: { ids: string[] } }
-  | { type: 'config'; data: { config: WallConfig; event_name: string; qr: WallQr | null } }
+  | {
+      type: 'config';
+      data: { config: WallConfig; theme?: PublicTheme; event_name: string; qr: WallQr | null };
+    }
   | { type: 'categories.changed'; data: Record<string, never> }
   | { type: 'bye'; data: { reason: 'password' | 'logout' } }
   | { type: 'stream.resync'; data: Record<string, never> };
@@ -199,9 +206,10 @@ export const DEFAULT_CONFIG: WallConfig = {
   show_instagram: false,
   look: {
     preset: 'blobs',
-    primary: '#a855f7',
-    secondary: '#ff4fa3',
-    background: '#2b2b31',
+    // Neon Nacht (the default theme) until the feed arrives
+    primary: '#c026ff',
+    secondary: '#ff2fb0',
+    background: '#1b1b1a',
     fps: 30,
     calm: false,
   },

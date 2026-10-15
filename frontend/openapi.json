@@ -484,6 +484,105 @@
         "title": "AdminSettingsOut",
         "type": "object"
       },
+      "AdminTheme": {
+        "properties": {
+          "by": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "By"
+          },
+          "colors": {
+            "$ref": "#/components/schemas/ThemeColors"
+          },
+          "custom": {
+            "description": "The host saved a theme (false: the default applies).",
+            "title": "Custom",
+            "type": "boolean"
+          },
+          "on_accent": {
+            "description": "Text on an `accent` fill (best contrast).",
+            "pattern": "^#[0-9a-f]{6}$",
+            "title": "On Accent",
+            "type": "string"
+          },
+          "on_primary": {
+            "description": "Text on a `primary` fill (best contrast).",
+            "pattern": "^#[0-9a-f]{6}$",
+            "title": "On Primary",
+            "type": "string"
+          },
+          "preset": {
+            "enum": [
+              "neon_nacht",
+              "klassisch",
+              "custom"
+            ],
+            "title": "Preset",
+            "type": "string"
+          },
+          "primary_ink": {
+            "description": "`primary` as text: itself, or lightened towards `text` until it reads on background and surface (4.5:1).",
+            "pattern": "^#[0-9a-f]{6}$",
+            "title": "Primary Ink",
+            "type": "string"
+          },
+          "rev": {
+            "description": "Counts saves; 0 = never saved (the default).",
+            "title": "Rev",
+            "type": "integer"
+          },
+          "updated_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Updated At"
+          }
+        },
+        "required": [
+          "preset",
+          "colors",
+          "on_primary",
+          "on_accent",
+          "primary_ink",
+          "rev",
+          "custom",
+          "updated_at",
+          "by"
+        ],
+        "title": "AdminTheme",
+        "type": "object"
+      },
+      "AdminThemeOut": {
+        "properties": {
+          "presets": {
+            "items": {
+              "$ref": "#/components/schemas/ThemePreset"
+            },
+            "title": "Presets",
+            "type": "array"
+          },
+          "theme": {
+            "$ref": "#/components/schemas/AdminTheme"
+          }
+        },
+        "required": [
+          "theme",
+          "presets"
+        ],
+        "title": "AdminThemeOut",
+        "type": "object"
+      },
       "AdminUser": {
         "description": "Everything about a guest. The same shape in every response and event.",
         "properties": {
@@ -2730,6 +2829,7 @@
               "restore_required",
               "invalid_event_name",
               "invalid_public_address",
+              "invalid_theme",
               "password_too_short",
               "password_unchanged",
               "no_filter_enabled",
@@ -6124,6 +6224,56 @@
         "title": "PublicExtension",
         "type": "object"
       },
+      "PublicTheme": {
+        "description": "What every guest page and the wall read (no auth).",
+        "properties": {
+          "colors": {
+            "$ref": "#/components/schemas/ThemeColors"
+          },
+          "on_accent": {
+            "description": "Text on an `accent` fill (best contrast).",
+            "pattern": "^#[0-9a-f]{6}$",
+            "title": "On Accent",
+            "type": "string"
+          },
+          "on_primary": {
+            "description": "Text on a `primary` fill (best contrast).",
+            "pattern": "^#[0-9a-f]{6}$",
+            "title": "On Primary",
+            "type": "string"
+          },
+          "preset": {
+            "enum": [
+              "neon_nacht",
+              "klassisch",
+              "custom"
+            ],
+            "title": "Preset",
+            "type": "string"
+          },
+          "primary_ink": {
+            "description": "`primary` as text: itself, or lightened towards `text` until it reads on background and surface (4.5:1).",
+            "pattern": "^#[0-9a-f]{6}$",
+            "title": "Primary Ink",
+            "type": "string"
+          },
+          "rev": {
+            "description": "Counts saves; 0 = never saved (the default).",
+            "title": "Rev",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "preset",
+          "colors",
+          "on_primary",
+          "on_accent",
+          "primary_ink",
+          "rev"
+        ],
+        "title": "PublicTheme",
+        "type": "object"
+      },
       "RestoreOut": {
         "properties": {
           "added": {
@@ -6517,6 +6667,153 @@
           "error"
         ],
         "title": "TestRunOut",
+        "type": "object"
+      },
+      "ThemeColors": {
+        "additionalProperties": false,
+        "description": "Every colour as `#rrggbb` (lower case).",
+        "properties": {
+          "accent": {
+            "description": "Beat accents: badges, live marks, transitions.",
+            "pattern": "^#[0-9a-f]{6}$",
+            "title": "Accent",
+            "type": "string"
+          },
+          "background": {
+            "description": "Main background of every guest page.",
+            "pattern": "^#[0-9a-f]{6}$",
+            "title": "Background",
+            "type": "string"
+          },
+          "depth": {
+            "description": "Shadows, sunk areas, fields.",
+            "pattern": "^#[0-9a-f]{6}$",
+            "title": "Depth",
+            "type": "string"
+          },
+          "highlight": {
+            "description": "Small specular highlights.",
+            "pattern": "^#[0-9a-f]{6}$",
+            "title": "Highlight",
+            "type": "string"
+          },
+          "hit": {
+            "description": "Brief flashes only (a photo was taken).",
+            "pattern": "^#[0-9a-f]{6}$",
+            "title": "Hit",
+            "type": "string"
+          },
+          "primary": {
+            "description": "Main actions, the shutter ring, the glow.",
+            "pattern": "^#[0-9a-f]{6}$",
+            "title": "Primary",
+            "type": "string"
+          },
+          "secondary": {
+            "description": "The event name (wordmark), soft accents.",
+            "pattern": "^#[0-9a-f]{6}$",
+            "title": "Secondary",
+            "type": "string"
+          },
+          "surface": {
+            "description": "Raised areas: cards, sheets, the guest pass.",
+            "pattern": "^#[0-9a-f]{6}$",
+            "title": "Surface",
+            "type": "string"
+          },
+          "tertiary": {
+            "description": "Cool detail: counters' units, quiet icons.",
+            "pattern": "^#[0-9a-f]{6}$",
+            "title": "Tertiary",
+            "type": "string"
+          },
+          "text": {
+            "description": "Readable text (≥ 4.5:1 on background and surface).",
+            "pattern": "^#[0-9a-f]{6}$",
+            "title": "Text",
+            "type": "string"
+          },
+          "text_muted": {
+            "description": "Secondary text (≥ 4.5:1 on background and surface).",
+            "pattern": "^#[0-9a-f]{6}$",
+            "title": "Text Muted",
+            "type": "string"
+          }
+        },
+        "required": [
+          "background",
+          "surface",
+          "depth",
+          "primary",
+          "secondary",
+          "tertiary",
+          "accent",
+          "highlight",
+          "hit",
+          "text",
+          "text_muted"
+        ],
+        "title": "ThemeColors",
+        "type": "object"
+      },
+      "ThemeIn": {
+        "description": "Save a theme. Without `colors` the preset's colours apply.",
+        "properties": {
+          "colors": {
+            "anyOf": [
+              {
+                "additionalProperties": {
+                  "type": "string"
+                },
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "All colours of ThemeColors as #rrggbb; null: the preset's.",
+            "title": "Colors"
+          },
+          "preset": {
+            "enum": [
+              "neon_nacht",
+              "klassisch",
+              "custom"
+            ],
+            "title": "Preset",
+            "type": "string"
+          }
+        },
+        "required": [
+          "preset"
+        ],
+        "title": "ThemeIn",
+        "type": "object"
+      },
+      "ThemePreset": {
+        "properties": {
+          "colors": {
+            "$ref": "#/components/schemas/ThemeColors"
+          },
+          "id": {
+            "enum": [
+              "neon_nacht",
+              "klassisch"
+            ],
+            "title": "Id",
+            "type": "string"
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "label",
+          "colors"
+        ],
+        "title": "ThemePreset",
         "type": "object"
       },
       "TimelapseExportIn": {
@@ -7762,10 +8059,14 @@
                 "type": "null"
               }
             ]
+          },
+          "theme": {
+            "$ref": "#/components/schemas/PublicTheme"
           }
         },
         "required": [
           "config",
+          "theme",
           "event_name",
           "qr"
         ],
@@ -7847,7 +8148,8 @@
       "WallFeed": {
         "properties": {
           "config": {
-            "$ref": "#/components/schemas/WallConfig"
+            "$ref": "#/components/schemas/WallConfig",
+            "description": "The look's colours are always set (theme filled in)."
           },
           "cursor": {
             "description": "Pass as `?since=` to the stream: nothing is missed.",
@@ -7881,6 +8183,10 @@
             "title": "Server Time",
             "type": "string"
           },
+          "theme": {
+            "$ref": "#/components/schemas/PublicTheme",
+            "description": "The guest UI's theme (Erscheinungsbild)."
+          },
           "total": {
             "description": "Every photo visible on the wall.",
             "title": "Total",
@@ -7889,6 +8195,7 @@
         },
         "required": [
           "config",
+          "theme",
           "event_name",
           "qr",
           "total",
@@ -7976,10 +8283,17 @@
       "WallLook": {
         "properties": {
           "background": {
-            "default": "#2b2b31",
-            "pattern": "^#[0-9a-f]{6}$",
-            "title": "Background",
-            "type": "string"
+            "anyOf": [
+              {
+                "pattern": "^#[0-9a-f]{6}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Theme `background` when null: wie Theme (Erscheinungsbild).",
+            "title": "Background"
           },
           "calm": {
             "default": false,
@@ -8008,16 +8322,30 @@
             "type": "string"
           },
           "primary": {
-            "default": "#a855f7",
-            "pattern": "^#[0-9a-f]{6}$",
-            "title": "Primary",
-            "type": "string"
+            "anyOf": [
+              {
+                "pattern": "^#[0-9a-f]{6}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Theme `primary` when null: wie Theme (Erscheinungsbild).",
+            "title": "Primary"
           },
           "secondary": {
-            "default": "#ff4fa3",
-            "pattern": "^#[0-9a-f]{6}$",
-            "title": "Secondary",
-            "type": "string"
+            "anyOf": [
+              {
+                "pattern": "^#[0-9a-f]{6}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Theme `accent` when null: wie Theme (Erscheinungsbild).",
+            "title": "Secondary"
           }
         },
         "title": "WallLook",
@@ -13403,6 +13731,318 @@
         ]
       }
     },
+    "/api/admin/theme": {
+      "delete": {
+        "description": "Back to the default preset („Neon Nacht“).",
+        "operationId": "reset_theme_api_admin_theme_delete",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminThemeOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Invalid input (see `error`)"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Needs consent or an admin session"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Forbidden: banned, paused, stopped, joining closed or a foreign Origin (CSRF)"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Not found, or no party access (`scan_qr`)"
+          },
+          "411": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Content-Length required"
+          },
+          "413": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Request too large"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Request validation failed (`invalid_request`)"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Rate limited (`Retry-After` header)"
+          }
+        },
+        "summary": "Reset Theme",
+        "tags": [
+          "admin"
+        ]
+      },
+      "get": {
+        "description": "The theme in use and the presets.",
+        "operationId": "get_theme_api_admin_theme_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminThemeOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Invalid input (see `error`)"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Needs consent or an admin session"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Forbidden: banned, paused, stopped, joining closed or a foreign Origin (CSRF)"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Not found, or no party access (`scan_qr`)"
+          },
+          "411": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Content-Length required"
+          },
+          "413": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Request too large"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Request validation failed (`invalid_request`)"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Rate limited (`Retry-After` header)"
+          }
+        },
+        "summary": "Get Theme",
+        "tags": [
+          "admin"
+        ]
+      },
+      "put": {
+        "description": "Save a preset (without `colors`) or own colours. 400 `invalid_theme`\nnames the field, or the pair of text and background that is not readable\n(4.5:1). Guests get it on their next page view, open walls at once.",
+        "operationId": "put_theme_api_admin_theme_put",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ThemeIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminThemeOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Invalid input (see `error`)"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Needs consent or an admin session"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Forbidden: banned, paused, stopped, joining closed or a foreign Origin (CSRF)"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Not found, or no party access (`scan_qr`)"
+          },
+          "411": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Content-Length required"
+          },
+          "413": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Request too large"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Request validation failed (`invalid_request`)"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Rate limited (`Retry-After` header)"
+          }
+        },
+        "summary": "Put Theme",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
     "/api/admin/upload-pause": {
       "get": {
         "operationId": "get_upload_pause_api_admin_upload_pause_get",
@@ -15786,6 +16426,31 @@
         "summary": "Delete My Photo",
         "tags": [
           "guest"
+        ]
+      }
+    },
+    "/api/theme": {
+      "get": {
+        "description": "The colours of the guest UI and the wall (the default preset when the\nhost never saved one).",
+        "operationId": "get_theme_api_theme_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicTheme"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "304": {
+            "description": "unchanged"
+          }
+        },
+        "summary": "Get Theme",
+        "tags": [
+          "theme"
         ]
       }
     },

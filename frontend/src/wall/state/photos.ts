@@ -10,6 +10,7 @@ import {
   type WallPhoto,
   type WallQr,
 } from '../api/types';
+import type { PublicTheme } from '@/styles/theme';
 
 export const MAX_PHOTOS = 1000;
 /** how many removed ids the state remembers (category winners can be older than the feed) */
@@ -19,6 +20,8 @@ export interface WallState {
   /** false until the first feed arrived */
   loaded: boolean;
   config: WallConfig;
+  /** the guest UI's theme (null until the feed, or from an older server) */
+  theme: PublicTheme | null;
   eventName: string;
   /** the corner QR code (null: none) */
   qr: WallQr | null;
@@ -41,6 +44,7 @@ export type WallAction = { type: 'feed'; feed: WallFeed; now?: number } | { type
 export const initialWallState: WallState = {
   loaded: false,
   config: DEFAULT_CONFIG,
+  theme: null,
   eventName: '',
   qr: null,
   total: 0,
@@ -79,6 +83,7 @@ export function wallReducer(state: WallState, action: WallAction): WallState {
       ...state,
       loaded: true,
       config: feed.config,
+      theme: feed.theme ?? state.theme,
       eventName: feed.event_name,
       qr: feed.qr ?? null,
       total: feed.total,
@@ -123,6 +128,7 @@ export function wallReducer(state: WallState, action: WallAction): WallState {
       return {
         ...state,
         config: event.data.config,
+        theme: event.data.theme ?? state.theme,
         eventName: event.data.event_name,
         qr: event.data.qr ?? null,
       };

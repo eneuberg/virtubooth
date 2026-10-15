@@ -42,6 +42,8 @@ import {
   type WallConfig,
 } from './types';
 import { WallPreview } from './WallPreview';
+import { useAdminTheme } from '../settings/themeApi';
+import { NEON_NACHT, type ThemeColors } from '@/styles/theme';
 
 export interface DraftProps {
   draft: WallConfig;
@@ -257,13 +259,24 @@ const FPS_OPTIONS = [
   { id: '60', label: '60 fps' },
 ] as const;
 
-export function LookCard({ draft, update, errors, defaults }: DraftProps & { defaults: WallConfig }) {
+const themeHint = (value: string | null) => (value === null ? 'Wie Theme' : undefined);
+
+export function LookCard({ draft, update, errors }: DraftProps & { defaults: WallConfig }) {
   const look = draft.look;
   const set = (patch: Partial<WallConfig['look']>) =>
     update((c) => ({ ...c, look: { ...c.look, ...patch } }));
+  // a colour left at null follows the theme (Allgemeines → Erscheinungsbild)
+  const theme: ThemeColors = useAdminTheme().data?.theme.colors ?? NEON_NACHT;
+  const resolved = {
+    ...look,
+    primary: look.primary ?? theme.primary,
+    secondary: look.secondary ?? theme.accent,
+    background: look.background ?? theme.background,
+  };
+  const followsTheme = look.primary === null && look.secondary === null && look.background === null;
   return (
     <Card id="aussehen" title="Aussehen" icon={Palette}>
-      <WallPreview look={look} overlay={draft.overlay} />
+      <WallPreview look={resolved} overlay={draft.overlay} />
       <Select
         label="Hintergrund"
         options={optionsOf(PRESETS, PRESET_LABELS)}
@@ -274,21 +287,24 @@ export function LookCard({ draft, update, errors, defaults }: DraftProps & { def
       <div className="grid gap-3 sm:grid-cols-[repeat(auto-fit,minmax(11rem,1fr))]">
         <ColorField
           label="Hauptfarbe"
-          value={look.primary}
+          value={resolved.primary}
+          description={themeHint(look.primary)}
           error={errors['look.primary']}
           onChange={(primary) => set({ primary })}
           testid="wall-color-primary"
         />
         <ColorField
           label="Zweitfarbe"
-          value={look.secondary}
+          value={resolved.secondary}
+          description={themeHint(look.secondary)}
           error={errors['look.secondary']}
           onChange={(secondary) => set({ secondary })}
           testid="wall-color-secondary"
         />
         <ColorField
           label="Hintergrundfarbe"
-          value={look.background}
+          value={resolved.background}
+          description={themeHint(look.background)}
           error={errors['look.background']}
           onChange={(background) => set({ background })}
           testid="wall-color-background"
@@ -298,15 +314,11 @@ export function LookCard({ draft, update, errors, defaults }: DraftProps & { def
         size="xs"
         variant="secondary"
         className="justify-self-start"
-        onPress={() =>
-          set({
-            primary: defaults.look.primary,
-            secondary: defaults.look.secondary,
-            background: defaults.look.background,
-          })
-        }
+        isDisabled={followsTheme}
+        onPress={() => set({ primary: null, secondary: null, background: null })}
+        data-testid="wall-colors-theme"
       >
-        Standardfarben
+        Farben wie Theme
       </Button>
       <div className="grid gap-1.5">
         <GroupLabel>Bildrate</GroupLabel>

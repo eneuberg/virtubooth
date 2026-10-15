@@ -56,6 +56,7 @@ ErrorCode = Literal[
     # admin settings
     "invalid_event_name",
     "invalid_public_address",
+    "invalid_theme",
     "password_too_short",
     "password_unchanged",
     "no_filter_enabled",

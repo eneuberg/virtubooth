@@ -43,8 +43,26 @@ def sources(core: Core, config: WallConfig) -> tuple[str, ...]:
 
 
 def screen_config(core: Core, config: WallConfig) -> WallConfig:
-    """The config as screens and the admin see it: stale sources left out."""
+    """The config as the admin sees it: stale sources left out."""
     return prune_sources(config, upload_ids(core))
+
+
+def wall_screen_config(core: Core, config: WallConfig) -> WallConfig:
+    """The config as screens see it: like `screen_config`, and the look's
+    colours left at „wie Theme“ (null) filled in from the theme."""
+    pruned = screen_config(core, config)
+    look = pruned.look
+    if look.primary and look.secondary and look.background:
+        return pruned
+    colors = core.services.theme.public().colors
+    filled = look.model_copy(
+        update={
+            "primary": look.primary or colors.primary,
+            "secondary": look.secondary or colors.accent,
+            "background": look.background or colors.background,
+        }
+    )
+    return pruned.model_copy(update={"look": filled})
 
 
 def cutoff(config: WallConfig, now: datetime | None = None) -> str:
@@ -224,7 +242,8 @@ def config_payload(core: Core, config: WallConfig) -> dict[str, Any]:
     """The `config` event's data (WallConfigData)."""
     qr = wall_qr(core, config)
     return {
-        "config": screen_config(core, config).model_dump(mode="json"),
+        "config": wall_screen_config(core, config).model_dump(mode="json"),
+        "theme": core.services.theme.public().model_dump(mode="json"),
         "event_name": event_name(core),
         "qr": qr.model_dump(mode="json") if qr else None,
     }

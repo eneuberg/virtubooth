@@ -69,6 +69,15 @@ def test_gate_and_not_found_are_the_same_file(client, web_dir):
     missing = client.get("/nope")
     assert missing.status_code == 404 and missing.headers["x-vb-page"] == "notfound"
     source = (web_dir / "gate.html").read_text(encoding="utf-8")
+    # the theme's stylesheet is linked before </head> (services/theme.py)
+    head, _, rest = source.partition("</head>")
+    source = (
+        head
+        + '<link rel="stylesheet" href="/api/theme.css?v='
+        + gate.text.split("theme.css?v=")[1].split('"')[0]
+        + '"></head>'
+        + rest
+    )
     assert gate.text == source
     assert missing.text == source.replace('data-vb-mode="gate"', 'data-vb-mode="notfound"')
     # unknown multi-segment paths too

@@ -15,7 +15,7 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from . import __version__
 from .api.deps import require_admin
-from .api.routers import guest, health, media, uploads
+from .api.routers import guest, health, media, theme, uploads
 from .api.routers.admin import auth as admin_auth
 from .api.routers.admin import poster as admin_poster
 from .api.routers.admin import router as admin_router
@@ -101,6 +101,7 @@ def create_app(settings: Settings, *, extensions: Sequence[Extension] | None = N
         return web_routes.not_found_page(request, core)
 
     app.include_router(health.router)
+    app.include_router(theme.router)
     app.include_router(guest.router)
     app.include_router(admin_auth.router)
     app.include_router(admin_router)

@@ -55,12 +55,12 @@ from .feed import (
     WALL_PATH,
     event_name,
     photo_filter,
-    screen_config,
     visible_by_ids,
     visible_photo,
     visible_photos,
     wall_photos,
     wall_qr,
+    wall_screen_config,
 )
 from .hub import Wall, WallHub
 from .media import photo_file
@@ -254,7 +254,8 @@ def build_router(wall: Wall) -> APIRouter:
         config = load_config(core.repos.app_settings)
         total, photos = visible_photos(core, config, limit)
         return WallFeed(
-            config=screen_config(core, config),
+            config=wall_screen_config(core, config),
+            theme=core.services.theme.public(),
             event_name=event_name(core),
             qr=wall_qr(core, config, str(request.base_url)),
             total=total,

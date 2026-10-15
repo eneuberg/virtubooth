@@ -23,6 +23,7 @@ from ..api.schemas.events import (
     PhotoDeletedData,
     PhotoEventData,
     SettingsEventData,
+    ThemeChangedData,
     UploadPauseData,
     UploadsChangedData,
     UploadStopData,
@@ -106,6 +107,10 @@ class AdminEvents:
 
     def settings_event(self, state: EventSettings) -> None:
         self._emit("settings.event", SettingsEventData(event=state))
+
+    def theme_changed(self) -> None:
+        """The theme was saved or reset (internal: the wall re-sends its config)."""
+        self._emit("theme.changed", ThemeChangedData())
 
     def extension_settings(self, ext_id: str) -> None:
         self._emit("extension.settings", ExtensionSettingsData(id=ext_id))

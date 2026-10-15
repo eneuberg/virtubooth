@@ -1,5 +1,7 @@
 /*
- * virtubooth design tokens: "Kontaktbogen" (docs/overhaul/design/DESIGN.md).
+ * virtubooth design tokens: "Kontaktbogen" (docs/overhaul/design/DESIGN.md), and on
+ * the guest pages the themable "Neon Nacht" look on top of it (see "Guest theme"
+ * below; colours from Allgemeines → Erscheinungsbild via /api/theme.css).
  *
  * Two surfaces, chosen per app or area (never a user toggle):
  *   data-surface="dark"  "Rotlicht"/camera: guest pages, admin live (default on :root)
@@ -104,10 +106,14 @@
   --radius-hole: 2px; /* sprocket holes */
   --radius-small: 6px; /* elements under 28px: checkbox, badge, monogram */
   --radius-control: 10px; /* buttons, fields, sheets */
+  --radius-card: 10px; /* cards on the guest pages (18px there) */
+  --radius-photo: 0px; /* photo tiles: square prints in the admin, 12px on the guest pages */
   --radius-full: 9999px; /* shutter and toggles only; photos and prints stay square */
 
   --shadow-*: initial;
   --shadow-float: 0 10px 30px rgb(0 0 0 / 0.35);
+  /* the one glow: primary actions on the guest pages */
+  --shadow-glow: 0 10px 28px -12px color-mix(in oklab, var(--t-primary) 75%, transparent);
 
   /* ---------------------------------------------------------------- z-layers */
   --z-raised: 10; /* overlays inside a tile */
@@ -253,9 +259,36 @@
   --color-film: var(--color-kamera);
   --color-film-hole: rgb(251 239 233 / 0.22);
   --color-film-label: var(--color-papier-muted);
+  /* the theme's own roles (guest pages and the wall; defaults: Neon Nacht) */
+  --color-wordmark: var(--t-secondary);
+  --color-beat: var(--t-accent);
+  --color-cool: var(--t-tertiary);
+  --color-highlight: var(--t-highlight);
+  --color-hit: var(--t-hit);
+  --color-glow: var(--t-primary);
 }
 
 @layer base {
+  /* the theme's colours, "Neon Nacht" until /api/theme.css (linked in the page's head)
+     or styles/theme.ts applyTheme() override them; the derived three are computed by
+     the server (services/theme.py) and mirrored in theme.ts */
+  :root {
+    --t-background: #1b1b1a;
+    --t-surface: #252229;
+    --t-depth: #1a0733;
+    --t-primary: #c026ff;
+    --t-secondary: #eba6c6;
+    --t-tertiary: #b6b6d8;
+    --t-accent: #ff2fb0;
+    --t-highlight: #cee4f7;
+    --t-hit: #b6ff3c;
+    --t-text: #fcf2f9;
+    --t-text-muted: #bdb3c4;
+    --t-on-primary: #000000;
+    --t-on-accent: #1b1b1a;
+    --t-primary-ink: #cc4ffe;
+  }
+
   :root,
   [data-surface='dark'] {
     --s-surface: var(--color-rot-900);
@@ -264,13 +297,13 @@
     --s-sunk: var(--color-rot-950);
     --s-ink: var(--color-papier);
     --s-ink-muted: var(--color-papier-muted);
-    --s-line: rgb(251 239 233 / 0.14);
-    --s-line-strong: rgb(251 239 233 / 0.3);
-    --s-field: rgb(251 239 233 / 0.42);
+    --s-line: color-mix(in srgb, var(--color-papier) 14%, transparent);
+    --s-line-strong: color-mix(in srgb, var(--color-papier) 30%, transparent);
+    --s-field: color-mix(in srgb, var(--color-papier) 42%, transparent);
     --s-field-bg: var(--color-rot-950);
     --s-on-accent: var(--color-rot-900);
     --s-accent-ink: var(--color-safelight);
-    --s-accent-tint: rgb(255 166 48 / 0.16);
+    --s-accent-tint: color-mix(in srgb, var(--color-safelight) 16%, transparent);
     --s-danger: var(--color-fettstift-hell);
     --s-ok: var(--color-gruen-hell);
     --s-focus: var(--color-safelight);
@@ -304,6 +337,67 @@
     --s-on-toast: var(--color-leuchttisch);
     --s-toast-action: var(--color-safelight);
     color-scheme: light;
+  }
+  /* ------------------------------------------------------------ Guest theme
+     Guest pages (index.html, gate.html, wall.html, the UI gallery) carry
+     <html data-vb-theme>. There the darkroom palette is re-pointed at the theme's
+     colours, so every component that uses the semantic or raw tokens follows it; the
+     admin never carries the attribute and keeps its look. With "Klassisch" the
+     colours are today's exactly. The rest is the calmer "Neon Nacht" look: lighter
+     weights, softer radii, shorter motion, one glow. */
+  [data-vb-theme] {
+    --color-rot-950: var(--t-depth);
+    --color-rot-900: var(--t-background);
+    --color-rot-800: var(--t-surface);
+    --color-rot-700: color-mix(in oklab, var(--t-surface), var(--t-text) 9%);
+    --color-papier: var(--t-text);
+    --color-papier-muted: var(--t-text-muted);
+    --color-safelight: var(--t-primary);
+    --color-safelight-hi: color-mix(in oklab, var(--t-primary), var(--t-highlight) 22%);
+
+    --font-weight-bold: 660;
+    --font-weight-semibold: 580;
+    --text-3xl: 2.625rem;
+    --text-3xl--line-height: 1.04;
+    --text-3xl--letter-spacing: -0.035em;
+    --text-2xl--letter-spacing: -0.028em;
+    --text-xl--letter-spacing: -0.018em;
+    --text-lg--letter-spacing: -0.01em;
+
+    --radius-small: 8px;
+    --radius-control: 14px;
+    --radius-card: 18px;
+    --radius-photo: 12px;
+    --shadow-float:
+      0 24px 48px -18px color-mix(in oklab, var(--t-depth) 70%, black), 0 2px 6px rgb(0 0 0 / 0.22);
+
+    --duration-press: 60ms;
+    --duration-quick: 140ms;
+    --duration-base: 200ms;
+    --duration-develop: 480ms;
+  }
+  [data-vb-theme],
+  [data-vb-theme] [data-surface='dark'] {
+    --s-hover: color-mix(in oklab, var(--t-surface), var(--t-text) 9%);
+    --s-line: color-mix(in oklab, var(--t-text) 10%, transparent);
+    --s-line-strong: color-mix(in oklab, var(--t-text) 22%, transparent);
+    --s-on-accent: var(--t-on-primary);
+    --s-accent-ink: var(--t-primary-ink);
+    --s-accent-tint: color-mix(in oklab, var(--t-primary) 16%, transparent);
+    --s-focus: var(--t-primary-ink);
+    --s-scrim: color-mix(in oklab, var(--t-depth) 72%, transparent);
+    --s-toast-action: var(--t-depth);
+  }
+  /* the room behind the guest pages: a breath of the depth colour from above */
+  [data-vb-theme] body {
+    background:
+      radial-gradient(
+          56rem 26rem at 50% -8rem,
+          color-mix(in oklab, var(--t-depth) 90%, transparent),
+          transparent
+        )
+        no-repeat,
+      var(--t-background);
   }
   /* a surface also paints itself, so nested areas switch cleanly */
   [data-surface] {
@@ -531,4 +625,192 @@
 }
 @utility safe-top {
   padding-top: env(safe-area-inset-top);
+}
+
+/*
+ * Guest theme, component level (unlayered: these must beat the utilities, e.g. a
+ * button's `rounded-control` or a sheet's `rounded-t-control`). Only under
+ * html[data-vb-theme]: the admin never sees them.
+ */
+/* buttons (ui/Button.tsx sets data-variant): pills, filled instead of outlined, the
+   primary one carries the only glow */
+[data-vb-theme] [data-variant] {
+  border-radius: 9999px;
+}
+[data-vb-theme] [data-variant='primary'] {
+  box-shadow:
+    var(--shadow-glow),
+    inset 0 1px 0 color-mix(in oklab, var(--t-highlight) 30%, transparent);
+}
+[data-vb-theme] [data-variant='secondary'] {
+  border-color: transparent;
+  background-color: color-mix(in oklab, var(--t-text) 8%, transparent);
+}
+[data-vb-theme] [data-variant='secondary']:hover {
+  background-color: color-mix(in oklab, var(--t-text) 13%, transparent);
+}
+/* sheets: a soft lifted pane instead of a hairline box */
+[data-vb-theme] .vb-sheet {
+  border-color: transparent;
+  border-radius: 26px 26px 0 0;
+  box-shadow:
+    inset 0 1px 0 color-mix(in oklab, var(--t-highlight) 10%, transparent),
+    0 -24px 60px -28px color-mix(in oklab, var(--t-depth) 80%, black);
+}
+@media (min-width: 40rem) {
+  [data-vb-theme] .vb-sheet {
+    border-radius: 26px;
+  }
+}
+/* the activity cards on Start: a light edge on top, nothing else */
+[data-vb-theme] .vb-activity {
+  box-shadow: inset 0 1px 0 color-mix(in oklab, var(--t-highlight) 9%, transparent);
+}
+[data-vb-theme] .vb-tile-label {
+  font-weight: 500;
+}
+
+[data-vb-theme] .vb-btn {
+  border-radius: 9999px;
+}
+[data-vb-theme] .vb-btn--primary {
+  box-shadow: var(--shadow-glow);
+}
+/* the shutter: its ring glows while it is ready; the disc and the screen flash hit
+   the theme's flash colour for a moment */
+[data-vb-theme] .vb-shutter[data-state='ready'] > svg {
+  filter: drop-shadow(0 0 10px color-mix(in oklab, var(--t-primary) 60%, transparent));
+}
+[data-vb-theme] .vb-shutter[data-state='capturing'] > span {
+  background-color: var(--t-hit);
+}
+[data-vb-theme] .vb-flash {
+  background: radial-gradient(closest-corner, #fff 55%, color-mix(in oklab, var(--t-hit) 55%, white));
+}
+/* the start page's room: three soft lights in the theme's colours drift slowly behind
+   everything (transform only, no blur filter, so phones stay cool; with reduced motion
+   they stand still) */
+.vb-ambient {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  overflow: hidden;
+  pointer-events: none;
+  animation: fade-in 1.6s ease-out both;
+}
+.vb-ambient > span {
+  position: absolute;
+  width: 75vmax;
+  height: 75vmax;
+  border-radius: 50%;
+  background: radial-gradient(
+    closest-side,
+    color-mix(in oklab, var(--orb) var(--orb-strength), transparent),
+    transparent
+  );
+  will-change: transform;
+}
+.vb-ambient > span:nth-child(1) {
+  --orb: var(--t-primary, #c026ff);
+  --orb-strength: 20%;
+  left: -32vmax;
+  top: -30vmax;
+  animation: vb-drift-a 34s ease-in-out infinite alternate;
+}
+.vb-ambient > span:nth-child(2) {
+  --orb: var(--t-accent, #ff2fb0);
+  --orb-strength: 12%;
+  right: -38vmax;
+  top: 18vh;
+  animation: vb-drift-b 41s ease-in-out infinite alternate;
+}
+.vb-ambient > span:nth-child(3) {
+  --orb: var(--t-secondary, #eba6c6);
+  --orb-strength: 9%;
+  left: -20vmax;
+  bottom: -45vmax;
+  animation: vb-drift-c 47s ease-in-out infinite alternate;
+}
+@keyframes vb-drift-a {
+  to {
+    transform: translate3d(22vmax, 16vmax, 0) scale(1.15);
+  }
+}
+@keyframes vb-drift-b {
+  to {
+    transform: translate3d(-24vmax, 12vmax, 0) scale(0.9);
+  }
+}
+@keyframes vb-drift-c {
+  to {
+    transform: translate3d(18vmax, -20vmax, 0) scale(1.1);
+  }
+}
+/* the activity's emoji on Start: a little tilted, it dances when the card is hovered or
+   pressed and nods now and then by itself */
+.vb-activity-emoji {
+  display: inline-block;
+  flex-shrink: 0;
+  font-size: 2rem;
+  line-height: 1;
+  transform: rotate(-8deg);
+  transform-origin: 50% 80%;
+  animation: vb-nod 6s ease-in-out 1.5s infinite;
+}
+.vb-activity:nth-child(2) .vb-activity-emoji {
+  animation-delay: 4.5s;
+}
+.vb-activity:hover .vb-activity-emoji,
+.vb-activity[data-pressed] .vb-activity-emoji {
+  animation: vb-dance 0.7s ease-in-out;
+}
+@keyframes vb-nod {
+  0%,
+  80%,
+  100% {
+    transform: rotate(-8deg);
+  }
+  86% {
+    transform: rotate(6deg) scale(1.08);
+  }
+  93% {
+    transform: rotate(-12deg);
+  }
+}
+@keyframes vb-dance {
+  30% {
+    transform: rotate(10deg) scale(1.15);
+  }
+  65% {
+    transform: rotate(-14deg) scale(1.05);
+  }
+}
+/* the party's name on Start: the wordmark colour with a slow sheen of the theme's
+   primary and accent running through it */
+@supports (background-clip: text) or (-webkit-background-clip: text) {
+  [data-vb-theme] .vb-wordmark {
+    background: linear-gradient(
+        100deg,
+        var(--t-secondary) 0%,
+        var(--t-secondary) 30%,
+        var(--t-primary-ink) 45%,
+        var(--t-accent) 55%,
+        var(--t-secondary) 70%,
+        var(--t-secondary) 100%
+      )
+      0 0 / 300% 100%;
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+    animation: vb-sheen 9s ease-in-out 0.8s infinite;
+  }
+}
+@keyframes vb-sheen {
+  0% {
+    background-position: 100% 0;
+  }
+  55%,
+  100% {
+    background-position: 0% 0;
+  }
 }

@@ -112,7 +112,8 @@ export function validate(draft: WallConfig): ValidationErrors {
   check('categories.per_category_s', draft.categories.per_category_s, 'per_category_s');
   check('delay_s', draft.delay_s, 'delay_s');
   for (const key of ['primary', 'secondary', 'background'] as const) {
-    if (!HEX_RE.test(draft.look[key])) errors[`look.${key}`] = 'Bitte eine Farbe wie #a855f7.';
+    const value = draft.look[key];
+    if (value !== null && !HEX_RE.test(value)) errors[`look.${key}`] = 'Bitte eine Farbe wie #a855f7.';
   }
   return errors;
 }

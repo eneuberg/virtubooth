@@ -41,9 +41,10 @@ DEFAULTS = {
     "show_instagram": False,
     "look": {
         "preset": "blobs",
-        "primary": "#a855f7",
-        "secondary": "#ff4fa3",
-        "background": "#2b2b31",
+        # null: wie Theme (Allgemeines → Erscheinungsbild)
+        "primary": None,
+        "secondary": None,
+        "background": None,
         "fps": 30,
         "calm": False,
     },
