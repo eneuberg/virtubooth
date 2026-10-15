@@ -5203,6 +5203,11 @@ export interface components {
         SummaryObject: {
             /** @description On the full photo (0..1, to 3 places); null when the source gives none. */
             box: components["schemas"]["ObjectBox"] | null;
+            /**
+             * Label
+             * @description The English key (the COCO class when it is one); the Live tile colours the frame by it, so the same thing has the same colour everywhere.
+             */
+            label: string;
             /** Label De */
             label_de: string;
             /**

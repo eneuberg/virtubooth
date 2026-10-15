@@ -219,6 +219,10 @@ class PhotoAnalysis(BaseModel):
 class SummaryObject(BaseModel):
     """An entry of the merged object list."""
 
+    label: str = Field(
+        description="The English key (the COCO class when it is one); the Live tile "
+        "colours the frame by it, so the same thing has the same colour everywhere."
+    )
     label_de: str
     source: str = Field(description="The source that added it: local | claude | mistral")
     sources: list[str] = Field(description="Every source that found it.")
