@@ -4,6 +4,8 @@
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import './wall.css';
+// after wall.css: the goofy layer (only under data-vb-style="goofy")
+import './goofy.css';
 import { installPreloadRecovery, markReady } from '@/lib/boot';
 import { WallApp } from './App';
 

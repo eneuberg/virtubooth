@@ -53,7 +53,7 @@ export function GuestPass({ compact = false, className }: GuestPassProps) {
         data-status={status.kind}
         onPress={() => setOpen(true)}
         className={cx(
-          'group inline-flex h-12 max-w-full min-w-0 cursor-pointer items-center gap-2.5 rounded-full bg-surface-raised pr-4 pl-1.5 text-left outline-none',
+          'vb-guestpass group inline-flex h-12 max-w-full min-w-0 cursor-pointer items-center gap-2.5 rounded-full bg-surface-raised pr-4 pl-1.5 text-left outline-none',
           'transition-[background-color,transform] duration-(--duration-quick) hover:bg-surface-hover pressed:scale-[0.98]',
           'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus',
           className,

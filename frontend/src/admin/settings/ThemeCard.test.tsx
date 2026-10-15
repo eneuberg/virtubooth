@@ -69,6 +69,7 @@ function renderCard(routes: Record<string, Route> = {}, data: AdminThemeOut = ou
 const preview = () => screen.getByTestId('theme-preview');
 const previewVar = (name: string) => preview().style.getPropertyValue(name);
 const save = () => screen.getByTestId('theme-save');
+const styleRadio = (name: string) => within(screen.getByTestId('theme-style')).getByRole('radio', { name });
 
 afterEach(() => {
   act(() => clearToasts());
@@ -103,11 +104,9 @@ describe('ThemeCard (Erscheinungsbild)', () => {
     const { requests } = renderCard({
       'PUT /api/admin/theme': () => out('rummel', RUMMEL, true, 'goofy'),
     });
-    const style = (name: string) =>
-      within(screen.getByTestId('theme-style')).getByRole('radio', { name }) as HTMLInputElement;
-    expect(style('Ruhig').checked).toBe(true);
+    expect(styleRadio('Ruhig')).toHaveProperty('checked', true);
     fireEvent.click(within(screen.getByTestId('theme-preset')).getByText('Rummel'));
-    expect(style('Verspielt').checked).toBe(true);
+    expect(styleRadio('Verspielt')).toHaveProperty('checked', true);
     fireEvent.click(save());
     await waitFor(() => expect(requests).toHaveLength(1));
     expect(await bodyField(requests[0]!, 'preset')).toBe('rummel');

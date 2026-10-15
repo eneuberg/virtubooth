@@ -301,7 +301,9 @@ class ThemeService:
                 },
                 at=at,
             )
-            self.repos.audit.log(actor, "settings.theme", details={"preset": body.preset, "style": style}, at=at)
+            self.repos.audit.log(
+                actor, "settings.theme", details={"preset": body.preset, "style": style}, at=at
+            )
             self.events.theme_changed()
         return self.admin_out()
 

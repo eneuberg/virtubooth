@@ -13,6 +13,7 @@ import { useActivities } from '@/sdk/activities';
 import { GuestPass } from '@/sdk/components/GuestPass';
 import { StatusSlot } from '@/sdk/components/StatusSlot';
 import { Button } from '@/ui/Button';
+import { GooglyEyes } from '@/ui/goofy/GooglyEyes';
 import { cx } from '@/ui/cx';
 import { IconButton } from '@/ui/IconButton';
 import { Skeleton } from '@/ui/Skeleton';
@@ -63,8 +64,10 @@ export function Start() {
 
         <nav
           aria-label="Aktivitäten"
-          className="grid content-start gap-3 lg:col-start-2 lg:row-span-3 lg:row-start-2 landscape-phone:col-start-2 landscape-phone:row-span-3 landscape-phone:row-start-2"
+          className="relative grid content-start gap-3 lg:col-start-2 lg:row-span-3 lg:row-start-2 landscape-phone:col-start-2 landscape-phone:row-span-3 landscape-phone:row-start-2"
         >
+          {/* goofy style: someone peeks over the first card and ducks when you press one */}
+          {activities.length > 0 ? <GooglyEyes className="vb-peeker" /> : null}
           {isPending && !error
             ? Array.from({ length: 2 }, (_, i) => (
                 <Skeleton key={i} shape="block" className="h-36 rounded-card" />

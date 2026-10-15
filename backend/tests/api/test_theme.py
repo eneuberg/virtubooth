@@ -147,9 +147,7 @@ def test_style_is_selectable(admin, client, body, style):
 
 
 def test_unknown_style_is_rejected(admin):
-    r = admin.put(
-        "/api/admin/theme", json={"preset": "rummel", "style": "wild"}, headers=ORIGIN
-    )
+    r = admin.put("/api/admin/theme", json={"preset": "rummel", "style": "wild"}, headers=ORIGIN)
     assert r.status_code in (400, 422)
 
 

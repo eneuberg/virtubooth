@@ -33,6 +33,7 @@ function usePublishedSize(ref: RefObject<HTMLElement | null>): void {
 }
 import { useLayoutEffect, useRef, type RefObject } from 'react';
 import { formatCount } from '@/lib/format';
+import { GooglyEyes } from '@/ui/goofy/GooglyEyes';
 import type { WallConfig, WallQr } from '../api/types';
 import { QrCode } from './QrCode';
 
@@ -72,6 +73,8 @@ function CornerBox({
   usePublishedSize(ref);
   return (
     <div ref={ref} className="wall-corner" data-corner={corner} data-testid="wall-corner">
+      {/* goofy style: the peeker from Start looks over the box and around the room */}
+      <GooglyEyes gaze="room" className="wall-peeker" />
       {code ? <QrCode url={code.url} name={code.name} /> : null}
       {name ? <span className="wall-corner-name">{name}</span> : null}
       {counter ? (
