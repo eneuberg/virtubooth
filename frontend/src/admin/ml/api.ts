@@ -12,10 +12,10 @@ export function fetchLlm(): Promise<LlmStatus> {
 
 /** The editable part only; rev, updated_at and by are server-set. */
 export function saveLlmConfig(config: LlmConfig): Promise<LlmStatus> {
-  const { enabled, provider, model, poll_interval_s, detect, image_max_px, budget } = config;
+  const { enabled, provider, model, poll, poll_interval_s, detect, image_max_px, budget } = config;
   return wallFetch('/llm/config', {
     method: 'PUT',
-    json: { enabled, provider, model, poll_interval_s, detect, image_max_px, budget },
+    json: { enabled, provider, model, poll, poll_interval_s, detect, image_max_px, budget },
   });
 }
 

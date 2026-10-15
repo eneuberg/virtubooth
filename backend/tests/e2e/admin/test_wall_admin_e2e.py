@@ -267,9 +267,21 @@ class FakeWall:
             "objects": [
                 {"idx": 0, "label": "wine glass", "label_de": "Weinglas", "score": 0.91,
                  "box": {"x": 0.3, "y": 0.5, "w": 0.1, "h": 0.2}, "source": "local",
-                 "model": "objects@1"},
+                 "model": "objects@1", "sources": ["local", "claude"]},
                 {"idx": 1, "label": "hat", "label_de": "Hut", "score": 0.8, "box": None,
-                 "source": "claude", "model": "claude-haiku-5-5"},
+                 "source": "claude", "model": "claude-haiku-5-5", "sources": ["claude"]},
+            ],
+            "objects_local": [
+                {"pos": 0, "label": "wine glass", "label_de": "Weinglas", "score": 0.91,
+                 "box": {"x": 0.3, "y": 0.5, "w": 0.1, "h": 0.2}, "source": "local",
+                 "model": "objects@1", "merged_idx": 0},
+            ],
+            "objects_ai": [
+                {"pos": 0, "label": "glass of wine", "label_de": "Sektglas", "score": 0.7,
+                 "box": {"x": 0.31, "y": 0.5, "w": 0.1, "h": 0.2}, "source": "claude",
+                 "model": "claude-haiku-5-5", "merged_idx": 0},
+                {"pos": 1, "label": "hat", "label_de": "Hut", "score": 0.8, "box": None,
+                 "source": "claude", "model": "claude-haiku-5-5", "merged_idx": 1},
             ],
             "runs": [
                 {"source": "local", "state": "done", "model": "objects@1", "error": None},
@@ -523,6 +535,22 @@ def test_inspector_shows_the_analysis(
     expect(inspector.locator("[data-testid=analysis-box][data-object='0']")).to_have_attribute(
         "data-lit", "true"
     )
+    # the merged list marks the wine glass both found; the lists of each source as tabs
+    expect(inspector.locator("[data-testid=analysis-box][data-both]")).to_have_text(
+        "Weinglas · beide"
+    )
+    panel.get_by_role("tab", name=re.compile("KI \\(Claude\\)")).click()
+    expect(panel.get_by_test_id("object-view-ai")).to_contain_text("claude-haiku-5-5")
+    expect(objects).to_have_count(2)
+    expect(objects.first).to_contain_text("Sektglas")
+    expect(inspector.locator("[data-testid=analysis-box][data-kind=object]")).to_have_text(
+        "Sektglas"
+    )
+    panel.get_by_role("tab", name=re.compile("Lokales Modell")).click()
+    expect(objects).to_have_count(1)
+    expect(boxes).to_have_count(4)
+    panel.get_by_role("tab", name=re.compile("Zusammengeführt")).click()
+    expect(objects).to_have_count(2)
     panel.get_by_text("Rahmen auf dem Foto zeigen").click()
     expect(boxes).to_have_count(0)
     # analyses are frozen: no re-run

@@ -163,3 +163,4 @@ export type LlmProperty = S['PropertyOut'];
 export type LlmPollResponse = S['PollOut'];
 /** one object of a test-image run (box 0..1 of the image) */
 export type TestObject = S['ObjectOut'];
+export type MergedTestObject = S['MergedObjectOut'];

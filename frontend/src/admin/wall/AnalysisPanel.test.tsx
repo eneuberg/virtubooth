@@ -74,6 +74,8 @@ function renderPanel(routes: Record<string, Route>, extensions: AdminExtension[]
   return { requests, view };
 }
 
+const objectFrames = () => screen.getAllByTestId('analysis-box').filter((b) => b.dataset.kind === 'object');
+
 const analysisRequests = (requests: Request[]) => requests.filter((r) => r.url.includes('/api/x/wall/'));
 
 describe('AnalysisPanel', () => {
@@ -140,6 +142,59 @@ describe('AnalysisPanel', () => {
     await waitFor(() => expect(frames[2]?.dataset.lit).toBe('true'));
     fireEvent.pointerLeave(must(objects[0]));
     await waitFor(() => expect(screen.getAllByTestId('analysis-box')[2]?.dataset.lit).toBeUndefined());
+  });
+
+  it('shows the local, the AI and the merged list as tabs, the chosen one framed on the photo', async () => {
+    renderPanel({ [PATH]: () => photoAnalysis() });
+    const tabs = await screen.findAllByRole('tab');
+    expect(tabs.map((t) => t.textContent)).toEqual([
+      'Lokales Modell1',
+      'KI (Claude)2',
+      'Zusammengeführt (für Eigenschaften)2',
+    ]);
+    expect(tabs[2]?.getAttribute('aria-selected')).toBe('true');
+    // merged: the wine glass both found (both scores), the hat only Claude
+    const merged = screen.getAllByTestId('analysis-object');
+    expect(merged.map((o) => o.dataset.sources)).toEqual(['local,claude', 'claude']);
+    expect(merged[0]?.textContent).toContain('beide');
+    expect(screen.getByTestId('analysis-object-parts').textContent).toContain('Claude: Sektglas');
+    expect(objectFrames().map((b) => [b.textContent, b.dataset.both])).toEqual([
+      ['Weinglas · beide', 'true'],
+    ]);
+
+    // the AI's own list with provider and model; its frames in its colour
+    fireEvent.click(must(tabs[1]));
+    const ai = await screen.findByTestId('object-view-ai');
+    expect(ai.textContent).toContain('claude-haiku-5-5');
+    const rows = screen.getAllByTestId('analysis-object');
+    expect(rows.map((o) => o.textContent)).toEqual([
+      expect.stringContaining('Sektglas'),
+      expect.stringContaining('Hut'),
+    ]);
+    // a source's row says which merged entry it is
+    expect(rows[0]?.textContent).toContain('→ 0');
+    await waitFor(() => expect(objectFrames().map((b) => b.textContent)).toEqual(['Sektglas']));
+    expect(objectFrames()[0]?.style.borderColor).toBe('#c084fc');
+    // hovering a row of this list lights its frame
+    fireEvent.pointerEnter(must(rows[0]));
+    await waitFor(() => expect(objectFrames()[0]?.dataset.lit).toBe('true'));
+    fireEvent.pointerLeave(must(rows[0]));
+
+    fireEvent.click(must(screen.getAllByRole('tab')[0]));
+    await waitFor(() => expect(objectFrames().map((b) => b.textContent)).toEqual(['Weinglas']));
+    expect(objectFrames()[0]?.style.borderColor).toBe('#38bdf8');
+    // back to the merged list for the other tests (the choice is shared)
+    fireEvent.click(must(screen.getAllByRole('tab')[2]));
+    await waitFor(() => expect(objectFrames()[0]?.dataset.both).toBe('true'));
+  });
+
+  it('says when the AI did not look at the photo', async () => {
+    renderPanel({
+      [PATH]: () => ({ ...photoAnalysis(), objects_ai: [], runs: photoAnalysis().runs.slice(0, 1) }),
+    });
+    fireEvent.click(await screen.findByRole('tab', { name: /KI/ }));
+    expect((await screen.findByTestId('object-view-ai-empty')).textContent).toContain('Keine KI-Erkennung');
+    fireEvent.click(screen.getByRole('tab', { name: /Zusammengeführt/ }));
   });
 
   it('tells a photo without an object list from one where nothing was found', async () => {

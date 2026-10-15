@@ -216,6 +216,103 @@ describe('ML-Pipeline section', () => {
     expect(form.get('external')).toBe('0');
   });
 
+  it('shows the test image as three object lists, each with its own frames', async () => {
+    renderSection({ [`POST ${A}/test-image`]: () => testResult });
+    const input = await waitFor(() => {
+      const el = document.querySelector<HTMLInputElement>('input[type=file]');
+      if (!el) throw new Error('no input');
+      return el;
+    });
+    const file = new File([new Uint8Array([0xff, 0xd8, 0xff])], 'test.jpg', { type: 'image/jpeg' });
+    fireEvent.change(input, { target: { files: [file] } });
+    fireEvent.click(screen.getByTestId('ml-test-run'));
+    const result = await screen.findByTestId('ml-test-result');
+    const tabs = within(result)
+      .getAllByRole('tab')
+      .map((t) => t.textContent);
+    expect(tabs).toEqual(['Lokales Modell1', 'KI (Claude)2', 'Zusammengeführt (für Eigenschaften)2']);
+    // merged (default): the wine glass both found, marked; the hat from the AI
+    const merged = within(result).getAllByTestId('analysis-object');
+    expect(merged.map((o) => o.dataset.sources)).toEqual(['local,claude', 'claude']);
+    expect(merged[0]?.textContent).toContain('beide');
+    expect(within(result).getByTestId('analysis-object-parts').textContent?.replaceAll('\u00a0', ' ')).toBe(
+      'lokal: Weinglas 87 % · Claude: Sektglas 80 %',
+    );
+    const objectFrames = () =>
+      within(result)
+        .getAllByTestId('analysis-box')
+        .filter((b) => b.dataset.kind === 'object');
+    expect(objectFrames().map((b) => b.dataset.both ?? '')).toEqual(['true', '']);
+    // the AI's own list: what it said, with provider and model, in its colour
+    fireEvent.click(within(result).getByRole('tab', { name: /KI \(Claude\)/ }));
+    const ai = await within(result).findByTestId('object-view-ai');
+    expect(ai.textContent).toContain('claude-haiku-5-5');
+    expect(
+      within(ai)
+        .getAllByTestId('analysis-object')
+        .map((o) => o.textContent),
+    ).toEqual([expect.stringContaining('Sektglas'), expect.stringContaining('Hut')]);
+    await waitFor(() => expect(objectFrames().map((b) => b.textContent)).toEqual(['Sektglas', 'Hut']));
+    expect(objectFrames()[0]?.style.borderColor).toBe('#c084fc');
+    // the local model's: one object
+    fireEvent.click(within(result).getByRole('tab', { name: /Lokales Modell/ }));
+    await waitFor(() => expect(objectFrames().map((b) => b.textContent)).toEqual(['Weinglas']));
+    expect(objectFrames()[0]?.style.borderColor).toBe('#38bdf8');
+  });
+
+  it('switches the AI detection and the property poll separately, each with its own state', async () => {
+    const llm = llmStatus({
+      key: { set: true, set_at: null, provider: 'anthropic', valid: true },
+      detection: {
+        state: 'idle',
+        pending: 2,
+        done: 4,
+        failed: 1,
+        last_run_at: null,
+        last_error: 'Zeitüberschreitung',
+      },
+      poller: { state: 'off', last_poll_at: null, next_poll_at: null, last_error: null },
+    });
+    llm.config = { ...llm.config, poll: false, detect: { local: true, external: true } };
+    const { requests } = renderSection({ [`PUT ${A}/llm/config`]: () => llm }, llm);
+    const detect = await screen.findByTestId('ml-part-detection');
+    const poll = screen.getByTestId('ml-part-poll');
+    expect(
+      within(detect).getByRole('switch', { name: 'Objekterkennung mit KI (beim Hochladen)' }),
+    ).toHaveProperty('checked', true);
+    expect(within(poll).getByRole('switch', { name: 'Eigenschaften abfragen' })).toHaveProperty(
+      'checked',
+      false,
+    );
+    expect(within(detect).getByTestId('ml-detection-state').textContent).toBe('bereit');
+    expect(within(detect).getByTestId('ml-detection-error').textContent).toBe('Zeitüberschreitung');
+    expect(within(detect).getByTestId('ml-detection-cost').textContent).toContain('4 Aufrufe');
+    expect(within(poll).getByTestId('ml-poll-state').textContent).toBe('aus');
+    expect(within(poll).getByTestId('ml-poll-cost').textContent).toContain('8 Aufrufe');
+    expect(within(poll).getByTestId('ml-poll-now')).toHaveProperty('disabled', true);
+
+    // poll on, detection off: one PUT with both, the master switch untouched
+    fireEvent.click(within(poll).getByRole('switch', { name: 'Eigenschaften abfragen' }));
+    fireEvent.click(within(detect).getByRole('switch', { name: 'Objekterkennung mit KI (beim Hochladen)' }));
+    fireEvent.click(screen.getByTestId('ml-llm-save'));
+    await waitFor(() => expect(requests.some((r) => r.method === 'PUT')).toBe(true));
+    const put = must(requests.find((r) => r.method === 'PUT'));
+    expect(await bodyField(put, 'poll')).toBe(true);
+    expect(await bodyField(put, 'detect')).toEqual({ local: true, external: false });
+    expect(await bodyField(put, 'enabled')).toBe(true);
+  });
+
+  it('says why a part is off while the master switch is off', async () => {
+    const llm = llmStatus({
+      detection: { state: 'off', pending: 0, done: 0, failed: 0, last_run_at: null, last_error: null },
+    });
+    llm.config = { ...llm.config, enabled: false, detect: { local: true, external: true } };
+    llm.poller = { ...llm.poller, state: 'off' };
+    renderSection({}, llm);
+    expect((await screen.findByTestId('ml-detection-state')).textContent).toBe('ausExterne KI ist aus.');
+    expect(screen.getByTestId('ml-poll-state').textContent).toBe('ausExterne KI ist aus.');
+  });
+
   it('says when the worker is off', async () => {
     renderSection({
       [`POST ${A}/test-image`]: () => json(409, { error: 'worker_off', message: 'Worker aus.' }),

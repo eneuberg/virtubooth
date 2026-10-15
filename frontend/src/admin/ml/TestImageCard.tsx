@@ -1,38 +1,36 @@
 /**
  * "Testbild": run the pipeline (or one analyzer) on an image and see what comes out:
  * frames, objects, values, durations. Optionally also through the external AI (costs
- * money, counts against the budget). Nothing is stored as a party photo.
+ * money, counts against the budget). The objects as three tabs: the local model's,
+ * the AI's and the merged list a photo would get. Nothing is stored as a party photo.
  */
 import { FlaskConical, ImageUp, Play } from 'lucide-react';
 import { useState } from 'react';
 import { FileTrigger } from 'react-aria-components';
 import { formatBytes } from '@/lib/format';
-import { Badge } from '@/ui/Badge';
 import { Button } from '@/ui/Button';
 import { Checkbox } from '@/ui/Checkbox';
 import { Select } from '@/ui/Select';
 import { BoxLayer } from '../wall/AnalysisPanel';
 import { Card } from '../wall/fields';
 import { useAnalysisStatus } from '../wall/hooks';
-import { factValue, objectBoxes, type FrameBox } from '../wall/text';
+import { testViews, viewFrames, type ObjectView } from '../wall/objectViews';
+import { ObjectViewTabs } from '../wall/ObjectViewTabs';
+import { factValue, type FrameBox } from '../wall/text';
 import { runTestImage } from './api';
 import { useLlm } from './hooks';
 import { externalBlocked, testErrorText } from './forms';
-import { durationsText, scoreText, sourceText, usdText } from './text';
-import type { TestImageResult, TestObject } from './types';
+import { durationsText, usdText } from './text';
+import type { TestImageResult } from './types';
 
 const ACCEPT = ['image/jpeg', 'image/png'];
 const ALL = '__all__';
 
-type Row = TestObject & { source: string };
-
-const row = (o: TestObject, source: string): Row => ({
-  label: o.label,
-  label_de: o.label_de,
-  score: o.score,
-  box: o.box,
-  source,
-});
+const EMPTY: Record<ObjectView, string> = {
+  local: 'Das lokale Modell lief nicht (nicht gewählt oder aus).',
+  ai: 'Nicht an die KI geschickt (Haken „Auch an Claude schicken“).',
+  merged: 'Keine Objekte erkannt.',
+};
 
 function Result({
   result,
@@ -45,14 +43,14 @@ function Result({
 }) {
   const local = result.local;
   const external = result.external;
-  const objects: Row[] = [
-    ...(local?.objects ?? []).map((o) => row(o, 'local')),
-    ...(external?.objects ?? []).map((o) => row(o, 'claude')),
-  ];
+  const [view, setView] = useState<ObjectView>('merged');
+  const [hovered, setHovered] = useState<string | null>(null);
+  const views = testViews(result);
   const frames: FrameBox[] = [
     ...(local?.boxes ?? []).filter((b) => b.kind !== 'object' && b.kind !== 'person'),
-    ...objectBoxes(objects),
+    ...viewFrames(views[view] ?? [], view),
   ];
+  const highlight = hovered?.startsWith(`${view}:`) ? Number(hovered.slice(view.length + 1)) : null;
   const facts = Object.entries(local?.facts ?? {});
   const skipped = Object.entries(local?.skipped ?? {});
   const durations = local ? durationsText(local.durations_ms, titles) : '';
@@ -64,7 +62,7 @@ function Result({
           style={{ aspectRatio: `${result.width} / ${result.height}` }}
         >
           <img src={preview} alt="Testbild" className="size-full object-fill" />
-          <BoxLayer boxes={frames} />
+          <BoxLayer boxes={frames} highlight={highlight} />
         </div>
       ) : null}
       {local?.error ? <p className="text-sm text-danger">{local.error}</p> : null}
@@ -76,23 +74,14 @@ function Result({
       ) : null}
       <div className="grid gap-1.5">
         <h3 className="text-sm font-bold">Objekte</h3>
-        {objects.length === 0 ? (
-          <p className="text-sm text-ink-muted">Keine Objekte erkannt.</p>
-        ) : (
-          <ol className="grid border-t border-line text-sm" data-testid="ml-test-objects">
-            {objects.map((o, i) => (
-              // objects have no id; the order is the server's
-              // oxlint-disable-next-line react/no-array-index-key
-              <li key={i} className="flex items-center gap-2 border-b border-line py-1.5">
-                <span className="min-w-0 flex-1 truncate font-semibold" title={o.label}>
-                  {o.label_de}
-                </span>
-                <span className="tabular">{scoreText(o.score)}</span>
-                <Badge tone={o.source === 'local' ? 'neutral' : 'new'}>{sourceText(o.source)}</Badge>
-              </li>
-            ))}
-          </ol>
-        )}
+        <ObjectViewTabs
+          views={views}
+          value={view}
+          onChange={setView}
+          onHover={(v, key) => setHovered(key === null ? null : `${v}:${key}`)}
+          empty={EMPTY}
+          listTestId="ml-test-objects"
+        />
       </div>
       {local && local.details.length > 0 ? (
         <dl className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-5 gap-y-1.5 text-sm">

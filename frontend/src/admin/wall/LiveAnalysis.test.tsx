@@ -41,7 +41,7 @@ const obj = (
   source = 'local',
   box: SummaryObject['box'] = null,
   score = 0.8,
-): SummaryObject => ({ label_de, source, box, score });
+): SummaryObject => ({ label_de, source, sources: [source], box, score });
 
 const texts = (s: PhotoAnalysisSummary) => analysisChips(s).map((c) => c.text);
 

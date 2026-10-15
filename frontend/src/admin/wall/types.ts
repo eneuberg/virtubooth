@@ -367,8 +367,12 @@ export interface PhotoAnalysis {
   facts: Record<string, number>;
   boxes: AnalysisBox[];
   details: Array<{ label: string; value: string }>;
-  /** the frozen object list, in idx order */
+  /** the MERGED object list (local and AI, deduplicated), in idx order: what the poll rates */
   objects: PhotoObject[];
+  /** the local model's own list */
+  objects_local: SourceObject[];
+  /** the external AI's own list (Claude, Mistral) */
+  objects_ai: SourceObject[];
   runs: DetectionRun[];
   /** the guest's LIVE opt-out flags */
   opt_out: { analysis: boolean; external_ai: boolean };
@@ -386,7 +390,10 @@ export interface PhotoAnalysisSummary {
   /** score to 2 places; box on the full photo (0..1, 3 places), null when the source gave none */
   objects: Array<{
     label_de: string;
+    /** the source that added the entry */
     source: ObjectSource;
+    /** every source that found it */
+    sources: ObjectSource[];
     score: number;
     box: { x: number; y: number; w: number; h: number } | null;
   }>;
@@ -405,8 +412,25 @@ export interface PhotoObject {
   label_de: string;
   score: number;
   box: { x: number; y: number; w: number; h: number } | null;
+  /** the source that added the entry */
   source: ObjectSource;
   model: string;
+  /** every source whose object is this entry (local and an AI: both found it) */
+  sources: ObjectSource[];
+}
+
+/** An object as one source found it (its own frozen list). */
+export interface SourceObject {
+  /** position in the source's own list */
+  pos: number;
+  label: string;
+  label_de: string;
+  score: number;
+  box: { x: number; y: number; w: number; h: number } | null;
+  source: ObjectSource;
+  model: string;
+  /** the merged entry (`objects[].idx`) it became or is */
+  merged_idx: number;
 }
 
 export interface DetectionRun {

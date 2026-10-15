@@ -78,8 +78,17 @@ export function boxOf(box: Box | [number, number, number, number] | null): Box |
   return box;
 }
 
-/** A frame on the photo; object frames know the object's idx (hover highlight). */
-export type FrameBox = AnalysisBox & { objectIndex?: number };
+/** A frame on the photo; object frames know the object's idx (hover highlight), and
+ * the object views (objectViews.ts) give theirs a colour of their own. */
+export type FrameBox = AnalysisBox & {
+  objectIndex?: number;
+  /** outline colour; default: the kind's */
+  color?: string;
+  /** the sources that found the object („local,claude“) */
+  sources?: string;
+  /** a merged entry both the local model and an AI found */
+  both?: boolean;
+};
 
 /** Objects with a box as frames of kind "object", labelled in German. */
 export function objectBoxes(

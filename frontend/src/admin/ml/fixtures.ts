@@ -9,6 +9,7 @@ export function llmStatus(over: Partial<LlmStatus> = {}): LlmStatus {
       enabled: true,
       provider: 'anthropic',
       model: 'claude-haiku-5-5',
+      poll: true,
       poll_interval_s: 180,
       detect: { local: true, external: false },
       image_max_px: 1024,
@@ -43,7 +44,7 @@ export function llmStatus(over: Partial<LlmStatus> = {}): LlmStatus {
       },
     ],
     poller: { state: 'idle', last_poll_at: null, next_poll_at: null, last_error: null },
-    detection: { pending: 0, done: 4, failed: 0 },
+    detection: { state: 'off', pending: 0, done: 4, failed: 0, last_run_at: null, last_error: null },
     usage: {
       party: { calls: 12, input_tokens: 30_000, output_tokens: 4000, cost_usd: 1.25 },
       today: { calls: 5, input_tokens: 9000, output_tokens: 1000, cost_usd: 0.5 },
@@ -100,8 +101,35 @@ export const testResult: TestImageResult = {
     skipped: {},
   },
   external: {
-    objects: [{ label: 'hat', label_de: 'Hut', score: 0.7, box: { x: 0.2, y: 0, w: 0.2, h: 0.15 } }],
+    source: 'claude',
+    model: 'claude-haiku-5-5',
+    objects: [
+      { label: 'glass of wine', label_de: 'Sektglas', score: 0.8, box: { x: 0.51, y: 0.5, w: 0.1, h: 0.2 } },
+      { label: 'hat', label_de: 'Hut', score: 0.7, box: { x: 0.2, y: 0, w: 0.2, h: 0.15 } },
+    ],
     usage: { calls: 1, input_tokens: 1200, output_tokens: 200, cost_usd: 0.0022 },
     error: null,
   },
+  merged: [
+    {
+      idx: 0,
+      label: 'wine glass',
+      label_de: 'Weinglas',
+      score: 0.87,
+      box: { x: 0.5, y: 0.5, w: 0.1, h: 0.2 },
+      sources: ['local', 'claude'],
+      local_pos: 0,
+      ai_pos: 0,
+    },
+    {
+      idx: 1,
+      label: 'hat',
+      label_de: 'Hut',
+      score: 0.7,
+      box: { x: 0.2, y: 0, w: 0.2, h: 0.15 },
+      sources: ['claude'],
+      local_pos: null,
+      ai_pos: 1,
+    },
+  ],
 };

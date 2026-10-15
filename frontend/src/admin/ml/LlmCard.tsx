@@ -1,12 +1,14 @@
 /**
- * "Claude (KI-Dienst)": the external AI's switch, provider, model, poll interval and
- * detection at upload (one PUT /llm/config), the API key (set / replace / delete /
- * test; it is never shown or prefilled, after saving only „gesetzt“) and „Jetzt
- * abfragen“.
+ * "Claude (KI-Dienst)": the external AI's master switch (off: nothing leaves the
+ * server), provider and model, and its two parts, each with its own switch, state,
+ * last error and cost: „Objekterkennung mit KI“ (at upload) and „Eigenschaften
+ * abfragen“ (the poll with its interval, the verdicts and „Jetzt abfragen“); the local
+ * detector's switch; all in one PUT /llm/config. Then the API key (set / replace /
+ * delete / test; it is never shown or prefilled, after saving only „gesetzt“).
  */
 import { useQueryClient } from '@tanstack/react-query';
 import { KeyRound, RefreshCw, Save, ShieldCheck, Sparkles, Trash2 } from 'lucide-react';
-import { useState, type FormEvent } from 'react';
+import { useState, type FormEvent, type ReactNode } from 'react';
 import { formatDateTime, formatRelative, formatTime } from '@/lib/format';
 import { Badge } from '@/ui/Badge';
 import { Button } from '@/ui/Button';
@@ -21,8 +23,16 @@ import { errorText, showError } from '../common/usePhotoActions';
 import { Card } from '../wall/fields';
 import { wk } from '../wall/keys';
 import { clearLlmKey, pollNow, saveLlmConfig, setLlmKey, testLlmKey } from './api';
-import { keyStatusText, parseMinutes, POLLER_LABELS } from './forms';
-import { modelText } from './text';
+import {
+  DETECTION_LABELS,
+  keyStatusText,
+  parseMinutes,
+  partOffReason,
+  partUsage,
+  POLLER_LABELS,
+  type LlmPart,
+} from './forms';
+import { modelText, usdText } from './text';
 import type { LlmConfig, LlmKeyState, LlmStatus, PollerState } from './types';
 
 const POLLER_TONE: Record<PollerState, 'neutral' | 'ok' | 'amber' | 'mark'> = {
@@ -37,6 +47,7 @@ interface Fields {
   enabled: boolean;
   provider: string;
   model: string;
+  poll: boolean;
   minutes: string;
   local: boolean;
   external: boolean;
@@ -47,6 +58,7 @@ function fieldsOf(c: LlmConfig): Fields {
     enabled: c.enabled,
     provider: c.provider,
     model: c.model,
+    poll: c.poll,
     minutes: String(Math.round(c.poll_interval_s / 60)),
     local: c.detect.local,
     external: c.detect.external,
@@ -227,10 +239,84 @@ function KeyBlock({ status }: { status: LlmStatus }) {
   );
 }
 
+/** „Kosten bisher: 0,40 $ · 4 Aufrufe“ */
+function CostText({ status, part }: { status: LlmStatus; part: LlmPart }) {
+  const { calls, usd } = partUsage(status, part);
+  return (
+    <span className="text-ink-muted tabular" data-testid={`ml-${part}-cost`}>
+      bisher {usdText(usd)} · {calls} {calls === 1 ? 'Aufruf' : 'Aufrufe'}
+    </span>
+  );
+}
+
+/** A part's state badge: off (and why) or what it does now. */
+function PartState({
+  status,
+  part,
+  state,
+  partOn,
+}: {
+  status: LlmStatus;
+  part: LlmPart;
+  state: PollerState;
+  partOn: boolean;
+}) {
+  const why = state === 'off' ? partOffReason(status, partOn) : null;
+  const labels = part === 'poll' ? POLLER_LABELS : DETECTION_LABELS;
+  return (
+    <span
+      className="inline-flex flex-wrap items-center gap-2"
+      data-testid={`ml-${part}-state`}
+      data-state={state}
+    >
+      <Badge tone={POLLER_TONE[state]}>{labels[state]}</Badge>
+      {why && why !== 'ausgeschaltet' ? <span className="text-ink-muted">{why}</span> : null}
+    </span>
+  );
+}
+
+function DetectionLine({ status }: { status: LlmStatus }) {
+  const { detection } = status;
+  return (
+    <div className="grid gap-1">
+      <dl
+        className="grid grid-cols-[auto_minmax(0,1fr)] items-baseline gap-x-5 gap-y-1 text-sm"
+        data-testid="ml-detection"
+      >
+        <dt className="text-ink-muted">Stand</dt>
+        <dd className="flex flex-wrap items-center gap-2">
+          <PartState
+            status={status}
+            part="detection"
+            state={detection.state}
+            partOn={status.config.detect.external}
+          />
+          {detection.last_run_at ? (
+            <span className="text-ink-muted">zuletzt {formatRelative(detection.last_run_at)}</span>
+          ) : null}
+        </dd>
+        <dt className="text-ink-muted">Fotos</dt>
+        <dd className="tabular">
+          {detection.done} fertig · {detection.pending} warten · {detection.failed} fehlgeschlagen
+        </dd>
+        <dt className="text-ink-muted">Kosten</dt>
+        <dd>
+          <CostText status={status} part="detection" />
+        </dd>
+      </dl>
+      {detection.last_error ? (
+        <p className="text-sm text-danger" data-testid="ml-detection-error">
+          {detection.last_error}
+        </p>
+      ) : null}
+    </div>
+  );
+}
+
 function PollerLine({ status }: { status: LlmStatus }) {
   const qc = useQueryClient();
   const [busy, setBusy] = useState(false);
-  const { poller, detection } = status;
+  const { poller } = status;
   const now = async () => {
     setBusy(true);
     try {
@@ -247,14 +333,14 @@ function PollerLine({ status }: { status: LlmStatus }) {
     }
   };
   return (
-    <div className="grid gap-2 border-t border-line pt-3">
+    <div className="grid gap-2">
       <dl
-        className="grid grid-cols-[auto_minmax(0,1fr)] items-baseline gap-x-5 gap-y-1.5 text-sm"
+        className="grid grid-cols-[auto_minmax(0,1fr)] items-baseline gap-x-5 gap-y-1 text-sm"
         data-testid="ml-poller"
       >
-        <dt className="text-ink-muted">Abfrage</dt>
+        <dt className="text-ink-muted">Stand</dt>
         <dd className="flex flex-wrap items-center gap-2">
-          <Badge tone={POLLER_TONE[poller.state]}>{POLLER_LABELS[poller.state]}</Badge>
+          <PartState status={status} part="poll" state={poller.state} partOn={status.config.poll} />
           {poller.last_poll_at ? (
             <span className="text-ink-muted">zuletzt {formatRelative(poller.last_poll_at)}</span>
           ) : null}
@@ -262,18 +348,22 @@ function PollerLine({ status }: { status: LlmStatus }) {
             <span className="text-ink-muted">nächste um {formatTime(poller.next_poll_at)}</span>
           ) : null}
         </dd>
-        <dt className="text-ink-muted">Erkennung</dt>
-        <dd className="tabular">
-          {detection.done} fertig · {detection.pending} warten · {detection.failed} fehlgeschlagen
+        <dt className="text-ink-muted">Kosten</dt>
+        <dd>
+          <CostText status={status} part="poll" />
         </dd>
       </dl>
-      {poller.last_error ? <p className="text-sm text-danger">{poller.last_error}</p> : null}
+      {poller.last_error ? (
+        <p className="text-sm text-danger" data-testid="ml-poller-error">
+          {poller.last_error}
+        </p>
+      ) : null}
       <Button
         size="xs"
         variant="secondary"
         icon={RefreshCw}
         isPending={busy}
-        isDisabled={!status.config.enabled || !status.key.set}
+        isDisabled={!status.config.enabled || !status.config.poll || !status.key.set}
         onPress={() => void now()}
         className="justify-self-start"
         data-testid="ml-poll-now"
@@ -281,6 +371,15 @@ function PollerLine({ status }: { status: LlmStatus }) {
         Jetzt abfragen
       </Button>
     </div>
+  );
+}
+
+/** One part of the external AI: its switch, settings and state, set off by a rule. */
+function Part({ children, testId }: { children: ReactNode; testId: string }) {
+  return (
+    <section className="grid gap-2 border-t border-line pt-3" data-testid={testId}>
+      {children}
+    </section>
   );
 }
 
@@ -307,6 +406,7 @@ export function LlmCard({ status }: { status: LlmStatus }) {
         enabled: f.enabled,
         provider: f.provider,
         model: f.model,
+        poll: f.poll,
         poll_interval_s: minutes * 60,
         detect: { local: f.local, external: f.external },
       });
@@ -340,6 +440,9 @@ export function LlmCard({ status }: { status: LlmStatus }) {
       <Switch isSelected={f.enabled} onChange={(on) => set({ enabled: on })} data-testid="ml-llm-enabled">
         Externe KI verwenden
       </Switch>
+      <p className="-mt-2 text-xs text-ink-muted">
+        Aus: der Server schickt nichts an den KI-Dienst, egal was unten eingeschaltet ist.
+      </p>
       <div className="grid gap-3 @md:grid-cols-2">
         <Select
           label="Anbieter"
@@ -361,34 +464,43 @@ export function LlmCard({ status }: { status: LlmStatus }) {
       {provider && !provider.available && provider.reason ? (
         <p className="text-sm text-danger">{provider.reason}</p>
       ) : null}
-      <TextField
-        label="Abfrage alle … Minuten"
-        size="sm"
-        inputMode="numeric"
-        value={f.minutes}
-        onChange={(text) => set({ minutes: text })}
-        errorMessage={minutes === null ? 'Bitte eine ganze Zahl von 1 bis 60.' : null}
-        description="So oft bewertet die KI die Eigenschaften neu und schreibt die Urteile."
-        className="max-w-xs"
-        data-testid="ml-llm-minutes"
-      />
-      <fieldset className="grid gap-0">
-        <legend className="text-sm font-semibold">Erkennung beim Hochladen</legend>
-        <div className="flex flex-wrap gap-x-6">
-          <Checkbox isSelected={f.local} onChange={(local) => set({ local })} data-testid="ml-detect-local">
-            lokal
-          </Checkbox>
-          <Checkbox
-            isSelected={f.external}
-            onChange={(external) => set({ external })}
-            data-testid="ml-detect-external"
-          >
-            Claude
-          </Checkbox>
-        </div>
+      <Part testId="ml-part-detection">
+        <Switch
+          isSelected={f.external}
+          onChange={(external) => set({ external })}
+          data-testid="ml-detect-external"
+        >
+          Objekterkennung mit KI (beim Hochladen)
+        </Switch>
         <p className="text-xs text-ink-muted">
-          Beides geht: Claudes Objekte kommen dann zur lokalen Liste dazu.
+          Jedes neue Foto geht verkleinert an die KI, sie listet die Objekte mit Rahmen. Ihre Liste bleibt für
+          sich sichtbar und wird mit der des lokalen Modells zusammengeführt (Doppelte nur einmal).
         </p>
+        <DetectionLine status={status} />
+      </Part>
+      <Part testId="ml-part-poll">
+        <Switch isSelected={f.poll} onChange={(poll) => set({ poll })} data-testid="ml-llm-poll">
+          Eigenschaften abfragen
+        </Switch>
+        <TextField
+          label="Abfrage alle … Minuten"
+          size="sm"
+          inputMode="numeric"
+          value={f.minutes}
+          onChange={(text) => set({ minutes: text })}
+          errorMessage={minutes === null ? 'Bitte eine ganze Zahl von 1 bis 60.' : null}
+          description="So oft bewertet die KI die Eigenschaften (nur Text: die zusammengeführte Objektliste) neu und schreibt die Urteile."
+          className="max-w-xs"
+          data-testid="ml-llm-minutes"
+        />
+        <PollerLine status={status} />
+      </Part>
+      <fieldset className="grid gap-0 border-t border-line pt-3">
+        <legend className="sr-only">Lokale Erkennung</legend>
+        <Checkbox isSelected={f.local} onChange={(local) => set({ local })} data-testid="ml-detect-local">
+          Lokale Objekterkennung beim Hochladen
+        </Checkbox>
+        <p className="text-xs text-ink-muted">Läuft auf dem Server, kostet nichts, schickt nichts hinaus.</p>
       </fieldset>
       {dirty ? (
         <div className="flex flex-wrap items-center gap-2">
@@ -414,7 +526,6 @@ export function LlmCard({ status }: { status: LlmStatus }) {
         </p>
       ) : null}
       <KeyBlock status={status} />
-      <PollerLine status={status} />
     </Card>
   );
 }

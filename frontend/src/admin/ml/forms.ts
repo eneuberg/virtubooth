@@ -14,6 +14,38 @@ export const POLLER_LABELS: Record<PollerState, string> = {
   blocked: 'pausiert',
 };
 
+export const DETECTION_LABELS: Record<PollerState, string> = {
+  off: 'aus',
+  idle: 'bereit',
+  running: 'erkennt gerade',
+  blocked: 'pausiert',
+};
+
+/** The usage kinds of each part of the external AI. */
+export const PART_KINDS = { detection: ['detect'], poll: ['property', 'verdict'] } as const;
+export type LlmPart = keyof typeof PART_KINDS;
+
+/** What a part cost so far (the usage meter's rows of its kinds). */
+export function partUsage(status: Pick<LlmStatus, 'usage'>, part: LlmPart): { calls: number; usd: number } {
+  const kinds: readonly string[] = PART_KINDS[part];
+  let calls = 0;
+  let usd = 0;
+  for (const row of status.usage.by_kind) {
+    if (!kinds.includes(row.kind)) continue;
+    calls += row.calls;
+    usd += row.cost_usd;
+  }
+  return { calls, usd };
+}
+
+/** Why a part is off although its own switch may be on, else null. */
+export function partOffReason(status: Pick<LlmStatus, 'config' | 'key'>, partOn: boolean): string | null {
+  if (!status.config.enabled) return 'Externe KI ist aus.';
+  if (!partOn) return 'ausgeschaltet';
+  if (!status.key.set || !status.key.valid) return 'Kein gültiger API-Schlüssel.';
+  return null;
+}
+
 /** 1–60 whole minutes (the server takes 60–3600 s). */
 export function parseMinutes(text: string): number | null {
   const t = text.trim();
