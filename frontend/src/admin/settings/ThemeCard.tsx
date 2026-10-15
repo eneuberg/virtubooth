@@ -135,7 +135,7 @@ export function ThemeCard({ data }: { data: AdminThemeOut }) {
               options={CHOICES}
               value={choice}
               onChange={pick}
-              className="justify-self-start"
+              className="flex-wrap justify-self-start"
               data-testid="theme-preset"
             />
             <SegmentedControl
