@@ -45,6 +45,15 @@ body {
   height: 100%;
 }
 
+/* The live wall is a TV screen: nothing that browser extensions add to the page may sit
+   on it. Bitwarden's "save login" bar (a fixed 430×400 box at the top right, blank white
+   on this page) stayed there after the wall's login. Only body children other than the
+   app: the boot-check notice stays; extension UI in the top layer (popovers) is not
+   reached, the login blurs its field so that closes on its own (Screens.tsx). */
+:root[data-wall-live] body > :not(#app):not([data-testid='load-failed']) {
+  display: none !important;
+}
+
 .wall {
   position: fixed;
   inset: 0;
