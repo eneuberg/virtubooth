@@ -215,6 +215,8 @@ class Worker:
         ai_detect = jobs.ai_detection_active(repos.app_settings)
         # the AI cannot take it (no key, budget used up): the local detector does
         fallback = jobs.ai_detection_blocked(db, repos.app_settings) if ai_detect else None
+        if ai_detect and not fallback and jobs.guest_refuses_ai(db, photo.id):
+            fallback = jobs.GUEST_NO_AI
         if fallback:
             ai_detect = False
             log.info("photo %s: local objects instead of the AI (%s)", photo.public_id, fallback)

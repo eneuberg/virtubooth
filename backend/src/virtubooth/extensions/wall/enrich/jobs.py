@@ -176,7 +176,18 @@ NO_KEY = "Kein API-Schlüssel"
 KEY_INVALID = "API-Schlüssel abgelehnt"
 BUDGET = "Budget aufgebraucht"
 UNREACHABLE = "Dienst nicht erreichbar"
+GUEST_NO_AI = "Gast: keine externe KI"
 PHOTO_FAILED = "KI-Fehler bei diesem Foto"
+
+
+def guest_refuses_ai(db: Database, photo_id: int) -> bool:
+    """The photo's guest chose „Keine Weitergabe an externe KI“: the AI never sees it,
+    so while the AI is the detector the local one takes this photo."""
+    row = db.one(
+        "SELECT u.ai_opt_out FROM photos p JOIN users u ON u.id = p.user_id WHERE p.id=?",
+        (photo_id,),
+    )
+    return bool(row and row[0])
 
 
 def ai_detection_blocked(db: Database, app_settings: AppSettingsRepo) -> str | None:
