@@ -631,3 +631,15 @@ def covered_by_toast(page: Page, *targets: Locator) -> list[str]:
         ):
             out.append(str(target))
     return out
+
+
+def pytest_runtest_logreport(report: pytest.TestReport) -> None:  # DEBUG, to be dropped
+    if report.failed:
+        import sys
+
+        worker = os.environ.get("PYTEST_XDIST_WORKER", "main")
+        print(
+            f"\n##### {worker} {report.when} FAILED {report.nodeid}\n{report.longreprtext[-6000:]}\n#####",
+            file=sys.__stderr__,
+            flush=True,
+        )
