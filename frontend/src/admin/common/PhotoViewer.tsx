@@ -11,6 +11,7 @@ import { IconButton } from '@/ui/IconButton';
 import { toastAvoid } from '@/ui/toastPlacement';
 import { metaRows, photoLabel, photoName } from '../lib/labels';
 import { FittedPhoto } from './FittedPhoto';
+import { guestName } from '../hostGuest/marks';
 
 export interface PhotoViewerProps {
   /** the photo shown; null: closed */
@@ -194,7 +195,7 @@ export function PhotoViewer({
                 <dl className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-4 gap-y-1 text-sm">
                   <dt className="text-ink-muted">Gast</dt>
                   <dd translate="no" className="truncate">
-                    {photo.user.name}
+                    {guestName(photo.user)}
                     {photo.user.instagram ? (
                       <span className="text-ink-muted"> @{photo.user.instagram}</span>
                     ) : null}

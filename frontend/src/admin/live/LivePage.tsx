@@ -42,6 +42,7 @@ import { PartyControls, PartyStateBadges } from '../uploads/PartyControls';
 import { AnalysisBoxes, AnalysisPanel } from '../wall/AnalysisPanel';
 import { AnalysisChips, AnalysisToggle, AnalysisWins } from '../wall/LiveAnalysis';
 import { useLiveAnalysis } from '../wall/liveAnalysisState';
+import { guestName } from '../hostGuest/marks';
 
 const isAtTop = () => window.scrollY < AT_TOP;
 
@@ -193,7 +194,7 @@ function LiveScreen() {
                   src={photo.thumb_url}
                   alt={photoLabel(photo)}
                   label={photoLabel(photo)}
-                  sublabel={photo.user.name}
+                  sublabel={guestName(photo.user)}
                   isHidden={photo.hidden}
                   isNew={arrivedLive.has(photo)}
                   loading={i < 6 ? 'eager' : 'lazy'}

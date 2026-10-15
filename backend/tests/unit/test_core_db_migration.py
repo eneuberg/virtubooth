@@ -28,6 +28,8 @@ def open_services(db: Database, data_dir: Path) -> tuple[Repositories, UploadCon
     return repos, controls
 
 
+# columns added after v1 (the upgrade test compares the v1 columns only)
+LATER_USER_COLS = ("code_id", "analysis_opt_out", "display_name", "ai_opt_out", "is_host")
 TABLES = ["users", "user_fingerprints", "fingerprint_bans", "photos", "admin_sessions", "audit_log"]
 
 
@@ -76,8 +78,7 @@ def dump(path: Path) -> dict[str, list[tuple]]:
             v1_cols = [
                 c
                 for c in cols
-                if not c.startswith(("uploads_", "online_"))
-                and c not in ("code_id", "analysis_opt_out", "display_name", "ai_opt_out")
+                if not c.startswith(("uploads_", "online_")) and c not in LATER_USER_COLS
             ]
             out[table] = conn.execute(
                 f"SELECT {', '.join(v1_cols)} FROM {table} ORDER BY rowid"
@@ -90,7 +91,7 @@ def dump(path: Path) -> dict[str, list[tuple]]:
 def test_fresh_database_is_current(tmp_path):
     db = Database(tmp_path / "new.db")
     try:
-        assert db.one("PRAGMA user_version")[0] == SCHEMA_VERSION == 11
+        assert db.one("PRAGMA user_version")[0] == SCHEMA_VERSION == 12
         cols = {r[1] for r in db.all("PRAGMA table_info(users)")}
         assert {"uploads_paused_at", "uploads_paused_source", "uploads_lock_period"} <= cols
         assert db.one("SELECT COUNT(*) FROM settings")[0] == 0
@@ -122,6 +123,8 @@ def test_v1_database_upgrades_in_place_without_data_loss(tmp_path):
         # the new columns start empty: nobody is paused by the upgrade
         assert not anna.uploads_paused and anna.uploads_paused_source is None
         assert anna.uploads_lock_period is None
+        # v12: nobody is the admin guest after the upgrade
+        assert not anna.is_host and not ben.is_host and repos.users.host() is None
         assert repos.photos.get("photo-aaaaaaaa1").meta == {"vessel": "cup"}
         assert repos.photos.get("photo-bbbbbbbb2").hidden_reason == "ban"
         assert repos.bans.is_banned("bb" * 32)
@@ -189,5 +192,24 @@ def test_newer_database_is_left_alone(tmp_path):
     db = Database(path)
     try:
         assert db.one("PRAGMA user_version")[0] == SCHEMA_VERSION + 1
+    finally:
+        db.close()
+
+
+def test_v12_allows_one_admin_guest_only(tmp_path):
+    path = tmp_path / "virtubooth.db"
+    make_v1_db(path)
+    db = Database(path)
+    try:
+        repos = Repositories.create(db, tmp_path)
+        args = dict(at=now_iso(), consent_version="1", instagram=None, fp_hash=None,
+                    fp_components={}, ip="", user_agent="")  # fmt: skip
+        uid = repos.users.create(public_id="host-0000001", is_host=True, **args)
+        host = repos.users.host()
+        assert host is not None and host.id == uid and host.is_host
+        assert repos.users.create(public_id="guest-000002", **args)  # normal guests: any number
+        with pytest.raises(sqlite3.IntegrityError):
+            repos.users.create(public_id="host-0000003", is_host=True, **args)
+        assert [u.id for u in repos.users.list() if u.is_host] == [uid]
     finally:
         db.close()

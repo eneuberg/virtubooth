@@ -30,6 +30,7 @@ const user = (over: Partial<GuestUser> = {}): GuestUser => ({
   uploads_paused: false,
   analysis_opt_out: false,
   ai_opt_out: false,
+  is_host: false,
   ...over,
 });
 

@@ -339,6 +339,17 @@ CREATE TABLE llm_usage (
 CREATE INDEX llm_usage_day ON llm_usage(day);
 """
 
+# v12: the admin guest („Als Gast teilnehmen“ in the admin, POST /api/admin/guest).
+# is_host = 1: the host's own guest identity, created from an admin session, never
+# through a QR code (code_id stays NULL, so no code's scans, joins or photos count
+# it). At most one per party (the admin password is shared: there is no admin
+# identity to tell two hosts apart): the partial unique index makes a second one
+# impossible even when two admin tabs press the button at the same time.
+SCHEMA_V12 = """
+ALTER TABLE users ADD COLUMN is_host INTEGER NOT NULL DEFAULT 0;
+CREATE UNIQUE INDEX users_one_host ON users(is_host) WHERE is_host = 1;
+"""
+
 # (version, script): each step upgrades the database from the version before.
 MIGRATIONS: tuple[tuple[int, str], ...] = (
     (1, SCHEMA),
@@ -350,6 +361,7 @@ MIGRATIONS: tuple[tuple[int, str], ...] = (
     (9, SCHEMA_V9),
     (10, SCHEMA_V10),
     (11, SCHEMA_V11),
+    (12, SCHEMA_V12),
 )
 SCHEMA_VERSION = MIGRATIONS[-1][0]
 

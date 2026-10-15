@@ -23,7 +23,15 @@ const PHOTO: AdminPhoto = {
   meta: {},
   url: '/media/p1',
   thumb_url: '/media/p1?thumb=1',
-  user: { id: 1, name: 'Gast 1', instagram: null, banned: false, auto_banned: false, uploads_paused: false },
+  user: {
+    id: 1,
+    name: 'Gast 1',
+    instagram: null,
+    banned: false,
+    auto_banned: false,
+    uploads_paused: false,
+    is_host: false,
+  },
 };
 
 const WALL: AdminExtension = {

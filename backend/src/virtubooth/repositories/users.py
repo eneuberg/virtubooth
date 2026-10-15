@@ -45,17 +45,21 @@ class UsersRepo:
         code_id: int | None = None,
         analysis_opt_out: bool = False,
         ai_opt_out: bool = False,
+        is_host: bool = False,
+        display_name: str | None = None,
     ) -> int:
         """Insert a guest (named by its id) and its first fingerprint. A
         `lock_period` starts it with uploads paused by that new-guest lock;
-        `code_id` is the QR code it joined through."""
+        `code_id` is the QR code it joined through; `is_host`: the admin guest
+        (at most one: a second insert fails on `users_one_host`)."""
         with self.db.tx() as c:
             cur = c.execute(
                 "INSERT INTO users (public_id, created_at, last_seen_at, consent_at, "
                 "consent_version, instagram, fp_hash, fp_components, first_ip, last_ip, "
                 "user_agent, banned_at, ban_reason, uploads_paused_at, uploads_paused_source, "
-                "uploads_lock_period, code_id, analysis_opt_out, ai_opt_out) "
-                "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                "uploads_lock_period, code_id, analysis_opt_out, ai_opt_out, is_host, "
+                "display_name) "
+                "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
                 (
                     public_id, at, at, at, consent_version, instagram, fp_hash,
                     json.dumps(fp_components), ip, ip, user_agent,
@@ -63,6 +67,7 @@ class UsersRepo:
                     at if lock_period else None,
                     PAUSE_NEW_GUEST_LOCK if lock_period else None,
                     lock_period, code_id, int(analysis_opt_out), int(ai_opt_out),
+                    int(is_host), display_name,
                 ),
             )  # fmt: skip
             uid = cur.lastrowid
@@ -78,6 +83,13 @@ class UsersRepo:
     def get(self, user_id: int) -> User | None:
         row = self.db.one(
             f"SELECT {USER_COLS}, {_PHOTO_COUNT} FROM users u WHERE u.id=?", (user_id,)
+        )
+        return user_from_row(row, row["photo_count"]) if row else None
+
+    def host(self) -> User | None:
+        """The admin guest (`is_host`), if one was created."""
+        row = self.db.one(
+            f"SELECT {USER_COLS}, {_PHOTO_COUNT} FROM users u WHERE u.is_host=1 LIMIT 1"
         )
         return user_from_row(row, row["photo_count"]) if row else None
 

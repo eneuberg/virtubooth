@@ -19,6 +19,7 @@ const user = (over: Partial<GuestUser> = {}): GuestUser => ({
   uploads_paused: false,
   analysis_opt_out: false,
   ai_opt_out: false,
+  is_host: false,
   ...over,
 });
 
@@ -75,6 +76,21 @@ describe('GuestPass', () => {
     });
     render(<GuestPass />, { wrapper: UiProvider });
     expect(screen.getByTestId('guest-pass').textContent).toBe('🎉P🎉 Party Fred@lena.k');
+  });
+
+  it('tells the admin guest, and only it, that it is the admin guest', () => {
+    given({
+      status: 'ready',
+      user: user({ display_name: 'Gastgeber', shown_name: 'Gastgeber', is_host: true }),
+      uploadsStopped: false,
+    });
+    const { rerender } = render(<GuestPass />, { wrapper: UiProvider });
+    expect(screen.getByTestId('guest-pass-host').textContent).toBe('Admin-Gast · nur du siehst das');
+    rerender(<GuestPass compact />);
+    expect(screen.queryByTestId('guest-pass-host')).toBeNull();
+    act(() => sessionStore.setState({ session: { status: 'ready', user: user(), uploadsStopped: false } }));
+    rerender(<GuestPass />);
+    expect(screen.queryByTestId('guest-pass-host')).toBeNull();
   });
 
   it('marks paused, stopped and banned in words, not colour alone', () => {

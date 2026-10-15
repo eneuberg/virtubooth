@@ -37,11 +37,16 @@ def has_access(request: Request, core: Core) -> bool:
     its access cookie is from an active QR code with its current token, or it
     is from a code revoked or re-tokened since and the browser is a joined
     guest (joined guests keep their session; anyone else must scan a valid
-    code again)."""
+    code again). The admin guest (`is_host`, signed in from an admin session
+    by POST /api/admin/guest) needs no access cookie at all: it never scanned
+    a code, so deleting or re-tokening codes can't lock it out."""
     state = core.services.codes.access_state(request)
     if state == "current":
         return True
-    return state == "stale" and guest_from_cookie(request, core) is not None
+    guest = guest_from_cookie(request, core)
+    if guest is None:
+        return False
+    return state == "stale" or guest.is_host
 
 
 def guest_from_cookie(request: Request, core: Core) -> User | None:

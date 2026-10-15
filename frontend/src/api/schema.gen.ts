@@ -240,6 +240,35 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/admin/guest": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Host Guest
+         * @description The admin guest (null until „Als Gast teilnehmen“ was pressed once) and
+         *     whether this browser is signed in as it or as another guest.
+         */
+        get: operations["get_host_guest_api_admin_guest_get"];
+        put?: never;
+        /**
+         * Sign In Host Guest
+         * @description Sign this browser in to the guest app as the admin guest (created on the
+         *     first call, the same one on every later call). Sets the guest id cookie
+         *     like a join; a different guest identity this browser had is replaced
+         *     (`replaced`). Not affected by the join stop or the new-guest lock. Audited
+         *     (`host_guest.sign_in`).
+         */
+        post: operations["sign_in_host_guest_api_admin_guest_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/admin/instagram": {
         parameters: {
             query?: never;
@@ -2143,7 +2172,7 @@ export interface components {
             banned: boolean;
             /** Banned At */
             banned_at: string | null;
-            /** @description The QR code it joined through; null: unknown. */
+            /** @description The QR code it joined through; null: unknown, or the admin guest. */
             code: components["schemas"]["CodeRef"] | null;
             /** Consent At */
             consent_at: string;
@@ -2168,6 +2197,11 @@ export interface components {
             id: number;
             /** Instagram */
             instagram: string | null;
+            /**
+             * Is Host
+             * @description The admin guest: the host's own guest identity, signed in from the admin (POST /api/admin/guest), never through a QR code. Can't be banned; no photo cap, new-guest lock or join stop.
+             */
+            is_host: boolean;
             /** Last Ip */
             last_ip: string;
             /** Last Seen At */
@@ -3141,7 +3175,7 @@ export interface components {
              * @description Machine-readable error code.
              * @enum {string}
              */
-            error: "scan_qr" | "needs_consent" | "banned" | "consent_outdated" | "invalid_instagram" | "join_closed" | "invalid_display_name" | "display_name_taken" | "wall_login_required" | "wall_no_password" | "wall_password_too_short" | "invalid_wall_config" | "invalid_category" | "category_exists" | "invalid_analyzer_settings" | "worker_off" | "ml_missing" | "uploads_paused" | "uploads_stopped" | "unsupported_type" | "too_large" | "invalid_meta" | "empty_upload" | "invalid_image" | "photo_limit" | "storage_full" | "invalid_pdf" | "invalid_layout" | "no_template" | "admin_required" | "wrong_password" | "login_locked" | "invalid_filter" | "unknown_analyzer" | "invalid_cursor" | "no_fingerprint" | "restore_required" | "invalid_event_name" | "invalid_public_address" | "invalid_theme" | "password_too_short" | "password_unchanged" | "no_filter_enabled" | "unknown_filter" | "export_not_ready" | "export_running" | "invalid_token" | "token_taken" | "code_revoked" | "invalid_target" | "invalid_note" | "invalid_llm_config" | "llm_not_configured" | "llm_key_invalid" | "llm_budget_exhausted" | "invalid_property" | "property_exists" | "bad_origin" | "length_required" | "rate_limited" | "invalid_request" | "not_found" | "http_404" | "http_405";
+            error: "scan_qr" | "needs_consent" | "banned" | "consent_outdated" | "invalid_instagram" | "join_closed" | "invalid_display_name" | "display_name_taken" | "wall_login_required" | "wall_no_password" | "wall_password_too_short" | "invalid_wall_config" | "invalid_category" | "category_exists" | "invalid_analyzer_settings" | "worker_off" | "ml_missing" | "uploads_paused" | "uploads_stopped" | "unsupported_type" | "too_large" | "invalid_meta" | "empty_upload" | "invalid_image" | "photo_limit" | "storage_full" | "invalid_pdf" | "invalid_layout" | "no_template" | "admin_required" | "wrong_password" | "login_locked" | "invalid_filter" | "unknown_analyzer" | "invalid_cursor" | "no_fingerprint" | "restore_required" | "host_guest" | "invalid_event_name" | "invalid_public_address" | "invalid_theme" | "password_too_short" | "password_unchanged" | "no_filter_enabled" | "unknown_filter" | "export_not_ready" | "export_running" | "invalid_token" | "token_taken" | "code_revoked" | "invalid_target" | "invalid_note" | "invalid_llm_config" | "llm_not_configured" | "llm_key_invalid" | "llm_budget_exhausted" | "invalid_property" | "property_exists" | "bad_origin" | "length_required" | "rate_limited" | "invalid_request" | "not_found" | "http_404" | "http_405";
             /**
              * Field
              * @description The form field a 400 is about, when the answer names one (e.g. `invalid_category`: title, line, where, by, count, verdict, ...).
@@ -3526,6 +3560,11 @@ export interface components {
             /** Instagram */
             instagram: string | null;
             /**
+             * Is Host
+             * @description This browser is the admin guest (the host, signed in from the admin). Only ever sent to that browser itself.
+             */
+            is_host: boolean;
+            /**
              * Name
              * @description The pseudonym (internal; never changes).
              */
@@ -3575,6 +3614,47 @@ export interface components {
              * @constant
              */
             ok: true;
+        };
+        /**
+         * HostGuestOut
+         * @description This browser is now signed in to the guest app as the admin guest (the guest
+         *     id cookie is set; it needs no QR code and no party token).
+         */
+        HostGuestOut: {
+            /**
+             * Created
+             * @description The admin guest was created by this request.
+             */
+            created: boolean;
+            /**
+             * Replaced
+             * @description The pseudonym of the guest identity this browser had before (it is signed out of it); null: none, or it was the admin guest already.
+             */
+            replaced: string | null;
+            /**
+             * Url
+             * @description Where the guest app starts (same origin, no token).
+             */
+            url: string;
+            user: components["schemas"]["AdminUser"];
+        };
+        /**
+         * HostGuestState
+         * @description The admin guest („Als Gast teilnehmen“) and this browser's guest identity.
+         */
+        HostGuestState: {
+            /**
+             * Browser Guest
+             * @description The pseudonym of the other guest this browser is signed in as (signing in as the admin guest replaces it); null: none, or the admin guest.
+             */
+            browser_guest: string | null;
+            /**
+             * Browser Is Host
+             * @description This browser is signed in to the guest app as the admin guest.
+             */
+            browser_is_host: boolean;
+            /** @description The admin guest; null: not created yet. */
+            user: components["schemas"]["AdminUser"] | null;
         };
         /**
          * IdentifiedOut
@@ -4542,6 +4622,11 @@ export interface components {
             id: number;
             /** Instagram */
             instagram: string | null;
+            /**
+             * Is Host
+             * @description The admin guest („Als Gast teilnehmen“).
+             */
+            is_host: boolean;
             /** Name */
             name: string;
             /** Uploads Paused */
@@ -7582,6 +7667,190 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["AdminExtensionsOut"];
+                };
+            };
+            /** @description Invalid input (see `error`) */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Needs consent or an admin session */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Forbidden: banned, paused, stopped, joining closed or a foreign Origin (CSRF) */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Not found, or no party access (`scan_qr`) */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Content-Length required */
+            411: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Request too large */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Request validation failed (`invalid_request`) */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Rate limited (`Retry-After` header) */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    get_host_guest_api_admin_guest_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HostGuestState"];
+                };
+            };
+            /** @description Invalid input (see `error`) */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Needs consent or an admin session */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Forbidden: banned, paused, stopped, joining closed or a foreign Origin (CSRF) */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Not found, or no party access (`scan_qr`) */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Content-Length required */
+            411: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Request too large */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Request validation failed (`invalid_request`) */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Rate limited (`Retry-After` header) */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    sign_in_host_guest_api_admin_guest_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HostGuestOut"];
                 };
             };
             /** @description Invalid input (see `error`) */

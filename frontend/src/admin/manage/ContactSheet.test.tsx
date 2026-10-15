@@ -23,7 +23,15 @@ function photo(n: number, over: Partial<AdminPhoto> = {}): AdminPhoto {
     deleted: false,
     url: `/media/${id}`,
     thumb_url: `/media/${id}?thumb=1`,
-    user: { id: 1, name: 'Ente', instagram: null, banned: false, auto_banned: false, uploads_paused: false },
+    user: {
+      id: 1,
+      name: 'Ente',
+      instagram: null,
+      banned: false,
+      auto_banned: false,
+      uploads_paused: false,
+      is_host: false,
+    },
     ...over,
   };
 }

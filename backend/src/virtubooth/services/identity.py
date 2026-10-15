@@ -69,6 +69,8 @@ _NAME_NOISE = re.compile(r"[\s._\-@#]+")
 LENGTH_PROBLEM = "Der Name braucht 2 bis 24 Zeichen."
 NAME_REFUSED = "Dieser Name geht leider nicht."
 NAME_TAKEN = "Dieser Name ist schon vergeben."
+# the admin guest's display name: a reserved word, so no other guest can have it
+HOST_DISPLAY_NAME = "Gastgeber"
 
 
 def name_key(name: str) -> str:
@@ -187,6 +189,20 @@ class JoinResult:
     user: User
     created: bool
     instagram_kept: bool
+
+
+@dataclass(frozen=True)
+class HostGuestResult:
+    """`switched`: the browser was signed in as another guest (`previous`)
+    and now is the admin guest."""
+
+    user: User
+    created: bool
+    previous: User | None
+
+    @property
+    def switched(self) -> bool:
+        return self.previous is not None
 
 
 class IdentityService:
@@ -351,6 +367,45 @@ class IdentityService:
             ai_opt_out=ai_opt_out,
         )
 
+    # ---------------------------------------------------------- admin guest
+
+    def host_guest(
+        self, current: User | None, *, ip: str, user_agent: str, actor: str
+    ) -> HostGuestResult:
+        """The admin guest („Als Gast teilnehmen“), created on first use: one
+        per party (the admin password is shared, so there is no admin identity
+        to tell hosts apart; `users_one_host` enforces it). It joins like a
+        guest (the current consent version, display name „Gastgeber“, no
+        Instagram) but through the admin session, not a QR code: no code, no
+        new-guest lock, not refused by the join stop. `current`: the guest the
+        calling browser is signed in as (replaced by the router). Audited."""
+        with self.db.tx():
+            user = self.repos.users.host()
+            created = user is None
+            at = now_iso()
+            if user is None:
+                uid = self.repos.users.create(
+                    public_id=new_public_id(),
+                    at=at,
+                    consent_version=self.core.settings.consent_version,
+                    instagram=None,
+                    fp_hash=None,
+                    fp_components={},
+                    ip=ip,
+                    user_agent=user_agent,
+                    is_host=True,
+                    display_name=HOST_DISPLAY_NAME,
+                )
+                user = self.repos.users.get(uid)
+                assert user is not None
+                self.events.user_created(user)
+            previous = current if current is not None and current.id != user.id else None
+            details: dict[str, Any] = {"created": created}
+            if previous is not None:
+                details["replaced"] = f"user:{previous.id}"
+            self.repos.audit.log(actor, "host_guest.sign_in", f"user:{user.id}", details, at=at)
+        return HostGuestResult(user, created, previous)
+
     def set_analysis_opt_out(self, user: User, opt_out: bool) -> User:
         """„Meine Fotos nicht automatisch auswerten“ on or off. Only the flag
         flips: what the analysis found stays as it is (frozen, PLAN-NIGHT N4);
@@ -417,7 +472,9 @@ class IdentityService:
     def _check_free(self, user: User, name: str) -> None:
         key = name_key(name)
         event = name_key(self.core.services.host_settings.event_name())
-        if key in RESERVED_NAMES or key == event or len(key) < DISPLAY_NAME_MIN:
+        # the admin guest may call itself „Gastgeber“ (its default); nobody else
+        reserved = key in RESERVED_NAMES and not user.is_host
+        if reserved or key == event or len(key) < DISPLAY_NAME_MIN:
             raise errors.bad_request(NAME_REFUSED, "invalid_display_name")
         for uid, pseudonym, instagram, display in self.repos.users.names():
             if uid == user.id:

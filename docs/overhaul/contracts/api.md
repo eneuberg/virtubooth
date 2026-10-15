@@ -300,3 +300,24 @@ polls it every 10 s while the page is visible and refetches it (throttled) on
 Guests from before v4 have no visitor row until their browser comes back
 (then `identify` creates one, linked), so right after the update
 `scans.scanned` can be lower than `guests.total`.
+
+## 8. The admin guest („Als Gast teilnehmen“)
+
+The host joins the guest app as a guest without a QR code. Schema v12:
+`users.is_host INTEGER NOT NULL DEFAULT 0`, at most one row with 1 (partial unique
+index `users_one_host`).
+
+| Endpoint | |
+|---|---|
+| `GET /api/admin/guest` | `HostGuestState {user: AdminUser \| null, browser_is_host, browser_guest}`: the admin guest (null until first used); whether this browser is signed in as it; the pseudonym of another guest it is signed in as. |
+| `POST /api/admin/guest` | No body. Creates the admin guest on the first call (current consent version, display name „Gastgeber“, no Instagram, no QR code, no new-guest lock, not refused by the join stop), then always the same one. Sets the guest id cookie (`vb_uid` / `__Host-vb_uid`) like a join; no access cookie, no token. → `HostGuestOut {user, created, url: "/", replaced}` (`replaced`: pseudonym of the guest identity this browser had). Audit `host_guest.sign_in` `{created, replaced?}`. CSRF: the usual origin check. |
+
+- Fields: `AdminUser.is_host`, `PhotoUser.is_host` (admin only), `GuestUser.is_host`
+  (only to that browser itself: guests never learn who the host is; wall feeds don't
+  carry it).
+- Access: `has_access` lets the admin guest in without an access cookie, so deleting
+  or re-tokening QR codes never locks it out. It never gets a visitor row, so no code's
+  statistics and neither `scans.*` of the overview count it (`guests.total` does).
+- Exempt from `VB_MAX_PHOTOS_PER_GUEST`; the upload stop applies.
+- Errors: 409 `host_guest` on `POST /api/admin/users/{id}/ban` for the admin guest.
+- Export: `users.csv` gets an `is_host` column (1/0) after `ban_reason`.

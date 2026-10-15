@@ -72,6 +72,11 @@ class User:
     display_name: str | None = None
     # „Keine Weitergabe an externe KI“: nothing of this guest goes to an external AI
     ai_opt_out: bool = False
+    # the host's own guest identity („Als Gast teilnehmen“ in the admin): created
+    # from an admin session, never through a QR code. Exempt from the new-guest
+    # lock, the photo cap and the join stop; can't be banned. Only admin views
+    # and the guest's own browser see the flag, never other guests.
+    is_host: bool = False
 
     @property
     def shown_name(self) -> str:
@@ -128,6 +133,7 @@ class Photo:
     user_uploads_paused: bool = False
     user_ban_reason: str | None = None
     user_display_name: str | None = None
+    user_is_host: bool = False
 
     @property
     def user_shown_name(self) -> str:

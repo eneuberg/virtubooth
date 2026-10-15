@@ -39,6 +39,7 @@ import { DESKTOP, useMediaQuery } from '../lib/browser';
 import { PosterSection } from '../poster/PosterSection';
 import { logout } from '../store/actions';
 import { useStats } from '../store/hooks';
+import { HostGuestButton } from '../hostGuest/HostGuestButton';
 import { SettingsSection } from '../settings/SettingsSection';
 import { PartyControls } from '../uploads/PartyControls';
 import { WallSection } from '../wall/WallSection';
@@ -176,6 +177,7 @@ function ManageShell() {
               <LinkButton href="/live" variant="quiet" size="xs" icon={Radio} className="justify-start">
                 Live öffnen
               </LinkButton>
+              <HostGuestButton className="justify-start" />
               <Button
                 variant="quiet"
                 size="xs"

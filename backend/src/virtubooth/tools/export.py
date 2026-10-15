@@ -59,7 +59,7 @@ PHOTO_COLUMNS = [
 ]  # fmt: skip
 USER_COLUMNS = [
     "user", "display_name", "instagram", "consent_at", "photo_count", "banned", "ban_reason",
-    "online_seconds", "online_sessions", "code",
+    "is_host", "online_seconds", "online_sessions", "code",
 ]  # fmt: skip
 INSTAGRAM_COLUMNS = ["instagram", "user", "photo_count", "files"]
 USERS_PAGE = 500  # UsersRepo.list caps a page at 500
@@ -236,6 +236,7 @@ def users_csv(users: list[User], code_names: dict[int, str] | None = None) -> by
             u.photo_count,
             int(u.banned),
             u.ban_reason or "",
+            int(u.is_host),
             u.online_seconds,
             u.online_sessions,
             names.get(u.code_id, "") if u.code_id is not None else "",
@@ -314,7 +315,8 @@ def readme(
         "    file (path inside this folder).",
         "users.csv",
         "    One row per guest: user (pseudonym), instagram, consent_at (UTC),",
-        "    photo_count (photos not deleted, hidden included), banned (1/0), ban_reason.",
+        "    photo_count (photos not deleted, hidden included), banned (1/0), ban_reason,",
+        "    is_host (1: the host's own admin guest), online time, QR code.",
         "instagram.csv",
         "    Who to tag: one row per Instagram handle with the visible photos of",
         "    that guest (banned guests and hidden photos are left out).",

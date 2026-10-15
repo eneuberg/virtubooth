@@ -6,6 +6,7 @@ import { cx } from '@/ui/cx';
 import { GreaseCircle, GreaseX } from '@/ui/GreaseMarks';
 import { photoLabel } from '../lib/labels';
 import { arrivedLive } from '../store/applyEvent';
+import { guestName } from '../hostGuest/marks';
 
 export interface ContactSheetProps {
   photos: ReadonlyArray<AdminPhoto>;
@@ -152,7 +153,7 @@ export function ContactSheet({
                       </span>
                     ) : (
                       <span translate="no" className="truncate text-ink-muted">
-                        {photo.user.name}
+                        {guestName(photo.user)}
                       </span>
                     )}
                   </span>

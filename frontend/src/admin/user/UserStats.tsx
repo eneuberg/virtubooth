@@ -13,6 +13,7 @@ import { useEffect, useRef, type ReactNode } from 'react';
 import { Link } from 'react-aria-components';
 import type { AdminExtension, AdminPhoto, UserDetail } from '@/api/types';
 import { formatDateTime, formatNumber, formatRelative, formatTime } from '@/lib/format';
+import { HOST_CODE } from '../hostGuest/marks';
 import { qk } from '../store/keys';
 import { onlineText, photoCountsText } from './statsText';
 
@@ -22,7 +23,8 @@ const LINK =
   'font-semibold text-ink underline decoration-line-strong underline-offset-3 outline-none hover:decoration-ink focus-visible:outline-2 focus-visible:outline-focus';
 
 /** „Gorilla 2“ (to the code's sheet), „Gorilla 2 (gelöscht)“, or „unbekannt“. */
-function CodeValue({ code }: { code: UserDetail['user']['code'] }) {
+function CodeValue({ code, host }: { code: UserDetail['user']['code']; host: boolean }) {
+  if (host) return <span className="text-ink-muted">{HOST_CODE} beigetreten</span>;
   if (!code) return <span className="text-ink-muted">unbekannt</span>;
   return (
     <>
@@ -85,7 +87,7 @@ export function UserStats({
         </>
       ),
     },
-    { label: 'QR-Code', testId: 'user-code', value: <CodeValue code={user.code} /> },
+    { label: 'QR-Code', testId: 'user-code', value: <CodeValue code={user.code} host={user.is_host} /> },
     {
       label: 'Fotos',
       testId: 'user-photo-counts',

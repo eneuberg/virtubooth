@@ -13,6 +13,7 @@ import { IconButton } from '@/ui/IconButton';
 import { FittedPhoto } from '../common/FittedPhoto';
 import { metaRows, photoCount, photoLabel, photoName } from '../lib/labels';
 import { AnalysisBoxes, AnalysisPanel } from '../wall/AnalysisPanel';
+import { guestName } from '../hostGuest/marks';
 
 export interface PhotoInspectorProps {
   photo: AdminPhoto | null;
@@ -147,7 +148,7 @@ export function PhotoInspector({
             className={cx(LINK, 'truncate')}
             data-testid="user-link"
           >
-            {photo.user.name}
+            {guestName(photo.user)}
           </Link>
         </div>
         <IconButton label="Schließen" icon={X} onPress={onClose} />
