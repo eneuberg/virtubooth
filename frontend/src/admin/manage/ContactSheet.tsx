@@ -1,6 +1,7 @@
 import type { KeyboardEvent } from 'react';
 import { GridList, GridListItem, type Selection } from 'react-aria-components';
 import type { AdminPhoto } from '@/api/types';
+import { photoSrc, useAdminShowFilter } from '@/lib/photoFilter';
 import { Checkbox } from '@/ui/Checkbox';
 import { cx } from '@/ui/cx';
 import { GreaseCircle, GreaseX } from '@/ui/GreaseMarks';
@@ -44,6 +45,7 @@ export function ContactSheet({
 }: ContactSheetProps) {
   const byId = new Map(photos.map((p) => [p.id, p]));
   const selecting = selected.size > 0;
+  const showFilter = useAdminShowFilter((s) => s.show);
 
   const onKeyDownCapture = (event: KeyboardEvent<HTMLDivElement>) => {
     if (event.altKey || event.ctrlKey || event.metaKey) return;
@@ -109,7 +111,7 @@ export function ContactSheet({
                     )}
                   >
                     <img
-                      src={photo.thumb_url}
+                      src={photoSrc(photo, showFilter, true)}
                       alt=""
                       width={300}
                       height={400}

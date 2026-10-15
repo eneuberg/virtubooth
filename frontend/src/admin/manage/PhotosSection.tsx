@@ -32,6 +32,7 @@ import {
   useUserOptions,
 } from '../store/hooks';
 import type { PhotoStatus } from '../store/types';
+import { FilterToggle } from '../common/FilterToggle';
 import { ContactSheet } from './ContactSheet';
 import { parsePhotoFilter, photoStatusParam, withParams } from './manageUrl';
 import { PhotoInspector } from './PhotoInspector';
@@ -232,6 +233,7 @@ export function PhotosSection() {
           >
             Alle auswählen
           </Button>
+          <FilterToggle />
           <span className="text-xs text-ink-muted max-lg:hidden">
             Shift-Klick wählt einen Bereich, Esc hebt die Auswahl auf. Pfeiltasten bewegen, X blendet aus,
             Entf löscht.

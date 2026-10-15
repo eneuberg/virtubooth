@@ -10,10 +10,12 @@ import { ImagePlus } from 'lucide-react';
 import { useEffect, useId, useState } from 'react';
 import type { GuestPhoto } from '@/api/types';
 import { formatNumber, formatTime, frameLabel } from '@/lib/format';
+import { hasOriginal, photoSrc, useGuestShowFilter } from '@/lib/photoFilter';
 import { Button } from '@/ui/Button';
 import { cx } from '@/ui/cx';
 import { PhotoTile } from '@/ui/PhotoTile';
 import { Skeleton } from '@/ui/Skeleton';
+import { Switch } from '@/ui/Switch';
 import { showToast } from '@/ui/Toast';
 import { firstPhotoText } from './copy';
 import { deleteMyPhoto, useMyPhotos } from './photos';
@@ -53,6 +55,9 @@ export function MyPhotos({ activityTitles, className }: MyPhotosProps) {
   const client = useQueryClient();
   const { data: photos, isPending, isError, refetch } = useMyPhotos();
   const [expanded, setExpanded] = useState(false);
+  // the viewer's „Filter zeigen“ applies to the frames too
+  const showFilter = useGuestShowFilter((s) => s.show);
+  const setShowFilter = useGuestShowFilter((s) => s.setShow);
   // the open photo by id: when the list changes under the viewer, it stays on that photo
   const [openId, setOpenId] = useState<string | null>(null);
   const list: ReadonlyArray<GuestPhoto> = photos ?? [];
@@ -85,6 +90,16 @@ export function MyPhotos({ activityTitles, className }: MyPhotosProps) {
           <span className="font-normal text-ink-muted tabular">{formatNumber(list.length)}</span>
         ) : null}
       </h2>
+      {list.some(hasOriginal) ? (
+        <Switch
+          isSelected={showFilter}
+          onChange={setShowFilter}
+          className="justify-self-start"
+          data-testid="my-photos-filter-switch"
+        >
+          Filter zeigen
+        </Switch>
+      ) : null}
       {isPending ? (
         <div aria-hidden="true" className={GRID}>
           {Array.from({ length: 4 }, (_, i) => (
@@ -106,7 +121,7 @@ export function MyPhotos({ activityTitles, className }: MyPhotosProps) {
             {shown.map((photo, i) => (
               <li key={photo.id} className="min-w-0">
                 <PhotoTile
-                  src={photo.thumb_url}
+                  src={photoSrc(photo, showFilter, true)}
                   alt={`Dein Foto ${frameLabel(photo.extension, photo.seq)}`}
                   width={photo.width}
                   height={photo.height}

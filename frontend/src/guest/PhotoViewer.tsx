@@ -5,6 +5,8 @@
  * share sheet right away (Web Share needs the user activation).
  * Previous / next: the buttons, or the arrow keys (round the ends). „Foto löschen“
  * (with `onDelete`) asks first, then deletes the photo for good.
+ * „Filter zeigen“ (Fotobox photos; on by default, remembered): off shows the unfiltered
+ * original, and „Herunterladen“ / „Teilen“ then save that one.
  */
 import { useQuery } from '@tanstack/react-query';
 import { ChevronLeft, ChevronRight, Download, Share2, Trash2 } from 'lucide-react';
@@ -13,6 +15,7 @@ import { isApiError } from '@/api/errors';
 import type { GuestPhoto } from '@/api/types';
 import { formatTime, frameLabel } from '@/lib/format';
 import { msg, t } from '@/lib/messages.de';
+import { hasOriginal, noOriginalHint, photoSrc, useGuestShowFilter } from '@/lib/photoFilter';
 import { isIOS } from '@/sdk/platform';
 import { canShareFiles, saveImage, shareImage, type SaveResult } from '@/sdk/share';
 import { Button } from '@/ui/Button';
@@ -20,6 +23,7 @@ import { ConfirmDialog } from '@/ui/ConfirmDialog';
 import { FilmEdge } from '@/ui/FilmEdge';
 import { IconButton } from '@/ui/IconButton';
 import { Sheet } from '@/ui/Sheet';
+import { Switch } from '@/ui/Switch';
 import { showToast } from '@/ui/Toast';
 import { photoFileName } from './photos';
 
@@ -46,9 +50,14 @@ export function PhotoViewer({ photos, index, onIndexChange, onDelete }: PhotoVie
   const photo = index === null ? undefined : photos[index];
   const [confirming, setConfirming] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
+  const showFilter = useGuestShowFilter((s) => s.show);
+  const setShowFilter = useGuestShowFilter((s) => s.setShow);
+  // what the viewer shows is what „Herunterladen“ saves
+  const original = photo !== undefined && !showFilter && hasOriginal(photo);
+  const src = photo ? photoSrc(photo, showFilter) : '';
   const blob = useQuery({
-    queryKey: ['photo-file', photo?.id],
-    queryFn: () => fetchBlob(photo?.url ?? ''),
+    queryKey: ['photo-file', photo?.id, src],
+    queryFn: () => fetchBlob(src),
     enabled: photo !== undefined,
     staleTime: Infinity,
     gcTime: 60_000,
@@ -72,7 +81,7 @@ export function PhotoViewer({ photos, index, onIndexChange, onDelete }: PhotoVie
 
   const save = (share: boolean) => {
     if (!photo || !blob.data) return;
-    const name = photoFileName(photo);
+    const name = photoFileName(photo, original);
     // called synchronously in the press handler: the share sheet needs the activation
     const pending = share ? shareImage(blob.data, name) : saveImage(blob.data, name);
     pending.then(report, () => showToast({ tone: 'error', message: msg.generic }));
@@ -132,8 +141,10 @@ export function PhotoViewer({ photos, index, onIndexChange, onDelete }: PhotoVie
           <figure className="mx-auto grid w-full max-w-[calc(min(60dvh,36rem)*0.75)] landscape-phone:max-w-[calc(38dvh*0.75)]">
             <div className="aspect-[3/4] overflow-hidden bg-surface-sunk">
               <img
-                key={photo.id}
-                src={photo.url}
+                key={`${photo.id}-${src}`}
+                src={src}
+                data-testid="photo-viewer-img"
+                data-variant={original ? 'raw' : 'filtered'}
                 alt={`Dein Foto ${frameLabel(photo.extension, photo.seq)}`}
                 width={photo.width}
                 height={photo.height}
@@ -149,6 +160,18 @@ export function PhotoViewer({ photos, index, onIndexChange, onDelete }: PhotoVie
             />
           </figure>
           {many ? <IconButton label="Nächstes Bild" icon={ChevronRight} onPress={() => step(1)} /> : <span />}
+          {photo.meta && 'filter' in photo.meta ? (
+            <Switch
+              isSelected={showFilter || !hasOriginal(photo)}
+              onChange={setShowFilter}
+              isDisabled={!hasOriginal(photo)}
+              description={noOriginalHint(photo) || (showFilter ? undefined : 'Du siehst das Original.')}
+              className="col-start-2"
+              data-testid="photo-filter-switch"
+            >
+              Filter zeigen
+            </Switch>
+          ) : null}
           {onDelete ? (
             <Button
               variant="quiet"

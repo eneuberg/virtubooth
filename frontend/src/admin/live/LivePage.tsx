@@ -21,6 +21,8 @@ import { AdminFrame } from '../common/AdminFrame';
 import { ConnectionBadge } from '../common/ConnectionBadge';
 import { AT_TOP, tileButton, useAtTop, useGridKeys, useLoadMore } from '../common/grid';
 import { HideToggle } from '../common/HideToggle';
+import { photoSrc, useAdminShowFilter } from '@/lib/photoFilter';
+import { FilterToggle } from '../common/FilterToggle';
 import { PhotoViewer } from '../common/PhotoViewer';
 import { usePhotoParam } from '../common/usePhotoParam';
 import { useHideToggle } from '../common/usePhotoActions';
@@ -82,6 +84,7 @@ function LiveHeader({ desktop }: { desktop: boolean }) {
           )}
         </p>
       </div>
+      <FilterToggle className="shrink-0" />
       <AnalysisToggle className="shrink-0" />
       {desktop ? (
         <LinkButton href="/manage" variant="secondary" size="sm" icon={LayoutGrid}>
@@ -103,6 +106,7 @@ function LiveScreen() {
   const desktop = useMediaQuery(DESKTOP);
   const analysis = useLiveAnalysis();
   const [showBoxes, setShowBoxes] = useState(true);
+  const showFilter = useAdminShowFilter((s) => s.show);
   useAutoMerge('live', ALL_PHOTOS, isAtTop);
 
   const photos = listedPhotos(list.data);
@@ -191,7 +195,7 @@ function LiveScreen() {
             {photos.map((photo, i) => (
               <li key={photo.id} data-photo-id={photo.id} data-testid="photo-card">
                 <PhotoTile
-                  src={photo.thumb_url}
+                  src={photoSrc(photo, showFilter, true)}
                   alt={photoLabel(photo)}
                   label={photoLabel(photo)}
                   sublabel={guestName(photo.user)}

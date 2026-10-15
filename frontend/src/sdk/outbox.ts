@@ -43,6 +43,8 @@ export interface OutboxItem {
   /** epoch ms when taken */
   at: number;
   blob: Blob;
+  /** the unfiltered original (Fotobox with a filter), sent with the photo */
+  raw: Blob | null;
   state: OutboxState;
   /** on disk (IndexedDB); false: memory only, lost with the tab */
   stored: boolean;
@@ -68,6 +70,8 @@ export interface OutboxRecord {
   at: number;
   type: string;
   data: Blob | ArrayBuffer;
+  /** the unfiltered original (newer records only) */
+  raw?: Blob | ArrayBuffer | null;
 }
 
 export interface OutboxStore {
@@ -82,8 +86,10 @@ export const STORE = 'outbox';
 /** Records from before the overhaul were all Fotobox photos. */
 export const LEGACY_EXT = 'booth';
 
-export function toRecord(item: Pick<OutboxItem, 'id' | 'ext' | 'meta' | 'at' | 'blob'>): OutboxRecord {
-  return {
+export function toRecord(
+  item: Pick<OutboxItem, 'id' | 'ext' | 'meta' | 'at' | 'blob'> & { raw?: Blob | null },
+): OutboxRecord {
+  const record: OutboxRecord = {
     id: item.id,
     ext: item.ext,
     meta: item.meta,
@@ -91,6 +97,8 @@ export function toRecord(item: Pick<OutboxItem, 'id' | 'ext' | 'meta' | 'at' | '
     type: item.blob.type || 'image/jpeg',
     data: item.blob,
   };
+  if (item.raw) record.raw = item.raw;
+  return record;
 }
 
 function isMeta(value: unknown): value is UploadMeta {
@@ -104,12 +112,19 @@ export function fromRecord(value: unknown): OutboxItem | null {
   if (typeof r.id !== 'string' || !r.id || !isMeta(r.meta) || !r.data) return null;
   const type = typeof r.type === 'string' && r.type ? r.type : 'image/jpeg';
   const blob = r.data instanceof Blob ? r.data : new Blob([r.data], { type });
+  const raw =
+    r.raw instanceof Blob
+      ? r.raw
+      : r.raw instanceof ArrayBuffer
+        ? new Blob([r.raw], { type: 'image/jpeg' })
+        : null;
   return {
     id: r.id,
     ext: typeof r.ext === 'string' && r.ext ? r.ext : LEGACY_EXT,
     meta: r.meta,
     at: typeof r.at === 'number' ? r.at : 0,
     blob,
+    raw,
     state: 'waiting',
     stored: true,
     resumed: true,
@@ -199,7 +214,11 @@ async function persist(item: OutboxItem): Promise<boolean> {
   } catch {
     // some WebKit versions can't store Blobs: the bytes then
     try {
-      await s.put({ ...record, data: await item.blob.arrayBuffer() });
+      await s.put({
+        ...record,
+        data: await item.blob.arrayBuffer(),
+        ...(item.raw ? { raw: await item.raw.arrayBuffer() } : {}),
+      });
       return true;
     } catch {
       return false;
@@ -303,6 +322,7 @@ export async function addToOutbox(item: {
   ext: string;
   meta: UploadMeta;
   blob: Blob;
+  raw?: Blob | null;
   at?: number;
 }): Promise<boolean> {
   const entry: OutboxItem = {
@@ -311,6 +331,7 @@ export async function addToOutbox(item: {
     meta: item.meta,
     at: item.at ?? Date.now(),
     blob: item.blob,
+    raw: item.raw ?? null,
     state: 'new',
     stored: false,
     resumed: false,
@@ -351,6 +372,7 @@ export async function sendFromOutbox(
   try {
     const result = await uploadPhoto(item.ext, item.blob, {
       meta: item.meta,
+      raw: item.raw,
       ...(options.onProgress ? { onProgress: options.onProgress } : {}),
       ...(options.signal ? { signal: options.signal } : {}),
     });

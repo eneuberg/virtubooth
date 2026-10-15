@@ -10,6 +10,8 @@ import { cx } from '@/ui/cx';
 import { EmptyState } from '@/ui/EmptyState';
 import { GreaseX } from '@/ui/GreaseMarks';
 import { IconButton } from '@/ui/IconButton';
+import { downloadHref, hasFilterChoice, hasOriginal, useAdminPhotoSrc } from '@/lib/photoFilter';
+import { FilterToggle } from '../common/FilterToggle';
 import { FittedPhoto } from '../common/FittedPhoto';
 import { metaRows, photoCount, photoLabel, photoName } from '../lib/labels';
 import { AnalysisBoxes, AnalysisPanel } from '../wall/AnalysisPanel';
@@ -29,9 +31,26 @@ export interface PhotoInspectorProps {
   busy: boolean;
 }
 
-/** "bier-00032.jpg", as the server names the download. */
-function downloadName(photo: AdminPhoto): string {
-  return `${photo.extension}-${String(photo.seq).padStart(5, '0')}.jpg`;
+/** "bier-00032.jpg" („-original“: without the filter), as the server names the download. */
+function downloadName(photo: AdminPhoto, original = false): string {
+  return `${photo.extension}-${String(photo.seq).padStart(5, '0')}${original ? '-original' : ''}.jpg`;
+}
+
+/** The open photo, under „Filter zeigen“. */
+function InspectorImage({ photo, label }: { photo: AdminPhoto; label: string }) {
+  const src = useAdminPhotoSrc(photo);
+  return (
+    <img
+      key={photo.id}
+      src={src}
+      alt={label}
+      width={photo.width}
+      height={photo.height}
+      data-testid="inspector-img"
+      data-variant={src === photo.url ? 'filtered' : 'raw'}
+      className={cx('size-full object-cover', photo.hidden && 'opacity-45 grayscale-[0.6]')}
+    />
+  );
 }
 
 const LINK =
@@ -125,14 +144,7 @@ export function PhotoInspector({
     >
       <div className="relative aspect-[3/4] overflow-hidden bg-surface-sunk">
         <FittedPhoto width={photo.width} height={photo.height}>
-          <img
-            key={photo.id}
-            src={photo.url}
-            alt={label}
-            width={photo.width}
-            height={photo.height}
-            className={cx('size-full object-cover', photo.hidden && 'opacity-45 grayscale-[0.6]')}
-          />
+          <InspectorImage photo={photo} label={label} />
           {photo.hidden ? (
             <GreaseX className="pointer-events-none absolute inset-[8%] size-[84%] text-mark" />
           ) : null}
@@ -176,6 +188,7 @@ export function PhotoInspector({
           </div>
         ))}
       </dl>
+      {hasFilterChoice(photo) ? <FilterToggle photo={photo} /> : null}
       <AnalysisPanel photo={photo} showBoxes={showBoxes} onShowBoxesChange={setShowBoxes} />
       <div className="grid gap-2">
         <Button
@@ -192,12 +205,24 @@ export function PhotoInspector({
           size="sm"
           variant="secondary"
           icon={Download}
-          href={`${photo.url}?download=1`}
+          href={downloadHref(photo)}
           download={downloadName(photo)}
           data-testid="download"
         >
-          {t.download}
+          {hasOriginal(photo) ? 'Herunterladen (mit Filter)' : t.download}
         </LinkButton>
+        {hasOriginal(photo) ? (
+          <LinkButton
+            size="sm"
+            variant="secondary"
+            icon={Download}
+            href={downloadHref(photo, true)}
+            download={downloadName(photo, true)}
+            data-testid="download-original"
+          >
+            Original ohne Filter
+          </LinkButton>
+        ) : null}
         {photo.user.instagram ? (
           <Button
             size="sm"

@@ -23,6 +23,8 @@ function photo(n: number, over: Partial<AdminPhoto> = {}): AdminPhoto {
     deleted: false,
     url: `/media/${id}`,
     thumb_url: `/media/${id}?thumb=1`,
+    raw_url: null,
+    raw_thumb_url: null,
     user: {
       id: 1,
       name: 'Ente',

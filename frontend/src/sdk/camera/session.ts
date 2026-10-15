@@ -23,13 +23,54 @@ import {
   inferFacing,
   isMirrored,
   otherFacing,
+  PHOTO_H,
+  PHOTO_W,
   type Facing,
 } from './capture';
 import { CameraError, toCameraError, unsupportedError, CAMERA_TEXT } from './errors';
 import { NORMAL, type FilterImpl } from './filters';
-import { canvasToJpeg, createRenderer, type Renderer, type RendererKind } from './renderer';
+import { canvasToJpeg, createRenderer, type Look, type Renderer, type RendererKind } from './renderer';
 
 export type { Facing } from './capture';
+
+/** A Fotobox shot: the photo as shown, and the same frame without filter and overlay. */
+export interface Shot {
+  photo: Blob;
+  /** null: the photo is its own original (the „Normal“ filter without an overlay) */
+  raw: Blob | null;
+}
+
+/** Whether a look changes the picture at all (else the photo is its own original). */
+export function changesPicture(look: Look): boolean {
+  return look.filter.id !== NORMAL.id || look.overlay !== null;
+}
+
+/**
+ * The last frame as the photo (through `look`, what the preview shows) and, when the
+ * look changes the picture, as the unfiltered original: the same frame, crop, size and
+ * mirroring, without shader and overlay, so object boxes found on it fit the photo.
+ * Both canvases are drawn before the first await: the Canvas2D fallback reads the live
+ * video, which must not move on between the two.
+ */
+export async function renderShot(renderer: Renderer, look: Look, quality = 0.9): Promise<Shot> {
+  const shown = renderer.capture();
+  const plain = changesPicture(look)
+    ? renderer.snapshot(PHOTO_W, PHOTO_H, { filter: NORMAL, overlay: null })
+    : null;
+  try {
+    const [photo, raw] = await Promise.all([
+      canvasToJpeg(shown, quality),
+      plain ? canvasToJpeg(plain, quality) : Promise.resolve(null),
+    ]);
+    return { photo, raw };
+  } finally {
+    // iOS caps the total canvas memory: free the original's canvas at once
+    if (plain) {
+      plain.width = 0;
+      plain.height = 0;
+    }
+  }
+}
 
 export interface CameraSnapshot {
   status: 'idle' | 'starting' | 'live' | 'error' | 'stopped';
@@ -389,6 +430,17 @@ export class CameraSession {
     if (!renderer || !renderer.hasFrame) throw new CameraError('unknown', CAMERA_TEXT.unknown);
     this.freeze();
     return canvasToJpeg(renderer.capture(), quality);
+  }
+
+  /**
+   * Like capture(), plus the unfiltered original of the same frame (Fotobox): see
+   * renderShot. `raw` is null when the current filter doesn't change the picture.
+   */
+  async captureShot(quality = 0.9): Promise<Shot> {
+    const renderer = this.renderer;
+    if (!renderer || !renderer.hasFrame) throw new CameraError('unknown', CAMERA_TEXT.unknown);
+    this.freeze();
+    return renderShot(renderer, { filter: this.filter, overlay: this.overlay }, quality);
   }
 
   /** The last frame through `filter` at w×h (filter swatches); the current filter stays. */
