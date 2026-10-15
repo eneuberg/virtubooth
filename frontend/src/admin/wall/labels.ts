@@ -102,32 +102,6 @@ export const BOX_KIND_COLORS: Record<BoxKind, string> = {
   object: '#ff4fa3',
 };
 
-/**
- * The category catalogue (PLAN-WALL §5). The server sends title and line itself; this
- * is the fallback while it doesn't (and the reference for the tests).
- */
-export const CATEGORY_LABELS: Record<string, { emoji: string; title: string }> = {
-  volles_haus: { emoji: '👥', title: 'Volles Haus' },
-  haende_hoch: { emoji: '🙌', title: 'Hände hoch!' },
-  grinsekatzen: { emoji: '😁', title: 'Grinsekatzen' },
-  herzschmerz: { emoji: '🥺', title: 'Herzschmerz-Pose' },
-  ach_du_schreck: { emoji: '😱', title: 'Ach du Schreck!' },
-  brillenbande: { emoji: '🤓', title: 'Brillenbande' },
-  generationen: { emoji: '🎂', title: 'Generationen-Foto' },
-  dream_team: { emoji: '👯', title: 'Dream-Team' },
-  solo_star: { emoji: '🌟', title: 'Solo-Star' },
-  peace: { emoji: '✌️', title: 'Peace!' },
-  rock: { emoji: '🤘', title: "Rock'n'Roll" },
-  daumen_hoch: { emoji: '👍', title: 'Daumen hoch' },
-  prost: { emoji: '🥂', title: 'Prost!' },
-  hutparade: { emoji: '🎩', title: 'Hutparade' },
-  gesangseinlage: { emoji: '🎤', title: 'Gesangseinlage' },
-  farbexplosion: { emoji: '🌈', title: 'Farbexplosion' },
-  action_shot: { emoji: '💨', title: 'Action-Shot' },
-  eroeffnung: { emoji: '🎬', title: 'Eröffnungsfoto' },
-  dauerausloeser: { emoji: '📸', title: 'Dauerauslöser' },
-};
-
 /** Select/SegmentedControl options: the ids in their order, with their labels. */
 export function optionsOf<K extends string>(
   ids: ReadonlyArray<K>,
