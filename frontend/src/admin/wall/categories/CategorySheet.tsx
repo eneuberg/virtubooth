@@ -550,6 +550,7 @@ export function CategorySheet({ item, values, taken, isOpen, onOpenChange }: Cat
                     update({ thenBy: draft.thenBy.map((x, j) => (j === i ? { ...x, by, param: '' } : x)) })
                   }
                   error={shown[`then_by.${i}`]}
+                  testid="category-then-by"
                 />
                 {t.by.endsWith(':') ? (
                   <LabelPicker

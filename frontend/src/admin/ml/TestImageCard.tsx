@@ -4,7 +4,7 @@
  * money, counts against the budget). Nothing is stored as a party photo.
  */
 import { FlaskConical, ImageUp, Play } from 'lucide-react';
-import { useEffect, useMemo, useState } from 'react';
+import { useState } from 'react';
 import { FileTrigger } from 'react-aria-components';
 import { formatBytes } from '@/lib/format';
 import { Badge } from '@/ui/Badge';
@@ -24,11 +24,6 @@ import type { TestImageResult, TestObject } from './types';
 const ACCEPT = ['image/jpeg', 'image/png'];
 const ALL = '__all__';
 
-function usePreview(file: File | null): string | null {
-  const url = useMemo(() => (file ? URL.createObjectURL(file) : null), [file]);
-  useEffect(() => () => (url ? URL.revokeObjectURL(url) : undefined), [url]);
-  return url;
-}
 
 type Row = TestObject & { source: string };
 
@@ -144,8 +139,8 @@ export function TestImageCard() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<TestImageResult | null>(null);
-  const [shown, setShown] = useState<File | null>(null);
-  const preview = usePreview(shown);
+  // the tested image, shown under its frames (an object URL; the old one is let go)
+  const [preview, setPreview] = useState<string | null>(null);
 
   const analyzers = (status.data?.analyzers ?? []).filter((a) => a.available);
   const titles = new Map(analyzers.map((a) => [a.name, a.title]));
@@ -175,7 +170,10 @@ export function TestImageCard() {
     try {
       const out = await runTestImage(file, target === ALL ? null : [target], external && !blocked);
       setResult(out);
-      setShown(file);
+      setPreview((old) => {
+        if (old) URL.revokeObjectURL(old);
+        return URL.createObjectURL(file);
+      });
     } catch (err) {
       setError(testErrorText(err));
       setResult(null);
