@@ -15,6 +15,7 @@ from ....api.deps import AdminDep, CoreDep, require_admin
 from ....core import errors
 from ....core.clock import now_iso
 from ....runtime import Core
+from ..enrich import jobs
 from . import budget, crypto, ports, pricing, properties, testimage
 from .config import LlmConfigIn, merged, save_config
 from .properties import Property
@@ -90,6 +91,11 @@ def usage_of(svc: LlmService) -> Usage:
 
 def status_of(svc: LlmService) -> LlmStatus:
     cfg = svc.config()
+    # `detect.local` is the `objects` analyzer's switch, which the Models card
+    # (PUT /analysis/analyzers/objects) changes too: show the live one
+    local = "objects" not in jobs.disabled_analyzers(svc.core.repos.app_settings)
+    if local != cfg.detect.local:
+        cfg = cfg.model_copy(update={"detect": cfg.detect.model_copy(update={"local": local})})
     db = svc.core.db
     source = PROVIDERS[cfg.provider].source
     runs = {

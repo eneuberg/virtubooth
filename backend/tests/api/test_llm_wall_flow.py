@@ -180,3 +180,44 @@ def test_poll_verdict_reaches_the_wall_and_opted_out_guests_never_leave(live):
     del svc
     wall.close()
     admin.close()
+
+
+def test_local_detection_off_switches_the_objects_analyzer(settings, demo_extension):
+    """`detect.local=false` (PLAN-NIGHT N9) is D1's `objects` analyzer off;
+    `people` then comes from the faces."""
+    from fastapi.testclient import TestClient
+
+    from virtubooth.app import create_app
+
+    from ..conftest import ADMIN_PASSWORD, BASE_URL, ORIGIN
+
+    app = create_app(settings, extensions=[demo_extension, make_extension()])
+    with TestClient(app, base_url=BASE_URL, follow_redirects=False) as admin:
+        admin.post("/api/admin/login", json={"password": ADMIN_PASSWORD}, headers=ORIGIN)
+
+        def objects_on() -> bool:
+            status = admin.get("/api/x/wall/admin/analysis").json()
+            return next(a for a in status["analyzers"] if a["name"] == "objects")["enabled"]
+
+        assert objects_on()
+        r = admin.put(f"{LLM}/config", json={"detect": {"local": False, "external": False}},
+                      headers=ORIGIN)  # fmt: skip
+        assert r.status_code == 200, r.text
+        assert r.json()["config"]["detect"]["local"] is False
+        assert not objects_on()
+        people = next(
+            v for v in admin.get("/api/x/wall/admin/values").json()["values"]
+            if v["key"] == "people"
+        )  # fmt: skip
+        assert "faces" in people["needs"]
+        # the Models card's switch is the same one
+        r = admin.put("/api/x/wall/admin/analysis/analyzers/objects", json={"enabled": True},
+                      headers=ORIGIN)  # fmt: skip
+        assert r.status_code == 200, r.text
+        assert admin.get(LLM).json()["config"]["detect"]["local"] is True
+        admin.put(f"{LLM}/config", json={"detect": {"local": False, "external": False}},
+                  headers=ORIGIN)  # fmt: skip
+        assert not objects_on()
+        r = admin.put(f"{LLM}/config", json={"detect": {"local": True, "external": False}},
+                      headers=ORIGIN)  # fmt: skip
+        assert objects_on()
