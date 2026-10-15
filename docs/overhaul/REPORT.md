@@ -674,18 +674,85 @@ Eigenschaft, Erkennung und „Jetzt abfragen“, Vorlage im Kategorie-Editor ein
 das Urteil im Admin und auf dem Fernseher, Testbild durch den echten Analyse-Prozess;
 dazu ein API-Test des ganzen KI-Wegs mit Ereignis `categories.changed`.
 
+### CI wieder grün (`night/ci-fix`, gemerged)
+
+Alle fünf Jobs grün (Run 38675229579, gleicher Stand wie `main` nach dem Merge). Ursachen:
+
+- **Backend:** Der Runner hat kein ffmpeg (der Zeitraffer-Test bekommt jetzt ein
+  Ersatz-ffmpeg), und `FORCE_COLOR=1` färbte die `--help`-Ausgabe von Python 3.14
+  (Tests setzen `PYTHON_COLORS=0`).
+- **Firefox ohne WebGL:** Headless-Firefox ohne Bildschirm fiel auf Canvas2D zurück. Die
+  Firefox-e2e laufen jetzt unter `xvfb-run` mit Software-GL, dazu `webgl.force-enabled`.
+- **e2e hingen bis zum Timeout** (auch vorher auf `main`): Playwright 1.63 stirbt intern,
+  wenn der Treiber auf einen Aufruf doppelt antwortet. Die e2e-`conftest` verwirft solche
+  Antworten (Patch an einer privaten Playwright-API, wie schon `fastpoll.py`); nach einem
+  Playwright-Update prüfen, ob er noch nötig ist.
+- **Vitest:** Timer, die nach dem Ende einer Testdatei feuerten, werden jetzt
+  aufgeräumt.
+- Dazu einige Tests, die nach dem Merge von INT2 veraltet waren (14 statt 10 Filter,
+  Anzeigename im Gast-Sheet, ein flackernder Ereignis-Test).
+
+### Abschluss-Testlauf auf `main`
+
+Einmal alles, nach dem Merge von `night/int2` und `night/ci-fix`:
+
+| Lauf | Ergebnis |
+|---|---|
+| pytest (Unit + API) | 1231 bestanden, 9 übersprungen (36 s) |
+| Vitest | 645 bestanden in 75 Dateien |
+| e2e Chromium (4 Prozesse) | 282 bestanden, 37 übersprungen (4:28 min) |
+| CI (backend, frontend, docker, e2e Chromium, e2e Firefox) | grün |
+
+### Kurzer QA-Durchgang auf der Vorschau
+
+Alle Wünsche einmal im Browser gegen den echten Server (Port 8100) durchgeklickt: 13 von
+13 bestanden (Navigation, Allgemeines mit Adressprüfung OK/kaputt, Warnung im QR-Tab,
+kein QR-Bogen, Fotobox-Filter, ML-Pipeline mit Testbild und Schlüssel nur „gesetzt“ und
+nirgends in Seite oder API-Antworten, Eigenschaft archivieren, Kategorie-Editor mit 19+1
+Vorlagen, Objektliste ohne „Neu analysieren“, Anzeigename zurücksetzen, „@“ fest im
+Instagram-Feld, KI-Opt-out sichtbar beim Beitritt, neue Filter in der Fotobox, Wall mit
+Passwort und ohne weißen Kasten). Danach behoben:
+
+- Fotos, die **vor dem Update** ausgewertet wurden, haben keine Objektliste (eingefroren,
+  kein Nachholen). Das Analyse-Panel sagt das jetzt, statt „Keine Objekte erkannt.“.
+- Das Testbild zeigte „Aufgenommen 01.01.1970“; jetzt die aktuelle Zeit.
+- Die Zähler der Analysen sind als „seit Serverstart“ beschriftet.
+
+Bewusst so gelassen: Ein „@“ **mitten** im Anzeigenamen („anna@party“) ist erlaubt; nur
+am Anfang ist es verboten, damit niemand wie ein Instagram-Name aussieht.
+
+### Neues Aussehen (`night/identity`, nicht gemerged)
+
+Draft-PR: https://github.com/eneuberg/virtubooth/pull/1. Themen-Farben im Admin
+(„Allgemeines → Erscheinungsbild“, Vorlagen „Neon Nacht“ und „Klassisch“, Kontrastprüfung
+im Server), wirken ohne Neustart auf Gäste-Seiten und Wall; der Admin bleibt wie er ist.
+Ruhigerer Stil: leichtere Schrift, weichere Ecken, gefüllte Pillen-Buttons, Glühen nur
+am Hauptknopf und Auslöser, kürzere Animationen, auf der Wall gerade dunkle
+Bildunterschriften statt schräger Papierschilder. Vorher/Nachher-Bilder und
+Geschmacksfragen: `.worktrees/_plans/night/id/` (`REVIEW.md`, `compare_*.png`).
+
+Offene Geschmacksfragen: schwarze Schrift auf dem violetten Knopf (weiß schafft nur
+4,2:1) oder ein helleres Violett; Filmstreifen-Motiv ganz weg oder als Signatur; dunkle
+Bildunterschriften oder die alten Papierschilder auf der Wall; Fläche `#252229` und
+gedämpfte Schrift `#bdb3c4` (nicht aus der Palette); violetter Schimmer oben oder flach;
+Limettengrün öfter als nur beim Blitz.
+
 ### Offene Punkte
 
-1. **CI auf `main`** war vor der Nacht rot (Firefox-e2e hängt ohne WebGL, zwei Tests
-   abhängig von Farben bzw. ffmpeg, Docker-Smoke ohne sauberes Herunterfahren);
-   `night/ci-fix` arbeitet daran und ist noch nicht gemerged.
-2. **Detektor mit mehr Klassen:** Entscheidung des Hosts (siehe oben).
-3. **Mistral:** Preise und Rahmenqualität am echten Dienst prüfen.
-4. **Raspberry Pi 5:** Analysezeiten und Lasttest am echten Gerät messen.
-5. **REPO-01:** Git-Historie mit den alten Screenshots umschreiben (Host).
+1. **Detektor mit mehr Klassen:** Entscheidung des Hosts (siehe oben).
+2. **Mistral:** Preise und Rahmenqualität am echten Dienst prüfen.
+3. **Raspberry Pi 5:** Analysezeiten und Lasttest am echten Gerät messen.
+4. **REPO-01:** Git-Historie umschreiben (Filter + Force-Push von `main`), nur auf
+   ausdrückliche Entscheidung des Hosts.
+5. **EXP-01 (akzeptiert):** Schon erstellte Export-Archive enthalten später gelöschte
+   Fotos weiter; ein Hinweis im Lösch-Dialog wäre die kleine Folgearbeit.
 6. **Urteile der KI** werden nicht moderiert; der Host kann nur die Kategorie
    ausschalten.
-7. **`night/identity`** (neues Aussehen, Themen-Farben) liegt zur Ansicht bereit.
+7. **`night/identity`** zur Ansicht (siehe oben).
+8. **Docker lokal:** Die VPN-Firewall dieses Rechners (IVPN, „LAN erlauben“ aus) blockt
+   Docker-Netzwerke; Docker-Smoke läuft darum nur in CI. Lösung beim Host:
+   `ivpn firewall -lan_allow` oder eine Ausnahme für `172.16.0.0/12`.
+9. **Beim Deploy `VB_CONSENT_VERSION` erhöhen** (geänderte Beitrittstexte).
 
 ## Starten
 
