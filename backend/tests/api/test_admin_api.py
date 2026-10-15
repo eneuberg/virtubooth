@@ -675,7 +675,9 @@ def _collect_events(core, action, n):
     ready = threading.Event()
 
     async def listen():
-        q = core.bus.subscribe()
+        # only what `action` publishes: an event from before (the upload's photo.created)
+        # may still be on its way to the subscribers on the app's loop
+        q = core.bus.subscribe(after=core.bus.last_id)
         ready.set()
         while len(received) < n:
             received.append(await asyncio.wait_for(q.get(), 5))
