@@ -200,3 +200,102 @@ def test_opt_out_marks_on_the_tile(
     expect(chips.locator("[data-chip=opt-out]")).to_have_text("Keine Auswertung (Gast)")
     expect(chips.locator("[data-chip=no-ai]")).to_have_text("Keine externe KI")
     assert errors(admin_page) == []
+
+
+# every chip there is: wins aside, more than two rows on any tile
+MANY_FACTS = {"people": 4.0, "smiles": 3.0, "happy_max": 0.9, "hands": 5.0, "thumbs_up": 1.0,
+              "peace": 1.0, "rock": 1.0, "glasses": 2.0, "hats": 1.0}  # fmt: skip
+
+# each tile's content height (photo, caption, chip area) and its grid cell's height
+TILE_HEIGHTS = """() => [...document.querySelectorAll('[data-testid=photo-card]')].map((li) => {
+    const top = li.getBoundingClientRect().top;
+    const bottom = Math.max(...[...li.children].map((c) => c.getBoundingClientRect().bottom));
+    return [Math.round((bottom - top) * 10) / 10, Math.round(li.getBoundingClientRect().height * 10) / 10];
+})"""
+
+
+@pytest.mark.parametrize(
+    "size", [(1280, 800), (390, 844), (320, 700)], ids=["desktop", "phone", "small"]
+)
+def test_tiles_keep_their_height(
+    desktop_page: Page, live: LiveServer, guests: Callable[..., Guest], size: tuple[int, int]
+) -> None:
+    """The chip area under each tile has a fixed height (two rows of chips, „+N“ for
+    the rest): every tile is as tall as the others, and neither „Analyse zeigen“ nor
+    an analysis arriving moves the grid. Hidden photos and long names fit too."""
+    page = desktop_page
+    page.set_viewport_size({"width": size[0], "height": size[1]})
+    g, named = guests(), guests()
+    with live.core.db.tx() as c:
+        c.execute("UPDATE users SET name=? WHERE id=?", ("Maximiliane Kunigunde von Hohenzollern-Sigmaringen", named.id))  # fmt: skip
+    pending, plain, hidden = g.upload(), g.upload(), g.upload()
+    long_name, many = named.upload(), g.upload()
+    # the worker takes the newest first
+    db = live.core.db
+    pid = live.core.repos.photos.internal_id(many)
+    claimed = jobs.claim(db)
+    assert claimed is not None and claimed.id == pid
+    objs = [*OBJECTS, DetectedObject("cake", "Kuchen", 0.8, None)]
+    assert jobs.finish(db, pid, facts=MANY_FACTS, data={"boxes": [], "details": []},
+                       versions={"basic": "1"}, objects_found=objs, objects_model="e2e@1")  # fmt: skip
+    for photo in (long_name, hidden, plain):
+        analyse(live, photo)
+    assert live.core.repos.photos.hide(hidden, at="2026-01-01T00:00:00Z", reason="admin")
+    goto(page, live, "/admin/live")
+    wait_live(page)
+    expect(card(page, plain).get_by_test_id("analysis-chips")).to_have_attribute(
+        "data-state", "done"
+    )
+    expect(card(page, pending).get_by_test_id("analysis-chips")).to_have_text("Analyse wartet")
+    expect(card(page, hidden)).to_contain_text("Ausgeblendet")
+    page.evaluate(
+        "() => Promise.all([...document.images].map((i) => i.decode().catch(() => null)))"
+    )
+
+    def heights() -> list[list[float]]:
+        return list(page.evaluate(TILE_HEIGHTS))
+
+    start = heights()
+    assert len(start) == 5
+    assert len({h for h, _ in start}) == 1, start  # every tile as tall
+    assert len({cell for _, cell in start}) == 1, start
+    # the chips of the busy photo: two rows at most, the rest in „+N“
+    chips = card(page, many).get_by_test_id("analysis-chips")
+    more = chips.locator("[data-chip=more]")
+    expect(more).to_be_visible()
+    shown = chips.locator("li").count()
+    assert more.inner_text() == f"+{10 - (shown - 1)}"  # 9 facts + the objects
+    rows = chips.evaluate("""(ul) => {
+        const box = ul.getBoundingClientRect();
+        const tops = [...ul.children].map((li) => li.getBoundingClientRect());
+        return [new Set(tops.map((r) => Math.round(r.top))).size,
+                tops.every((r) => r.bottom <= box.bottom + 0.5 && r.right <= box.right + 0.5)];
+    }""")
+    assert rows == [2, True], rows
+    # the long name is cut, not wrapped
+    name = card(page, long_name).locator("figcaption > span").nth(1)
+    assert name.evaluate("(e) => e.scrollWidth > e.clientWidth")
+    if size[0] < 1024:  # phones: the grid under the sticky header
+        page.evaluate("""() => {
+            const feed = document.querySelector('[data-testid=feed]');
+            const head = document.querySelector('header').getBoundingClientRect().bottom;
+            scrollTo(0, feed.getBoundingClientRect().top + scrollY - head - 8);
+        }""")
+    shot(page, f"live-chipspace-{size[0]}-on", 400)
+
+    toggle = page.get_by_test_id("analysis-toggle")
+    toggle.click()
+    expect(page.get_by_test_id("analysis-chips")).to_have_count(0)
+    assert heights() == start
+    shot(page, f"live-chipspace-{size[0]}-off", 400)
+    toggle.click()
+    expect(page.get_by_test_id("analysis-chips")).to_have_count(5)
+    assert heights() == start
+
+    # an analysis arrives: the tile changes its chips, not its height
+    analyse(live, pending)
+    expect(card(page, pending).get_by_test_id("analysis-chips")).to_have_attribute(
+        "data-state", "done", timeout=8000
+    )
+    assert heights() == start
+    assert errors(page) == []

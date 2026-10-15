@@ -49,6 +49,9 @@ import { guestName } from '../hostGuest/marks';
 
 const isAtTop = () => window.scrollY < AT_TOP;
 
+/** two text-xs lines; with the chip area under it every tile has one fixed height */
+const TILE_CAPTION = '[&>figcaption]:h-9 [&>figcaption]:overflow-hidden';
+
 const TOAST_ABOVE_BAR =
   'bottom-[calc(4.75rem+env(safe-area-inset-bottom))] landscape-phone:bottom-3 landscape-phone:pl-19 lg:bottom-6';
 
@@ -198,6 +201,8 @@ function LiveScreen() {
             {photos.map((photo, i) => (
               <li key={photo.id} data-photo-id={photo.id} data-testid="photo-card">
                 <PhotoTile
+                  // always two caption lines (title, then name or „Ausgeblendet“): every tile as tall
+                  className={TILE_CAPTION}
                   src={photoSrc(photo, showFilter, true)}
                   alt={photoLabel(photo)}
                   label={photoLabel(photo)}

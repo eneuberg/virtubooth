@@ -45,6 +45,10 @@ const obj = (
   label = label_de.toLowerCase(),
 ): SummaryObject => ({ label, label_de, source, sources: [source], box, score });
 
+/** the chips one tile shows (the area also holds an invisible copy for measuring) */
+const chipText = (id: string) =>
+  within(screen.getByTestId(`tile-${id}`)).queryByTestId('analysis-chips')?.textContent ?? null;
+
 const texts = (s: PhotoAnalysisSummary) => analysisChips(s).map((c) => c.text);
 
 describe('analysisChips', () => {
@@ -148,8 +152,8 @@ describe('AnalysisChips', () => {
     );
     await waitFor(() => expect(screen.getAllByTestId('analysis-chips')).toHaveLength(3));
     expect(batches()).toEqual([['a', 'b', 'c']]);
-    expect(screen.getByTestId('tile-a').textContent).toBe(`2${NBSP}Personen`);
-    expect(screen.getByTestId('tile-b').textContent).toBe('Analyse wartet');
+    expect(chipText('a')).toBe(`2${NBSP}Personen`);
+    expect(chipText('b')).toBe('Analyse wartet');
   });
 
   it('refreshes exactly the photos a photo.analyzed event names', async () => {
@@ -161,7 +165,7 @@ describe('AnalysisChips', () => {
           : summary(id, { state: id === 'b' ? 'running' : 'done', facts: { people: 1 } }),
       ),
     );
-    await waitFor(() => expect(screen.getByTestId('tile-b').textContent).toBe('Analyse läuft…'));
+    await waitFor(() => expect(chipText('b')).toBe('Analyse läuft…'));
     done = true;
     act(() =>
       applyAdminEvent(
@@ -169,7 +173,7 @@ describe('AnalysisChips', () => {
         { qc, invalidate: () => {} },
       ),
     );
-    await waitFor(() => expect(screen.getByTestId('tile-b').textContent).toBe('Flasche'));
+    await waitFor(() => expect(chipText('b')).toBe('Flasche'));
     expect(batches()).toEqual([['a', 'b'], ['b']]);
   });
 
