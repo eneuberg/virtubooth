@@ -31,9 +31,21 @@ export const THEME_COLOR_KEYS = [
 export type ThemeColorKey = (typeof THEME_COLOR_KEYS)[number];
 export type ThemeColors = Record<ThemeColorKey, string>;
 
+/** The layer on top of the colours: calm, „party“ (the default: calm plus a few deliberate
+ * gags, styles/party.css) or the „Rummel“ fairground (styles/goofy.css). */
+export type ThemeStyle = 'elegant' | 'party' | 'goofy';
+export const THEME_STYLES: readonly ThemeStyle[] = ['elegant', 'party', 'goofy'];
+/** what a theme without a (known) style gets, like the server (services/theme.py) */
+export const DEFAULT_STYLE: ThemeStyle = 'party';
+
+export function isThemeStyle(value: unknown): value is ThemeStyle {
+  return typeof value === 'string' && (THEME_STYLES as readonly string[]).includes(value);
+}
+
 export interface PublicTheme {
-  preset: 'neon_nacht' | 'klassisch' | 'custom';
+  preset: 'neon_nacht' | 'klassisch' | 'rummel' | 'custom';
   colors: ThemeColors;
+  style?: ThemeStyle;
   on_primary: string;
   on_accent: string;
   primary_ink: string;
@@ -154,6 +166,12 @@ export function applyTheme(colors: ThemeColors, el: HTMLElement = document.docum
   }
 }
 
+/** The style on <html data-vb-style> (the server writes it into every guest page; this
+ * keeps it current when the host switches while the page is open). */
+export function applyStyle(style: ThemeStyle | undefined, el: HTMLElement = document.documentElement): void {
+  el.setAttribute('data-vb-style', isThemeStyle(style) ? style : DEFAULT_STYLE);
+}
+
 function isTheme(value: unknown): value is PublicTheme {
   if (!value || typeof value !== 'object' || !('colors' in value)) return false;
   const { colors } = value;
@@ -173,7 +191,10 @@ export async function refreshTheme(): Promise<void> {
     const res = await fetch('/api/theme', { credentials: 'same-origin' });
     if (!res.ok) return;
     const theme: unknown = await res.json();
-    if (isTheme(theme)) applyTheme(theme.colors);
+    if (isTheme(theme)) {
+      applyTheme(theme.colors);
+      applyStyle(theme.style);
+    }
   } catch {
     // offline: the colours from the page load stay
   }

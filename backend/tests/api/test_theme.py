@@ -12,6 +12,7 @@ from virtubooth.extensions.wall.feed import config_payload, wall_screen_config
 from virtubooth.services.theme import (
     KLASSISCH,
     NEON_NACHT,
+    RUMMEL,
     THEME_KEY,
     contrast,
     css_variables,
@@ -90,8 +91,11 @@ def test_admin_get_lists_presets(admin):
     r = admin.get("/api/admin/theme")
     assert r.status_code == 200
     body = r.json()
-    assert [p["id"] for p in body["presets"]] == ["neon_nacht", "klassisch"]
-    assert [p["label"] for p in body["presets"]] == ["Neon Nacht", "Klassisch"]
+    assert [p["id"] for p in body["presets"]] == ["neon_nacht", "klassisch", "rummel"]
+    assert [p["label"] for p in body["presets"]] == ["Neon Nacht", "Klassisch", "Rummel"]
+    assert [p["style"] for p in body["presets"]] == ["party", "party", "goofy"]
+    # the default: Neon Nacht in the party style (calm plus a few deliberate gags)
+    assert body["theme"]["style"] == "party"
     assert body["theme"]["custom"] is False
     assert body["theme"]["by"] is None
 
@@ -111,6 +115,78 @@ def test_save_preset_audits_and_announces(admin, core, published):
     assert ("theme.changed", {}) in published
     row = core.db.one("SELECT action FROM audit_log ORDER BY id DESC LIMIT 1")
     assert row["action"] == "settings.theme"
+
+
+def test_rummel_brings_the_goofy_style(admin, client, core):
+    r = admin.put("/api/admin/theme", json={"preset": "rummel"}, headers=ORIGIN)
+    assert r.status_code == 200, r.text
+    assert r.json()["theme"]["style"] == "goofy"
+    public = client.get("/api/theme").json()
+    assert public["preset"] == "rummel"
+    assert public["colors"] == RUMMEL.model_dump()
+    assert public["style"] == "goofy"
+    assert core.repos.app_settings.get(THEME_KEY)["style"] == "goofy"
+    # the bulb yellow reads with the night sky on it
+    assert contrast(public["on_primary"], RUMMEL.primary) >= 4.5
+
+
+@pytest.mark.parametrize(
+    ("body", "style"),
+    [
+        ({"preset": "rummel", "style": "elegant"}, "elegant"),
+        ({"preset": "rummel", "style": "party"}, "party"),
+        ({"preset": "neon_nacht", "style": "goofy"}, "goofy"),
+        ({"preset": "neon_nacht", "style": "elegant"}, "elegant"),
+        ({"preset": "neon_nacht"}, "party"),
+        ({"preset": "klassisch"}, "party"),
+        ({"preset": "custom", "colors": NEON_NACHT.model_dump()}, "party"),
+        ({"preset": "custom", "colors": RUMMEL.model_dump(), "style": "goofy"}, "goofy"),
+    ],
+)
+def test_style_is_selectable(admin, client, body, style):
+    r = admin.put("/api/admin/theme", json=body, headers=ORIGIN)
+    assert r.status_code == 200, r.text
+    assert r.json()["theme"]["style"] == style
+    assert client.get("/api/theme").json()["style"] == style
+
+
+def test_unknown_style_is_rejected(admin):
+    r = admin.put("/api/admin/theme", json={"preset": "rummel", "style": "wild"}, headers=ORIGIN)
+    assert r.status_code in (400, 422)
+
+
+def test_stored_without_style_follows_the_preset(client, core):
+    core.repos.app_settings.put(
+        THEME_KEY, {"preset": "rummel", "colors": RUMMEL.model_dump(), "rev": 1}, at="now"
+    )
+    assert client.get("/api/theme").json()["style"] == "goofy"
+    core.repos.app_settings.put(
+        THEME_KEY,
+        {"preset": "klassisch", "colors": KLASSISCH.model_dump(), "style": "x", "rev": 2},
+        at="now",
+    )
+    assert client.get("/api/theme").json()["style"] == "party"
+
+
+@pytest.mark.parametrize("preset", ["neon_nacht", "klassisch", "custom"])
+def test_themes_saved_before_the_styles_get_party(client, core, preset):
+    # a theme stored before there were styles (main): the new default, not the calm one
+    colors = (KLASSISCH if preset == "klassisch" else NEON_NACHT).model_dump()
+    core.repos.app_settings.put(THEME_KEY, {"preset": preset, "colors": colors, "rev": 3}, at="now")
+    assert client.get("/api/theme").json()["style"] == "party"
+    assert '<html data-vb-style="party"' in client.get("/").text
+
+
+def test_the_calm_style_stays_selectable(admin, client):
+    from ..conftest import scan
+
+    scan(client)
+    r = admin.put(
+        "/api/admin/theme", json={"preset": "neon_nacht", "style": "elegant"}, headers=ORIGIN
+    )
+    assert r.status_code == 200, r.text
+    assert client.get("/api/theme").json()["style"] == "elegant"
+    assert '<html data-vb-style="elegant"' in client.get("/").text
 
 
 def test_save_custom_colours_lower_cases(admin):
@@ -284,3 +360,16 @@ def test_guest_pages_link_the_theme_admin_does_not(client, admin):
     again = client.get("/")
     assert again.headers["etag"] != etag
     assert f"theme.css?v={link}" not in again.text
+    assert '<html data-vb-style="party" lang="de">' in again.text
+
+
+def test_guest_pages_carry_the_style_before_the_first_paint(client, admin):
+    from ..conftest import scan
+
+    scan(client)
+    assert 'data-vb-style="party"' in client.get("/").text
+    admin.put("/api/admin/theme", json={"preset": "rummel"}, headers=ORIGIN)
+    page = client.get("/").text
+    assert page.count("data-vb-style=") == 1
+    assert '<html data-vb-style="goofy"' in page
+    assert "data-vb-style" not in admin.get("/admin/live").text

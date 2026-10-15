@@ -36,7 +36,7 @@ export function Countdown({
   }, [first]);
   const remaining = Math.min(1, Math.max(0, progress));
   return (
-    <div className={cx('grid place-items-center gap-4', className)}>
+    <div className={cx('vb-countdown grid place-items-center gap-4', className)}>
       <div className="relative grid size-55 place-items-center" aria-hidden="true">
         <svg viewBox="0 0 220 220" className="absolute inset-0 size-full -rotate-90">
           <circle

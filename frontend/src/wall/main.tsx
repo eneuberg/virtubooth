@@ -4,6 +4,10 @@
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import './wall.css';
+// after wall.css: the style layers (only under data-vb-style="goofy" / "party"; goofy
+// brings the googly eyes' CSS that party reuses, so it comes first)
+import './goofy.css';
+import './party.css';
 import { installPreloadRecovery, markReady } from '@/lib/boot';
 import { WallApp } from './App';
 

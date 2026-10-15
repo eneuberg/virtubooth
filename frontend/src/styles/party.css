@@ -1,0 +1,340 @@
+/*
+ * The party layer: the default style of „Neon Nacht“ (<html data-vb-style="party">).
+ * The calm look (app.css: ambient lights, the wordmark's sheen, the dancing emoji)
+ * plus a handful of deliberate gags from the „Rummel“ layer (styles/goofy.css),
+ * toned down and painted in the theme's colours. No Bungee, no awning, no searchlights.
+ *
+ *   1. Der Auslöser: the googly-eyed shutter in the primary colour, a ring of small
+ *      lights; asleep while the camera starts, cross-eyed while counting, a boing
+ *   2. Der Gucker: one small creature peeks over the first activity card
+ *   3. Wackelpudding: a small squash on press, two soft overshoots on release
+ *   4. Eintrittskarten: a row of punched holes on sheets, a tear line on the guest pass
+ *   5. The wordmark drops in on its hook and swings to rest (tap: it swings again)
+ *   6. Lauflicht, only while the primary button or an activity card is hovered or
+ *      pressed: small chasing lights along its edges
+ *
+ * The googly eyes themselves: ui/goofy/googly.css (via styles/goofy.css, imported
+ * before this file). Motion: transform and opacity only, no blur filters; with reduced
+ * motion app.css stops every animation, and the eyes rest (GooglyEyes).
+ */
+
+:root[data-vb-style='party'] {
+  --ease-boing: cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+/* ------------------------------------------------------------- 1. the shutter */
+/* the disc: the theme's primary, a soft violet→magenta run, lit from the top */
+:root[data-vb-style='party'] .vb-shutter:not([data-state='blocked']) > span {
+  background-color: var(--t-primary);
+  background-image: linear-gradient(
+    155deg,
+    color-mix(in oklab, var(--t-primary), var(--t-highlight) 16%) 0%,
+    var(--t-primary) 42%,
+    color-mix(in oklab, var(--t-primary), var(--t-accent) 58%) 100%
+  );
+  box-shadow:
+    inset 0 2px 0 color-mix(in oklab, var(--t-highlight) 32%, transparent),
+    inset 0 -3px 0 color-mix(in oklab, var(--t-primary), var(--t-depth) 42%);
+}
+:root[data-vb-style='party'] .vb-shutter .vb-googly {
+  --eye: 18px;
+  --eye-rim: var(--t-depth);
+  --lid: color-mix(in oklab, var(--t-primary), var(--t-depth) 22%);
+  margin-top: -2px;
+}
+/* asleep while the camera starts: eyes shut (GooglyEyes), the disc dimmed */
+:root[data-vb-style='party'] .vb-shutter[data-state='not-ready'] > span {
+  opacity: 0.55;
+}
+/* ready: a ring of small lights, lime and ice blue taking slow turns (the glow filter
+   of the calm look is off: nothing to repaint while they twinkle) */
+:root[data-vb-style='party'] .vb-shutter:is([data-state='ready'], [data-state='idle']) > svg {
+  filter: none;
+}
+:root[data-vb-style='party'] .vb-shutter:is([data-state='ready'], [data-state='idle']) > svg circle {
+  stroke: var(--t-hit);
+  stroke-width: 4px;
+  stroke-linecap: round;
+  stroke-dasharray: 0 0.0625;
+  animation: vb-party-twinkle 2.6s ease-in-out infinite alternate;
+}
+:root[data-vb-style='party']
+  .vb-shutter:is([data-state='ready'], [data-state='idle'])
+  > svg
+  circle.vb-shutter-lights {
+  stroke: var(--t-highlight);
+  stroke-dashoffset: 0.03125;
+  animation-delay: -2.6s;
+}
+@keyframes vb-party-twinkle {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0.35;
+  }
+}
+/* a finger on it: every light on */
+:root[data-vb-style='party'] .vb-shutter[data-pressed] > svg circle {
+  animation: none;
+  opacity: 1;
+}
+/* the countdown drains a magenta ring round the violet disc (the eyes go cross-eyed);
+   [stroke-dasharray]: the draining ring, not the faint track under it */
+:root[data-vb-style='party'] .vb-shutter[data-state='counting'] > svg circle[stroke-dasharray] {
+  stroke: var(--t-accent);
+}
+/* the shot: a lime flash with a squash and one soft boing; the eyes squeeze shut */
+:root[data-vb-style='party'] .vb-shutter[data-state='capturing'] > span {
+  background-image: none;
+  background-color: var(--t-hit);
+  animation: vb-party-boing 460ms linear;
+}
+:root[data-vb-style='party'] .vb-shutter[data-state='capturing'] .vb-googly {
+  --lid: color-mix(in oklab, var(--t-hit), var(--t-depth) 18%);
+}
+:root[data-vb-style='party'] .vb-shutter[data-state='capturing'] > svg circle[stroke-dasharray] {
+  stroke: var(--t-hit);
+}
+@keyframes vb-party-boing {
+  0% {
+    transform: scale(1);
+  }
+  20% {
+    transform: scale(1.16, 0.84);
+  }
+  45% {
+    transform: scale(0.92, 1.08);
+  }
+  70% {
+    transform: scale(1.03, 0.98);
+  }
+  100% {
+    transform: none;
+  }
+}
+
+/* ------------------------------------------------------------ 2. the peeker */
+/* a small periwinkle head (the theme's tertiary) behind the first card; it follows the
+   finger and ducks while a card is pressed or hovered (styles/goofy.css .vb-peeker) */
+:root[data-vb-style='party'] .vb-peeker {
+  --eye: 16px;
+  --eye-rim: var(--t-depth);
+  --lid: color-mix(in oklab, var(--t-tertiary), var(--t-depth) 20%);
+  top: -21px;
+  right: 72px;
+  padding: 6px 8px 12px;
+  background: var(--t-tertiary);
+  box-shadow: inset 0 -3px 0 color-mix(in oklab, var(--t-tertiary), var(--t-depth) 22%);
+}
+:root[data-vb-style='party'] a.vb-activity {
+  z-index: 1;
+}
+
+/* ------------------------------------------- 3. Wackelpudding (squash and jelly) */
+:root[data-vb-style='party'] :is(button[data-variant], a[data-variant], a.vb-activity, .vb-guestpass) {
+  transition-property: background-color, color, border-color, transform, scale;
+  transition-duration: 80ms;
+}
+:root[data-vb-style='party']
+  :is(button[data-variant], a[data-variant], a.vb-activity, .vb-guestpass)[data-pressed] {
+  scale: 1.02 0.95;
+}
+:root[data-vb-style='party'] a.vb-activity[data-pressed] {
+  scale: 1.01 0.97;
+}
+:root[data-vb-style='party'] [data-vb-jelly]:not(.vb-wordmark) {
+  animation: vb-party-jelly 420ms linear;
+}
+@keyframes vb-party-jelly {
+  0% {
+    transform: scale(1.02, 0.95);
+  }
+  30% {
+    transform: scale(0.985, 1.02);
+  }
+  62% {
+    transform: scale(1.006, 0.994);
+  }
+  100% {
+    transform: none;
+  }
+}
+
+/* ----------------------------------------------------------- 4. tickets */
+/* sheets: a row of punched holes along the top, as if torn off a ticket roll (drawn,
+   not masked: the pane keeps its shadow and round corners) */
+:root[data-vb-style='party'] .vb-sheet {
+  background-image: radial-gradient(
+    circle 2px,
+    color-mix(in oklab, var(--t-depth), black 30%) 90%,
+    transparent 100%
+  );
+  background-size: 12px 4px;
+  background-position: 6px 4px;
+  background-repeat: repeat-x;
+}
+/* the guest pass: a dashed tear line between the stub (the initials, a little tilted
+   like a stamp) and the name; no mask, so its focus ring stays */
+:root[data-vb-style='party'] .vb-guestpass {
+  background-image: repeating-linear-gradient(
+    to bottom,
+    color-mix(in oklab, var(--t-secondary) 50%, transparent) 0 3px,
+    transparent 3px 6px
+  );
+  background-size: 1.5px 30px;
+  background-position: 46px 50%;
+  background-repeat: no-repeat;
+}
+:root[data-vb-style='party'] .vb-guestpass > span:first-child {
+  rotate: -6deg;
+}
+
+/* -------------------------------------------------------------- 5. the wordmark */
+/* it drops in on its hook and swings to rest, the sheen keeps running (app.css) */
+:root[data-vb-style='party'] .vb-wordmark {
+  justify-self: start;
+  transform-origin: 50% -0.6em;
+  animation:
+    vb-party-hang 1.5s linear 0.1s both,
+    vb-sheen 9s ease-in-out 1.8s infinite;
+}
+/* a tap sets it swinging again (jelly.ts marks it). The first two stay in the list
+   unchanged, so neither the drop nor the sheen restarts when the mark goes */
+:root[data-vb-style='party'] .vb-wordmark[data-vb-jelly] {
+  animation:
+    vb-party-hang 1.5s linear 0.1s both,
+    vb-sheen 9s ease-in-out 1.8s infinite,
+    vb-party-swing 1s linear;
+}
+@keyframes vb-party-hang {
+  0% {
+    transform: translateY(-35%) rotate(-7deg);
+    opacity: 0;
+  }
+  12% {
+    transform: translateY(3%) rotate(5deg);
+    opacity: 1;
+  }
+  28% {
+    transform: translateY(-1%) rotate(-3.2deg);
+  }
+  46% {
+    transform: rotate(1.8deg);
+  }
+  64% {
+    transform: rotate(-0.9deg);
+  }
+  82% {
+    transform: rotate(0.35deg);
+  }
+  100% {
+    transform: none;
+  }
+}
+@keyframes vb-party-swing {
+  15% {
+    transform: rotate(4deg);
+  }
+  38% {
+    transform: rotate(-2.6deg);
+  }
+  60% {
+    transform: rotate(1.3deg);
+  }
+  80% {
+    transform: rotate(-0.5deg);
+  }
+}
+
+/* ------------------------------------------------ 6. Lauflicht on hover and press
+   Two layers of small lights half a step apart (ice blue and lime) take turns, which
+   reads as running lights. They are dark until the card or the primary button is
+   hovered or pressed: idle, nothing runs. Opacity only, behind the label. Primary
+   buttons are pills: lights along the top and bottom only, clear of the round ends.
+   The xs size uses ::after for its hit area, so it stays without. */
+:root[data-vb-style='party']
+  :is(a.vb-activity, :is(button, a)[data-variant='primary']:not([class*='after:'])) {
+  isolation: isolate;
+}
+:root[data-vb-style='party']
+  :is(a.vb-activity, :is(button, a)[data-variant='primary']:not([class*='after:']))::before,
+:root[data-vb-style='party']
+  :is(a.vb-activity, :is(button, a)[data-variant='primary']:not([class*='after:']))::after {
+  --light: var(--t-highlight);
+  --gap: 14px;
+  --b: radial-gradient(
+    circle closest-side,
+    var(--light) 0 50%,
+    color-mix(in oklab, var(--light) 30%, transparent) 72%,
+    transparent 100%
+  );
+  content: '';
+  position: absolute;
+  inset: 6px;
+  z-index: -1;
+  pointer-events: none;
+  opacity: 0;
+  background:
+    var(--b) 0 0 / var(--gap) 6px repeat-x,
+    var(--b) 0 100% / var(--gap) 6px repeat-x,
+    var(--b) 0 0 / 6px var(--gap) repeat-y,
+    var(--b) 100% 0 / 6px var(--gap) repeat-y;
+  transition: opacity 160ms ease-out;
+}
+:root[data-vb-style='party']
+  :is(a.vb-activity, :is(button, a)[data-variant='primary']:not([class*='after:']))::after {
+  --light: var(--t-hit);
+  background-position:
+    calc(var(--gap) / 2) 0,
+    calc(var(--gap) / 2) 100%,
+    0 calc(var(--gap) / 2),
+    100% calc(var(--gap) / 2);
+}
+:root[data-vb-style='party'] :is(button, a)[data-variant='primary']:not([class*='after:'])::before,
+:root[data-vb-style='party'] :is(button, a)[data-variant='primary']:not([class*='after:'])::after {
+  inset: 5px 22px;
+  background-size:
+    var(--gap) 5px,
+    var(--gap) 5px,
+    0 0,
+    0 0;
+}
+:root[data-vb-style='party']
+  :is(a.vb-activity, :is(button, a)[data-variant='primary']:not([class*='after:']))[data-pressed]::before,
+:root[data-vb-style='party']
+  :is(a.vb-activity, :is(button, a)[data-variant='primary']:not([class*='after:']))[data-pressed]::after {
+  opacity: 1;
+  animation: vb-party-chase 0.7s steps(1, end) infinite;
+}
+:root[data-vb-style='party']
+  :is(a.vb-activity, :is(button, a)[data-variant='primary']:not([class*='after:']))[data-pressed]::after {
+  animation-delay: -0.35s;
+}
+@media (hover: hover) {
+  :root[data-vb-style='party']
+    :is(a.vb-activity, :is(button, a)[data-variant='primary']:not([class*='after:']))[data-hovered]::before,
+  :root[data-vb-style='party']
+    :is(a.vb-activity, :is(button, a)[data-variant='primary']:not([class*='after:']))[data-hovered]::after {
+    opacity: 1;
+    animation: vb-party-chase 0.9s steps(1, end) infinite;
+  }
+  :root[data-vb-style='party']
+    :is(a.vb-activity, :is(button, a)[data-variant='primary']:not([class*='after:']))[data-hovered]::after {
+    animation-delay: -0.45s;
+  }
+}
+@keyframes vb-party-chase {
+  0% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.12;
+  }
+}
+/* a disabled primary button stays dark */
+:root[data-vb-style='party'] :is(button, a)[data-variant='primary']:is(:disabled, [data-disabled])::before,
+:root[data-vb-style='party'] :is(button, a)[data-variant='primary']:is(:disabled, [data-disabled])::after {
+  opacity: 0;
+  animation: none;
+}

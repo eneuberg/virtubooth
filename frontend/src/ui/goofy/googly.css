@@ -1,0 +1,63 @@
+/*
+ * Wackelaugen (GooglyEyes.tsx): white plastic eyes with a dark rim, a loose pupil with a
+ * highlight, a lid in the theme's accent for blinking. Size: `--eye` on `.vb-googly`,
+ * rim `--eye-rim`, lid `--lid`. Rendered only in the party and goofy styles, so these
+ * need no [data-vb-style] guard. Imported by styles/goofy.css and wall/goofy.css (the
+ * party layers come after them and reuse it).
+ */
+.vb-googly {
+  --eye: 20px;
+  display: inline-flex;
+  gap: calc(var(--eye) * -0.12);
+  pointer-events: none;
+}
+.vb-googly-eye {
+  position: relative;
+  width: var(--eye);
+  height: var(--eye);
+  border-radius: 50%;
+  overflow: hidden;
+  background: radial-gradient(circle at 35% 30%, #fff 0 45%, #e9e6f2 75%, #cfc9e0);
+  box-shadow:
+    0 0 0 1.5px var(--eye-rim, #15123d),
+    0 2px 0 1.5px color-mix(in oklab, var(--eye-rim, #15123d) 60%, transparent);
+}
+.vb-googly-eye:nth-child(2) {
+  /* never quite a pair */
+  width: calc(var(--eye) * 1.1);
+  height: calc(var(--eye) * 1.1);
+  margin-top: calc(var(--eye) * -0.06);
+}
+.vb-googly-pupil {
+  position: absolute;
+  left: 25%;
+  top: 25%;
+  width: 50%;
+  height: 50%;
+  border-radius: 50%;
+  background: radial-gradient(circle at 34% 30%, #fff 0 12%, #111 16%);
+  transform: translate(0, 9%);
+  will-change: transform;
+}
+/* the lids: drop over the eye for a blink, stay shut when the camera shoots */
+.vb-googly-eye::after {
+  content: '';
+  position: absolute;
+  inset: -1px;
+  background: var(--lid, var(--t-accent, #ff4b3e));
+  border-bottom: 2px solid var(--eye-rim, #15123d);
+  transform: translateY(-102%);
+  transition: transform 70ms ease-in;
+}
+.vb-googly[data-blink] .vb-googly-eye::after {
+  transform: translateY(-8%);
+}
+/* countdown: the eyes cannot stand still */
+.vb-googly[data-mood='nervous'] {
+  animation: vb-jitter 0.11s steps(2, end) infinite;
+}
+@keyframes vb-jitter {
+  50% {
+    transform: translate(0.6px, -0.8px) rotate(-2deg);
+  }
+}

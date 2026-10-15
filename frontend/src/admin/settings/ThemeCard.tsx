@@ -10,11 +10,13 @@ import { Palette, RotateCcw } from 'lucide-react';
 import { useState, type CSSProperties } from 'react';
 import {
   contrastProblems,
+  DEFAULT_STYLE,
   HEX_RE,
   themeVariables,
   THEME_COLOR_KEYS,
   type ThemeColorKey,
   type ThemeColors,
+  type ThemeStyle,
 } from '@/styles/theme';
 import { Button } from '@/ui/Button';
 import { SegmentedControl } from '@/ui/SegmentedControl';
@@ -41,7 +43,15 @@ const COLOR_LABELS: Record<ThemeColorKey, { label: string; hint: string }> = {
 const CHOICES: { id: ThemeChoice; label: string }[] = [
   { id: 'neon_nacht', label: 'Neon Nacht' },
   { id: 'klassisch', label: 'Klassisch' },
+  { id: 'rummel', label: 'Rummel' },
   { id: 'custom', label: 'Eigene' },
+];
+
+// party is the default (Neon Nacht): the calm look plus a few deliberate gags
+const STYLES: { id: ThemeStyle; label: string }[] = [
+  { id: 'elegant', label: 'Ruhig' },
+  { id: 'party', label: 'Party' },
+  { id: 'goofy', label: 'Verspielt' },
 ];
 
 function sameColors(a: ThemeColors, b: ThemeColors): boolean {
@@ -54,28 +64,35 @@ export function ThemeCard({ data }: { data: AdminThemeOut }) {
   const qc = useQueryClient();
   const saved = data.theme.colors;
   // null: not edited, the card shows the saved theme (also when another admin changes it)
-  const [draft, setDraft] = useState<{ choice: ThemeChoice; colors: ThemeColors } | null>(null);
+  const [draft, setDraft] = useState<{ choice: ThemeChoice; colors: ThemeColors; style: ThemeStyle } | null>(
+    null,
+  );
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState<Busy>(null);
   const choice: ThemeChoice = draft?.choice ?? data.theme.preset;
   const colors = draft?.colors ?? saved;
+  const savedStyle: ThemeStyle = data.theme.style ?? DEFAULT_STYLE;
+  const style = draft?.style ?? savedStyle;
   const presetOf = (id: ThemeChoice) => data.presets.find((p) => p.id === id);
 
   const badHex = THEME_COLOR_KEYS.filter((k) => !HEX_RE.test(colors[k]));
   const problems = badHex.length ? [] : contrastProblems(colors);
-  const dirty = draft !== null && (draft.choice !== data.theme.preset || !sameColors(draft.colors, saved));
+  const dirty =
+    draft !== null &&
+    (draft.choice !== data.theme.preset || !sameColors(draft.colors, saved) || draft.style !== savedStyle);
 
   const pick = (id: ThemeChoice) => {
     setError(null);
     const preset = presetOf(id);
-    setDraft({ choice: id, colors: preset ? preset.colors : colors });
+    // a preset brings its style (Rummel: the fairground layer); own colours keep it
+    setDraft({ choice: id, colors: preset ? preset.colors : colors, style: preset ? preset.style : style });
   };
   const setColor = (key: ThemeColorKey, value: string) => {
     setError(null);
     const next = { ...colors, [key]: value };
     const preset = presetOf(choice);
     const stillPreset = preset && sameColors(preset.colors, next);
-    setDraft({ choice: stillPreset ? choice : 'custom', colors: next });
+    setDraft({ choice: stillPreset ? choice : 'custom', colors: next, style });
   };
 
   const run = async (which: Exclude<Busy, null>, action: () => Promise<unknown>, done: string) => {
@@ -98,7 +115,7 @@ export function ThemeCard({ data }: { data: AdminThemeOut }) {
     const asPreset = choice !== 'custom' && preset && sameColors(preset.colors, colors);
     void run(
       'save',
-      () => saveTheme(qc, asPreset ? choice : 'custom', asPreset ? null : colors),
+      () => saveTheme(qc, asPreset ? choice : 'custom', asPreset ? null : colors, style),
       'Erscheinungsbild gespeichert.',
     );
   };
@@ -118,8 +135,20 @@ export function ThemeCard({ data }: { data: AdminThemeOut }) {
               options={CHOICES}
               value={choice}
               onChange={pick}
-              className="justify-self-start"
+              className="flex-wrap justify-self-start"
               data-testid="theme-preset"
+            />
+            <SegmentedControl
+              label="Stil"
+              size="sm"
+              options={STYLES}
+              value={style}
+              onChange={(next) => {
+                setError(null);
+                setDraft({ choice, colors, style: next });
+              }}
+              className="justify-self-start"
+              data-testid="theme-style"
             />
             <div className="grid gap-3 sm:grid-cols-[repeat(auto-fill,minmax(11rem,1fr))]">
               {THEME_COLOR_KEYS.map((key) => (

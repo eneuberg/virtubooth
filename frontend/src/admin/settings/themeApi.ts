@@ -5,7 +5,7 @@
 import { useQuery, type QueryClient } from '@tanstack/react-query';
 import { api } from '@/api/client';
 import type { AdminThemeOut } from '@/api/types';
-import type { ThemeColors } from '@/styles/theme';
+import type { ThemeColors, ThemeStyle } from '@/styles/theme';
 import { call } from '../store/api';
 
 export type { AdminTheme, AdminThemeOut, ThemePreset } from '@/api/types';
@@ -17,15 +17,17 @@ export function useAdminTheme() {
   return useQuery({ queryKey: themeKey, queryFn: () => call(api.GET('/api/admin/theme')) });
 }
 
-export type ThemeChoice = 'neon_nacht' | 'klassisch' | 'custom';
+export type ThemeChoice = 'neon_nacht' | 'klassisch' | 'rummel' | 'custom';
 
-/** Save a preset (colors null) or own colours. 400 `invalid_theme` names the pair. */
+/** Save a preset (colors null) or own colours, and the style. 400 `invalid_theme` names
+ * the pair. */
 export async function saveTheme(
   qc: QueryClient,
   preset: ThemeChoice,
   colors: ThemeColors | null,
+  style: ThemeStyle,
 ): Promise<AdminThemeOut> {
-  const res = await call(api.PUT('/api/admin/theme', { body: { preset, colors } }));
+  const res = await call(api.PUT('/api/admin/theme', { body: { preset, colors, style } }));
   qc.setQueryData(themeKey, res);
   return res;
 }

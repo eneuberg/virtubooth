@@ -1,0 +1,250 @@
+/*
+ * The Live Wall's party layer (the default style of „Neon Nacht“; styles/party.css for
+ * the guest pages). Only under <html data-vb-style="party">; imported after wall.css
+ * and goofy.css (main.tsx). The calm wall stays as it is (thin rings, dark plates, the
+ * emoji's gentle wiggle); on top:
+ *
+ *   1. a light garland along the top in the theme's colours: few small lights, dim,
+ *      two sets breathing in turn
+ *   2. spotlight: each photo hangs from a small pin and swings to rest (a damped
+ *      pendulum on the calm frame)
+ *   3. categories: the winners swing in one after the other on their pins, the value
+ *      is a prize ribbon that flaps open once the photo has landed
+ *   4. the corner: the peeker from Start looks over the QR code
+ *
+ * Transform and opacity only, no blur filters. Reduced motion: the block at the end.
+ */
+
+/* ------------------------------------------------------------- 1. the garland */
+:root[data-vb-style='party'] .wall[data-phase='live']::before,
+:root[data-vb-style='party'] .wall[data-phase='live']::after {
+  content: '';
+  position: absolute;
+  top: 0.9vmin;
+  left: 0;
+  right: 0;
+  z-index: 4;
+  height: 1.3vmin;
+  pointer-events: none;
+  opacity: 0.55;
+  animation: wall-p-breathe 3.2s ease-in-out infinite alternate;
+}
+/* set A: violet and lime; set B: magenta and ice blue, half a step along */
+:root[data-vb-style='party'] .wall[data-phase='live']::before {
+  background:
+    radial-gradient(
+        circle closest-side,
+        var(--wall-primary) 0 45%,
+        color-mix(in oklab, var(--wall-primary) 30%, transparent) 70%,
+        transparent 100%
+      )
+      2.5vmin 0 / 20vmin 1.3vmin repeat-x,
+    radial-gradient(
+        circle closest-side,
+        var(--t-hit, #b6ff3c) 0 45%,
+        color-mix(in oklab, var(--t-hit, #b6ff3c) 30%, transparent) 70%,
+        transparent 100%
+      )
+      12.5vmin 0 / 20vmin 1.3vmin repeat-x,
+    linear-gradient(
+        transparent 47%,
+        color-mix(in oklab, var(--wall-ink) 14%, transparent) 47% 55%,
+        transparent 55%
+      )
+      0 0 / 100% 100% no-repeat;
+}
+:root[data-vb-style='party'] .wall[data-phase='live']::after {
+  background:
+    radial-gradient(
+        circle closest-side,
+        var(--wall-accent) 0 45%,
+        color-mix(in oklab, var(--wall-accent) 30%, transparent) 70%,
+        transparent 100%
+      )
+      7.5vmin 0 / 20vmin 1.3vmin repeat-x,
+    radial-gradient(
+        circle closest-side,
+        var(--wall-highlight) 0 45%,
+        color-mix(in oklab, var(--wall-highlight) 30%, transparent) 70%,
+        transparent 100%
+      )
+      17.5vmin 0 / 20vmin 1.3vmin repeat-x;
+  animation-delay: -3.2s;
+}
+@keyframes wall-p-breathe {
+  from {
+    opacity: 0.6;
+  }
+  to {
+    opacity: 0.22;
+  }
+}
+
+/* ------------------------------------------------------------- 2. spotlight */
+/* the frame swings in from a point above it; the transitions move the card inside,
+   so the two never fight */
+:root[data-vb-style='party'] .wall-frame {
+  transform-origin: 50% -6vmin;
+  animation: wall-p-hang 2s linear both;
+}
+@keyframes wall-p-hang {
+  0% {
+    transform: rotate(-7deg);
+  }
+  14% {
+    transform: rotate(5deg);
+  }
+  30% {
+    transform: rotate(-3.2deg);
+  }
+  47% {
+    transform: rotate(1.8deg);
+  }
+  64% {
+    transform: rotate(-0.9deg);
+  }
+  82% {
+    transform: rotate(0.35deg);
+  }
+  100% {
+    transform: none;
+  }
+}
+/* the pin it hangs from: a small bead in the accent, on the card (so it leaves with it) */
+:root[data-vb-style='party'] .wall-card::after {
+  content: '';
+  position: absolute;
+  z-index: 2;
+  top: -0.9vmin;
+  left: 50%;
+  width: 2.2vmin;
+  height: 2.2vmin;
+  margin-left: -1.1vmin;
+  border-radius: 50%;
+  background: radial-gradient(
+    circle at 35% 32%,
+    color-mix(in oklab, var(--wall-highlight), white 30%) 0 14%,
+    var(--wall-accent) 40%,
+    color-mix(in oklab, var(--wall-accent), var(--wall-depth) 45%) 100%
+  );
+  box-shadow: 0 0.35vmin 0.8vmin rgb(0 0 0 / 0.45);
+  pointer-events: none;
+}
+:root[data-vb-style='party'] .is-polaroid .wall-card::after {
+  top: 0.6vmin;
+}
+
+/* ------------------------------------------------------------- 3. categories */
+/* 1–3 winners: each swings in on its pin, one after the other (a compact grid keeps
+   the calm drop: ten swinging photos are too much) */
+:root[data-vb-style='party'] .wall-cat-winners:not([data-compact]) .wall-cat-photo {
+  transform-origin: 50% -3vmin;
+  animation: wall-p-drop 2.2s linear both;
+}
+:root[data-vb-style='party'] .wall-cat-winners:not([data-compact]) .wall-cat-photo[data-index='1'] {
+  animation-delay: 240ms;
+}
+:root[data-vb-style='party'] .wall-cat-winners:not([data-compact]) .wall-cat-photo[data-index='2'] {
+  animation-delay: 480ms;
+}
+@keyframes wall-p-drop {
+  0% {
+    opacity: 0;
+    transform: translateY(-4vh) rotate(-7deg);
+  }
+  10% {
+    opacity: 1;
+    transform: rotate(5deg);
+  }
+  27% {
+    transform: rotate(-3.2deg);
+  }
+  45% {
+    transform: rotate(1.8deg);
+  }
+  63% {
+    transform: rotate(-0.9deg);
+  }
+  82% {
+    transform: rotate(0.35deg);
+  }
+  100% {
+    transform: none;
+  }
+}
+:root[data-vb-style='party'] .wall-cat-winners:not([data-compact]) .wall-cat-photo::before {
+  content: '';
+  position: absolute;
+  z-index: 2;
+  top: -1vmin;
+  left: 50%;
+  width: 2.2vmin;
+  height: 2.2vmin;
+  margin-left: -1.1vmin;
+  border-radius: 50%;
+  background: radial-gradient(
+    circle at 35% 32%,
+    color-mix(in oklab, var(--wall-highlight), white 30%) 0 14%,
+    var(--wall-accent) 40%,
+    color-mix(in oklab, var(--wall-accent), var(--wall-depth) 45%) 100%
+  );
+  box-shadow: 0 0.35vmin 0.8vmin rgb(0 0 0 / 0.45);
+}
+/* the value: a prize ribbon with a swallowtail (accent into primary, kept on the
+   magenta side so the dark text reads at 4.5:1), it flaps open after the photo lands */
+:root[data-vb-style='party'] .wall-cat-value {
+  /* over the pin: the ribbon is pinned on with it */
+  z-index: 3;
+  padding-right: 3.4vmin;
+  border-radius: 0.6vmin 0 0 0.6vmin;
+  background: linear-gradient(
+    100deg,
+    var(--wall-accent),
+    color-mix(in oklab, var(--wall-accent), var(--wall-primary) 55%)
+  );
+  clip-path: polygon(0 0, 100% 0, calc(100% - 1.6vmin) 50%, 100% 100%, 0 100%);
+  box-shadow: none;
+  transform-origin: 0 50%;
+  animation: wall-p-ribbon 900ms cubic-bezier(0.34, 1.56, 0.64, 1) 1.4s both;
+}
+:root[data-vb-style='party'] .wall-cat-photo[data-index='1'] .wall-cat-value {
+  animation-delay: 1.64s;
+}
+:root[data-vb-style='party'] .wall-cat-photo[data-index='2'] .wall-cat-value {
+  animation-delay: 1.88s;
+}
+:root[data-vb-style='party'] .wall-cat-winners[data-compact] .wall-cat-value {
+  padding-right: 2.4vmin;
+  clip-path: polygon(0 0, 100% 0, calc(100% - 1.1vmin) 50%, 100% 100%, 0 100%);
+  animation-delay: 0.9s;
+}
+@keyframes wall-p-ribbon {
+  from {
+    transform: rotate(3deg) scaleX(0);
+  }
+  to {
+    transform: rotate(3deg);
+  }
+}
+
+/* ------------------------------------------------------------- 4. the corner */
+/* the peeker from Start (wall/goofy.css .wall-peeker): smaller, periwinkle */
+:root[data-vb-style='party'] .wall-peeker {
+  --eye: 2.7vmin;
+  --eye-rim: var(--wall-depth);
+  --lid: color-mix(in oklab, var(--t-tertiary, #b6b6d8), var(--wall-depth) 20%);
+  padding: 0.8vmin 1.1vmin 1.6vmin;
+  box-shadow: inset 0 -0.4vmin 0 color-mix(in oklab, var(--t-tertiary, #b6b6d8), var(--wall-depth) 22%);
+}
+:root[data-vb-style='party'] .wall-corner[data-corner^='top'] .wall-peeker {
+  padding: 1.6vmin 1.1vmin 0.8vmin;
+  box-shadow: inset 0 0.4vmin 0 color-mix(in oklab, var(--t-tertiary, #b6b6d8), var(--wall-depth) 22%);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root[data-vb-style='party'] :is(.wall-frame, .wall-cat-photo, .wall-cat-value, .wall-peeker),
+  :root[data-vb-style='party'] .wall[data-phase='live']::before,
+  :root[data-vb-style='party'] .wall[data-phase='live']::after {
+    animation: none;
+  }
+}

@@ -521,6 +521,7 @@
             "enum": [
               "neon_nacht",
               "klassisch",
+              "rummel",
               "custom"
             ],
             "title": "Preset",
@@ -536,6 +537,17 @@
             "description": "Counts saves; 0 = never saved (the default).",
             "title": "Rev",
             "type": "integer"
+          },
+          "style": {
+            "default": "party",
+            "description": "The look's layer on guest pages and the wall: `elegant`, `party` or `goofy` (<html data-vb-style>).",
+            "enum": [
+              "elegant",
+              "party",
+              "goofy"
+            ],
+            "title": "Style",
+            "type": "string"
           },
           "updated_at": {
             "anyOf": [
@@ -6246,6 +6258,7 @@
             "enum": [
               "neon_nacht",
               "klassisch",
+              "rummel",
               "custom"
             ],
             "title": "Preset",
@@ -6261,6 +6274,17 @@
             "description": "Counts saves; 0 = never saved (the default).",
             "title": "Rev",
             "type": "integer"
+          },
+          "style": {
+            "default": "party",
+            "description": "The look's layer on guest pages and the wall: `elegant`, `party` or `goofy` (<html data-vb-style>).",
+            "enum": [
+              "elegant",
+              "party",
+              "goofy"
+            ],
+            "title": "Style",
+            "type": "string"
           }
         },
         "required": [
@@ -6778,10 +6802,28 @@
             "enum": [
               "neon_nacht",
               "klassisch",
+              "rummel",
               "custom"
             ],
             "title": "Preset",
             "type": "string"
+          },
+          "style": {
+            "anyOf": [
+              {
+                "enum": [
+                  "elegant",
+                  "party",
+                  "goofy"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The layer; null: the preset's (`custom`: party).",
+            "title": "Style"
           }
         },
         "required": [
@@ -6798,7 +6840,8 @@
           "id": {
             "enum": [
               "neon_nacht",
-              "klassisch"
+              "klassisch",
+              "rummel"
             ],
             "title": "Id",
             "type": "string"
@@ -6806,12 +6849,23 @@
           "label": {
             "title": "Label",
             "type": "string"
+          },
+          "style": {
+            "description": "The style the preset comes with.",
+            "enum": [
+              "elegant",
+              "party",
+              "goofy"
+            ],
+            "title": "Style",
+            "type": "string"
           }
         },
         "required": [
           "id",
           "label",
-          "colors"
+          "colors",
+          "style"
         ],
         "title": "ThemePreset",
         "type": "object"

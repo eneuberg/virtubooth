@@ -77,7 +77,7 @@ def test_gate_and_not_found_are_the_same_file(client, web_dir):
         + gate.text.split("theme.css?v=")[1].split('"')[0]
         + '"></head>'
         + rest
-    )
+    ).replace("<html", '<html data-vb-style="party"', 1)  # and its style (services/theme.py)
     assert gate.text == source
     assert missing.text == source.replace('data-vb-mode="gate"', 'data-vb-mode="notfound"')
     # unknown multi-segment paths too

@@ -1,6 +1,7 @@
 import { Lock } from 'lucide-react';
 import { Button as AriaButton, type ButtonProps as AriaButtonProps } from 'react-aria-components';
 import { cx } from './cx';
+import { GooglyEyes } from './goofy/GooglyEyes';
 
 export type ShutterState = 'idle' | 'not-ready' | 'ready' | 'counting' | 'capturing' | 'blocked';
 
@@ -67,6 +68,16 @@ export function Shutter({
             strokeLinecap={counting ? 'round' : 'butt'}
             className="transition-[stroke-dashoffset] duration-(--duration-base) ease-linear"
           />
+          {/* the party style's second set of ring lights (styles/party.css); invisible otherwise */}
+          <circle
+            className="vb-shutter-lights"
+            cx="40"
+            cy="40"
+            r="38"
+            fill="none"
+            stroke="none"
+            pathLength={1}
+          />
         </svg>
         <span
           className={cx(
@@ -77,7 +88,21 @@ export function Shutter({
             state === 'capturing' && 'animate-pop bg-white',
           )}
         >
-          {blocked ? <Lock aria-hidden="true" className="size-6 text-white" strokeWidth={2.25} /> : null}
+          {blocked ? (
+            <Lock aria-hidden="true" className="size-6 text-white" strokeWidth={2.25} />
+          ) : (
+            // party and goofy styles: the camera looks at you, asleep while it starts, cross-eyed
+            // during the countdown, and it blinks when it takes the photo
+            <GooglyEyes
+              mood={
+                state === 'counting'
+                  ? 'nervous'
+                  : state === 'capturing' || state === 'not-ready'
+                    ? 'shut'
+                    : 'look'
+              }
+            />
+          )}
         </span>
       </AriaButton>
       {keyHint ? (
