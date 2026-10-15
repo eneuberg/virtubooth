@@ -25,6 +25,11 @@ ErrorCode = Literal[
     "wall_no_password",
     "wall_password_too_short",
     "invalid_wall_config",
+    # wall categories and analysis
+    "invalid_category",
+    "category_exists",
+    "invalid_analyzer_settings",
+    "worker_off",
     # uploads
     "uploads_paused",
     "uploads_stopped",

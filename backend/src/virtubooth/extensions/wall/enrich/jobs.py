@@ -1,33 +1,45 @@
 """Analysis jobs: rows in `wall_analysis` (migration 9), found by a DB scan.
 
-A photo needs analysis when it has no row or its row is `pending` (backfill and
-„neu analysieren“ need no queue). The worker claims the newest such photo,
-marks it `running`, and finishes it as `done` (facts replaced), `failed` (after
-MAX_ATTEMPTS) or `skipped` (no file). Every write sets `rev = MAX(rev) + 1`, a
+A photo needs analysis when it has no row or its row is `pending` (backfill
+needs no queue). The worker claims the newest such photo, marks it `running`,
+and finishes it as `done`, `failed` (after MAX_ATTEMPTS crashed or failed
+attempts) or `skipped` (no file). Every write sets `rev = MAX(rev) + 1`, a
 global change counter the app polls (`changes_since`).
+
+Frozen (PLAN-NIGHT N3): a photo is analysed ONCE. `finish` only inserts its
+facts (`wall_facts`) and its local object list (`photo_objects`, with the
+`local` run in `photo_detection_runs`); the database aborts any UPDATE of
+those tables. There is no re-run: a new analyzer version, an analyzer switched
+on or a guest's opt-out change only affect photos analysed afterwards. Rows
+go only when their photo is deleted (`purge_deleted`).
 """
 
 from __future__ import annotations
 
 import json
 import sqlite3
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
-from typing import Any, Literal
+from datetime import UTC, datetime
+from typing import Any
 
 from ....core.clock import now_iso
 from ....db.database import Database
 from ....domain.codes import code_name
 from ....repositories.app_settings import AppSettingsRepo
-from .analyzers import ALWAYS_ON, BY_NAME, DEFAULT_DISABLED
+from . import objects
+from .analyzers import ALWAYS_ON, BY_NAME, DEFAULT_DISABLED, SETTINGS, settings_defaults
+from .objects import DetectedObject
 from .pipeline import PhotoInfo, SourceLabels
 
-MAX_ATTEMPTS = 2
+# attempts per photo: a crashed or failed attempt is retried while attempts < 3
+MAX_ATTEMPTS = 3
 STATES = ("pending", "running", "done", "failed", "skipped")
 ABORTED = "Analyse abgebrochen"
 
-# settings keys: {disabled: [names], by} (the complete disabled set; absent =
-# DEFAULT_DISABLED) and the worker's heartbeat {pid, beat_at, ml, models_missing}
+# settings keys: {disabled: [names], settings: {analyzer: {key: value}}, by}
+# (the complete disabled set; absent = DEFAULT_DISABLED) and the worker's
+# heartbeat {pid, beat_at, ml, models_missing, load_errors, processed, rss_mb, stats}
 ANALYZERS_KEY = "x.wall.analyzers"
 WORKER_KEY = "x.wall.worker"
 # {ext id: {title, labels, values}} of the loaded extensions, written by the
@@ -107,15 +119,17 @@ def claim(db: Database) -> PhotoInfo | None:
 
 def finish(
     db: Database, photo_id: int, *, facts: Mapping[str, float], data: Mapping[str, Any],
-    versions: Mapping[str, str],
+    versions: Mapping[str, str], objects_found: Sequence[DetectedObject] = (),
+    objects_model: str | None = None, objects_skipped: str | None = None,
 ) -> bool:  # fmt: skip
-    """Store a finished analysis. False (nothing written) when the row is no
-    longer `running` (rerun requested meanwhile, or purged)."""
+    """Store a finished analysis, once: facts, data, and the local object list
+    (`objects_model` set: the detector ran; else a `skipped` local run with the
+    reason `objects_skipped`), all in one transaction. False (nothing written)
+    when the row is no longer `running` (purged meanwhile)."""
     with db.tx() as c:
         row = c.execute("SELECT state FROM wall_analysis WHERE photo_id=?", (photo_id,)).fetchone()
         if row is None or row["state"] != "running":
             return False
-        c.execute("DELETE FROM wall_facts WHERE photo_id=?", (photo_id,))
         c.executemany(
             "INSERT INTO wall_facts (photo_id, key, value) VALUES (?,?,?)",
             [(photo_id, k, float(v)) for k, v in sorted(facts.items())],
@@ -124,6 +138,13 @@ def finish(
             c, photo_id, state="done", error=None, data=json.dumps(data, ensure_ascii=False),
             versions=json.dumps(dict(versions)), finished_at=now_iso(),
         )  # fmt: skip
+        if not objects.has_run(db, photo_id, "local"):
+            if objects_model is not None:
+                objects.append(db, photo_id, "local", objects_model, objects_found)
+            else:
+                objects.record_run(
+                    db, photo_id, "local", "skipped", None, objects_skipped or "nicht gelaufen"
+                )
     return True
 
 
@@ -138,12 +159,21 @@ def fail(db: Database, photo_id: int, error: str) -> str:
             return "gone"
         state = "failed" if int(row["attempts"]) >= MAX_ATTEMPTS else "pending"
         _upsert(c, photo_id, state=state, error=error[:200], finished_at=now_iso())
+        if state == "failed":
+            _final_local_run(db, photo_id, "failed", error)
     return state
 
 
 def skip(db: Database, photo_id: int, reason: str) -> None:
     with db.tx() as c:
         _upsert(c, photo_id, state="skipped", error=reason[:200], finished_at=now_iso())
+        _final_local_run(db, photo_id, "skipped", reason)
+
+
+def _final_local_run(db: Database, photo_id: int, state: objects.RunState, error: str) -> None:
+    """The photo is final without objects: record the `local` run as such."""
+    if not objects.has_run(db, photo_id, "local"):
+        objects.record_run(db, photo_id, "local", state, None, error)
 
 
 def recover_stale(db: Database) -> int:
@@ -156,25 +186,43 @@ def recover_stale(db: Database) -> int:
         for row in rows:
             state = "failed" if int(row["attempts"]) >= MAX_ATTEMPTS else "pending"
             _upsert(c, row["photo_id"], state=state, error=ABORTED, finished_at=now_iso())
+            if state == "failed":
+                _final_local_run(db, row["photo_id"], "failed", ABORTED)
     return len(rows)
 
 
+_DELETED = "SELECT id FROM photos WHERE deleted_at IS NOT NULL"
+# per table: what a deleted photo may still have there
+_LEFTOVERS = (
+    f"SELECT 1 FROM wall_facts WHERE photo_id IN ({_DELETED}) LIMIT 1",
+    f"SELECT 1 FROM photo_objects WHERE photo_id IN ({_DELETED}) LIMIT 1",
+    f"SELECT 1 FROM photo_detection_runs WHERE photo_id IN ({_DELETED}) LIMIT 1",
+    f"SELECT 1 FROM property_scores WHERE photo_id IN ({_DELETED}) LIMIT 1",
+    f"SELECT 1 FROM wall_category_verdicts WHERE photo_id IN ({_DELETED}) LIMIT 1",
+)
+
+
 def purge_deleted(db: Database) -> int:
-    """Drop facts and rows of deleted photos. The row holding the highest rev
-    stays until a later write (a reused rev would hide a change from pollers);
-    its data is emptied already."""
+    """Drop everything the analysis keeps of deleted photos: facts, objects,
+    detection runs, property scores, rows; verdicts keep their text but lose
+    the photo. The row holding the highest rev stays until a later write (a
+    reused rev would hide a change from pollers); its data is emptied already."""
     if db.one(
         "SELECT 1 FROM wall_analysis a JOIN photos p ON p.id = a.photo_id "
         "WHERE p.deleted_at IS NOT NULL AND (a.data != '{}' OR a.rev < "
         "(SELECT MAX(rev) FROM wall_analysis)) LIMIT 1"
-    ) is None and db.one(
-        "SELECT 1 FROM wall_facts f JOIN photos p ON p.id = f.photo_id "
-        "WHERE p.deleted_at IS NOT NULL LIMIT 1"
-    ) is None:  # fmt: skip
+    ) is None and all(db.one(sql) is None for sql in _LEFTOVERS):  # fmt: skip
         return 0
-    deleted = "SELECT id FROM photos WHERE deleted_at IS NOT NULL"
+    deleted = _DELETED
     with db.tx() as c:
         c.execute(f"DELETE FROM wall_facts WHERE photo_id IN ({deleted})")
+        c.execute(f"DELETE FROM photo_objects WHERE photo_id IN ({deleted})")
+        c.execute(f"DELETE FROM photo_detection_runs WHERE photo_id IN ({deleted})")
+        c.execute(f"DELETE FROM property_scores WHERE photo_id IN ({deleted})")
+        c.execute(
+            "UPDATE wall_category_verdicts SET photo_id = NULL, object_idx = NULL "
+            f"WHERE photo_id IN ({deleted})"
+        )
         n = c.execute(
             f"DELETE FROM wall_analysis WHERE photo_id IN ({deleted}) "
             "AND rev < (SELECT MAX(rev) FROM wall_analysis)"
@@ -183,81 +231,6 @@ def purge_deleted(db: Database) -> int:
             f"UPDATE wall_analysis SET data='{{}}', versions='{{}}' WHERE photo_id IN ({deleted})"
         )
     return int(n)
-
-
-def request(db: Database, photo_id: int) -> None:
-    """Analyse this photo again („Neu analysieren“)."""
-    with db.tx() as c:
-        _upsert(c, photo_id, state="pending", attempts=0, error=None)
-
-
-def rerun(db: Database, scope: Literal["failed", "all"]) -> int:
-    """Queue every failed (or every analysed) photo again. Each row gets its
-    own rev, so pollers that read in pages never skip one."""
-    where = "state='failed'" if scope == "failed" else "state != 'pending'"
-    with db.tx() as c:
-        ids = [
-            r[0]
-            for r in c.execute(
-                "SELECT a.photo_id FROM wall_analysis a JOIN photos p ON p.id = a.photo_id "
-                f"WHERE p.deleted_at IS NULL AND a.{where} ORDER BY a.photo_id"
-            )
-        ]
-        base = _next_rev(c)
-        c.executemany(
-            "UPDATE wall_analysis SET state='pending', attempts=0, error=NULL, rev=? "
-            "WHERE photo_id=?",
-            [(base + i, pid) for i, pid in enumerate(ids)],
-        )
-    return len(ids)
-
-
-def stale(
-    db: Database, expected: Mapping[str, str], expected_opt_out: Mapping[str, str]
-) -> list[int]:
-    """Analysed photos (`done`) whose stored analyzer versions no longer match
-    what a run now would use: an analyzer was switched on (or its model
-    arrived), its version changed, or the guest changed the opt-out since
-    (`expected_opt_out` for opted-out guests: no ML entry may be left). Extra
-    entries of analyzers switched off since are fine: their facts are ignored
-    (categories check the active analyzers)."""
-    out: list[int] = []
-    rows = db.all(
-        "SELECT a.photo_id, a.versions, u.analysis_opt_out FROM wall_analysis a "
-        "JOIN photos p ON p.id = a.photo_id JOIN users u ON u.id = p.user_id "
-        "WHERE a.state = 'done' AND p.deleted_at IS NULL ORDER BY a.photo_id"
-    )
-    for r in rows:
-        try:
-            versions = json.loads(r["versions"] or "{}")
-        except ValueError:
-            versions = {}
-        if not isinstance(versions, dict):
-            versions = {}
-        want = expected_opt_out if r["analysis_opt_out"] else expected
-        if any(versions.get(k) != v for k, v in want.items()) or (
-            r["analysis_opt_out"] and any(k not in want for k in versions)
-        ):
-            out.append(int(r["photo_id"]))
-    return out
-
-
-def requeue(db: Database, photo_ids: list[int]) -> int:
-    """Queue these analysed photos again (facts stay until the new analysis
-    replaces them); each row gets its own rev. Rows that left `done` meanwhile
-    are left alone."""
-    if not photo_ids:
-        return 0
-    n = 0
-    with db.tx() as c:
-        base = _next_rev(c)
-        for i, pid in enumerate(photo_ids):
-            n += c.execute(
-                "UPDATE wall_analysis SET state='pending', attempts=0, error=NULL, rev=? "
-                "WHERE photo_id=? AND state='done'",
-                (base + i, pid),
-            ).rowcount
-    return n
 
 
 def get(db: Database, photo_id: int) -> AnalysisRow | None:
@@ -291,6 +264,30 @@ def counts(db: Database) -> dict[str, int]:
     return out
 
 
+def queue(db: Database) -> dict[str, Any]:
+    """The work queue: photos waiting (no row or `pending`), the one running,
+    and how long the oldest waiting photo has waited (seconds; None: none)."""
+    row = db.one(
+        "SELECT COUNT(*) AS n, MIN(p.created_at) AS oldest FROM photos p "
+        f"LEFT JOIN wall_analysis a ON a.photo_id = p.id WHERE {_NEEDS_WORK}"
+    )
+    running = db.one(
+        "SELECT COUNT(*) FROM wall_analysis a JOIN photos p ON p.id = a.photo_id "
+        "WHERE a.state = 'running' AND p.deleted_at IS NULL"
+    )
+    oldest: float | None = None
+    if row is not None and row["oldest"]:
+        try:
+            oldest = max(0.0, (datetime.now(UTC) - datetime.fromisoformat(row["oldest"])).total_seconds())
+        except ValueError:
+            oldest = None
+    return {
+        "pending": int(row["n"]) if row is not None else 0,
+        "running": int(running[0]) if running is not None else 0,
+        "oldest_pending_s": round(oldest) if oldest is not None else None,
+    }
+
+
 # ------------------------------------------------------------ settings keys
 
 
@@ -299,6 +296,28 @@ def disabled_analyzers(app_settings: AppSettingsRepo) -> set[str]:
     if "disabled" not in raw or not isinstance(raw["disabled"], list):
         return set(DEFAULT_DISABLED)
     return {str(n) for n in raw["disabled"] if n in BY_NAME and n not in ALWAYS_ON}
+
+
+def analyzer_settings(app_settings: AppSettingsRepo) -> dict[str, dict[str, float]]:
+    """Every analyzer's settings with the defaults filled in (stored values
+    outside the allowed range are ignored)."""
+    raw = app_settings.get(ANALYZERS_KEY).get("settings")
+    stored = raw if isinstance(raw, dict) else {}
+    out: dict[str, dict[str, float]] = {}
+    for name, specs in SETTINGS.items():
+        values = settings_defaults(name)
+        mine = stored.get(name)
+        if isinstance(mine, dict):
+            for spec in specs:
+                v = mine.get(spec.key)
+                if (
+                    isinstance(v, int | float)
+                    and not isinstance(v, bool)
+                    and spec.min <= v <= spec.max
+                ):
+                    values[spec.key] = int(v) if spec.integer else float(v)
+        out[name] = values
+    return out
 
 
 def save_source_labels(app_settings: AppSettingsRepo, labels: Mapping[str, SourceLabels]) -> None:
@@ -335,5 +354,20 @@ def source_labels(app_settings: AppSettingsRepo) -> dict[str, SourceLabels]:
     return out
 
 
-def save_disabled(app_settings: AppSettingsRepo, names: set[str], *, by: str) -> None:
-    app_settings.put(ANALYZERS_KEY, {"disabled": sorted(names - ALWAYS_ON), "by": by}, at=now_iso())
+def save_disabled(
+    app_settings: AppSettingsRepo, names: set[str], *, by: str,
+    settings: Mapping[str, Mapping[str, float]] | None = None,
+) -> None:  # fmt: skip
+    """Store the complete disabled set (and, when given, every analyzer's
+    settings; else the stored ones stay)."""
+    raw = app_settings.get(ANALYZERS_KEY).get("settings")
+    kept = settings if settings is not None else (raw if isinstance(raw, dict) else {})
+    app_settings.put(
+        ANALYZERS_KEY,
+        {
+            "disabled": sorted(names - ALWAYS_ON),
+            "settings": {k: dict(v) for k, v in kept.items()},
+            "by": by,
+        },
+        at=now_iso(),
+    )

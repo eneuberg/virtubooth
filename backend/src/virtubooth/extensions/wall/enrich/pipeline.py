@@ -9,7 +9,8 @@ Scratch lives in this process's memory for one photo and is never stored.
 Order is topological by `needs`, ties in registry order. An analyzer that is
 disabled, cannot load (no `ml` extra, missing model, load error) or whose
 dependency did not run is skipped, and so are its dependents. An exception in
-`run` fails the whole photo (the job retries it once).
+`run` fails the whole photo (`AnalyzerFailed`; the job retries it while
+attempts < jobs.MAX_ATTEMPTS).
 """
 
 from __future__ import annotations
@@ -19,9 +20,12 @@ import time
 from collections.abc import Callable, Collection, Mapping, Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Literal, Protocol
+from typing import TYPE_CHECKING, Any, Literal, Protocol
 
 from PIL import Image
+
+if TYPE_CHECKING:
+    from .objects import DetectedObject
 
 log = logging.getLogger("virtubooth.wall.enrich")
 
@@ -42,6 +46,7 @@ class AnalyzerInfo:
     models: tuple[str, ...] = ()  # model names (models.py registry)
     facts: tuple[str, ...] = ()  # fact keys it writes
     default_enabled: bool = True
+    description: str = ""  # German, one sentence for the admin („ML-Pipeline“)
 
 
 @dataclass(frozen=True)
@@ -87,6 +92,8 @@ class Result:
     facts: dict[str, float] = field(default_factory=dict)
     boxes: list[Box] = field(default_factory=list)
     details: list[tuple[str, str]] = field(default_factory=list)
+    # the detector's objects (stored in `photo_objects`, not in the boxes)
+    objects: list[DetectedObject] = field(default_factory=list)
     # in-memory only, for dependents (face boxes and crops, blendshapes, ...)
     scratch: dict[str, Any] = field(default_factory=dict)
 
@@ -130,6 +137,8 @@ class Frame:
     photo: PhotoInfo
     # derived data several analyzers share (e.g. the numpy array); per photo
     cache: dict[str, Any] = field(default_factory=dict)
+    # the admin's analyzer settings: analyzer → {key: value} (`jobs.analyzer_settings`)
+    settings: Mapping[str, Mapping[str, float]] = field(default_factory=dict)
 
     @property
     def size(self) -> tuple[int, int]:
@@ -147,6 +156,14 @@ class Analyzer(Protocol):
     def run(self, frame: Frame, prior: Mapping[str, Result]) -> Result: ...
 
 
+class AnalyzerFailed(Exception):
+    """`run` of this analyzer raised (the cause is chained): the photo fails."""
+
+    def __init__(self, name: str) -> None:
+        super().__init__(name)
+        self.name = name
+
+
 @dataclass
 class Outcome:
     facts: dict[str, float]
@@ -155,12 +172,19 @@ class Outcome:
     versions: dict[str, str]
     timings_ms: dict[str, float]
     skipped: dict[str, str]  # analyzer → why
+    objects: list[DetectedObject] = field(default_factory=list)
+    # analyzers that produced `objects` (the detector), for `photo_objects.model`
+    object_sources: list[str] = field(default_factory=list)
+
+    def durations_ms(self) -> dict[str, int]:
+        return {k: round(v) for k, v in self.timings_ms.items()}
 
     def data(self) -> dict[str, Any]:
         """What `wall_analysis.data` stores (admin only)."""
         return {
             "boxes": [b.as_json() for b in self.boxes],
             "details": [{"label": k, "value": v} for k, v in self.details],
+            "durations_ms": self.durations_ms(),
         }
 
 
@@ -227,30 +251,6 @@ class Pipeline:
         self._loaded.add(info.name)
         return None
 
-    def expected(self, disabled: Collection[str] = (), *, load: bool = False) -> dict[str, str]:
-        """name → version of the analyzers a run with `disabled` would use: not
-        disabled, able to run, dependencies expected too. Without `load` from
-        static checks (gate, model files, no load error so far), so an analyzer
-        not loaded yet may still fail; with `load` each one is loaded (or its
-        load error recorded) first, which makes the answer exact. The worker's
-        sweep compares stored analyses with it (`jobs.stale`)."""
-        out: dict[str, str] = {}
-        for name in self.order:
-            analyzer = self._by_name[name]
-            info = analyzer.info
-            if name in disabled or any(n not in out for n in info.needs):
-                continue
-            if load:
-                if self._ready(analyzer):
-                    continue
-            elif name in self.load_errors or (
-                name not in self._loaded
-                and (self._gate(info) or any(self._resolve(m) is None for m in info.models))
-            ):
-                continue
-            out[name] = info.version
-        return out
-
     def run(self, frame: Frame, disabled: Collection[str] = ()) -> Outcome:
         results: dict[str, Result] = {}
         skipped: dict[str, str] = {}
@@ -269,7 +269,10 @@ class Pipeline:
                 skipped[name] = reason
                 continue
             started = time.perf_counter()
-            results[name] = analyzer.run(frame, results)
+            try:
+                results[name] = analyzer.run(frame, results)
+            except Exception as exc:
+                raise AnalyzerFailed(name) from exc
             timings[name] = (time.perf_counter() - started) * 1000
         return merge(results, [n for n in self.order if n in results], skipped, timings,
                      {n: self._by_name[n].info.version for n in results})  # fmt: skip
@@ -288,10 +291,15 @@ def merge(
     facts: dict[str, float] = {}
     boxes: dict[tuple[str, float, float, float, float], Box] = {}
     details: list[tuple[str, str]] = []
+    objects: list[DetectedObject] = []
+    object_sources: list[str] = []
     for name in order:
         res = results[name]
         facts.update({k: float(v) for k, v in res.facts.items()})
         details.extend(res.details)
+        if res.objects:
+            objects.extend(res.objects)
+            object_sources.append(name)
         for box in res.boxes:
             key = (box.kind, round(box.x, 3), round(box.y, 3), round(box.w, 3), round(box.h, 3))
             old = boxes.get(key)
@@ -305,5 +313,5 @@ def merge(
         facts["people"] = facts["faces"]
     return Outcome(
         facts=facts, boxes=list(boxes.values()), details=details, versions=versions,
-        timings_ms=timings, skipped=skipped,
+        timings_ms=timings, skipped=skipped, objects=objects, object_sources=object_sources,
     )  # fmt: skip

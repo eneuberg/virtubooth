@@ -1,17 +1,20 @@
 """Live-Wall analysis jobs (`wall_analysis`, `wall_facts`): newest first, retries,
-crash recovery, rerun, purge of deleted photos, the global rev counter."""
+crash recovery, frozen results, purge of deleted photos, the global rev counter."""
 
 from __future__ import annotations
 
 from collections.abc import Iterator
 from pathlib import Path
 
+import sqlite3
+
 import pytest
 
 from virtubooth.core.clock import now_iso
 from virtubooth.db.database import Database
 from virtubooth.domain.models import Photo, new_public_id
-from virtubooth.extensions.wall.enrich import jobs
+from virtubooth.extensions.wall.enrich import jobs, objects
+from virtubooth.extensions.wall.enrich.objects import DetectedObject
 from virtubooth.repositories.container import Repositories
 from virtubooth.services.identity import create_user
 
@@ -60,33 +63,52 @@ def test_claims_the_newest_photo_first(party):
     }  # fmt: skip
 
 
-def test_finish_replaces_facts_and_stores_data(party):
+def test_finish_stores_facts_data_and_the_local_objects_once(party):
     p = party.photo()
     claimed = jobs.claim(party.db)
     assert claimed.public_id == p.public_id and claimed.user_name
     data = {"boxes": [], "details": [{"label": "Gast", "value": "x"}]}
+    hat = DetectedObject("hat", "Hut", 0.8, (0.1, 0.1, 0.2, 0.2))
     assert jobs.finish(party.db, p.id, facts={"faces": 2, "smiles": 1}, data=data,
-                       versions={"basic": "1"})  # fmt: skip
+                       versions={"basic": "1"}, objects_found=[hat],
+                       objects_model="efficientdet_lite2@2")  # fmt: skip
     row = jobs.get(party.db, p.id)
     assert (row.state, row.error, row.versions, row.data) == ("done", None, {"basic": "1"}, data)
     assert jobs.facts(party.db, p.id) == {"faces": 2.0, "smiles": 1.0}
-    # analysed again: the old facts are gone
-    jobs.request(party.db, p.id)
-    jobs.claim(party.db)
-    jobs.finish(party.db, p.id, facts={"faces": 1}, data={}, versions={})
-    assert jobs.facts(party.db, p.id) == {"faces": 1.0}
+    (stored,) = objects.objects_of(party.db, [p.id])[p.id]
+    assert (stored.idx, stored.label, stored.source, stored.model) == (
+        0, "hat", "local", "efficientdet_lite2@2",
+    )  # fmt: skip
+    # frozen: no second finish, and the database refuses any UPDATE
+    assert not jobs.finish(party.db, p.id, facts={"faces": 9}, data={}, versions={})
+    with pytest.raises(sqlite3.IntegrityError, match="frozen"), party.db.tx() as c:
+        c.execute("UPDATE wall_facts SET value=9 WHERE photo_id=?", (p.id,))
+    assert jobs.facts(party.db, p.id) == {"faces": 2.0, "smiles": 1.0}
 
 
-def test_failure_retries_once_then_fails(party):
+def test_finish_without_the_detector_records_a_skipped_local_run(party):
     p = party.photo()
     jobs.claim(party.db)
-    assert jobs.fail(party.db, p.id, "Analyse fehlgeschlagen (ValueError)") == "pending"
+    jobs.finish(party.db, p.id, facts={}, data={}, versions={}, objects_skipped="ausgeschaltet")
+    assert objects.runs_of(party.db, p.id) == [
+        {"source": "local", "state": "skipped", "model": None, "error": "ausgeschaltet",
+         "objects": 0},
+    ]  # fmt: skip
+
+
+def test_failure_retries_then_fails(party):
+    p = party.photo()
+    for attempt in range(1, jobs.MAX_ATTEMPTS):
+        assert jobs.claim(party.db).id == p.id
+        assert jobs.get(party.db, p.id).attempts == attempt
+        assert jobs.fail(party.db, p.id, "Analyse fehlgeschlagen (ValueError)") == "pending"
     assert jobs.claim(party.db).id == p.id
-    assert jobs.get(party.db, p.id).attempts == 2
     assert jobs.fail(party.db, p.id, "Analyse fehlgeschlagen (ValueError)") == "failed"
     row = jobs.get(party.db, p.id)
     assert row.state == "failed" and row.error == "Analyse fehlgeschlagen (ValueError)"
+    assert row.attempts == jobs.MAX_ATTEMPTS == 3
     assert jobs.claim(party.db) is None
+    assert objects.runs_of(party.db, p.id)[0]["state"] == "failed"
 
 
 def test_crash_recovery(party):
@@ -95,38 +117,13 @@ def test_crash_recovery(party):
     jobs.claim(party.db)  # first
     jobs.fail(party.db, first.id, "x")
     jobs.claim(party.db)  # first, attempt 2
+    jobs.fail(party.db, first.id, "x")
+    jobs.claim(party.db)  # first, attempt 3
     # the worker died: both are still running
     assert jobs.recover_stale(party.db) == 2
     assert jobs.get(party.db, second.id).state == "pending"
     row = jobs.get(party.db, first.id)
     assert (row.state, row.error) == ("failed", jobs.ABORTED)
-
-
-def test_rerun_failed_all_and_one(party):
-    a, b, c = party.photo(), party.photo(), party.photo()
-    for _ in range(3):
-        jobs.claim(party.db)
-    jobs.finish(party.db, c.id, facts={"faces": 1}, data={}, versions={})
-    jobs.skip(party.db, b.id, "Fotodatei fehlt")
-    jobs.fail(party.db, a.id, "x")
-    jobs.claim(party.db)
-    jobs.fail(party.db, a.id, "x")
-    assert jobs.rerun(party.db, "failed") == 1
-    row = jobs.get(party.db, a.id)
-    assert (row.state, row.attempts, row.error) == ("pending", 0, None)
-    assert jobs.rerun(party.db, "all") == 2  # done + skipped (a is pending already)
-    assert {jobs.get(party.db, p.id).state for p in (a, b, c)} == {"pending"}
-    # facts stay until the new analysis replaces them
-    assert jobs.facts(party.db, c.id) == {"faces": 1.0}
-
-
-def test_finish_after_a_rerun_request_is_dropped(party):
-    p = party.photo()
-    jobs.claim(party.db)
-    jobs.request(party.db, p.id)  # admin: „Neu analysieren“ while it runs
-    assert not jobs.finish(party.db, p.id, facts={"faces": 3}, data={}, versions={})
-    assert jobs.get(party.db, p.id).state == "pending"
-    assert jobs.facts(party.db, p.id) == {}
 
 
 def test_every_write_bumps_the_rev(party):
@@ -141,25 +138,34 @@ def test_every_write_bumps_the_rev(party):
     jobs.fail(party.db, a.id, "x")
     revs.append(jobs.get(party.db, a.id).rev)
     assert revs == sorted(set(revs)) and len(revs) == 4
-    # a bulk rerun gives every row its own rev
-    jobs.claim(party.db)
-    jobs.finish(party.db, a.id, facts={}, data={}, versions={})
-    before = party.rev()
-    assert jobs.rerun(party.db, "all") == 2
-    assert {jobs.get(party.db, p.id).rev for p in (a, b)} == {before + 1, before + 2}
+    # an external source appending objects bumps the photo's rev too
+    objects.append(party.db, b.id, "claude", "claude-haiku-5-5", [])
+    assert jobs.get(party.db, b.id).rev == party.rev() > revs[-1]
 
 
 def test_purge_drops_deleted_photos(party):
     a, b = party.photo(), party.photo()
     for p in (b, a):
         jobs.claim(party.db)
-        jobs.finish(party.db, p.id, facts={"faces": 1}, data={"boxes": [1]}, versions={"x": "1"})
+        jobs.finish(party.db, p.id, facts={"faces": 1}, data={"boxes": [1]}, versions={"x": "1"},
+                    objects_found=[DetectedObject("cup", "Becher", 0.5, None)],
+                    objects_model="m@1")  # fmt: skip
+    with party.db.tx() as c:
+        c.execute("INSERT INTO llm_properties (id, name, prompt, created_at) "
+                  "VALUES (1, 'coolness', 'p', 'now')")  # fmt: skip
+        c.execute("INSERT INTO property_scores VALUES (1, ?, '[0.5]', 1, 'now')", (b.id,))
+        c.execute("INSERT INTO wall_category_verdicts VALUES ('x', 'Toll', NULL, ?, 0, 1, 'now')",
+                  (b.id,))  # fmt: skip
     # a holds the highest rev: its row stays (emptied) until a later write
     party.repos.photos.mark_deleted(a.public_id, at=now_iso())
     party.repos.photos.mark_deleted(b.public_id, at=now_iso())
     jobs.purge_deleted(party.db)
     assert jobs.get(party.db, b.id) is None
     assert jobs.facts(party.db, a.id) == jobs.facts(party.db, b.id) == {}
+    for table in ("photo_objects", "photo_detection_runs", "property_scores"):
+        assert party.db.one(f"SELECT COUNT(*) FROM {table}")[0] == 0, table
+    verdict = party.db.one("SELECT text, photo_id, object_idx FROM wall_category_verdicts")
+    assert tuple(verdict) == ("Toll", None, None)
     kept = jobs.get(party.db, a.id)
     assert kept is not None and kept.data == {} and kept.versions == {}
     assert jobs.purge_deleted(party.db) == 0  # nothing left to do: no write
@@ -182,3 +188,23 @@ def test_analyzer_toggles(party):
     assert settings.get(jobs.ANALYZERS_KEY)["disabled"] == ["gestures", "nope"]
     # basic always runs, unknown names are ignored
     assert jobs.disabled_analyzers(settings) == {"gestures"}
+
+
+def test_analyzer_settings(party):
+    settings = party.repos.app_settings
+    assert jobs.analyzer_settings(settings)["objects"] == {"score_min": 0.35, "max_objects": 50}
+    jobs.save_disabled(settings, set(), by="a", settings={"objects": {"score_min": 0.5,
+                                                                      "max_objects": 500}})  # fmt: skip
+    # out of range: the default
+    assert jobs.analyzer_settings(settings)["objects"] == {"score_min": 0.5, "max_objects": 50}
+    jobs.save_disabled(settings, {"age"}, by="a")  # the settings stay
+    assert jobs.analyzer_settings(settings)["objects"]["score_min"] == 0.5
+
+
+def test_queue(party):
+    assert jobs.queue(party.db) == {"pending": 0, "running": 0, "oldest_pending_s": None}
+    party.photo()
+    party.photo()
+    jobs.claim(party.db)
+    q = jobs.queue(party.db)
+    assert (q["pending"], q["running"]) == (1, 1) and q["oldest_pending_s"] >= 0

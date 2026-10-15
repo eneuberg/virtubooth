@@ -12,6 +12,7 @@ import importlib.util
 import logging
 import os
 from collections.abc import Collection
+from dataclasses import dataclass
 from functools import cache
 
 from ..pipeline import Analyzer, AnalyzerInfo
@@ -21,31 +22,40 @@ log = logging.getLogger("virtubooth.wall.enrich")
 BASIC = AnalyzerInfo(
     name="basic", title="Bildwerte", version="1", kind="basic",
     facts=("brightness", "colorfulness", "sharpness"),
+    description="Helligkeit, Farbigkeit und Schärfe des ganzen Bildes; läuft immer.",
 )  # fmt: skip
 FACES = AnalyzerInfo(
     name="faces", title="Gesichter", version="1", kind="ml",
     models=("yunet", "face_landmarker"),
     facts=("faces", "smiles", "eyes_closed", "mouth_open", "face_area_max"),
+    description="Findet Gesichter und erkennt Lächeln, offene Münder und geschlossene Augen "
+    "(keine Gesichtserkennung).",
 )  # fmt: skip
 EMOTION = AnalyzerInfo(
     name="emotion", title="Gesichtsausdruck", version="1", kind="ml", needs=("faces",),
     models=("ferplus",), facts=("happy_max", "sad_max", "surprise_max"),
+    description="Schätzt pro Gesicht, wie fröhlich, traurig oder überrascht es aussieht.",
 )  # fmt: skip
 GESTURES = AnalyzerInfo(
     name="gestures", title="Hände und Gesten", version="1", kind="ml",
     models=("gesture_recognizer",), facts=("hands", "peace", "thumbs_up", "rock"),
+    description="Zählt Hände und erkennt Peace-Zeichen, Daumen hoch und Pommesgabeln.",
 )  # fmt: skip
 OBJECTS = AnalyzerInfo(
-    name="objects", title="Personen und Gläser", version="1", kind="ml",
+    name="objects", title="Objekte", version="2", kind="ml",
     models=("efficientdet_lite2",), facts=("people", "drinks", "phones"),
+    description="Erkennt Personen und Dinge im Bild (z. B. Glas, Flasche, Handy, Kuchen) "
+    "und speichert sie als Objektliste mit Rahmen.",
 )  # fmt: skip
 TAGS = AnalyzerInfo(
     name="tags", title="Brillen, Hüte, Altersgruppe", version="1", kind="ml", needs=("faces",),
     models=("clip_vision",), facts=("glasses", "hats", "age_groups"),
+    description="Erkennt Brillen und Hüte und schätzt grobe Altersgruppen pro Gesicht.",
 )  # fmt: skip
 AGE = AnalyzerInfo(
     name="age", title="Alter (FairFace)", version="1", kind="ml", needs=("faces",),
     models=("fairface_age",), facts=("age_spread",), default_enabled=False,
+    description="Schätzt das Alter pro Gesicht für die Altersspanne eines Fotos (langsam).",
 )  # fmt: skip
 
 INFOS: tuple[AnalyzerInfo, ...] = (BASIC, FACES, EMOTION, GESTURES, OBJECTS, TAGS, AGE)
@@ -54,6 +64,33 @@ BY_NAME = {i.name: i for i in INFOS}
 DEFAULT_DISABLED: tuple[str, ...] = tuple(i.name for i in INFOS if not i.default_enabled)
 # never switched off: metadata and image values are cheap and need nothing
 ALWAYS_ON = frozenset({"basic"})
+
+
+@dataclass(frozen=True)
+class SettingSpec:
+    """One number the admin can set for an analyzer („ML-Pipeline“)."""
+
+    key: str
+    title: str  # German
+    min: float
+    max: float
+    step: float
+    default: float
+    integer: bool = False
+
+
+# analyzer → its settings (`x.wall.analyzers.settings`); they apply to photos
+# analysed afterwards only (frozen analyses never change)
+SETTINGS: dict[str, tuple[SettingSpec, ...]] = {
+    "objects": (
+        SettingSpec("score_min", "Mindest-Sicherheit", 0.1, 0.9, 0.05, 0.35),
+        SettingSpec("max_objects", "Höchstens Objekte pro Foto", 1, 100, 1, 50, integer=True),
+    ),
+}
+
+
+def settings_defaults(name: str) -> dict[str, float]:
+    return {s.key: s.default for s in SETTINGS.get(name, ())}
 
 ML_PACKAGES = ("numpy", "cv2", "onnxruntime", "mediapipe")
 THREADS_ENV = "VB_WALL_THREADS"
