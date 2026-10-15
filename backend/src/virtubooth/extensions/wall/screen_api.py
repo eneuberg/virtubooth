@@ -317,6 +317,19 @@ def build_router(wall: Wall) -> APIRouter:
     return router
 
 
+def _verdict_photos(core: Core, ids: list[int]) -> set[int]:
+    """The visible photos whose guest allows the external AI right now."""
+    if not ids:
+        return set()
+    rows = core.db.all(
+        "SELECT p.id FROM photos p JOIN users u ON u.id = p.user_id "
+        f"WHERE p.id IN ({','.join('?' * len(ids))}) AND u.ai_opt_out = 0 "
+        "AND u.analysis_opt_out = 0 AND u.banned_at IS NULL",
+        ids,
+    )
+    return {int(r[0]) for r in rows}
+
+
 def screen_categories(core: Core, hub: WallHub) -> list[WallCategory]:
     """The enabled categories that have winners (rule specs, PLAN-NIGHT N13),
     in the admin's order, each with its LLM verdict when there is one."""
@@ -328,6 +341,7 @@ def screen_categories(core: Core, hub: WallHub) -> list[WallCategory]:
     photos = visible_by_ids(core, config, list(dict.fromkeys(wanted)))
     built = wall_photos(core, config, hub.enrichment, list(photos.values()))
     by_id = dict(zip(photos, built, strict=True))
+    allowed = _verdict_photos(core, list(photos))
     out: list[WallCategory] = []
     for e in entries:
         winners = [
@@ -340,7 +354,9 @@ def screen_categories(core: Core, hub: WallHub) -> list[WallCategory]:
         if not winners:
             continue
         verdict = None
-        if e.verdict is not None:
+        if e.verdict is not None and (e.verdict.photo_id is None or e.verdict.photo_id in allowed):
+            # the text may name the photo's guest: shown only while the photo is on
+            # the wall and its guest still allows the external AI (live flags)
             shown = photos.get(e.verdict.photo_id) if e.verdict.photo_id else None
             verdict = WallVerdict(text=e.verdict.text, emoji=e.verdict.emoji,
                                   photo_id=shown.public_id if shown else None)  # fmt: skip
