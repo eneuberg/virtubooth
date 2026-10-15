@@ -99,9 +99,13 @@ SCRUBBED_TABLES = ("admin_sessions", "export_jobs", "visitors", "code_visitors")
 # `x.wall.password`). An archive must not hand out something to crack offline;
 # restoring the copy falls back to VB_ADMIN_PASSWORD and a wall without one.
 # Also every key ending in `.secret`: the naming rule for anything secret stored
-# in `settings`, encrypted or not (e.g. a future `ai.anthropic.secret`; see
-# SECURITY_REVIEW.md, review 3, "Storing an API key").
-SCRUBBED_SETTINGS_SQL = "key = 'admin.password' OR key LIKE 'x.%.password' OR key LIKE '%.secret'"
+# in `settings`, encrypted or not (see SECURITY_REVIEW.md, review 3, "Storing an
+# API key"), and the host's external-AI API key `x.llm.key` (encrypted, named
+# before the rule; it never leaves the server).
+SCRUBBED_SETTINGS_SQL = (
+    "key = 'admin.password' OR key LIKE 'x.%.password' OR key LIKE '%.secret'"
+    " OR key = 'x.llm.key'"
+)
 
 
 def scrub_snapshot(path: Path) -> None:
