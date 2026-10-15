@@ -269,7 +269,7 @@ class FakeWall:
         req = route.request
         path = urlparse(req.url).path.removeprefix(PREFIX)
         json_body = "application/json" in (req.headers.get("content-type") or "")
-        body = req.post_data_json if req.post_data and json_body else None
+        body = req.post_data_json if json_body and req.post_data_buffer else None
         self.requests.append((req.method, path, body))
         status, answer = self.answer(req.method, path, body)
         route.fulfill(status=status, json=answer)
@@ -670,8 +670,8 @@ def test_create_a_category_with_preview(
     pick_value(dlg, "category-by", "Anzahl von …")
     dlg.get_by_test_id("category-selection").get_by_role("combobox").fill("Hut")
     page.get_by_role("option", name=re.compile("^Hut")).click()
-    dlg.get_by_test_id("category-one").fill("Hut")
-    dlg.get_by_test_id("category-many").fill("Hüte")
+    dlg.get_by_test_id("category-one").get_by_role("textbox").fill("Hut")
+    dlg.get_by_test_id("category-many").get_by_role("textbox").fill("Hüte")
     dlg.get_by_test_id("category-verdict-prompt").fill("Wer trägt den schönsten Hut?")
     # the live preview (debounced) shows the current winners
     preview = dlg.get_by_test_id("category-preview")
@@ -755,8 +755,8 @@ def test_server_error_shows_at_the_field(
     page.get_by_test_id("category-new").click()
     dlg = sheet(page)
     dlg.get_by_role("textbox", name="Titel", exact=True).fill("Fehler")
-    dlg.get_by_test_id("category-one").fill("Person")
-    dlg.get_by_test_id("category-many").fill("Personen")
+    dlg.get_by_test_id("category-one").get_by_role("textbox").fill("Person")
+    dlg.get_by_test_id("category-many").get_by_role("textbox").fill("Personen")
     dlg.get_by_test_id("category-save").click()
     title = dlg.get_by_test_id("category-title")
     expect(title).to_contain_text("Titel: Dieser Titel geht nicht.")

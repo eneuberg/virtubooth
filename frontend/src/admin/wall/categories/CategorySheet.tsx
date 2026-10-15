@@ -364,6 +364,10 @@ export function CategorySheet({ item, values, taken, isOpen, onOpenChange }: Cat
       onOpenChange={onOpenChange}
       title={isNew ? 'Neue Kategorie' : 'Kategorie bearbeiten'}
       size="lg"
+      // a click into the object combobox's list counts as "outside" for a dismissable
+      // modal and would close the sheet; "Abbrechen" closes it (and no edit is lost
+      // by a stray click on the scrim)
+      isDismissable={false}
       data-testid="category-sheet"
       footer={
         <div className="grid gap-2">
