@@ -22,8 +22,10 @@ vocabulary) except for the changes listed here. Paths are unchanged; no `/api/v1
 | `GET /api/me/photos` | guest (access + joined + not banned) | `MyPhotosOut {photos: GuestPhoto[]}`: the caller's own photos that are not hidden and not deleted, newest first, at most 60. Paused guests see theirs. Banned: 403 `banned` "Dieses Gerät ist gesperrt." |
 | `GET /api/x/booth/filters` | access | `BoothFilters {filters: [{id, name, icon}]}`: the Fotobox catalogue in strip order (first = default). Replaces fetching `./filters.json`; the source stays `backend/src/virtubooth/extensions/booth/filters.json`. |
 
-`GuestPhoto = {id, extension, seq, created_at, width, height, url, thumb_url}`
-(the same object the upload returns as `photo`).
+`GuestPhoto = {id, extension, seq, created_at, width, height, url, thumb_url, raw_url,
+raw_thumb_url, meta}` (the same object the upload returns as `photo`). `raw_url` /
+`raw_thumb_url`: the unfiltered original (`/media/{id}?variant=raw[&thumb=1]`), null
+when the photo is the only file; `AdminPhoto` has the same two fields.
 
 ## 2. Changed or added fields (nothing was removed)
 
@@ -41,6 +43,8 @@ vocabulary) except for the changes listed here. Paths are unchanged; no `/api/v1
 | `PATCH /api/me` for a banned device | still 403 `banned`, message now "Dieses Gerät ist gesperrt." (uploads keep "Dieses Gerät wurde für Uploads gesperrt.") |
 | 405 answers | + `Allow` header |
 | `POST /api/x/{ext}/upload` | unchanged JSON; typed as `UploadOut`: `photo` + the extensions' fields (`beer_number`, `total`, `booth_number`), each optional in the schema (only the uploading extension's are sent) |
+| `POST /api/x/booth/upload` + `X-VB-Raw-Bytes: n` | the body is the filtered photo followed by its unfiltered original (n bytes, same 1080×1440); each part up to `VB_MAX_UPLOAD_BYTES`; dropped for `filter: normal` or identical bytes |
+| `GET /media/{id}?variant=raw` | the original under the photo's rules (admin, the owner; 404 for everyone else, hidden or not); without one the photo itself; `download=1` names it `<ext>-<seq>-original.jpg` |
 | `GET /api/x/beer/stats` | + `next_number`: the next beer's own number (its `seq`, like the Fotobox's `next_number`); `total` stays the board (visible beers) |
 
 All admin user objects are `AdminUser` now (one shape): `auto_banned` is true
@@ -66,6 +70,7 @@ also the `ErrorBody.error` enum in the schema):
 | `unsupported_type` | 415 | upload (not `image/jpeg`) |
 | `too_large` | 413 | upload ("Das Bild ist zu groß.") or any JSON body > 64 KiB ("Anfrage zu groß.") |
 | `invalid_meta`, `empty_upload`, `invalid_image` | 400 | upload |
+| `invalid_raw`, `raw_not_allowed` | 400 | upload with `X-VB-Raw-Bytes`: a bad length or original; an activity that keeps no originals (all but booth) |
 | `admin_required` | 401 | admin routes |
 | `wrong_password` | 401 | login |
 | `login_locked` | 429 + `Retry-After` | login: 5 per minute / 20 per hour per IP (IPv6 per /64); after 20 failures in 15 min from anywhere, every login (the right password too) for 5 min. Direct loopback is exempt (wave 4, SEC-01) |
@@ -164,7 +169,7 @@ Options (all optional; unknown keys are 422):
 
 | kind | options (default) | output |
 |---|---|---|
-| `archive` | `include_hidden` (false), `include_db` (false) | `archiv-<YYYYMMDD-HHMM>-<id8>.zip`, one top folder named like the file: `photos/<activity>/<seq>_<file>.jpg` (hidden ones under `photos/<activity>/hidden/`), `photos.csv`, `users.csv`, `instagram.csv` (as the CLI export), `manifest.json` (`format: "virtubooth-archive/1"`, party name, options, counts, one entry per photo with its `file`), `README.txt`, and with `include_db` `virtubooth.db`: a consistent copy made with SQLite's backup API (never the live file), with `admin_sessions` and `export_jobs` emptied and vacuumed (wave 4, SEC-03). |
+| `archive` | `include_hidden` (false), `include_db` (false), `filters` (`baked`: photos as shown; `raw`: the originals instead, same names; `both`: plus `photos/<activity>/[hidden/]raw/`; `photos.csv` / manifest get `has_original`, `original_file`) | `archiv-<YYYYMMDD-HHMM>-<id8>.zip`, one top folder named like the file: `photos/<activity>/<seq>_<file>.jpg` (hidden ones under `photos/<activity>/hidden/`), `photos.csv`, `users.csv`, `instagram.csv` (as the CLI export), `manifest.json` (`format: "virtubooth-archive/1"`, party name, options, counts, one entry per photo with its `file`), `README.txt`, and with `include_db` `virtubooth.db`: a consistent copy made with SQLite's backup API (never the live file), with `admin_sessions` and `export_jobs` emptied and vacuumed (wave 4, SEC-03). |
 | `timelapse` | `extension` ("beer", an activity id), `fps` (12, photos per second, 1–30), `crossfade` (false), `include_hidden` (false) | `zeitraffer-<extension>-<YYYYMMDD-HHMM>-<id8>.mp4`: H.264, 1080×1440, the last photo held 2 s, as `python -m virtubooth.tools.timelapse` makes it. With `crossfade` the video runs at 30 fps (60 when `fps` is 30). |
 | ~~`qr`~~ | removed 2026-10-15 (PLAN-NIGHT N16): old jobs of this kind are hidden from the list; the sheet stays in the CLI (`python -m virtubooth.tools.qr`). Was: `base_url` | `qr-codes-<YYYYMMDD-HHMM>-<id8>.zip`, one top folder: `qr-sheet.html` (self-contained: inline CSS and SVG, no scripts, no external files; party name on it; one A4 page per code) plus `qr-home.svg/.png` and `qr-<activity>.svg/.png` for every activity on the home page. The codes carry the party token. |
 

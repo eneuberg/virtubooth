@@ -127,6 +127,9 @@ class Photo:
     hidden_at: str | None
     hidden_reason: str | None
     deleted_at: str | None
+    # the unfiltered original (Fotobox, migration v13); None: the photo is the only file
+    raw_filename: str | None = None
+    raw_thumb_filename: str | None = None
     user_name: str = ""
     user_instagram: str | None = None
     user_banned: bool = False
@@ -154,6 +157,19 @@ class Photo:
     @property
     def thumb_url(self) -> str:
         return f"/media/{self.public_id}?thumb=1"
+
+    @property
+    def has_raw(self) -> bool:
+        """A separate unfiltered original is stored."""
+        return self.raw_filename is not None
+
+    @property
+    def raw_url(self) -> str | None:
+        return f"/media/{self.public_id}?variant=raw" if self.has_raw else None
+
+    @property
+    def raw_thumb_url(self) -> str | None:
+        return f"/media/{self.public_id}?variant=raw&thumb=1" if self.has_raw else None
 
     @property
     def user_auto_banned(self) -> bool:

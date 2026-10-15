@@ -222,6 +222,13 @@ export function auditTarget(target: string): AuditTarget {
 
 const KIND_WORDS: Record<string, string> = { archive: 'Archiv', timelapse: 'Zeitraffer', qr: 'QR-Bogen' };
 
+/** The archive's Fotobox-filter choice, in words (`filters`: baked is the default). */
+export const FILTER_MODE_WORDS: Record<string, string> = {
+  baked: 'Filter eingebrannt',
+  raw: 'ohne Filter (Originale)',
+  both: 'mit und ohne Filter',
+};
+
 /**
  * "Zeitraffer (Beer Cam) vom 13.10.2026, 22:41": a timelapse names its activity by
  * title. (The old QR-Bogen kind only lives on in audit entries: KIND_WORDS.)
@@ -232,8 +239,13 @@ export function exportJobTitle(
 ): string {
   const options: Record<string, unknown> = { ...job.options };
   const id = options['extension'];
+  const filters = options['filters'];
   const what =
-    job.kind === 'timelapse' && typeof id === 'string' ? ` (${extensions?.get(id)?.title ?? id})` : '';
+    job.kind === 'timelapse' && typeof id === 'string'
+      ? ` (${extensions?.get(id)?.title ?? id})`
+      : job.kind === 'archive' && typeof filters === 'string' && filters !== 'baked'
+        ? ` (${FILTER_MODE_WORDS[filters] ?? filters})`
+        : '';
   return `${KIND_WORDS[job.kind] ?? job.kind}${what} vom ${formatDateTime(job.created_at)}`;
 }
 
@@ -248,6 +260,7 @@ function detailValue(key: string, v: unknown, ctx: DetailContext = {}): string {
   if (typeof v === 'string') {
     if (key === 'kind') return KIND_WORDS[v] ?? (v || '–');
     if (key === 'disabled') return ctx.names?.get(v) ?? v;
+    if (key === 'filters') return FILTER_MODE_WORDS[v] ?? v;
     return v || '–';
   }
   // the poster page is 0-based in the API, „Seite 1“ for people
@@ -272,6 +285,7 @@ const DETAIL_LABELS: Record<string, string> = {
   options: 'Optionen:',
   include_hidden: 'Ausgeblendete',
   include_db: 'Datenbank',
+  filters: 'Fotobox',
   base_url: 'Adresse',
   code_id: 'QR-Code',
   fps: 'Bilder/s',

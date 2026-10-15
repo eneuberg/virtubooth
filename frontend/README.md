@@ -1,11 +1,11 @@
 # virtubooth frontend
 
-React 19 + TypeScript 6 + Vite 8, built as a multi-page app with three
-entries: the guest app (`index.html`), the admin app (`admin.html`) and the
-static gate page (`gate.html`). The backend serves the build (`dist/`); there
+React 19 + TypeScript 6 + Vite 8, built as a multi-page app with four
+entries: the guest app (`index.html`), the admin app (`admin.html`), the
+Live-Wall (`wall.html`) and the static gate page (`gate.html`). The backend serves the build (`dist/`); there
 is no separate frontend server in production. Architecture:
-[docs/ARCHITECTURE.md](../docs/ARCHITECTURE.md#frontend). Design system:
-[docs/overhaul/design/DESIGN.md](../docs/overhaul/design/DESIGN.md).
+[docs/ARCHITECTURE.md](../docs/ARCHITECTURE.md#frontend) (with the design:
+the admin's light table and the guest themes).
 
 ## Setup
 
@@ -53,11 +53,13 @@ against `dist/`: `make e2e` from the repository root.
 | ------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------- |
 | `api/`        | `client.ts` (openapi-fetch + `unwrap`), `errors.ts` (`ApiError`, German messages), `events.ts` (the admin SSE stream), `types.ts` (friendly type names), `schema.gen.ts` (generated) | import types from `types.ts`, never from the generated file |
 | `ui/`         | the design system: presentational React Aria + Tailwind components (`Button`, `Sheet`, `Toast`, `FilmEdge`, `Shutter`, `DataTable`, `PhotoTile`, …)                                  | no API calls, no app state                                  |
-| `styles/`     | `app.css`: Tailwind 4 `@theme` tokens, surfaces, fonts, animations; `contrast.test.ts`                                                                                               | the only source of colours, sizes, radii                    |
+| `styles/`     | `app.css` (Tailwind 4 `@theme` tokens, surfaces, fonts), `theme.ts` (the host's theme as CSS variables), `party.css` and `goofy.css` (the style layers), `contrast.test.ts`          | the only source of colours, sizes, radii                    |
 | `sdk/`        | the guest runtime: `session.ts`, `camera/`, `upload.ts`, `outbox.ts`, `status.ts`, `components/` (`ActivityShell`, `GuestPass`, `ActivityMenu`, …)                                   | what activities build on                                    |
 | `guest/`      | the guest app: `main.tsx`, routes, Start, JoinSheet, "Deine Bilder", the photo viewer                                                                                                |                                                             |
-| `admin/`      | the admin app: login, live, manage (photos, guests, Instagram, bans, log, export), user page, upload controls, `store/` (React Query + the event stream)                             |                                                             |
+| `admin/`      | the admin app: login, live, manage (all tabs: overview, settings, photos, guests, codes, poster, wall, ML pipeline, …), user page, `store/` (React Query + the event stream)         |                                                             |
 | `extensions/` | `registry.ts` + one folder per activity (`beer/`, `booth/`), each with an `index.ts`                                                                                                 | the folder name is the backend's extension id               |
+| `wall/`       | the Live-Wall screen: modes, transitions, backgrounds, its own small API client                                                                                                      | no router, no design system                                 |
+| `print/`      | QR PNG and PDF, posters (pdf-lib), loaded lazily by the admin only                                                                                                                   | framework-free                                              |
 | `lib/`        | `format.ts` (de-DE numbers, dates, frame labels, NBSP), `messages.de.ts` (the glossary and shared texts), `boot.ts`                                                                  | all copy and numbers go through here                        |
 | `gallery/`    | the dev-only component gallery (`ui.html`)                                                                                                                                           | not a build input of `dist/`                                |
 

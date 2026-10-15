@@ -162,7 +162,9 @@ class MeOut(BaseModel):
 
 
 class GuestPhoto(BaseModel):
-    """One of the guest's own photos. The image is at `url` (`thumb_url`: 400 px)."""
+    """One of the guest's own photos. The image is at `url` (`thumb_url`: 400 px);
+    `raw_url` / `raw_thumb_url`: the same photo without the filter (null: no
+    separate original, the photo is the only file)."""
 
     id: str
     extension: str
@@ -172,6 +174,11 @@ class GuestPhoto(BaseModel):
     height: int
     url: str
     thumb_url: str
+    raw_url: str | None
+    raw_thumb_url: str | None
+    meta: dict[str, MetaValue] = Field(
+        default_factory=dict, description="What the activity recorded (booth: filter, facing)."
+    )
 
     @classmethod
     def of(cls, photo: Photo) -> GuestPhoto:
@@ -184,6 +191,9 @@ class GuestPhoto(BaseModel):
             height=photo.height,
             url=photo.url,
             thumb_url=photo.thumb_url,
+            raw_url=photo.raw_url,
+            raw_thumb_url=photo.raw_thumb_url,
+            meta=photo.meta,
         )
 
 

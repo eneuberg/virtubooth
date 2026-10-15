@@ -32,6 +32,7 @@ import {
   useUserOptions,
 } from '../store/hooks';
 import type { PhotoStatus } from '../store/types';
+import { FilterToggle } from '../common/FilterToggle';
 import { ContactSheet } from './ContactSheet';
 import { parsePhotoFilter, photoStatusParam, withParams } from './manageUrl';
 import { PhotoInspector } from './PhotoInspector';
@@ -220,6 +221,7 @@ export function PhotosSection() {
             data-testid="filter-status"
             className="max-sm:w-full"
           />
+          <FilterToggle className="sm:ml-2" />
         </div>
         <div className="flex min-h-11 flex-wrap items-center gap-x-4 gap-y-1">
           <Button

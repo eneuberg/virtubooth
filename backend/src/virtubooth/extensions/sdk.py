@@ -55,6 +55,12 @@ class UploadPolicy:
     meta_keys: frozenset[str] = frozenset()
     # optional: check/normalize meta values; raise ValueError("German message") to reject
     validate_meta: Callable[[dict[str, Any]], dict[str, Any]] | None = None
+    # the client may append the unfiltered original of a filtered photo (X-VB-Raw-Bytes):
+    # same checks, stored next to the photo (`Photo.raw_filename`); False: 400 raw_not_allowed
+    accepts_raw: bool = False
+    # optional: whether the (validated) meta's photo differs from its original at all;
+    # False: an original sent anyway is dropped (e.g. the Fotobox's „Normal“ filter)
+    raw_differs: Callable[[dict[str, Any]], bool] | None = None
 
 
 @dataclass(frozen=True)

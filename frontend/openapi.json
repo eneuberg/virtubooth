@@ -427,6 +427,29 @@
             "title": "Meta",
             "type": "object"
           },
+          "raw_thumb_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Raw Thumb Url"
+          },
+          "raw_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The unfiltered original (Fotobox); null: the photo is the only file (no filter, Beer Cam, or taken before originals were kept).",
+            "title": "Raw Url"
+          },
           "seq": {
             "description": "Per-extension number, never reused.",
             "title": "Seq",
@@ -463,6 +486,8 @@
           "deleted",
           "url",
           "thumb_url",
+          "raw_url",
+          "raw_thumb_url",
           "user"
         ],
         "title": "AdminPhoto",
@@ -1267,6 +1292,17 @@
         "additionalProperties": false,
         "description": "A zip of the photos, CSV lists, manifest.json and README.txt.",
         "properties": {
+          "filters": {
+            "default": "baked",
+            "description": "Fotobox filters: `baked` the photos as the guests saw them (filter baked in), `raw` the unfiltered originals instead (photos without one as they are), `both` the photos plus the originals under photos/<activity>/raw/.",
+            "enum": [
+              "baked",
+              "raw",
+              "both"
+            ],
+            "title": "Filters",
+            "type": "string"
+          },
           "include_db": {
             "default": false,
             "description": "Add a consistent copy of the database: guests (IP addresses, fingerprints, bans), photo rows, device bans, the audit log and the upload settings. Admin sessions and export jobs are removed and the file is vacuumed.",
@@ -2890,6 +2926,8 @@
               "invalid_meta",
               "empty_upload",
               "invalid_image",
+              "invalid_raw",
+              "raw_not_allowed",
               "photo_limit",
               "storage_full",
               "invalid_pdf",
@@ -3669,7 +3707,7 @@
         "type": "object"
       },
       "GuestPhoto": {
-        "description": "One of the guest's own photos. The image is at `url` (`thumb_url`: 400 px).",
+        "description": "One of the guest's own photos. The image is at `url` (`thumb_url`: 400 px);\n`raw_url` / `raw_thumb_url`: the same photo without the filter (null: no\nseparate original, the photo is the only file).",
         "properties": {
           "created_at": {
             "title": "Created At",
@@ -3686,6 +3724,52 @@
           "id": {
             "title": "Id",
             "type": "string"
+          },
+          "meta": {
+            "additionalProperties": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "description": "What the activity recorded (booth: filter, facing).",
+            "title": "Meta",
+            "type": "object"
+          },
+          "raw_thumb_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Raw Thumb Url"
+          },
+          "raw_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Raw Url"
           },
           "seq": {
             "title": "Seq",
@@ -3712,7 +3796,9 @@
           "width",
           "height",
           "url",
-          "thumb_url"
+          "thumb_url",
+          "raw_url",
+          "raw_thumb_url"
         ],
         "title": "GuestPhoto",
         "type": "object"
@@ -20427,6 +20513,16 @@
               "maxLength": 2048,
               "type": "string"
             }
+          },
+          {
+            "description": "Only for activities that keep originals (booth): the body is the filtered photo followed by its unfiltered original (same size), a second JPEG of this many bytes. Each part may be up to the size limit. Dropped when the photo has no filter (booth: `normal`). Other activities: 400 `raw_not_allowed`; a bad value or original: 400 `invalid_raw`.",
+            "in": "header",
+            "name": "X-VB-Raw-Bytes",
+            "required": false,
+            "schema": {
+              "pattern": "^[0-9]{1,12}$",
+              "type": "string"
+            }
           }
         ],
         "requestBody": {
@@ -20974,7 +21070,7 @@
     },
     "/media/{public_id}": {
       "get": {
-        "description": "A photo for the admin, or for the guest who took it (also when hidden).\nEveryone else gets 404, without learning whether it exists.",
+        "description": "A photo for the admin, or for the guest who took it (also when hidden).\nEveryone else gets 404, without learning whether it exists. `variant=raw`:\nthe unfiltered original (the photo itself when there is none); downloads\nare named `<activity>-<seq>-original.jpg`.",
         "operationId": "media_media__public_id__get",
         "parameters": [
           {
@@ -21005,6 +21101,20 @@
               "title": "Download",
               "type": "boolean"
             }
+          },
+          {
+            "in": "query",
+            "name": "variant",
+            "required": false,
+            "schema": {
+              "default": "filtered",
+              "enum": [
+                "filtered",
+                "raw"
+              ],
+              "title": "Variant",
+              "type": "string"
+            }
           }
         ],
         "responses": {
@@ -21017,7 +21127,7 @@
                 }
               }
             },
-            "description": "The JPEG (`thumb`: 400 px). Cache-Control: private, max-age=86400."
+            "description": "The JPEG (`thumb`: 400 px; `variant=raw`: without the filter). Cache-Control: private, max-age=86400."
           },
           "404": {
             "content": {

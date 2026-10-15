@@ -3,6 +3,7 @@ import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { Dialog, Modal, ModalOverlay } from 'react-aria-components';
 import type { AdminExtension, AdminPhoto } from '@/api/types';
 import { formatDateTime, formatRelative } from '@/lib/format';
+import { hasFilterChoice, useAdminPhotoSrc } from '@/lib/photoFilter';
 import { Badge } from '@/ui/Badge';
 import { Button, LinkButton } from '@/ui/Button';
 import { cx } from '@/ui/cx';
@@ -10,6 +11,7 @@ import { GreaseX } from '@/ui/GreaseMarks';
 import { IconButton } from '@/ui/IconButton';
 import { toastAvoid } from '@/ui/toastPlacement';
 import { metaRows, photoLabel, photoName } from '../lib/labels';
+import { FilterToggle } from './FilterToggle';
 import { FittedPhoto } from './FittedPhoto';
 import { guestName } from '../hostGuest/marks';
 
@@ -31,20 +33,24 @@ export interface PhotoViewerProps {
 
 function ViewerImage({ photo, overlay }: { photo: AdminPhoto; overlay?: ReactNode }) {
   const [loaded, setLoaded] = useState(false);
+  // „Filter zeigen“ off: the unfiltered original (same size, so the overlay still fits)
+  const thumb = useAdminPhotoSrc(photo, true);
+  const src = useAdminPhotoSrc(photo);
   // a box with the photo's shape, as large as the stage allows; the grease X and the
   // overlay lie on the photo itself
   return (
     <FittedPhoto width={photo.width} height={photo.height} className="inset-x-2">
       <img
-        src={photo.thumb_url}
+        src={thumb}
         alt=""
         width={photo.width}
         height={photo.height}
         className={cx('absolute inset-0 size-full object-contain', loaded && 'invisible')}
       />
       <img
-        src={photo.url}
+        src={src}
         alt={photoLabel(photo)}
+        data-variant={src === photo.url ? 'filtered' : 'raw'}
         width={photo.width}
         height={photo.height}
         onLoad={() => setLoaded(true)}
@@ -213,6 +219,7 @@ export function PhotoViewer({
                     </div>
                   ))}
                 </dl>
+                {hasFilterChoice(photo) ? <FilterToggle photo={photo} /> : null}
                 <div className="grid gap-2" {...toastAvoid}>
                   {renderActions(photo)}
                   <LinkButton

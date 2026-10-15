@@ -20,6 +20,9 @@ way (the outbox drops what the server rejects).
 before a guest's first photo (the photo's `booth_number` once it is uploaded).
 
 Photos are 1080×1440 JPEGs (3:4 portrait), exactly what the preview showed.
+With a filter other than „Normal“ the page also uploads the unfiltered original
+(the same frame, crop and mirroring, without shader and overlay) in the same
+request (`X-VB-Raw-Bytes`, see services/uploads.py); the analysis runs on it.
 """
 
 from __future__ import annotations
@@ -201,6 +204,14 @@ def validate_meta(meta: dict[str, Any]) -> dict[str, Any]:
     return {"filter": meta["filter"], "facing": meta["facing"]}
 
 
+# the filter that changes nothing and has no overlay: its photo is its own original
+PLAIN_FILTER = "normal"
+
+
+def raw_differs(meta: dict[str, Any]) -> bool:
+    return meta.get("filter") != PLAIN_FILTER
+
+
 def on_upload(ctx: UploadContext) -> dict[str, Any]:
     return {"booth_number": ctx.photo.seq}
 
@@ -217,6 +228,8 @@ extension = Extension(
         quality=88,
         meta_keys=frozenset({"filter", "facing"}),
         validate_meta=validate_meta,
+        accepts_raw=True,
+        raw_differs=raw_differs,
     ),
     router=router,
     admin_router=admin_router,

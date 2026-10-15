@@ -20,6 +20,7 @@ import { useSearchParams } from 'wouter';
 import { isApiError } from '@/api/client';
 import type { AdminPhoto, AdminUser, UserDetail } from '@/api/types';
 import { formatTime, NBSP } from '@/lib/format';
+import { hasOriginal, photoSrc, useAdminShowFilter } from '@/lib/photoFilter';
 import { t } from '@/lib/messages.de';
 import { Button, LinkButton } from '@/ui/Button';
 import { cx } from '@/ui/cx';
@@ -34,6 +35,7 @@ import { GuestBadges } from '../common/GuestBadges';
 import { ConnectionBadge } from '../common/ConnectionBadge';
 import { DeletePhotosDialog } from '../common/DeletePhotosDialog';
 import { tileButton, useGridKeys } from '../common/grid';
+import { FilterToggle } from '../common/FilterToggle';
 import { HideToggle } from '../common/HideToggle';
 import { PhotoViewer } from '../common/PhotoViewer';
 import { usePhotoParam } from '../common/usePhotoParam';
@@ -172,6 +174,7 @@ function Guest({ detail }: { detail: UserDetail }) {
   const { photoId, openPhoto, closePhoto } = usePhotoParam();
   const [sheet, setSheet] = useState<'ban' | 'unban' | null>(null);
   const grid = useGridKeys<HTMLUListElement>();
+  const showFilter = useAdminShowFilter((s) => s.show);
   const [pausing, setPausing] = useState(false);
   const [resetting, setResetting] = useState(false);
   const [deleting, setDeleting] = useState<AdminPhoto[]>([]);
@@ -374,6 +377,7 @@ function Guest({ detail }: { detail: UserDetail }) {
             {photos.length}
           </span>
         </h2>
+        {photos.some(hasOriginal) ? <FilterToggle className="justify-self-start" /> : null}
         {photos.length === 0 ? (
           <EmptyState icon={Images} title="Keine Fotos">
             Dieser Gast hat noch nichts hochgeladen.
@@ -388,7 +392,7 @@ function Guest({ detail }: { detail: UserDetail }) {
             {photos.map((photo) => (
               <li key={photo.id} data-photo-id={photo.id} data-testid="photo-tile">
                 <PhotoTile
-                  src={photo.thumb_url}
+                  src={photoSrc(photo, showFilter, true)}
                   alt={photoLabel(photo)}
                   label={photoLabel(photo)}
                   sublabel={formatTime(photo.created_at)}

@@ -1,3 +1,7 @@
+# The original request
+
+> Kept as written. What was built differs (Docker instead of a Raspberry Pi, several QR codes, React): see [PLAN.md](PLAN.md) and [FEATURES.md](FEATURES.md).
+
 I'm throwing a party and want to build three phone-friendly web activities that guests reach by scanning QR codes. Everything runs on my Raspberry Pi, which has a public domain pointing at it. Before writing code, explore the ideas, check my Pi's environment (OS, Pi model, installed tools like Python/Node/ffmpeg/Caddy, free disk space), and propose a plan with your recommended stack. Wait for my OK, then build it.
 
 ## The activities

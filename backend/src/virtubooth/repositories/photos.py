@@ -39,16 +39,19 @@ class PhotosRepo:
         size: int,
         meta: dict[str, Any],
         created_at: str,
+        raw_filename: str | None = None,
+        raw_thumb_filename: str | None = None,
     ) -> None:
         with self.db.tx() as c:
             seq = c.execute(_NEXT_SEQ, (extension,)).fetchone()[0]
             c.execute(
                 "INSERT INTO photos (public_id, extension, user_id, seq, filename, "
-                "thumb_filename, created_at, width, height, bytes, meta) "
-                "VALUES (?,?,?,?,?,?,?,?,?,?,?)",
+                "thumb_filename, created_at, width, height, bytes, meta, raw_filename, "
+                "raw_thumb_filename) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)",
                 (
                     public_id, extension, user_id, seq, filename, thumb_filename,
-                    created_at, width, height, size, json.dumps(meta),
+                    created_at, width, height, size, json.dumps(meta), raw_filename,
+                    raw_thumb_filename,
                 ),
             )  # fmt: skip
 
@@ -153,18 +156,20 @@ class PhotosRepo:
         return cur.rowcount > 0
 
     def mark_deleted(self, public_id: str, *, at: str) -> builtins.list[Path] | None:
-        """Tombstone the row; returns the files to remove (None: nothing to delete).
+        """Tombstone the row; returns the files to remove (None: nothing to delete):
+        the photo, its thumbnail and the unfiltered original with its thumbnail.
         The caller removes them once the transaction committed."""
         with self.db.tx() as c:
             row = c.execute(
-                "SELECT extension, filename, thumb_filename FROM photos "
-                "WHERE public_id=? AND deleted_at IS NULL",
+                "SELECT extension, filename, thumb_filename, raw_filename, raw_thumb_filename "
+                "FROM photos WHERE public_id=? AND deleted_at IS NULL",
                 (public_id,),
             ).fetchone()
             if row is None:
                 return None
             c.execute("UPDATE photos SET deleted_at=? WHERE public_id=?", (at, public_id))
-        return [self.path(row["extension"], name) for name in (row[1], row[2])]
+        names = [row[1], row[2], row[3], row[4]]
+        return [self.path(row["extension"], name) for name in names if name]
 
     def hide_for_ban(self, user_id: int, *, at: str) -> None:
         with self.db.tx() as c:

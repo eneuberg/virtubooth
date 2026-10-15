@@ -847,6 +847,60 @@ def test_export_no_hidden(party, tmp_path):
     assert "left out of this export (--no-hidden)" in files["README.txt"].decode()
 
 
+def add_original(party: DataDir, key: str, color: tuple[int, int, int]) -> None:
+    """Give a booth photo an unfiltered original (as the upload pipeline stores it)."""
+    p = party.photos[key]
+    folder = party.path / p.extension / "raw"
+    (folder / "thumbs").mkdir(parents=True, exist_ok=True)
+    Image.new("RGB", (p.width, p.height), color).save(folder / p.filename, quality=95)
+    Image.new("RGB", (25, 25), color).save(folder / "thumbs" / p.filename)
+    with party.db.tx() as c:
+        c.execute(
+            "UPDATE photos SET raw_filename=?, raw_thumb_filename=? WHERE id=?",
+            (f"raw/{p.filename}", f"raw/thumbs/{p.filename}", p.id),
+        )
+
+
+@pytest.mark.parametrize("mode", ["baked", "raw", "both"])
+def test_export_filters(party, tmp_path, mode):
+    add_original(party, "s1", BLUE)  # s2 has no original (taken before, or „Normal“)
+    args = [] if mode == "baked" else ["--filters", mode]
+    _, files = run_export(party, tmp_path, *args)
+    name = {k: Path(p.filename).name for k, p in party.photos.items()}
+    s1, s2 = f"photos/booth/0001_{name['s1']}", f"photos/booth/0002_{name['s2']}"
+    s1_raw = f"photos/booth/raw/0001_{name['s1']}"
+    assert files[s2] == party.file("s2").read_bytes()
+    original = (party.path / "booth" / "raw" / party.photos["s1"].filename).read_bytes()
+    rows = {r["id"]: r for r in read_csv(files["photos.csv"])}
+    row = rows[party.photos["s1"].public_id]
+    assert row["has_original"] == "1" and rows[party.photos["s2"].public_id]["has_original"] == "0"
+    if mode == "baked":
+        assert files[s1] == party.file("s1").read_bytes() and s1_raw not in files
+    elif mode == "raw":
+        assert files[s1] == original and s1_raw not in files
+        assert "without their filter" in files["README.txt"].decode()
+    else:
+        assert files[s1] == party.file("s1").read_bytes() and files[s1_raw] == original
+        assert row["original_file"] == s1_raw
+    assert not [n for n in files if "/raw/thumbs" in n]
+
+
+def test_export_lists_an_original_that_vanished_without_a_file(party, tmp_path, monkeypatch):
+    add_original(party, "s1", BLUE)
+    real_add = tarfile.TarFile.add
+
+    def flaky_add(self, name, *args, **kwargs):  # the admin deletes it while we pack
+        if "/raw/" in str(name):
+            raise FileNotFoundError(name)
+        return real_add(self, name, *args, **kwargs)
+
+    monkeypatch.setattr(tarfile.TarFile, "add", flaky_add)
+    _, files = run_export(party, tmp_path, "--filters", "both")
+    rows = {r["id"]: r for r in read_csv(files["photos.csv"])}
+    row = rows[party.photos["s1"].public_id]
+    assert row["original_file"] == "" and row["file"] in files
+
+
 def test_export_db_copy(party, tmp_path):
     _, files = run_export(party, tmp_path)
     assert "virtubooth.db-wal" not in files and "virtubooth.db-shm" not in files

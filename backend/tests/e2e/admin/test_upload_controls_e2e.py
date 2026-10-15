@@ -11,7 +11,7 @@ import pytest
 from playwright.sync_api import Locator, Page, expect
 
 from ..conftest import LiveServer, track_errors
-from .conftest import Guest, errors, goto, toast, wait_live
+from .conftest import Guest, errors, goto, toast, wait_live, wait_until
 
 pytestmark = pytest.mark.e2e
 
@@ -155,7 +155,9 @@ def test_the_switches_are_keyboard_switches(desktop_page: Page, live: LiveServer
     join_switch.focus()
     page.keyboard.press("Space")
     expect(join_switch).to_be_checked()
-    assert live.core.repos.app_settings.join_stop().enabled
+    # the switch flips at once; the server's write lands a moment later
+    wait_until(lambda: live.core.repos.app_settings.join_stop().enabled, what="join stop on")
     page.keyboard.press("Space")
     expect(join_switch).not_to_be_checked()
+    wait_until(lambda: not live.core.repos.app_settings.join_stop().enabled, what="join stop off")
     assert errors(page) == []

@@ -17,6 +17,11 @@ export type UploadMeta = Record<string, string | number | boolean | null>;
 
 export interface UploadOptions {
   meta?: UploadMeta;
+  /**
+   * The unfiltered original of a filtered Fotobox photo: appended to the body, its
+   * length in `X-VB-Raw-Bytes` (one request, so the photo never arrives without it).
+   */
+  raw?: Blob | null;
   /** 0…1 */
   onProgress?: (fraction: number) => void;
   signal?: AbortSignal;
@@ -27,6 +32,9 @@ export type UploadResult = UploadResponse;
 export const UPLOAD_TIMEOUT_MS = 60_000;
 /** The server refuses longer X-VB-Meta headers (architecture.md §2.5, step 9). */
 export const META_MAX_CHARS = 2048;
+
+/** The length of the original appended to the photo (services/uploads.py). */
+export const RAW_HEADER = 'X-VB-Raw-Bytes';
 
 /** The X-VB-Meta header value, or null when there is nothing to send. */
 export function encodeMeta(meta: UploadMeta | null | undefined): string | null {
@@ -91,7 +99,7 @@ function abortError(): DOMException {
 
 /** POST the JPEG; resolves the server's answer (`photo` + the extension's fields). */
 export function uploadPhoto(ext: string, blob: Blob, options: UploadOptions = {}): Promise<UploadResult> {
-  const { meta, onProgress, signal } = options;
+  const { meta, onProgress, signal, raw } = options;
   return new Promise((resolve, reject) => {
     if (signal?.aborted) {
       reject(abortError());
@@ -103,6 +111,7 @@ export function uploadPhoto(ext: string, blob: Blob, options: UploadOptions = {}
     xhr.setRequestHeader('Accept', 'application/json');
     const header = encodeMeta(meta);
     if (header) xhr.setRequestHeader('X-VB-Meta', header);
+    if (raw) xhr.setRequestHeader(RAW_HEADER, String(raw.size));
     xhr.responseType = 'json';
     xhr.timeout = UPLOAD_TIMEOUT_MS;
     if (onProgress) {
@@ -140,7 +149,7 @@ export function uploadPhoto(ext: string, blob: Blob, options: UploadOptions = {}
       done();
       reject(abortError());
     });
-    xhr.send(blob);
+    xhr.send(raw ? new Blob([blob, raw], { type: 'image/jpeg' }) : blob);
   });
 }
 

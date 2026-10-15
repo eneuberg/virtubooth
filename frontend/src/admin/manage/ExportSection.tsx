@@ -9,6 +9,7 @@ import { Checkbox } from '@/ui/Checkbox';
 import { ConfirmDialog } from '@/ui/ConfirmDialog';
 import { EmptyState } from '@/ui/EmptyState';
 import { IconButton } from '@/ui/IconButton';
+import { SegmentedControl } from '@/ui/SegmentedControl';
 import { Select } from '@/ui/Select';
 import { Progress, Spinner } from '@/ui/Spinner';
 import { showToast } from '@/ui/Toast';
@@ -16,6 +17,21 @@ import { errorText, showError } from '../common/usePhotoActions';
 import { exportJobTitle } from '../lib/labels';
 import { deleteExport, startExport } from '../store/actions';
 import { useExports, useExtensionMap, useExtensions } from '../store/hooks';
+
+type ArchiveFilters = 'baked' | 'raw' | 'both';
+
+/** „Filter: eingebrannt / ohne Filter (Originale) / beides“ */
+const FILTER_OPTIONS: ReadonlyArray<{ id: ArchiveFilters; label: string }> = [
+  { id: 'baked', label: 'Eingebrannt' },
+  { id: 'raw', label: 'Ohne Filter' },
+  { id: 'both', label: 'Beides' },
+];
+
+const FILTER_HINT: Record<ArchiveFilters, string> = {
+  baked: 'Die Fotos so, wie die Gäste sie gesehen haben.',
+  raw: 'Die Originale ohne Filter. Fotos ohne Original (vor dem Update aufgenommen) kommen mit Filter.',
+  both: 'Die Fotos mit Filter und die Originale daneben im Ordner raw/.',
+};
 
 const KIND_LABEL: Record<ExportKind, string> = { archive: 'Archiv', timelapse: 'Zeitraffer' };
 const FPS = [6, 8, 12, 15, 24, 30] as const;
@@ -93,7 +109,11 @@ export function ExportSection() {
   const { data: extensions } = useExtensions();
   const extensionMap = useExtensionMap();
   const data = exportsQuery.data;
-  const [archive, setArchive] = useState({ include_hidden: false, include_db: false });
+  const [archive, setArchive] = useState<{
+    include_hidden: boolean;
+    include_db: boolean;
+    filters: ArchiveFilters;
+  }>({ include_hidden: false, include_db: false, filters: 'baked' });
   const [timelapse, setTimelapse] = useState({
     extension: '',
     fps: 12,
@@ -239,6 +259,21 @@ export function ExportSection() {
           onSubmit={() => void start({ kind: 'archive', options: archive })}
           testid="export-archive"
         >
+          <div className="grid gap-1.5">
+            <span aria-hidden="true" className="text-sm font-semibold">
+              Fotobox-Filter
+            </span>
+            <SegmentedControl
+              label="Fotobox-Filter"
+              size="sm"
+              className="flex-wrap"
+              options={FILTER_OPTIONS}
+              value={archive.filters}
+              onChange={(filters) => setArchive({ ...archive, filters })}
+              data-testid="export-filters"
+            />
+            <p className="text-xs text-ink-muted">{FILTER_HINT[archive.filters]}</p>
+          </div>
           <div className="grid">
             <Checkbox
               isSelected={archive.include_hidden}

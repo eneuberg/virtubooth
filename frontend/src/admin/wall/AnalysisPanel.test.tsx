@@ -23,6 +23,8 @@ const PHOTO: AdminPhoto = {
   meta: {},
   url: '/media/p1',
   thumb_url: '/media/p1?thumb=1',
+  raw_url: null,
+  raw_thumb_url: null,
   user: {
     id: 1,
     name: 'Gast 1',
