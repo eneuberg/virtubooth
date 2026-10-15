@@ -26,8 +26,11 @@ const cards = new Map(
   }),
 );
 
+const emojis = new Map(listExtensions().flatMap((ext) => (ext.emoji ? [[ext.id, ext.emoji] as const] : [])));
+
 export function ActivityCard({ activity }: { activity: Activity }) {
   const live = cards.get(activity.id);
+  const emoji = emojis.get(activity.id) ?? '✨';
   const tagline = tidy(activity.tagline);
   return (
     <Link
@@ -41,8 +44,13 @@ export function ActivityCard({ activity }: { activity: Activity }) {
     >
       <span className="grid gap-1 px-5 pt-4 pb-1 lg:px-6 lg:pt-5">
         <span className="flex items-center justify-between gap-3">
-          <span translate="no" className="text-2xl font-semibold">
-            {activity.title}
+          <span className="flex min-w-0 items-center gap-3">
+            <span aria-hidden="true" className="vb-activity-emoji">
+              {emoji}
+            </span>
+            <span translate="no" className="text-2xl font-bold">
+              {activity.title}
+            </span>
           </span>
           <span
             aria-hidden="true"

@@ -34,6 +34,8 @@ export interface ExtensionModule {
    * shows the tagline only.
    */
   card?: () => Promise<{ default: ComponentType<ExtensionCardProps> }>;
+  /** the emoji next to the activity's title on Start (decoration only) */
+  emoji?: string;
 }
 
 export function defineExtension(module: ExtensionModule): ExtensionModule {

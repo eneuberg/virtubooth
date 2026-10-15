@@ -5,4 +5,5 @@ export default defineExtension({
   id: 'booth',
   load: () => import('./BoothPage'),
   card: () => import('./BoothCard'),
+  emoji: '📸',
 });
