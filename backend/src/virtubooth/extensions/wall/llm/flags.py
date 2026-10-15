@@ -1,6 +1,6 @@
 """Whether external AI is in use at all (the join dialog shows its opt-out switch
-only then). UI2 keeps a copy of `external_ai_active` in services/identity.py
-until INT2 replaces it with an import of this one."""
+only then), and who would get the data (the guests' privacy text names them).
+Read by services/identity.py."""
 
 from __future__ import annotations
 
@@ -28,3 +28,11 @@ def external_ai_active(repos: Repositories) -> bool:
         if isinstance(spec, dict) and spec.get("verdict"):
             return True
     return False
+
+
+def external_ai_provider(repos: Repositories) -> str:
+    """The configured provider for the privacy text, e.g. „Anthropic, USA“
+    (also while external AI is off: the text says what switching it on means)."""
+    from .providers import BY_ID
+
+    return BY_ID[load_config(repos.app_settings).provider].privacy

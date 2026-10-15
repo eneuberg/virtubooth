@@ -17,11 +17,15 @@ class ProviderInfo:
     eu: bool
     # the source name in photo_objects / photo_detection_runs
     source: str
+    # who and where, for the guests' privacy text („Mehr dazu“)
+    privacy: str
 
 
 PROVIDERS: tuple[ProviderInfo, ...] = (
-    ProviderInfo("anthropic", "Anthropic (Claude, USA)", eu=False, source="claude"),
-    ProviderInfo("mistral", "Mistral AI (EU)", eu=True, source="mistral"),
+    ProviderInfo(
+        "anthropic", "Anthropic (Claude, USA)", eu=False, source="claude", privacy="Anthropic, USA"
+    ),
+    ProviderInfo("mistral", "Mistral AI (EU)", eu=True, source="mistral", privacy="Mistral AI, EU"),
 )
 BY_ID = {p.id: p for p in PROVIDERS}
 

@@ -40,13 +40,21 @@ WALL_ANALYSIS_TEXT = (
     "Gesichter und Hände zählen, Gesichtsausdruck und ungefähres Alter schätzen – nur zum "
     "Spaß, für Kategorien wie „Grinsekatzen“. Du kannst das für deine Fotos ausschalten."
 )
-# always in „Mehr dazu“, also while the host has no external AI switched on
-EXTERNAL_AI_TEXT = (
-    "Wenn der Gastgeber es einschaltet, können Fotos und erkannte Dinge (z. B. „Glas“, "
-    "„Hut“) zusätzlich von einem externen KI-Dienst (Anthropic, USA) ausgewertet werden – "
-    "für lustige Kategorien auf der Live-Wall. Mit „Keine Weitergabe an externe KI“ "
-    "schließt du deine Fotos davon aus; das kannst du jederzeit unter „Du“ ändern."
-)
+
+
+# always in „Mehr dazu“, also while the host has no external AI switched on; it
+# names the configured provider („Anthropic, USA“ or „Mistral AI, EU“)
+def external_ai_text(provider: str = "Anthropic, USA") -> str:
+    return (
+        "Wenn der Gastgeber es einschaltet, können Fotos und erkannte Dinge (z. B. „Glas“, "
+        f"„Hut“) zusätzlich von einem externen KI-Dienst ({provider}) ausgewertet werden – "
+        "für lustige Kategorien auf der Live-Wall. Mit „Keine Weitergabe an externe KI“ "
+        "schließt du deine Fotos davon aus; das kannst du jederzeit unter „Du“ ändern."
+    )
+
+
+EXTERNAL_AI_TEXT = external_ai_text()
+
 
 # ------------------------------------------------------------ display names
 
@@ -206,7 +214,7 @@ class IdentityService:
                 "gemacht hast, wie lange die Seite bei dir offen war und über welchen QR-Code "
                 "du gekommen bist.",
                 *([WALL_ANALYSIS_TEXT] if analysis else []),
-                EXTERNAL_AI_TEXT,
+                external_ai_text(self.external_ai_provider()),
                 "Wenn du das nicht möchtest, mach hier bitte keine Fotos.",
             ],
             instagram_prompt="Instagram-Name (freiwillig). Dann können wir dich markieren.",
@@ -359,6 +367,12 @@ class IdentityService:
 
     def external_ai(self) -> bool:
         return external_ai_active(self.repos)
+
+    def external_ai_provider(self) -> str:
+        """Who would get the data, for the privacy text („Anthropic, USA“)."""
+        from ..extensions.wall.llm.flags import external_ai_provider
+
+        return external_ai_provider(self.repos)
 
     # ------------------------------------------------------- display names
 

@@ -104,3 +104,20 @@ def test_join_sheet_offers_the_switch_while_active(client, core):
     put_config(core, enabled=True, detect={"external": True})
     scan(client)
     assert consent(client)["external_ai"] is True
+
+
+def test_the_text_names_the_configured_provider(client, core):
+    """„Mehr dazu“ names who would get the data: Anthropic by default, Mistral
+    when the host picked the EU provider (with a real x.llm.config)."""
+    from virtubooth.extensions.wall.llm import config as llm_config
+
+    scan(client)
+    assert "(Anthropic, USA)" in " ".join(consent(client)["paragraphs"])
+    cfg = llm_config.load_config(core.repos.app_settings).model_dump()
+    cfg.update(provider="mistral", model="mistral-small-2506")
+    llm_config.save_config(
+        core.repos.app_settings, llm_config.LlmConfig.model_validate(cfg), by="test"
+    )
+    text = " ".join(consent(client)["paragraphs"])
+    assert "(Mistral AI, EU)" in text and "Anthropic" not in text
+    assert consent(client)["external_ai"] is False  # switched off: no switch at join
