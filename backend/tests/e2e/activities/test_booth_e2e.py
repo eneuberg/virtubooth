@@ -359,8 +359,11 @@ def test_photo_is_exactly_the_preview(guest: Page, live: LiveServer, filter_id: 
     assert same < 8, same
     # the mirroring is the renderer's: not where the picture is (nearly) symmetric, the
     # kaleidoscope's ring of mirrored copies, or flat, the fake camera's green test card
-    # in the heat palette
-    if filter_id not in ("kaleido", "thermal"):
+    # in the heat palette, and in Firefox the neon lines too: its flat green camera has
+    # no edges to draw them on (the picture is a dark room; on CI's software GL the
+    # rendering noise outweighs the few lit pixels of the overlay)
+    flat = ("kaleido", "thermal", "glow") if BROWSER_NAME == "firefox" else ("kaleido", "thermal")
+    if filter_id not in flat:
         assert mirrored > same * 2, (same, mirrored)
     assert page.js_errors == []
 

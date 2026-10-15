@@ -335,7 +335,15 @@ def test_timelapse_without_ffmpeg_fails_clearly(admin, guest, core, monkeypatch)
     assert run(admin, core, "archive")["status"] == "done"
 
 
-def test_timelapse_without_photos_fails_with_a_hint(admin, guest, core):
+def test_timelapse_without_photos_fails_with_a_hint(admin, guest, core, monkeypatch):
+    # the job checks for ffmpeg first; a stand-in path gets it past that check
+    # without ffmpeg installed (it fails before running ffmpeg)
+    which = shutil.which
+    monkeypatch.setattr(
+        shutil,
+        "which",
+        lambda cmd, *a, **kw: "/usr/bin/ffmpeg" if cmd == "ffmpeg" else which(cmd, *a, **kw),
+    )
     g = guest()
     pid = upload(g)
     core.services.moderation.hide_photo(pid, actor="pytest")

@@ -13,6 +13,7 @@ import pytest
 from playwright.sync_api import Page, expect
 
 from virtubooth.domain.models import PhotoQuery
+from virtubooth.extensions.booth import FILTERS
 
 from ..conftest import (
     QUICK_TAP_MS,
@@ -40,7 +41,7 @@ def test_activity_strips_with_live_lines(guest_page: Page, live: LiveServer):
     expect(beer).to_contain_text("Beer Cam")
     expect(page.get_by_test_id("beer-count")).to_have_text("0000")
     expect(beer).to_contain_text("von 1 Mio. Bieren")
-    expect(booth).to_contain_text("10 Filter")
+    expect(booth).to_contain_text(f"{len(FILTERS)} Filter")
     upload(page, "beer")
     reload(page)
     expect(page.get_by_test_id("beer-count")).to_have_text("0001")
@@ -145,13 +146,18 @@ def test_instagram_name_in_the_du_sheet(guest_page: Page, live: LiveServer):
     assert passed.locator("[title]").first.get_attribute("title") == name
     passed.focus()
     page.keyboard.press("Enter")
-    sheet = page.get_by_role("dialog", name=name)
-    expect(sheet).to_be_visible()
+    expect(page.get_by_role("dialog", name=name)).to_be_visible()
+    # the sheet by its test id: its title is the shown name, "@neu.name" once saved
+    sheet = page.get_by_test_id("guest-sheet").get_by_role("dialog")
     expect(sheet).to_contain_text("zufällig")  # why the name is random
     expect(page.get_by_test_id("guest-upload-state")).to_contain_text(
         "Du kannst Fotos machen und hochladen."
     )
     field = sheet.get_by_label("Instagram-Name")
+    # the sheet has two forms (display name, Instagram), each with its own "Speichern"
+    save = sheet.locator("form", has=page.get_by_label("Instagram-Name")).get_by_role(
+        "button", name="Speichern"
+    )
     # Escape closes it and focus goes back to the pass
     page.keyboard.press("Escape")
     expect(sheet).to_have_count(0)
@@ -159,13 +165,13 @@ def test_instagram_name_in_the_du_sheet(guest_page: Page, live: LiveServer):
 
     passed.click()
     field.fill("@müller")
-    sheet.get_by_role("button", name="Speichern").click()
+    save.click()
     expect(sheet).to_contain_text("keine Umlaute")
     expect(field).to_be_focused()
     field.fill("x" * 40)
     expect(field).to_have_value("x" * 30)  # Instagram's limit
     field.fill("neu.name")
-    sheet.get_by_role("button", name="Speichern").click()
+    save.click()
     expect(sheet).to_have_count(0)
     expect(passed).to_contain_text("@neu.name")
     expect(page.get_by_text("Gespeichert: @neu.name")).to_be_visible()
