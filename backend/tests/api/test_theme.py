@@ -15,6 +15,7 @@ from virtubooth.services.theme import (
     THEME_KEY,
     contrast,
     css_variables,
+    ink_of,
     readable_on,
 )
 
@@ -242,11 +243,25 @@ def test_css_variables_shape():
 
     css = css_variables(
         PublicTheme(
-            preset="klassisch", colors=KLASSISCH, on_primary="#2b0f0c", on_accent="#2b0f0c", rev=3
+            preset="klassisch",
+            colors=KLASSISCH,
+            on_primary="#2b0f0c",
+            on_accent="#2b0f0c",
+            primary_ink="#ffa630",
+            rev=3,
         )
     )
     assert css.startswith(":root{--t-background:#2b0f0c;")
-    assert css.count("--t-") == 13
+    assert css.count("--t-") == 14
+
+
+def test_primary_ink():
+    # electric violet is 4.1:1 on charcoal: lightened just enough; amber reads as is
+    ink = ink_of(NEON_NACHT.primary, NEON_NACHT)
+    assert ink != NEON_NACHT.primary
+    assert contrast(ink, NEON_NACHT.background) >= 4.5
+    assert contrast(ink, NEON_NACHT.surface) >= 4.5
+    assert ink_of(KLASSISCH.primary, KLASSISCH) == KLASSISCH.primary
 
 
 # -------------------------------------------------------- the pages' <head>

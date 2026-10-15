@@ -526,6 +526,12 @@
             "title": "Preset",
             "type": "string"
           },
+          "primary_ink": {
+            "description": "`primary` as text: itself, or lightened towards `text` until it reads on background and surface (4.5:1).",
+            "pattern": "^#[0-9a-f]{6}$",
+            "title": "Primary Ink",
+            "type": "string"
+          },
           "rev": {
             "description": "Counts saves; 0 = never saved (the default).",
             "title": "Rev",
@@ -548,6 +554,7 @@
           "colors",
           "on_primary",
           "on_accent",
+          "primary_ink",
           "rev",
           "custom",
           "updated_at",
@@ -6244,6 +6251,12 @@
             "title": "Preset",
             "type": "string"
           },
+          "primary_ink": {
+            "description": "`primary` as text: itself, or lightened towards `text` until it reads on background and surface (4.5:1).",
+            "pattern": "^#[0-9a-f]{6}$",
+            "title": "Primary Ink",
+            "type": "string"
+          },
           "rev": {
             "description": "Counts saves; 0 = never saved (the default).",
             "title": "Rev",
@@ -6255,6 +6268,7 @@
           "colors",
           "on_primary",
           "on_accent",
+          "primary_ink",
           "rev"
         ],
         "title": "PublicTheme",

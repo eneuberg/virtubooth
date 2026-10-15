@@ -47,6 +47,10 @@ class PublicTheme(BaseModel):
     colors: ThemeColors
     on_primary: ThemeColor = Field(description="Text on a `primary` fill (best contrast).")
     on_accent: ThemeColor = Field(description="Text on an `accent` fill (best contrast).")
+    primary_ink: ThemeColor = Field(
+        description="`primary` as text: itself, or lightened towards `text` until it "
+        "reads on background and surface (4.5:1)."
+    )
     rev: int = Field(description="Counts saves; 0 = never saved (the default).")
 
 

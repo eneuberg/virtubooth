@@ -2049,6 +2049,11 @@ export interface components {
              */
             preset: "neon_nacht" | "klassisch" | "custom";
             /**
+             * Primary Ink
+             * @description `primary` as text: itself, or lightened towards `text` until it reads on background and surface (4.5:1).
+             */
+            primary_ink: string;
+            /**
              * Rev
              * @description Counts saves; 0 = never saved (the default).
              */
@@ -4601,6 +4606,11 @@ export interface components {
              * @enum {string}
              */
             preset: "neon_nacht" | "klassisch" | "custom";
+            /**
+             * Primary Ink
+             * @description `primary` as text: itself, or lightened towards `text` until it reads on background and surface (4.5:1).
+             */
+            primary_ink: string;
             /**
              * Rev
              * @description Counts saves; 0 = never saved (the default).

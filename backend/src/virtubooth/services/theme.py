@@ -120,6 +120,30 @@ def readable_on(fill: str, colors: ThemeColors) -> str:
     return max(candidates, key=lambda c: contrast(fill, c))
 
 
+def mix(a: str, b: str, amount: float) -> str:
+    """`a` moved `amount` (0…1) towards `b`, in sRGB, as `#rrggbb`."""
+    out = (
+        # half up, like Math.round in the frontend's mirror
+        int(int(a[i : i + 2], 16) * (1 - amount) + int(b[i : i + 2], 16) * amount + 0.5)
+        for i in (1, 3, 5)
+    )
+    return "#" + "".join(f"{c:02x}" for c in out)
+
+
+def ink_of(color: str, colors: ThemeColors) -> str:
+    """`color` as text on background and surface: itself when it reads (4.5:1),
+    else moved towards `text` in 5 % steps until it does. (Mirrored in
+    frontend/src/styles/theme.ts `inkOf`.)"""
+    for step in range(21):
+        candidate = mix(color, colors.text, step / 20)
+        if (
+            contrast(candidate, colors.background) >= MIN_CONTRAST
+            and contrast(candidate, colors.surface) >= MIN_CONTRAST
+        ):
+            return candidate
+    return colors.text
+
+
 # ----------------------------------------------------------------- validation
 
 
@@ -166,6 +190,7 @@ def css_variables(theme: PublicTheme) -> str:
     values = theme.colors.model_dump() | {
         "on_primary": theme.on_primary,
         "on_accent": theme.on_accent,
+        "primary_ink": theme.primary_ink,
     }
     body = ";".join(f"--t-{k.replace('_', '-')}:{v}" for k, v in values.items())
     return f":root{{{body}}}\n"
@@ -195,6 +220,7 @@ class ThemeService:
             colors=colors,
             on_primary=readable_on(colors.primary, colors),
             on_accent=readable_on(colors.accent, colors),
+            primary_ink=ink_of(colors.primary, colors),
             rev=int(raw.get("rev") or 0),
             custom=bool(raw),
             updated_at=at if raw else None,
