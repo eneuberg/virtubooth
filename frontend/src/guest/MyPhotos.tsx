@@ -1,9 +1,11 @@
 /**
  * "Deine Bilder": the guest's own photos that are up (GET /api/me/photos: not hidden,
  * not deleted, newest first, at most 60) as a small contact sheet. Two rows show,
- * the rest behind "Alle … zeigen". A tap opens the viewer (Speichern / Teilen).
+ * the rest behind "Alle … zeigen". A tap opens the viewer (Speichern / Teilen, Foto
+ * löschen).
  * Empty: blank frames and an invitation.
  */
+import { useQueryClient } from '@tanstack/react-query';
 import { ImagePlus } from 'lucide-react';
 import { useEffect, useId, useState } from 'react';
 import type { GuestPhoto } from '@/api/types';
@@ -14,7 +16,7 @@ import { PhotoTile } from '@/ui/PhotoTile';
 import { Skeleton } from '@/ui/Skeleton';
 import { showToast } from '@/ui/Toast';
 import { firstPhotoText } from './copy';
-import { useMyPhotos } from './photos';
+import { deleteMyPhoto, useMyPhotos } from './photos';
 import { PhotoViewer } from './PhotoViewer';
 
 /** two rows of four (five from sm) */
@@ -48,6 +50,7 @@ export interface MyPhotosProps {
 
 export function MyPhotos({ activityTitles, className }: MyPhotosProps) {
   const titleId = useId();
+  const client = useQueryClient();
   const { data: photos, isPending, isError, refetch } = useMyPhotos();
   const [expanded, setExpanded] = useState(false);
   // the open photo by id: when the list changes under the viewer, it stays on that photo
@@ -129,7 +132,17 @@ export function MyPhotos({ activityTitles, className }: MyPhotosProps) {
           ) : null}
         </>
       )}
-      <PhotoViewer photos={list} index={index} onIndexChange={setIndex} />
+      <PhotoViewer
+        photos={list}
+        index={index}
+        onIndexChange={setIndex}
+        onDelete={async (photo) => {
+          await deleteMyPhoto(client, photo.id);
+          // closed on purpose: not the "this photo vanished" note
+          setOpenId(null);
+          showToast({ message: 'Foto gelöscht.', tone: 'success' });
+        }}
+      />
     </section>
   );
 }

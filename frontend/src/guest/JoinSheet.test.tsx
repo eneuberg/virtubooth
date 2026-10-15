@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, within } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import type { ConsentInfo } from '@/api/types';
 import { UiProvider } from '@/ui/UiProvider';
@@ -73,6 +73,15 @@ describe('JoinSheet', () => {
     const dialog = renderSheet(null);
     fireEvent.click(within(dialog).getByRole('button', { name: 'Mehr dazu' }));
     expect(within(dialog).queryByRole('switch')).toBeNull();
+  });
+
+  it('offers „Keine Weitergabe an externe KI“ in plain sight while the host has it on', () => {
+    expect(within(renderSheet(null)).queryByRole('switch', { name: /externe KI/ })).toBeNull();
+    cleanup();
+    const dialog = renderSheet(null, { ...join, external_ai: true });
+    const optOut = within(dialog).getByRole('switch', { name: /Keine Weitergabe an externe KI/ });
+    expect(optOut).toHaveProperty('checked', false);
+    expect(dialog.textContent).toContain('Die Auswertung hier auf dem Server läuft trotzdem.');
   });
 
   it('labels the field with the prompt and keeps the rest as help', () => {
