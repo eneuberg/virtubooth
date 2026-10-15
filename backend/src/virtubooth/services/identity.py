@@ -9,7 +9,6 @@ fingerprint is recorded as a moderation hint (see UsersRepo.sharing_fingerprint)
 
 from __future__ import annotations
 
-import json
 import re
 import unicodedata
 from dataclasses import dataclass
@@ -93,25 +92,12 @@ def normalize_display_name(raw: str | None) -> str | None:
 
 
 def external_ai_active(repos: Repositories) -> bool:
-    """Switched on, and something would actually be sent: detection at upload,
-    an active property or an enabled category with an LLM verdict."""
-    # INT2: import from extensions.wall.llm.flags
-    config = repos.app_settings.get("x.llm.config")
-    if not config.get("enabled"):
-        return False
-    detect = config.get("detect")
-    if isinstance(detect, dict) and detect.get("external"):
-        return True
-    if repos.db.one("SELECT 1 FROM llm_properties WHERE archived_at IS NULL LIMIT 1"):
-        return True
-    for row in repos.db.all("SELECT spec FROM wall_categories WHERE enabled = 1"):
-        try:
-            spec = json.loads(row["spec"])
-        except ValueError:
-            continue
-        if isinstance(spec, dict) and spec.get("verdict"):
-            return True
-    return False
+    """Switched on, and something would actually be sent (the Live-Wall's LLM
+    flags, `extensions/wall/llm/flags.py`): the join dialog shows the
+    „Keine Weitergabe an externe KI“ switch only then."""
+    from ..extensions.wall.llm.flags import external_ai_active as active
+
+    return active(repos)
 
 
 def normalize_instagram(raw: str | None) -> str | None:
