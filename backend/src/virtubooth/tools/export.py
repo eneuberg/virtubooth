@@ -54,11 +54,11 @@ from ._common import (
 
 PROG = "python -m virtubooth.tools.export"
 PHOTO_COLUMNS = [
-    "id", "extension", "seq", "created_at", "user", "instagram", "hidden", "hidden_reason",
-    "width", "height", "meta", "file",
+    "id", "extension", "seq", "created_at", "user", "display_name", "instagram", "hidden",
+    "hidden_reason", "width", "height", "meta", "file",
 ]  # fmt: skip
 USER_COLUMNS = [
-    "user", "instagram", "consent_at", "photo_count", "banned", "ban_reason",
+    "user", "display_name", "instagram", "consent_at", "photo_count", "banned", "ban_reason",
     "online_seconds", "online_sessions", "code",
 ]  # fmt: skip
 INSTAGRAM_COLUMNS = ["instagram", "user", "photo_count", "files"]
@@ -210,6 +210,7 @@ def photos_csv(entries: list[Entry]) -> bytes:
             e.photo.seq,
             e.photo.created_at,
             e.photo.user_name,
+            e.photo.user_display_name or "",
             e.photo.user_instagram or "",
             int(e.photo.hidden),
             e.photo.hidden_reason or "",
@@ -229,6 +230,7 @@ def users_csv(users: list[User], code_names: dict[int, str] | None = None) -> by
     rows: list[list[object]] = [
         [
             u.name,
+            u.display_name or "",
             u.instagram or "",
             u.consent_at,
             u.photo_count,
