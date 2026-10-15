@@ -1,5 +1,7 @@
-"""External object detection at upload (PLAN-NIGHT N9): after the local list,
-once per photo, never for an opted-out guest."""
+"""External object detection (PLAN-NIGHT N9): only for photos the pipeline
+finished while it was the active detector (v15), once per photo, never for an
+opted-out guest. (Photos here may also carry local objects: legacy rows from
+before the either/or, where the AI's list is merged after the local one.)"""
 
 from __future__ import annotations
 
@@ -11,9 +13,15 @@ from virtubooth.extensions.wall.llm import ports
 from virtubooth.extensions.wall.llm.detect import DetectionRunner, downscale
 from virtubooth.extensions.wall.llm.providers.base import ProviderError, TokenUsage
 
-from ..llm_fakes import FakeProvider, add_guest, add_photo, jpeg_bytes, set_flags, setup_llm
+from ..llm_fakes import FakeProvider, add_guest, jpeg_bytes, set_flags, setup_llm
+from ..llm_fakes import add_photo as add_any_photo
 
-EXTERNAL = {"local": True, "external": True}
+EXTERNAL = {"external": True}
+
+
+def add_photo(core, uid, **kw):
+    """A photo the pipeline finished while the AI detector was active (v15)."""
+    return add_any_photo(core, uid, **{"ai_detect": True, **kw})
 
 
 def runs(core, pid):
@@ -83,6 +91,10 @@ def test_waits_for_the_local_pipeline(core):
     assert DetectionRunner(svc).run_once() == "idle"
     with core.db.tx() as c:
         c.execute("UPDATE wall_analysis SET state='failed' WHERE photo_id=?", (pid,))
+    # a failed analysis never queued the photo for the AI
+    assert DetectionRunner(svc).run_once() == "idle"
+    with core.db.tx() as c:
+        c.execute("UPDATE wall_analysis SET state='done' WHERE photo_id=?", (pid,))
     assert DetectionRunner(svc).run_once() == "done"
 
 
@@ -199,3 +211,35 @@ def test_sends_the_unfiltered_original_when_there_is_one(core):
     assert DetectionRunner(svc).run_once() == "done"
     r, _, b = Image.open(io.BytesIO(fake.detected[0])).convert("RGB").getpixel((5, 5))
     assert b > 200 and r < 50  # the blue original, not the red photo
+    assert runs_image(core, pid) == "original"
+
+
+def runs_image(core, pid):
+    return core.db.one(
+        "SELECT image FROM photo_detection_runs WHERE photo_id=? AND source != 'local'", (pid,)
+    )["image"]
+
+
+def test_sends_the_filtered_photo_when_chosen(core):
+    """„Erkennung auf: Gefiltertes Foto“ applies to the AI's detection too."""
+    from virtubooth.extensions.wall.enrich import jobs
+
+    fake = FakeProvider()
+    svc = setup_llm(core, fake, detect=EXTERNAL)
+    jobs.save_analysis_image(core.repos.app_settings, "filtered", by="t")
+    pid, public_id = add_photo(core, add_guest(core), image=_solid((250, 10, 10)))
+    raw = core.repos.photos.path("demo", f"raw/{public_id}.jpg")
+    raw.parent.mkdir(parents=True, exist_ok=True)
+    raw.write_bytes(_solid((10, 10, 250)))
+    with core.db.tx() as c:
+        c.execute(
+            "UPDATE photos SET raw_filename=?, raw_thumb_filename=? WHERE id=?",
+            (f"raw/{public_id}.jpg", f"raw/{public_id}.jpg", pid),
+        )
+    plain, _ = add_photo(core, add_guest(core), image=_solid((250, 10, 10)), age_s=7200)
+    runner = DetectionRunner(svc)
+    assert runner.run_once() == "done" and runner.run_once() == "done"
+    for img in fake.detected:
+        r, _, b = Image.open(io.BytesIO(img)).convert("RGB").getpixel((5, 5))
+        assert r > 200 and b < 50  # the red photo as the guest saw it
+    assert runs_image(core, pid) == "filtered" and runs_image(core, plain) == "photo"

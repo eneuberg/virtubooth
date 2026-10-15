@@ -7,7 +7,7 @@ import { bodyField, json, must, stubApi, testClient, type Route } from '../testi
 import { analysisStatus } from '../wall/fixtures';
 import { llmStatus, properties, testResult } from './fixtures';
 import { MlSection } from './MlSection';
-import type { LlmStatus } from './types';
+import { DETECTION_MODES, type LlmStatus } from './types';
 import type { AnalysisStatus, Analyzer } from '../wall/types';
 
 const MB = 1_000_000;
@@ -80,7 +80,7 @@ describe('ML-Pipeline section', () => {
     expect(await screen.findByRole('heading', { name: 'ML-Pipeline', level: 1 })).toBeTruthy();
     await screen.findByRole('heading', { name: 'Budget', level: 2 });
     const titles = screen.getAllByRole('heading', { level: 2 }).map((h) => h.textContent);
-    expect(titles).toEqual(['Modelle', 'Testbild', 'Claude (KI-Dienst)', 'Eigenschaften', 'Budget']);
+    expect(titles).toEqual(['Modelle', 'Testbild', 'Externe KI', 'Eigenschaften', 'Budget']);
   });
 
   it('lists every model with size, numbers, settings and the freeze note', async () => {
@@ -175,7 +175,7 @@ describe('ML-Pipeline section', () => {
     expect(table.textContent).toContain('Eigenschaft „coolness“');
     expect(table.textContent).toContain('Urteil „coolstes_objekt“');
     // the test image can't go to Claude now
-    expect(screen.getByRole('checkbox', { name: 'Auch an Claude schicken (kostet)' })).toHaveProperty(
+    expect(screen.getByRole('checkbox', { name: 'Auch an die KI schicken (kostet)' })).toHaveProperty(
       'disabled',
       true,
     );
@@ -253,64 +253,187 @@ describe('ML-Pipeline section', () => {
         .map((o) => o.textContent),
     ).toEqual([expect.stringContaining('Sektglas'), expect.stringContaining('Hut')]);
     await waitFor(() => expect(objectFrames().map((b) => b.textContent)).toEqual(['Sektglas', 'Hut']));
-    expect(objectFrames()[0]?.style.borderColor).toBe('#c084fc');
+    // an AI's frame is dashed (who found it); its colour is the thing's, as on Live
+    expect(objectFrames()[0]?.dataset.outline).toBe('dashed');
     // the local model's: one object
     fireEvent.click(within(result).getByRole('tab', { name: /Lokales Modell/ }));
     await waitFor(() => expect(objectFrames().map((b) => b.textContent)).toEqual(['Weinglas']));
-    expect(objectFrames()[0]?.style.borderColor).toBe('#38bdf8');
+    // the local model's solid, in the wine glass's colour everywhere (labelColors.ts)
+    expect(objectFrames()[0]?.dataset.outline).toBe('solid');
+    expect(objectFrames()[0]?.style.borderColor).toBe('#a855f7');
   });
 
-  it('switches the AI detection and the property poll separately, each with its own state', async () => {
-    const llm = llmStatus({
-      key: { set: true, set_at: null, provider: 'anthropic', valid: true },
-      detection: {
-        state: 'idle',
-        pending: 2,
-        done: 4,
-        failed: 1,
-        last_run_at: null,
-        last_error: 'Zeitüberschreitung',
-      },
-      poller: { state: 'off', last_poll_at: null, next_poll_at: null, last_error: null },
+  it('„Erkennung auf“: original or filtered photo, next to the detection choice', async () => {
+    const { requests } = renderSection({
+      [`PUT ${A}/analysis/image`]: () => ({ ...analysisStatus, image: 'filtered' }),
     });
-    llm.config = { ...llm.config, poll: false, detect: { local: true, external: true } };
-    const { requests } = renderSection({ [`PUT ${A}/llm/config`]: () => llm }, llm);
-    const detect = await screen.findByTestId('ml-part-detection');
-    const poll = screen.getByTestId('ml-part-poll');
-    expect(
-      within(detect).getByRole('switch', { name: 'Objekterkennung mit KI (beim Hochladen)' }),
-    ).toHaveProperty('checked', true);
-    expect(within(poll).getByRole('switch', { name: 'Eigenschaften abfragen' })).toHaveProperty(
-      'checked',
-      false,
+    const block = await screen.findByTestId('ml-analysis-image-block');
+    expect(screen.getByTestId('ml-object-detection-block').contains(block)).toBe(true);
+    const choice = within(block).getByTestId('ml-analysis-image');
+    expect(within(choice).getByRole('radio', { name: 'Original' })).toHaveProperty('checked', true);
+    fireEvent.click(within(choice).getByRole('radio', { name: 'Mit Filter' }));
+    await waitFor(() =>
+      expect(within(choice).getByRole('radio', { name: 'Mit Filter' })).toHaveProperty('checked', true),
     );
-    expect(within(detect).getByTestId('ml-detection-state').textContent).toBe('bereit');
-    expect(within(detect).getByTestId('ml-detection-error').textContent).toBe('Zeitüberschreitung');
-    expect(within(detect).getByTestId('ml-detection-cost').textContent).toContain('4 Aufrufe');
-    expect(within(poll).getByTestId('ml-poll-state').textContent).toBe('aus');
-    expect(within(poll).getByTestId('ml-poll-cost').textContent).toContain('8 Aufrufe');
-    expect(within(poll).getByTestId('ml-poll-now')).toHaveProperty('disabled', true);
+    const put = must(requests.find((r) => r.method === 'PUT'));
+    expect(put.url).toContain('/analysis/image');
+    expect(await bodyField(put, 'use')).toBe('filtered');
+  });
 
-    // poll on, detection off: one PUT with both, the master switch untouched
-    fireEvent.click(within(poll).getByRole('switch', { name: 'Eigenschaften abfragen' }));
-    fireEvent.click(within(detect).getByRole('switch', { name: 'Objekterkennung mit KI (beim Hochladen)' }));
+  it('object detection is either/or: one choice over the local and the AI row', async () => {
+    const key = { set: true, set_at: null, provider: 'anthropic', valid: true };
+    let llm = llmStatus({ key });
+    const { requests } = renderSection(
+      {
+        [`GET ${A}/llm`]: () => llm,
+        [`PUT ${A}/llm/object-detection`]: async (req) => {
+          const sent = await bodyField(req, 'mode');
+          const mode = DETECTION_MODES.find((m) => m === sent) ?? 'off';
+          llm = {
+            ...llm,
+            config: { ...llm.config, detect: { external: mode === 'ai' } },
+            detection: { ...llm.detection, mode, state: mode === 'ai' ? 'idle' : 'off' },
+          };
+          return llm;
+        },
+      },
+      llm,
+    );
+    const choice = await screen.findByTestId('ml-object-detection');
+    const local = await analyzerRow('objects');
+    const ai = await analyzerRow('objects-ai');
+    // adjacent rows, the local one without its own switch
+    expect(local.nextElementSibling).toBe(ai);
+    expect(within(local).queryByRole('switch')).toBeNull();
+    expect(within(choice).getByRole('radio', { name: 'Lokal' })).toHaveProperty('checked', true);
+    expect(within(local).getByTestId('ml-local-detect-active').textContent).toBe('aktiv');
+    expect(within(ai).getByTestId('ml-ai-detect-active').textContent).toBe('aus');
+    expect(within(ai).getByTestId('ml-ai-detect-model').textContent).toContain('Anthropic (Claude, USA)');
+    expect(within(ai).getByTestId('ml-ai-detect-stats').textContent?.replaceAll('\u00a0', ' ')).toBe(
+      'Ø 2.400 ms · zuletzt 1.900 ms · 4 Fotos · 0 Fehler · bisher 0,40 $',
+    );
+    expect(within(ai).getByTestId('ml-ai-detect-size').textContent).toBe('Größe: –');
+    expect(screen.getByTestId('ml-object-detection-block').textContent).toContain(
+      'ältere Fotos werden nicht nachträglich geschickt',
+    );
+
+    fireEvent.click(within(choice).getByRole('radio', { name: 'KI' }));
+    await waitFor(() => expect(within(ai).getByTestId('ml-ai-detect-active').textContent).toBe('aktiv'));
+    expect(within(local).getByTestId('ml-local-detect-active').textContent).toBe('aus');
+    expect(within(ai).getByTestId('ml-detection-state').textContent).toBe('bereit');
+    const put = must(requests.find((r) => r.method === 'PUT'));
+    expect(put.url).toContain('/llm/object-detection');
+    expect(await bodyField(put, 'mode')).toBe('ai');
+    // no other request switched anything
+    expect(requests.filter((r) => r.method === 'PUT')).toHaveLength(1);
+  });
+
+  it('offers no „KI“ detection with a provider that cannot see photos', async () => {
+    const llm = llmStatus();
+    llm.config = { ...llm.config, provider: 'deutschlandgpt', model: 'claude-haiku-5.5' };
+    renderSection({}, llm);
+    const choice = await screen.findByTestId('ml-object-detection');
+    expect(within(choice).getByRole('radio', { name: 'KI' })).toHaveProperty('disabled', true);
+    expect(screen.getByTestId('ml-ai-detect-no-vision').textContent).toContain('kann keine Fotos ansehen');
+    // the Externe-KI card says so too, and that it bills in euros
+    const notes = screen.getByTestId('ml-llm-provider-notes').textContent ?? '';
+    expect(notes).toContain('nur Eigenschaften, keine Objekterkennung');
+    expect(notes).toContain('1 € = 1,10 $');
+  });
+
+  it('keeps the Externe-KI card to switch, provider, model, Denkaufwand and key', async () => {
+    const llm = llmStatus({ key: { set: true, set_at: null, provider: 'anthropic', valid: true } });
+    const { requests } = renderSection({ [`PUT ${A}/llm/config`]: () => llm }, llm);
+    const card = await screen.findByTestId('wall-card-externe-ki');
+    expect(within(card).getByRole('heading', { level: 2 }).textContent).toBe('Externe KI');
+    // no detection or poll controls here (they live in Modelle and Eigenschaften)
+    for (const id of ['ml-detect-external', 'ml-detect-local', 'ml-llm-poll', 'ml-llm-minutes']) {
+      expect(within(card).queryByTestId(id)).toBeNull();
+    }
+    expect(within(card).queryByRole('checkbox')).toBeNull();
+    expect(within(card).getByTestId('ml-llm-effort')).toBeTruthy();
+    // Mistral has no thinking: no Denkaufwand
+    fireEvent.click(within(within(card).getByTestId('ml-llm-provider')).getByRole('button'));
+    fireEvent.click(await screen.findByRole('option', { name: 'Mistral AI (EU)' }));
+    await waitFor(() => expect(within(card).queryByTestId('ml-llm-effort')).toBeNull());
+    fireEvent.click(within(card).getByTestId('ml-llm-enabled'));
     fireEvent.click(screen.getByTestId('ml-llm-save'));
     await waitFor(() => expect(requests.some((r) => r.method === 'PUT')).toBe(true));
     const put = must(requests.find((r) => r.method === 'PUT'));
-    expect(await bodyField(put, 'poll')).toBe(true);
-    expect(await bodyField(put, 'detect')).toEqual({ local: true, external: false });
-    expect(await bodyField(put, 'enabled')).toBe(true);
+    expect(JSON.parse(await put.clone().text())).toEqual({
+      enabled: false,
+      provider: 'mistral',
+      model: 'mistral-small-2506',
+      effort: 'low',
+    });
   });
 
-  it('says why a part is off while the master switch is off', async () => {
+  it('has the poll in the Eigenschaften card, saved on its own', async () => {
     const llm = llmStatus({
-      detection: { state: 'off', pending: 0, done: 0, failed: 0, last_run_at: null, last_error: null },
+      key: { set: true, set_at: null, provider: 'anthropic', valid: true },
+      poller: { state: 'idle', last_poll_at: null, next_poll_at: null, last_error: 'Zeitüberschreitung' },
     });
-    llm.config = { ...llm.config, enabled: false, detect: { local: true, external: true } };
+    const { requests } = renderSection({ [`PUT ${A}/llm/config`]: () => llm }, llm);
+    const card = await screen.findByTestId('wall-card-eigenschaften');
+    const poll = within(card).getByTestId('ml-part-poll');
+    expect(within(poll).getByRole('switch', { name: 'Eigenschaften abfragen' })).toHaveProperty(
+      'checked',
+      true,
+    );
+    expect(within(poll).getByTestId('ml-poll-state').textContent).toBe('wartet');
+    expect(within(poll).getByTestId('ml-poll-cost').textContent).toContain('8 Aufrufe');
+    expect(within(poll).getByTestId('ml-poller-error').textContent).toBe('Zeitüberschreitung');
+    expect(within(poll).getByTestId('ml-poll-now')).toHaveProperty('disabled', false);
+    expect(within(poll).queryByTestId('ml-ai-off-hint')).toBeNull();
+    fireEvent.change(within(poll).getByRole('textbox', { name: 'Abfrage alle … Minuten' }), {
+      target: { value: '5' },
+    });
+    fireEvent.click(within(poll).getByRole('switch', { name: 'Eigenschaften abfragen' }));
+    fireEvent.click(within(poll).getByTestId('ml-poll-save'));
+    await waitFor(() => expect(requests.some((r) => r.method === 'PUT')).toBe(true));
+    const put = must(requests.find((r) => r.method === 'PUT'));
+    expect(JSON.parse(await put.clone().text())).toEqual({ poll: false, poll_interval_s: 300 });
+  });
+
+  it('shows the red hint at every AI feature while external AI is off', async () => {
+    const llm = llmStatus({ key: { set: true, set_at: null, provider: 'anthropic', valid: true } });
+    llm.config = { ...llm.config, enabled: false, detect: { external: true } };
+    llm.detection = { ...llm.detection, mode: 'ai', state: 'off' };
     llm.poller = { ...llm.poller, state: 'off' };
     renderSection({}, llm);
-    expect((await screen.findByTestId('ml-detection-state')).textContent).toBe('ausExterne KI ist aus.');
+    const ai = await analyzerRow('objects-ai');
+    await waitFor(() => expect(screen.getAllByTestId('ml-ai-off-hint')).toHaveLength(3));
+    for (const hint of screen.getAllByTestId('ml-ai-off-hint')) {
+      expect(hint.textContent).toBe('Externe KI ist aus – unter ‚Externe KI‘ einschalten, um das zu nutzen.');
+      expect(hint.dataset.why).toBe('off');
+    }
+    expect(within(ai).getByTestId('ml-ai-off-hint')).toBeTruthy();
+    expect(within(screen.getByTestId('ml-part-poll')).getByTestId('ml-ai-off-hint')).toBeTruthy();
+    expect(within(ai).getByTestId('ml-detection-state').textContent).toBe('ausExterne KI ist aus.');
     expect(screen.getByTestId('ml-poll-state').textContent).toBe('ausExterne KI ist aus.');
+    // the link scrolls to the card
+    const card = screen.getByTestId('wall-card-externe-ki');
+    let scrolled = false;
+    card.scrollIntoView = () => {
+      scrolled = true;
+    };
+    fireEvent.click(within(within(ai).getByTestId('ml-ai-off-hint')).getByRole('button'));
+    expect(scrolled).toBe(true);
+  });
+
+  it('says „kein Schlüssel“ in the hint when the key is missing', async () => {
+    renderSection();
+    const poll = await screen.findByTestId('ml-part-poll');
+    const hint = within(poll).getByTestId('ml-ai-off-hint');
+    expect(hint.dataset.why).toBe('key');
+    expect(hint.textContent).toContain('Kein gültiger API-Schlüssel');
+    // the test image's AI checkbox: disabled, with the same hint
+    expect(screen.getByRole('checkbox', { name: 'Auch an die KI schicken (kostet)' })).toHaveProperty(
+      'disabled',
+      true,
+    );
+    // local detection active: no hint at the AI row
+    expect(within(await analyzerRow('objects-ai')).queryByTestId('ml-ai-off-hint')).toBeNull();
   });
 
   it('says when the worker is off', async () => {

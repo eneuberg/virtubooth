@@ -37,7 +37,8 @@ class MlFake(FakeWall):
             "model": "claude-haiku-5-5",
             "poll": True,
             "poll_interval_s": 180,
-            "detect": {"local": True, "external": False},
+            "detect": {"external": False},
+            "effort": "low",
             "image_max_px": 1024,
             "budget": dict(BUDGET),
             "rev": 1,
@@ -64,21 +65,31 @@ class MlFake(FakeWall):
             "key": self.key,
             "providers": [
                 {"id": "anthropic", "title": "Anthropic (Claude, USA)", "eu": False,
-                 "available": True, "reason": None},
+                 "available": True, "reason": None, "vision": True, "thinking": True,
+                 "currency": "USD"},
+                {"id": "deutschlandgpt", "title": "DeutschlandGPT (Claude, Deutschland)",
+                 "eu": True, "available": True, "reason": None, "vision": False,
+                 "thinking": True, "currency": "EUR"},
             ],
             "models": [
                 {"id": "claude-haiku-5-5", "provider": "anthropic", "title": "Claude Haiku 5.5", "usd_in_mtok": 1,
-                 "usd_out_mtok": 5},
+                 "usd_out_mtok": 5, "currency": "USD", "price_in_mtok": 1, "price_out_mtok": 5},
                 {"id": "claude-sonnet-5-5", "provider": "anthropic", "title": "Claude Sonnet 5.5", "usd_in_mtok": 3,
-                 "usd_out_mtok": 15},
+                 "usd_out_mtok": 15, "currency": "USD", "price_in_mtok": 3, "price_out_mtok": 15},
                 {"id": "claude-opus-5-5", "provider": "anthropic", "title": "Claude Opus 5.5", "usd_in_mtok": 5,
-                 "usd_out_mtok": 25},
+                 "usd_out_mtok": 25, "currency": "USD", "price_in_mtok": 5, "price_out_mtok": 25},
+                {"id": "claude-haiku-5.5", "provider": "deutschlandgpt", "title": "Claude Haiku 5.5",
+                 "usd_in_mtok": 0.913, "usd_out_mtok": 4.543, "currency": "EUR",
+                 "price_in_mtok": 0.83, "price_out_mtok": 4.13},
             ],
             "poller": {"state": "blocked" if self.blocked else "idle", "last_poll_at": None,
                        "next_poll_at": None, "last_error": None},
-            "detection": {"state": "idle" if self.llm["detect"]["external"] else "off",
+            "detection": {"mode": self.mode(),
+                          "state": "idle" if self.mode() == "ai" else "off",
                           "pending": 0, "done": 4, "failed": 0, "last_run_at": None,
-                          "last_error": None},
+                          "last_error": None,
+                          "stats": {"processed": 4, "errors": 0, "avg_ms": 2400, "last_ms": 1900},
+                          "cost_usd": 0.4},
             "usage": {
                 "party": {"calls": 12, "input_tokens": 30000, "output_tokens": 4000,
                           "cost_usd": 5.0 if self.blocked else 1.25},
@@ -97,9 +108,20 @@ class MlFake(FakeWall):
             },
         }  # fmt: skip
 
+    def mode(self) -> str:
+        if self.llm["detect"]["external"]:
+            return "ai"
+        return "off" if "objects" in self.disabled_analyzers else "local"
+
     def answer(self, method: str, path: str, body: Any) -> tuple[int, Any]:
         match method, path:
             case "GET", "/llm":
+                return 200, self.llm_status()
+            case "PUT", "/llm/object-detection":
+                mode = body["mode"]
+                self.llm = {**self.llm, "detect": {"external": mode == "ai"}}
+                rest = [n for n in self.disabled_analyzers if n != "objects"]
+                self.disabled_analyzers = rest if mode == "local" else [*rest, "objects"]
                 return 200, self.llm_status()
             case "PUT", "/llm/config":
                 self.llm = {**self.llm, **body, "rev": self.llm["rev"] + 1}
@@ -176,7 +198,7 @@ def ml(desktop_page: Page) -> MlFake:
     return install(desktop_page)
 
 
-CARDS = ["Modelle", "Testbild", "Claude (KI-Dienst)", "Eigenschaften", "Budget"]
+CARDS = ["Modelle", "Testbild", "Externe KI", "Eigenschaften", "Budget"]
 
 
 def test_nav_item_opens_the_five_cards(desktop_page: Page, live: LiveServer, ml: MlFake) -> None:
@@ -254,31 +276,46 @@ def test_key_shows_only_gesetzt_after_save(
     assert errors(page) == []
 
 
-def test_claude_settings_properties_and_budget(
+def test_external_ai_detection_poll_properties_and_budget(
     desktop_page: Page, live: LiveServer, ml: MlFake
 ) -> None:
     page = desktop_page
     goto(page, live, "/admin/manage?tab=ml")
-    # model, interval, Claude at upload: one PUT
-    page.get_by_test_id("ml-llm-model").get_by_role("button").click()
+    # Externe KI: only switch, provider, model, Denkaufwand (and the key): one PUT of those
+    card = page.get_by_test_id("wall-card-externe-ki")
+    expect(card.get_by_test_id("ml-detect-external")).to_have_count(0)
+    expect(card.get_by_test_id("ml-llm-poll")).to_have_count(0)
+    card.get_by_test_id("ml-llm-model").get_by_role("button").click()
     page.get_by_role("option", name=re.compile("^Claude Sonnet 5.5")).click()
-    page.get_by_role("textbox", name="Abfrage alle … Minuten").fill("5")
-    page.get_by_test_id("ml-detect-external").click()
-    page.get_by_test_id("ml-llm-save").click()
+    card.get_by_test_id("ml-llm-effort").get_by_role("button").click()
+    page.get_by_role("option", name="mittel").click()
+    card.get_by_test_id("ml-llm-save").click()
     expect(toast(page)).to_contain_text("KI-Einstellungen gespeichert.")
     (cfg,) = ml.sent("PUT", "/llm/config")
-    assert cfg["model"] == "claude-sonnet-5-5"
-    assert cfg["poll_interval_s"] == 300
-    assert cfg["detect"] == {"local": True, "external": True}
-    assert cfg["poll"] is True
-    assert "rev" not in cfg
-    # the two parts: each its own switch and state
+    assert cfg == {"enabled": True, "provider": "anthropic", "model": "claude-sonnet-5-5",
+                   "effort": "medium"}  # fmt: skip
+
+    # Modelle: object detection either/or, the AI row next to the local one
+    choice = page.get_by_test_id("ml-object-detection")
+    expect(choice.get_by_role("radio", name="Lokal")).to_be_checked()
+    expect(page.get_by_test_id("ml-local-detect-active")).to_have_text("aktiv")
+    choice.get_by_text("KI", exact=True).click()
+    expect(page.get_by_test_id("ml-ai-detect-active")).to_have_text("aktiv")
+    expect(page.get_by_test_id("ml-local-detect-active")).to_have_text("aus")
     expect(page.get_by_test_id("ml-detection-state")).to_have_text("bereit")
-    page.get_by_test_id("ml-llm-poll").click()
-    page.get_by_test_id("ml-llm-save").click()
-    expect(toast(page)).to_contain_text("KI-Einstellungen gespeichert.")
-    cfg = ml.sent("PUT", "/llm/config")[-1]
-    assert cfg["poll"] is False and cfg["detect"]["external"] is True
+    assert ml.sent("PUT", "/llm/object-detection") == [{"mode": "ai"}]
+    # no key yet: the red hint at the AI row and at the poll
+    hint = page.locator("[data-analyzer=objects-ai]").get_by_test_id("ml-ai-off-hint")
+    expect(hint).to_contain_text("Kein gültiger API-Schlüssel")
+    expect(page.get_by_test_id("ml-part-poll").get_by_test_id("ml-ai-off-hint")).to_be_visible()
+
+    # Eigenschaften: the poll's switch and interval, saved on their own
+    poll = page.get_by_test_id("ml-part-poll")
+    poll.get_by_role("textbox", name="Abfrage alle … Minuten").fill("5")
+    poll.get_by_test_id("ml-llm-poll").click()
+    poll.get_by_test_id("ml-poll-save").click()
+    expect(toast(page)).to_contain_text("Abfrage gespeichert.")
+    assert ml.sent("PUT", "/llm/config")[-1] == {"poll": False, "poll_interval_s": 300}
 
     # a property: the warning, create, archive (no edit, no delete)
     page.get_by_test_id("ml-property-new").click()
@@ -313,8 +350,11 @@ def test_claude_settings_properties_and_budget(
 def test_test_image(desktop_page: Page, live: LiveServer, ml: MlFake) -> None:
     page = desktop_page
     goto(page, live, "/admin/manage?tab=ml")
-    # no key: Claude can't take it
-    expect(page.get_by_role("checkbox", name="Auch an Claude schicken (kostet)")).to_be_disabled()
+    # no key: the AI can't take it (the red hint says why)
+    expect(page.get_by_role("checkbox", name="Auch an die KI schicken (kostet)")).to_be_disabled()
+    expect(
+        page.get_by_test_id("wall-card-testbild").get_by_test_id("ml-ai-off-hint")
+    ).to_be_visible()
     with page.expect_file_chooser() as chooser:
         page.get_by_test_id("ml-test-file").click()
     chooser.value.set_files(

@@ -275,7 +275,7 @@ class EnrichmentService:
         return AnalysisStatus(
             worker=self.worker(), counts=AnalysisCounts(**counts),
             queue=AnalysisQueue(**jobs.queue(self.core.db)), analyzers=self.analyzers(),
-            models=self.models_status(),
+            models=self.models_status(), image=jobs.analysis_image(self.core.repos.app_settings),
         )  # fmt: skip
 
     # -------------------------------------------------------------- models
@@ -340,10 +340,18 @@ class EnrichmentService:
         disabled = set(names) - ALWAYS_ON
         with self.core.db.tx():
             jobs.save_disabled(self.core.repos.app_settings, disabled, by=actor)
+            if "objects" not in disabled:
+                _local_detector_on(self.core, actor)
             self.core.repos.audit.log(
                 actor, "wall.analyzers", "", {"disabled": sorted(disabled)}, at=now_iso()
             )
         return disabled
+
+    def set_image(self, use: str, *, actor: str) -> None:
+        """„Erkennung auf: Original / Gefiltertes Foto“ for photos analysed from now on."""
+        with self.core.db.tx():
+            jobs.save_analysis_image(self.core.repos.app_settings, use, by=actor)
+            self.core.repos.audit.log(actor, "wall.image", "", {"use": use}, at=now_iso())
 
     def set_analyzer(
         self, name: str, *, enabled: bool, settings: Mapping[str, float] | None, actor: str
@@ -373,6 +381,8 @@ class EnrichmentService:
             if clean:
                 all_settings[name] = all_settings.get(name, {}) | clean
             jobs.save_disabled(repo, disabled, by=actor, settings=all_settings)
+            if name == "objects" and enabled:
+                _local_detector_on(self.core, actor)
             self.core.repos.audit.log(
                 actor, "wall.analyzers", name,
                 {"enabled": enabled, "settings": clean} if clean else {"enabled": enabled},
@@ -468,3 +478,10 @@ def _scores(raw: str) -> list[float | None]:
     return [
         float(v) if isinstance(v, int | float) and not isinstance(v, bool) else None for v in values
     ]
+
+
+def _local_detector_on(core: Core, actor: str) -> None:
+    """Either/or: the local detector switched on switches the AI detector off."""
+    from ..llm.config import set_ai_detection
+
+    set_ai_detection(core.repos.app_settings, False, by=actor)

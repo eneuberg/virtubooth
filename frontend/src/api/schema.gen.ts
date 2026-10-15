@@ -1281,6 +1281,29 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/x/wall/admin/analysis/image": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Set Analysis Image
+         * @description „Erkennung auf“: `original` (the unfiltered original when there is one) or
+         *     `filtered` (the photo as the guest saw it), for every analyzer and the external
+         *     AI's detection. Applies to photos analysed from now on; photos without a
+         *     separate original always use the photo.
+         */
+        put: operations["set_analysis_image_api_x_wall_admin_analysis_image_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/x/wall/admin/analysis/models/download": {
         parameters: {
             query?: never;
@@ -1517,6 +1540,30 @@ export interface paths {
          *     400 `llm_not_configured` without a key, `llm_key_invalid` when refused.
          */
         post: operations["test_llm_key_api_x_wall_admin_llm_key_test_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/x/wall/admin/llm/object-detection": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Set Object Detection
+         * @description „Objekterkennung: Lokal / KI / Aus“ (either/or): `local` switches the
+         *     `objects` analyzer on and the AI detector off, `ai` the other way round, `off`
+         *     both off. Applies to photos the pipeline finishes from now on: older photos
+         *     are never sent to the AI afterwards. 400 `invalid_llm_config` when the
+         *     provider can't look at photos (`ai`).
+         */
+        put: operations["set_object_detection_api_x_wall_admin_llm_object_detection_put"];
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -2297,6 +2344,14 @@ export interface components {
             /** Total */
             total: number;
         };
+        /** AnalysisImageIn */
+        AnalysisImageIn: {
+            /**
+             * Use
+             * @enum {string}
+             */
+            use: "original" | "filtered";
+        };
         /** AnalysisQueue */
         AnalysisQueue: {
             /**
@@ -2317,6 +2372,12 @@ export interface components {
             /** Analyzers */
             analyzers: components["schemas"]["AnalyzerStatus"][];
             counts: components["schemas"]["AnalysisCounts"];
+            /**
+             * Image
+             * @description „Erkennung auf“: which image the analysis (every analyzer and the AI's detection) reads for new photos; photos without an original use the photo.
+             * @enum {string}
+             */
+            image: "original" | "filtered";
             models: components["schemas"]["ModelsStatus"];
             queue: components["schemas"]["AnalysisQueue"];
             worker: components["schemas"]["WorkerStatus"];
@@ -3099,26 +3160,44 @@ export interface components {
             /** Value */
             value: string;
         };
-        /** DetectConfig */
+        /**
+         * DetectConfig
+         * @description Object detection is either/or: the local detector (D1's `objects` analyzer,
+         *     switched in `x.wall.analyzers`) OR the external AI (`external`), never both.
+         *     Switching one on switches the other off (`set_detection`).
+         */
         DetectConfig: {
             /**
              * External
-             * @description „Objekterkennung mit KI“: the external AI also lists the objects of each photo at upload (its own list, merged into the photo's object list).
+             * @description „Objekte mit KI“: the external AI lists the objects of each photo the pipeline analyses while this is on (and the master switch is on); the local detector is off meanwhile. Older photos are never sent afterwards.
              * @default false
              */
             external: boolean;
-            /**
-             * Local
-             * @description The local object detector runs (D1's `objects`).
-             * @default true
-             */
-            local: boolean;
+        };
+        /**
+         * DetectStatsOut
+         * @description Every detection call so far (like an analyzer's stats, but from `llm_usage`).
+         */
+        DetectStatsOut: {
+            /** Avg Ms */
+            avg_ms: number | null;
+            /** Errors */
+            errors: number;
+            /** Last Ms */
+            last_ms: number | null;
+            /** Processed */
+            processed: number;
         };
         /**
          * DetectionOut
-         * @description „Objekterkennung mit KI“ (at upload): its own state and error.
+         * @description „Objekte mit KI“ (a step of the pipeline while it is the active detector).
          */
         DetectionOut: {
+            /**
+             * Cost Usd
+             * @description What detection has cost so far (estimate).
+             */
+            cost_usd: number;
             /** Done */
             done: number;
             /** Failed */
@@ -3134,21 +3213,33 @@ export interface components {
              */
             last_run_at: string | null;
             /**
+             * Mode
+             * @description The object detection: the local detector, the external AI or none (either/or; `ai` also while the master switch is off, then nothing runs).
+             * @enum {string}
+             */
+            mode: "local" | "ai" | "off";
+            /**
              * Pending
              * @description Photos the external detector will still look at.
              */
             pending: number;
             /**
              * State
-             * @description off: switched off (or external AI off, no key); running: a photo is out.
+             * @description off: not the active detector (or external AI off, no key); running: a photo is out.
              * @enum {string}
              */
             state: "off" | "idle" | "running" | "blocked";
+            stats: components["schemas"]["DetectStatsOut"];
         };
         /** DetectionRun */
         DetectionRun: {
             /** Error */
             error: string | null;
+            /**
+             * Image
+             * @description The image it looked at: the unfiltered original, the filtered photo („Erkennung auf: Gefiltertes Foto“) or the photo (no separate original); null before v15.
+             */
+            image?: ("original" | "filtered" | "photo") | null;
             /** Model */
             model: string | null;
             /** Source */
@@ -3210,7 +3301,7 @@ export interface components {
              * @description Machine-readable error code.
              * @enum {string}
              */
-            error: "scan_qr" | "needs_consent" | "banned" | "consent_outdated" | "invalid_instagram" | "join_closed" | "invalid_display_name" | "display_name_taken" | "wall_login_required" | "wall_no_password" | "wall_password_too_short" | "invalid_wall_config" | "invalid_category" | "category_exists" | "invalid_analyzer_settings" | "worker_off" | "ml_missing" | "uploads_paused" | "uploads_stopped" | "unsupported_type" | "too_large" | "invalid_meta" | "empty_upload" | "invalid_image" | "invalid_raw" | "raw_not_allowed" | "photo_limit" | "storage_full" | "invalid_pdf" | "invalid_layout" | "no_template" | "admin_required" | "wrong_password" | "login_locked" | "invalid_filter" | "unknown_analyzer" | "invalid_cursor" | "no_fingerprint" | "restore_required" | "host_guest" | "invalid_event_name" | "invalid_public_address" | "invalid_theme" | "password_too_short" | "password_unchanged" | "no_filter_enabled" | "unknown_filter" | "export_not_ready" | "export_running" | "invalid_token" | "token_taken" | "code_revoked" | "invalid_target" | "invalid_note" | "invalid_llm_config" | "llm_not_configured" | "llm_key_invalid" | "llm_budget_exhausted" | "invalid_property" | "property_exists" | "bad_origin" | "length_required" | "rate_limited" | "invalid_request" | "not_found" | "http_404" | "http_405";
+            error: "scan_qr" | "needs_consent" | "banned" | "consent_outdated" | "invalid_instagram" | "join_closed" | "invalid_display_name" | "display_name_taken" | "wall_login_required" | "wall_no_password" | "wall_password_too_short" | "invalid_wall_config" | "invalid_category" | "category_exists" | "invalid_analyzer_settings" | "worker_off" | "ml_missing" | "uploads_paused" | "uploads_stopped" | "unsupported_type" | "too_large" | "invalid_meta" | "empty_upload" | "invalid_image" | "invalid_raw" | "raw_not_allowed" | "photo_limit" | "storage_full" | "invalid_pdf" | "invalid_layout" | "no_template" | "admin_required" | "wrong_password" | "login_locked" | "invalid_filter" | "unknown_analyzer" | "invalid_cursor" | "no_fingerprint" | "restore_required" | "host_guest" | "invalid_event_name" | "invalid_public_address" | "invalid_theme" | "password_too_short" | "password_unchanged" | "no_filter_enabled" | "unknown_filter" | "export_not_ready" | "export_running" | "invalid_token" | "token_taken" | "code_revoked" | "invalid_target" | "invalid_note" | "invalid_llm_config" | "llm_not_configured" | "llm_no_vision" | "llm_key_invalid" | "llm_budget_exhausted" | "invalid_property" | "property_exists" | "bad_origin" | "length_required" | "rate_limited" | "invalid_request" | "not_found" | "http_404" | "http_405";
             /**
              * Field
              * @description The form field a 400 is about, when the answer names one (e.g. `invalid_category`: title, line, where, by, count, verdict, ...).
@@ -3897,7 +3988,7 @@ export interface components {
              * Provider
              * @enum {string}
              */
-            provider: "anthropic" | "mistral";
+            provider: "anthropic" | "mistral" | "deutschlandgpt";
         };
         /**
          * KeyOut
@@ -3942,6 +4033,13 @@ export interface components {
             by?: string | null;
             detect?: components["schemas"]["DetectConfig"];
             /**
+             * Effort
+             * @description „Denkaufwand“: how long the model thinks before answering (Anthropic and DeutschlandGPT; adaptive thinking with this effort). Thinking is billed as output tokens, so higher costs more. Ignored by providers without thinking.
+             * @default low
+             * @enum {string}
+             */
+            effort: "low" | "medium" | "high";
+            /**
              * Enabled
              * @description Master switch: nothing is sent while off.
              * @default false
@@ -3974,7 +4072,7 @@ export interface components {
              * @default anthropic
              * @enum {string}
              */
-            provider: "anthropic" | "mistral";
+            provider: "anthropic" | "mistral" | "deutschlandgpt";
             /**
              * Rev
              * @default 0
@@ -3994,6 +4092,8 @@ export interface components {
                 [key: string]: number | null;
             } | null;
             detect?: components["schemas"]["DetectConfig"] | null;
+            /** Effort */
+            effort?: ("low" | "medium" | "high") | null;
             /** Enabled */
             enabled?: boolean | null;
             /** Image Max Px */
@@ -4005,7 +4105,7 @@ export interface components {
             /** Poll Interval S */
             poll_interval_s?: number | null;
             /** Provider */
-            provider?: ("anthropic" | "mistral") | null;
+            provider?: ("anthropic" | "mistral" | "deutschlandgpt") | null;
         };
         /** LlmStatus */
         LlmStatus: {
@@ -4125,13 +4225,28 @@ export interface components {
         };
         /** ModelOut */
         ModelOut: {
+            /**
+             * Currency
+             * @description The provider's currency (USD | EUR).
+             */
+            currency: string;
             /** Id */
             id: string;
+            /**
+             * Price In Mtok
+             * @description Per million input tokens in `currency`.
+             */
+            price_in_mtok: number;
+            /** Price Out Mtok */
+            price_out_mtok: number;
             /** Provider */
             provider: string;
             /** Title */
             title: string;
-            /** Usd In Mtok */
+            /**
+             * Usd In Mtok
+             * @description Per million input tokens, converted to USD.
+             */
             usd_in_mtok: number;
             /** Usd Out Mtok */
             usd_out_mtok: number;
@@ -4212,6 +4327,14 @@ export interface components {
              * @description 0..1 from the top
              */
             y: number;
+        };
+        /** ObjectDetectionIn */
+        ObjectDetectionIn: {
+            /**
+             * Mode
+             * @enum {string}
+             */
+            mode: "local" | "ai" | "off";
         };
         /** ObjectOut */
         ObjectOut: {
@@ -4937,6 +5060,11 @@ export interface components {
             /** Available */
             available: boolean;
             /**
+             * Currency
+             * @description What it bills in: USD | EUR.
+             */
+            currency: string;
+            /**
              * Eu
              * @description Hosted in the EU.
              */
@@ -4945,8 +5073,18 @@ export interface components {
             id: string;
             /** Reason */
             reason: string | null;
+            /**
+             * Thinking
+             * @description Takes a „Denkaufwand“ (config.effort).
+             */
+            thinking: boolean;
             /** Title */
             title: string;
+            /**
+             * Vision
+             * @description Can look at photos (object detection, test image).
+             */
+            vision: boolean;
         };
         /**
          * PublicAddress
@@ -13146,6 +13284,84 @@ export interface operations {
             };
         };
     };
+    set_analysis_image_api_x_wall_admin_analysis_image_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AnalysisImageIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AnalysisStatus"];
+                };
+            };
+            /** @description Invalid input (see `error`) */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Needs consent or an admin session */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Forbidden: banned, paused, stopped, joining closed or a foreign Origin (CSRF) */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Not found, or no party access (`scan_qr`) */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Request validation failed (`invalid_request`) */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Rate limited (`Retry-After` header) */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
     download_models_api_x_wall_admin_analysis_models_download_post: {
         parameters: {
             query?: never;
@@ -14294,6 +14510,93 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["KeyTestOut"];
+                };
+            };
+            /** @description Invalid input (see `error`) */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Needs consent or an admin session */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Forbidden: banned, paused, stopped, joining closed or a foreign Origin (CSRF) */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Not found, or no party access (`scan_qr`) */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Request validation failed (`invalid_request`) */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Rate limited (`Retry-After` header) */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    set_object_detection_api_x_wall_admin_llm_object_detection_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ObjectDetectionIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LlmStatus"];
                 };
             };
             /** @description Invalid input (see `error`) */

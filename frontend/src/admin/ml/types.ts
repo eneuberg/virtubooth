@@ -37,7 +37,16 @@ export interface LlmBudget {
   daily_calls: number | null;
 }
 
+/** „Denkaufwand“ (Anthropic, DeutschlandGPT): adaptive thinking with this effort */
+export const EFFORTS = ['low', 'medium', 'high'] as const;
+export type Effort = (typeof EFFORTS)[number];
+
+/** Object detection, either/or: the local detector, the external AI, or none */
+export const DETECTION_MODES = ['local', 'ai', 'off'] as const;
+export type DetectionMode = (typeof DETECTION_MODES)[number];
+
 export interface LlmConfig {
+  /** master switch „Externe KI verwenden“: nothing leaves the server while off */
   enabled: boolean;
   provider: string;
   model: string;
@@ -45,8 +54,9 @@ export interface LlmConfig {
   poll: boolean;
   /** 60–3600 */
   poll_interval_s: number;
-  /** local: the local detector; external: „Objekterkennung mit KI“ at upload (both may be on) */
-  detect: { local: boolean; external: boolean };
+  /** external: „Objekte mit KI“ is the active detector (the local one is off then) */
+  detect: { external: boolean };
+  effort: Effort;
   image_max_px: number;
   budget: LlmBudget;
   /** server-set, ignored on input */
@@ -71,6 +81,22 @@ export interface Usage {
   blocked: boolean;
   reason: string | null;
 }
+
+/** The fields PUT /llm/config takes (missing ones stay). */
+export type LlmConfigChange = Partial<
+  Pick<
+    LlmConfig,
+    | 'enabled'
+    | 'provider'
+    | 'model'
+    | 'poll'
+    | 'poll_interval_s'
+    | 'detect'
+    | 'effort'
+    | 'image_max_px'
+    | 'budget'
+  >
+>;
 
 export interface LlmStatus {
   config: LlmConfig;
@@ -101,7 +127,7 @@ export interface TestImageResult {
   height: number;
   local: TestRun | null;
   external: {
-    /** claude | mistral */
+    /** claude | mistral | deutschlandgpt */
     source: string;
     model: string;
     objects: TestObject[];

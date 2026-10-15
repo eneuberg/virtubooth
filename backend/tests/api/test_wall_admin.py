@@ -265,10 +265,12 @@ def test_photo_analysis_shows_objects_runs_and_opt_outs(settings, demo_extension
                     for o in body["objects_ai"]] == [(0, "hats", "mistral", 0),
                                                      (1, "cap", "mistral", 1)]  # fmt: skip
             assert body["runs"] == [
-                {"source": "local", "state": "done", "model": "efficientdet_lite2@2", "error": None},
+                {"source": "local", "state": "done", "model": "efficientdet_lite2@2", "error": None,
+                 "image": None},
                 {"source": "claude", "state": "failed", "model": "claude-haiku-5-5",
-                 "error": "timeout"},
-                {"source": "mistral", "state": "done", "model": "mistral-small", "error": None},
+                 "error": "timeout", "image": None},
+                {"source": "mistral", "state": "done", "model": "mistral-small", "error": None,
+                 "image": None},
             ]  # fmt: skip
             assert body["opt_out"] == {"analysis": False, "external_ai": True}
             assert body["opt_out_at_analysis"] is False

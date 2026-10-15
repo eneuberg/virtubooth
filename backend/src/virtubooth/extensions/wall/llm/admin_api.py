@@ -10,6 +10,7 @@ from typing import Any
 
 from fastapi import APIRouter, Depends, Request
 from fastapi.concurrency import run_in_threadpool
+from pydantic import ValidationError
 
 from ....api.deps import AdminDep, CoreDep, require_admin
 from ....core import errors
@@ -17,17 +18,19 @@ from ....core.clock import now_iso
 from ....runtime import Core
 from ..enrich import jobs
 from . import budget, crypto, ports, pricing, properties, testimage
-from .config import LlmConfigIn, merged, save_config
+from .config import LlmConfigIn, merged, save_config, set_ai_detection
 from .properties import Property
 from .providers import BY_ID as PROVIDERS
 from .providers import PROVIDERS as PROVIDER_LIST
 from .schemas import (
     DetectionOut,
+    DetectStatsOut,
     KeyIn,
     KeyOut,
     KeyTestOut,
     LlmStatus,
     ModelOut,
+    ObjectDetectionIn,
     PollerOut,
     PollOut,
     PropertiesOut,
@@ -89,32 +92,46 @@ def usage_of(svc: LlmService) -> Usage:
     )
 
 
+def detection_mode(svc: LlmService) -> str:
+    """`ai` (the external AI's switch), `local` (the `objects` analyzer) or `off`."""
+    if svc.config().detect.external:
+        return "ai"
+    local = "objects" not in jobs.disabled_analyzers(svc.core.repos.app_settings)
+    return "local" if local else "off"
+
+
 def status_of(svc: LlmService) -> LlmStatus:
     cfg = svc.config()
-    # `detect.local` is the `objects` analyzer's switch, which the Models card
-    # (PUT /analysis/analyzers/objects) changes too: show the live one
-    local = "objects" not in jobs.disabled_analyzers(svc.core.repos.app_settings)
-    if local != cfg.detect.local:
-        cfg = cfg.model_copy(update={"detect": cfg.detect.model_copy(update={"local": local})})
     db = svc.core.db
     source = PROVIDERS[cfg.provider].source
+    # every external source together (a provider change keeps one AI list per photo)
     runs = {
         r["state"]: r["n"]
         for r in db.all(
-            "SELECT state, COUNT(*) AS n FROM photo_detection_runs WHERE source=? GROUP BY state",
-            (source,),
+            "SELECT state, COUNT(*) AS n FROM photo_detection_runs WHERE source != 'local' "
+            "GROUP BY state"
         )
     }
     poller = svc.poller
     detector = svc.detector
     last_run = db.one(
-        "SELECT MAX(created_at) AS at FROM photo_detection_runs WHERE source=?", (source,)
+        "SELECT MAX(created_at) AS at FROM photo_detection_runs WHERE source != 'local'"
     )
+    stats = budget.detect_stats(db)
     return LlmStatus(
         config=cfg,
         key=_key(svc.keys.status()),
         providers=[
-            ProviderOut(id=p.id, title=p.title, eu=p.eu, available=True, reason=None)
+            ProviderOut(
+                id=p.id,
+                title=p.title,
+                eu=p.eu,
+                available=True,
+                reason=None,
+                vision=p.vision,
+                thinking=p.thinking,
+                currency=p.currency,
+            )
             for p in PROVIDER_LIST
         ],
         models=[
@@ -124,6 +141,9 @@ def status_of(svc: LlmService) -> LlmStatus:
                 title=m.title,
                 usd_in_mtok=m.usd_in_mtok,
                 usd_out_mtok=m.usd_out_mtok,
+                currency=m.currency,
+                price_in_mtok=m.in_mtok,
+                price_out_mtok=m.out_mtok,
             )
             for m in pricing.MODELS
         ],
@@ -134,12 +154,20 @@ def status_of(svc: LlmService) -> LlmStatus:
             last_error=poller.last_error,
         ),
         detection=DetectionOut(
+            mode=detection_mode(svc),  # type: ignore[arg-type]
             state=detector.state(),
-            pending=ports.count_eligible(db, source) if cfg.detect.external else 0,
+            pending=ports.count_eligible(db, source),
             done=runs.get("done", 0),
             failed=runs.get("failed", 0),
             last_run_at=last_run["at"] if last_run else None,
             last_error=detector.last_error or detector.blocked,
+            stats=DetectStatsOut(
+                processed=stats.processed,
+                errors=stats.errors,
+                avg_ms=stats.avg_ms,
+                last_ms=stats.last_ms,
+            ),
+            cost_usd=round(stats.cost_micro_usd / 1_000_000, 6),
         ),
         usage=usage_of(svc),
     )
@@ -184,10 +212,37 @@ def set_llm_config(body: LlmConfigIn, core: CoreDep, admin: AdminDep) -> LlmStat
     changed = sorted(body.model_dump(exclude_none=True))
     with core.db.tx():
         save_config(core.repos.app_settings, new, by=admin.actor)
-        if new.detect.local != current.detect.local or "detect" in changed:
-            ports.set_local_objects(core, new.detect.local, by=admin.actor)
+        if new.detect.external and not current.detect.external:
+            # either/or: the AI detector on switches the local one off
+            ports.set_local_objects(core, False, by=admin.actor)
         core.repos.audit.log(admin.actor, "llm.config", "", {"changed": changed}, at=now_iso())
     svc.forget_provider()
+    svc.changed()
+    return status_of(svc)
+
+
+@router.put("/admin/llm/object-detection")
+def set_object_detection(body: ObjectDetectionIn, core: CoreDep, admin: AdminDep) -> LlmStatus:
+    """„Objekterkennung: Lokal / KI / Aus“ (either/or): `local` switches the
+    `objects` analyzer on and the AI detector off, `ai` the other way round, `off`
+    both off. Applies to photos the pipeline finishes from now on: older photos
+    are never sent to the AI afterwards. 400 `invalid_llm_config` when the
+    provider can't look at photos (`ai`)."""
+    svc = LlmService.of(core)
+    repo = core.repos.app_settings
+    try:
+        with core.db.tx():
+            set_ai_detection(repo, body.mode == "ai", by=admin.actor)
+            ports.set_local_objects(core, body.mode == "local", by=admin.actor)
+            core.repos.audit.log(
+                admin.actor, "llm.detection", "", {"mode": body.mode}, at=now_iso()
+            )
+    except ValidationError:
+        raise errors.bad_request(
+            f"{PROVIDERS[svc.config().provider].title} kann keine Fotos ansehen: für „KI“ "
+            "unter „Externe KI“ einen anderen Anbieter wählen.",
+            "invalid_llm_config",
+        ) from None
     svc.changed()
     return status_of(svc)
 

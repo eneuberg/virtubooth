@@ -19,13 +19,37 @@ class ProviderInfo:
     source: str
     # who and where, for the guests' privacy text („Mehr dazu“)
     privacy: str
+    # can look at photos (object detection, the test image): only when verified
+    vision: bool = True
+    # adaptive thinking with a „Denkaufwand“ (config.effort)
+    thinking: bool = False
+    # what the provider bills in (pricing.py converts to the meter's USD)
+    currency: str = "USD"
 
 
 PROVIDERS: tuple[ProviderInfo, ...] = (
     ProviderInfo(
-        "anthropic", "Anthropic (Claude, USA)", eu=False, source="claude", privacy="Anthropic, USA"
+        "anthropic",
+        "Anthropic (Claude, USA)",
+        eu=False,
+        source="claude",
+        privacy="Anthropic, USA",
+        thinking=True,
     ),
     ProviderInfo("mistral", "Mistral AI (EU)", eu=True, source="mistral", privacy="Mistral AI, EU"),
+    # Claude models through DeutschlandGPT's Anthropic-compatible endpoint, billed in
+    # EUR. Images through that endpoint are not verified (immobot sends listing photos
+    # there, but nothing confirms the endpoint passes them on): poll only for now.
+    ProviderInfo(
+        "deutschlandgpt",
+        "DeutschlandGPT (Claude, Deutschland)",
+        eu=True,
+        source="deutschlandgpt",
+        privacy="DeutschlandGPT, Deutschland",
+        vision=False,
+        thinking=True,
+        currency="EUR",
+    ),
 )
 BY_ID = {p.id: p for p in PROVIDERS}
 
@@ -39,6 +63,10 @@ def make_provider(provider_id: str, api_key: str) -> Provider:
         from .mistral import MistralProvider
 
         return MistralProvider(api_key)
+    if provider_id == "deutschlandgpt":
+        from .deutschlandgpt import DeutschlandGptProvider
+
+        return DeutschlandGptProvider(api_key)
     raise ProviderError(f"unknown provider {provider_id!r}", kind="other")
 
 

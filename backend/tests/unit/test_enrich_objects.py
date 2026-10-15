@@ -32,7 +32,9 @@ class Party:
                            fp_hash=None, fp_components={}, ip="10.0.0.1",
                            user_agent="pytest").id  # fmt: skip
 
-    def photo(self, user_id: int | None = None, *, state: str | None = "done") -> int:
+    def photo(
+        self, user_id: int | None = None, *, state: str | None = "done", ai: bool = True
+    ) -> int:
         public_id = new_public_id()
         self.repos.photos.insert(
             public_id=public_id, extension="booth", user_id=user_id or self.user(),
@@ -44,9 +46,9 @@ class Party:
         if state:
             with self.db.tx() as c:
                 c.execute(
-                    "INSERT INTO wall_analysis (photo_id, state, rev) VALUES "
-                    "(?, ?, (SELECT COALESCE(MAX(rev), 0) + 1 FROM wall_analysis))",
-                    (pid, state),
+                    "INSERT INTO wall_analysis (photo_id, state, rev, ai_detect) VALUES "
+                    "(?, ?, (SELECT COALESCE(MAX(rev), 0) + 1 FROM wall_analysis), ?)",
+                    (pid, state, int(ai)),
                 )
         return pid
 
@@ -134,7 +136,8 @@ def test_scores_and_boxes_are_clipped(party):
 def test_eligible_for_external(party):
     ok_old = party.photo()
     ok_new = party.photo()
-    failed = party.photo(state="failed")
+    party.photo(state="failed")  # the pipeline never finished it: never queued
+    party.photo(ai=False)  # finished while the local detector was active: never sent
     party.photo(state="pending")  # local not finished
     party.photo(state=None)  # never claimed
     hidden = party.photo()
@@ -149,12 +152,13 @@ def test_eligible_for_external(party):
     with party.db.tx() as c:
         c.execute("UPDATE users SET analysis_opt_out=1 WHERE id=?", (opted,))
         c.execute("UPDATE users SET ai_opt_out=1 WHERE id=?", (no_ai,))
-    assert objects.eligible_for_external(party.db, "claude", 10) == [failed, ok_new, ok_old]
-    assert objects.eligible_for_external(party.db, "claude", 2) == [failed, ok_new]
+    assert objects.eligible_for_external(party.db, "claude", 10) == [ok_new, ok_old]
+    assert objects.eligible_for_external(party.db, "claude", 1) == [ok_new]
     objects.append(party.db, ok_new, "claude", "c", [])
-    assert objects.eligible_for_external(party.db, "claude", 10) == [failed, ok_old]
-    # another source is independent
-    assert ok_new in objects.eligible_for_external(party.db, "mistral", 10)
+    assert objects.eligible_for_external(party.db, "claude", 10) == [ok_old]
+    # one AI list per photo: another provider does not look at it again
+    assert ok_new not in objects.eligible_for_external(party.db, "mistral", 10)
+    assert objects.count_eligible_for_external(party.db, "mistral") == 1
 
 
 def test_finish_writes_the_local_list_in_its_transaction(party):

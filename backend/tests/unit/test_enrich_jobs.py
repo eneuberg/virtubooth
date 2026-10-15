@@ -91,7 +91,7 @@ def test_finish_without_the_detector_records_a_skipped_local_run(party):
     jobs.finish(party.db, p.id, facts={}, data={}, versions={}, objects_skipped="ausgeschaltet")
     assert objects.runs_of(party.db, p.id) == [
         {"source": "local", "state": "skipped", "model": None, "error": "ausgeschaltet",
-         "objects": 0},
+         "objects": 0, "image": None},
     ]  # fmt: skip
 
 
@@ -219,5 +219,37 @@ def test_claim_hands_out_the_unfiltered_original(party):
             "UPDATE photos SET raw_filename=?, raw_thumb_filename=? WHERE id=?",
             ("raw/x.jpg", "raw/thumbs/x.jpg", filtered.id),
         )
-    assert jobs.claim(party.db).filename == "raw/x.jpg"
-    assert jobs.claim(party.db).filename == plain.filename
+    first = jobs.claim(party.db)
+    assert (first.filename, first.image) == ("raw/x.jpg", "original")
+    second = jobs.claim(party.db)
+    assert (second.filename, second.image) == (plain.filename, "photo")
+
+
+def test_claim_on_the_filtered_photo_when_chosen(party):
+    """„Erkennung auf: Gefiltertes Foto“: the photo as the guest saw it; a photo
+    without an original is the photo either way."""
+    plain = party.photo()
+    filtered = party.photo()
+    with party.db.tx() as c:
+        c.execute(
+            "UPDATE photos SET raw_filename=?, raw_thumb_filename=? WHERE id=?",
+            ("raw/x.jpg", "raw/thumbs/x.jpg", filtered.id),
+        )
+    first = jobs.claim(party.db, "filtered")
+    assert (first.filename, first.image) == (filtered.filename, "filtered")
+    second = jobs.claim(party.db, "filtered")
+    assert (second.filename, second.image) == (plain.filename, "photo")
+
+
+def test_the_choice_is_stored_and_recorded_with_the_run(party):
+    assert jobs.analysis_image(party.repos.app_settings) == "original"  # the default
+    jobs.save_analysis_image(party.repos.app_settings, "filtered", by="t")
+    assert jobs.analysis_image(party.repos.app_settings) == "filtered"
+    with pytest.raises(ValueError):
+        jobs.save_analysis_image(party.repos.app_settings, "both", by="t")
+    p = party.photo()
+    claimed = jobs.claim(party.db, jobs.analysis_image(party.repos.app_settings))
+    assert claimed is not None and claimed.image == "photo"
+    jobs.finish(party.db, p.id, facts={}, data={}, versions={}, objects_model="m@1",
+                objects_found=[], image=claimed.image)  # fmt: skip
+    assert objects.runs_of(party.db, p.id)[0]["image"] == "photo"

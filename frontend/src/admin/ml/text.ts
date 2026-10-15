@@ -62,11 +62,12 @@ export function usdText(usd: number): string {
   return usd > 0 && usd < 0.01 ? USD_SMALL.format(usd) : USD.format(usd);
 }
 
-/** "Claude Haiku 5.5 · 1 $ / 5 $ pro Mio. Tokens (ein/aus)" */
-const dollars = (n: number) => `${formatNumber(n)}${NBSP}$`;
+const SIGNS: Record<string, string> = { USD: '$', EUR: '€' };
+const money = (n: number, currency: string) => `${formatNumber(n)}${NBSP}${SIGNS[currency] ?? currency}`;
 
+/** "Claude Haiku 5.5 · 0,1 $ / 0,5 $ pro Mio. Tokens" in the provider's own currency (ein/aus) */
 export function modelText(model: LlmModel): string {
-  return `${model.title} · ${dollars(model.usd_in_mtok)} / ${dollars(model.usd_out_mtok)} pro Mio. Tokens`;
+  return `${model.title} · ${money(model.price_in_mtok, model.currency)} / ${money(model.price_out_mtok, model.currency)} pro Mio. Tokens`;
 }
 
 /** "Erkennung", "Eigenschaft „coolness“", "Urteil „coolstes_objekt“", "Test" */
@@ -91,11 +92,12 @@ export function scoreText(score: number): string {
   return `${Math.round(score * 100)}${NBSP}%`;
 }
 
-/** „lokal“ / „Claude“ / the source id */
+/** „lokal“ / „Claude“ / „Mistral“ / „DeutschlandGPT“ / the source id */
 export function sourceText(source: string): string {
   if (source === 'local') return 'lokal';
   if (source === 'claude') return 'Claude';
   if (source === 'mistral') return 'Mistral';
+  if (source === 'deutschlandgpt') return 'DeutschlandGPT';
   return source;
 }
 

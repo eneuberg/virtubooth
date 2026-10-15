@@ -63,7 +63,7 @@ def test_key_never_in_logs_through_the_whole_path(admin, core, caplog):
             },
         )
 
-    svc = setup_llm(core, detect={"local": True, "external": True})
+    svc = setup_llm(core, detect={"external": True})
     svc.provider_factory = lambda _pid, key: AnthropicProvider(
         key, http_client=httpx2.Client(transport=httpx2.MockTransport(handler))
     )
@@ -86,9 +86,9 @@ def test_key_never_in_logs_through_the_whole_path(admin, core, caplog):
 
 def test_provider_errors_are_masked_before_storing(core):
     fake = FakeProvider(fail=ProviderError(f"rejected {API_KEY}", kind="bad_output"))
-    svc = setup_llm(core, fake, detect={"local": True, "external": True})
+    svc = setup_llm(core, fake, detect={"external": True})
     add_property(core)
-    pid, _ = add_photo(core, add_guest(core))
+    pid, _ = add_photo(core, add_guest(core), ai_detect=True)
     DetectionRunner(svc).run_once()
     result = poll_once(svc)
     assert result is not None and API_KEY not in (result.reason or "")

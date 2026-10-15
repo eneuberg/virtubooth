@@ -26,7 +26,7 @@ from ..llm_fakes import (
 )
 
 BASE = "/api/x/wall/admin/llm"
-DETECT = {"local": True, "external": True}
+DETECT = {"external": True}
 # the AI sees the local person again (linked) and a hat (appended)
 AI_OBJECTS = [
     ports.DetectedObject("man", "Mann", 0.9, (0.1, 0.1, 0.3, 0.8)),
@@ -40,8 +40,10 @@ def mounted(app):
 
 
 def local_photo(core) -> tuple[int, str]:
-    """A photo whose local detector found a person (framed) and a wine glass."""
-    pid, pub = add_photo(core, add_guest(core), labels=())
+    """A photo whose local detector found a person (framed) and a wine glass, and
+    that the pipeline queued for the AI too: a legacy row from before the
+    either/or (both lists, merged)."""
+    pid, pub = add_photo(core, add_guest(core), labels=(), ai_detect=True)
     ports.append(core.db, pid, "local", "efficientdet_lite2@2", [
         ports.DetectedObject("person", "Person", 0.9, (0.1, 0.1, 0.3, 0.8)),
         ports.DetectedObject("wine glass", "Weinglas", 0.7, (0.5, 0.5, 0.1, 0.2)),

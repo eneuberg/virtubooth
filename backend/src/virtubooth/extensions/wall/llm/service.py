@@ -21,6 +21,7 @@ from ....core.ratelimit import RateLimiter
 from . import budget, crypto, redact
 from .budget import Kind
 from .config import LlmConfig, load_config
+from .config import migrate as config_migrate
 from .providers import BY_ID as PROVIDERS
 from .providers import ProviderInfo, make_provider
 from .providers.base import Provider, ProviderError, TokenUsage
@@ -129,6 +130,14 @@ class LlmService:
 
     def start(self) -> None:
         redact.install()
+        # a config from before the either/or: resolve it once (config.migrate)
+        try:
+            outcome = config_migrate(self.core.repos.app_settings)
+        except Exception:
+            log.exception("llm config migration failed")
+        else:
+            if outcome:
+                log.info("llm config: object detection set to %s (either/or)", outcome)
         self.poller.start()
         self.detector.start()
 
@@ -203,18 +212,22 @@ class LlmService:
         if reason is not None:
             raise Unavailable("llm_budget_exhausted", reason)
         started = time.monotonic()
+
+        def ms() -> int:
+            return round((time.monotonic() - started) * 1000)
+
         try:
             result, usage = fn(provider, cfg.model)
         except ProviderError as exc:
-            self._meter(kind, ref, cfg, exc.usage, ok=False)
+            self._meter(kind, ref, cfg, exc.usage, ok=False, ms=ms())
             exc.message = redact.redact(exc.message)
             exc.args = (exc.message,)
             raise
         except Exception as exc:
-            self._meter(kind, ref, cfg, TokenUsage(), ok=False)
+            self._meter(kind, ref, cfg, TokenUsage(), ok=False, ms=ms())
             log.warning("llm %s call failed: %s", kind, redact.redact(repr(exc)))
             raise ProviderError("Unerwarteter Fehler beim KI-Aufruf.", kind="other") from None
-        self._meter(kind, ref, cfg, usage, ok=True)
+        self._meter(kind, ref, cfg, usage, ok=True, ms=ms())
         log.info(
             "llm %s %s: %d in / %d out tokens, %.1f s",
             kind,
@@ -226,7 +239,14 @@ class LlmService:
         return result, usage
 
     def _meter(
-        self, kind: Kind, ref: str | None, cfg: LlmConfig, usage: TokenUsage, *, ok: bool
+        self,
+        kind: Kind,
+        ref: str | None,
+        cfg: LlmConfig,
+        usage: TokenUsage,
+        *,
+        ok: bool,
+        ms: int | None = None,
     ) -> None:
         budget.record(
             self.core.db,
@@ -237,6 +257,7 @@ class LlmService:
             usage=usage,
             ok=ok,
             timezone=self.timezone,
+            ms=ms,
         )
 
     # ---------------------------------------------------------------- key

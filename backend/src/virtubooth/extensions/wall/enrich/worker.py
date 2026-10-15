@@ -207,7 +207,11 @@ class Worker:
         if not path.is_file():
             jobs.skip(db, photo.id, "Fotodatei fehlt")
             return "skipped"
+        # either/or: while the external AI detects objects the local detector rests
+        ai_detect = jobs.ai_detection_active(repos.app_settings)
         disabled = self._disabled(repos, opt_out=photo.opt_out)
+        if ai_detect:
+            disabled.add("objects")
         source = jobs.source_labels(repos.app_settings).get(photo.extension)
         if source is not None:
             photo = dataclasses.replace(photo, source=source)
@@ -226,9 +230,11 @@ class Worker:
             return jobs.fail(db, photo.id, f"Analyse fehlgeschlagen ({type(exc).__name__})")
         data = outcome.data() | {"opt_out": photo.opt_out}
         model, why = self._objects_model(outcome)
+        if ai_detect and model is None:
+            why = jobs.AI_ACTIVE
         jobs.finish(db, photo.id, facts=outcome.facts, data=data, versions=outcome.versions,
                     objects_found=outcome.objects, objects_model=model,
-                    objects_skipped=why)  # fmt: skip
+                    objects_skipped=why, ai_detect=ai_detect, image=photo.image)  # fmt: skip
         self._count(outcome)
         del frame
         release_memory()
@@ -386,7 +392,8 @@ class Worker:
                 self.beat(repos)
                 self.answer_tests(repos)
                 jobs.purge_deleted(db)
-                photo = jobs.claim(db) if jobs.has_work(db) else None
+                use = jobs.analysis_image(repos.app_settings)
+                photo = jobs.claim(db, use) if jobs.has_work(db) else None
                 if photo is None:
                     if once:
                         break

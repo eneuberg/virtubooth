@@ -90,11 +90,11 @@ def test_every_call_kind_stops_at_the_limit(core):
     svc = setup_llm(
         core,
         fake,
-        detect={"local": True, "external": True},
+        detect={"external": True},
         budget={"party_usd": None, "party_calls": 1, "daily_usd": None, "daily_calls": None},
     )
     uid = add_guest(core)
-    add_photo(core, uid)
+    add_photo(core, uid, ai_detect=True)
     add_property(core)
     _spend(core, 1)
     for kind in ("detect", "property", "verdict", "test"):

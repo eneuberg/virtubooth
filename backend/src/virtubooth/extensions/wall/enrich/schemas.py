@@ -106,6 +106,14 @@ class AnalysisStatus(BaseModel):
     queue: AnalysisQueue
     analyzers: list[AnalyzerStatus]
     models: ModelsStatus
+    image: Literal["original", "filtered"] = Field(
+        description="„Erkennung auf“: which image the analysis (every analyzer and the "
+        "AI's detection) reads for new photos; photos without an original use the photo."
+    )
+
+
+class AnalysisImageIn(BaseModel):
+    use: Literal["original", "filtered"]
 
 
 class AnalyzersIn(BaseModel):
@@ -176,6 +184,12 @@ class DetectionRun(BaseModel):
     state: Literal["done", "failed", "skipped"]
     model: str | None
     error: str | None
+    image: Literal["original", "filtered", "photo"] | None = Field(
+        None,
+        description="The image it looked at: the unfiltered original, the filtered photo "
+        "(„Erkennung auf: Gefiltertes Foto“) or the photo (no separate original); null "
+        "before v15.",
+    )
 
 
 class OptOutState(BaseModel):

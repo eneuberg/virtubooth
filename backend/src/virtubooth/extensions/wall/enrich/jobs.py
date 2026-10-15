@@ -13,10 +13,13 @@ those tables. There is no re-run: a new analyzer version, an analyzer switched
 on or a guest's opt-out change only affect photos analysed afterwards. Rows
 go only when their photo is deleted (`purge_deleted`).
 
-Which file: a Fotobox photo's unfiltered original when one is stored
-(`photos.raw_filename`, migration v13), else the photo. Photos taken before
-originals were kept were analysed on the filtered image; being frozen, they
-stay so.
+Which file („Erkennung auf“, IMAGE_KEY): by default a Fotobox photo's unfiltered
+original when one is stored (`photos.raw_filename`, migration v13), else the
+photo; with `filtered` always the photo as the guest saw it. It applies to every
+local analyzer and to the external AI's detection, for photos analysed from then
+on; the runs record which image they looked at (`photo_detection_runs.image`).
+Photos taken before originals were kept were analysed on the filtered image;
+being frozen, they stay so.
 """
 
 from __future__ import annotations
@@ -26,7 +29,7 @@ import sqlite3
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime
-from typing import Any
+from typing import Any, Literal
 
 from ....core.clock import now_iso
 from ....db.database import Database
@@ -53,6 +56,33 @@ WORKER_KEY = "x.wall.worker"
 SOURCES_KEY = "x.wall.sources"
 
 _NEEDS_WORK = "p.deleted_at IS NULL AND (a.photo_id IS NULL OR a.state = 'pending')"
+
+# „Erkennung auf“: {use: original | filtered, by}
+IMAGE_KEY = "x.wall.image"
+IMAGE_CHOICES = ("original", "filtered")
+ImageChoice = Literal["original", "filtered"]
+
+
+def analysis_image(app_settings: AppSettingsRepo) -> ImageChoice:
+    """`original` (default: the unfiltered original when there is one) or `filtered`."""
+    use = app_settings.get(IMAGE_KEY).get("use")
+    return "filtered" if use == "filtered" else "original"
+
+
+def save_analysis_image(app_settings: AppSettingsRepo, use: str, *, by: str) -> None:
+    if use not in IMAGE_CHOICES:
+        raise ValueError(f"bad image choice {use!r}")
+    app_settings.put(IMAGE_KEY, {"use": use, "by": by}, at=now_iso())
+
+
+def pick_image(use: str, filename: str, raw_filename: str | None) -> tuple[str, str]:
+    """(the file to analyse, which image it is: original | filtered | photo). A photo
+    without a separate original always uses the photo."""
+    if not raw_filename:
+        return filename, "photo"
+    if use == "filtered":
+        return filename, "filtered"
+    return raw_filename, "original"
 
 
 @dataclass(frozen=True)
@@ -95,14 +125,15 @@ def has_work(db: Database) -> bool:
     )
 
 
-def claim(db: Database) -> PhotoInfo | None:
-    """Take the newest photo that needs analysis: `running`, attempts + 1."""
+def claim(db: Database, use: str = "original") -> PhotoInfo | None:
+    """Take the newest photo that needs analysis: `running`, attempts + 1. `use`:
+    „Erkennung auf“ (analysis_image), which file the analysis reads."""
     with db.tx() as c:
         row = c.execute(
             # the unfiltered original when there is one (Fotobox, v13): the analysis
             # sees the guests, not the filter; same size and crop, so the boxes fit both
-            "SELECT p.id, p.public_id, p.extension, "
-            "COALESCE(p.raw_filename, p.filename) AS filename, p.created_at, p.width, "
+            "SELECT p.id, p.public_id, p.extension, p.filename, p.raw_filename, "
+            "p.created_at, p.width, "
             "p.height, p.meta, u.name AS user_name, u.analysis_opt_out, "
             "c.id AS code_id, c.animal AS code_animal, COALESCE(a.attempts, 0) AS attempts "
             "FROM photos p JOIN users u ON u.id = p.user_id "
@@ -116,24 +147,42 @@ def claim(db: Database) -> PhotoInfo | None:
             c, row["id"], state="running", attempts=int(row["attempts"]) + 1, error=None,
             started_at=now_iso(), finished_at=None,
         )  # fmt: skip
+    filename, image = pick_image(use, row["filename"], row["raw_filename"])
     return PhotoInfo(
         id=row["id"], public_id=row["public_id"], extension=row["extension"],
-        filename=row["filename"], created_at=row["created_at"], width=row["width"],
+        filename=filename, image=image, created_at=row["created_at"], width=row["width"],
         height=row["height"], meta=json.loads(row["meta"] or "{}"), user_name=row["user_name"],
         code_name=code_name(row["code_animal"], row["code_id"]) if row["code_id"] else None,
         opt_out=bool(row["analysis_opt_out"]),
     )  # fmt: skip
 
 
+def ai_detection_active(app_settings: AppSettingsRepo) -> bool:
+    """The external AI is the active object detector (`x.llm.config`: master switch
+    and „Objekte mit KI“ on, a provider that can see photos). Then the local
+    `objects` analyzer does not run and the finished photo is queued for the AI."""
+    from ..llm.config import load_config
+    from ..llm.providers import BY_ID
+
+    cfg = load_config(app_settings)
+    return cfg.ai_detection and BY_ID[cfg.provider].vision
+
+
+AI_ACTIVE = "KI-Objekterkennung ist aktiv"
+
+
 def finish(
     db: Database, photo_id: int, *, facts: Mapping[str, float], data: Mapping[str, Any],
     versions: Mapping[str, str], objects_found: Sequence[DetectedObject] = (),
     objects_model: str | None = None, objects_skipped: str | None = None,
+    ai_detect: bool = False, image: str | None = None,
 ) -> bool:  # fmt: skip
     """Store a finished analysis, once: facts, data, and the local object list
     (`objects_model` set: the detector ran; else a `skipped` local run with the
-    reason `objects_skipped`), all in one transaction. False (nothing written)
-    when the row is no longer `running` (purged meanwhile)."""
+    reason `objects_skipped`), all in one transaction. `ai_detect`: the AI
+    detector is active, so the external AI looks at this photo next (only photos
+    finished while it is active ever go out). False (nothing written) when the
+    row is no longer `running` (purged meanwhile)."""
     with db.tx() as c:
         row = c.execute("SELECT state FROM wall_analysis WHERE photo_id=?", (photo_id,)).fetchone()
         if row is None or row["state"] != "running":
@@ -145,14 +194,16 @@ def finish(
         _upsert(
             c, photo_id, state="done", error=None, data=json.dumps(data, ensure_ascii=False),
             versions=json.dumps(dict(versions)), finished_at=now_iso(),
+            ai_detect=1 if ai_detect else 0,
         )  # fmt: skip
         if not objects.has_run(db, photo_id, "local"):
             if objects_model is not None:
-                objects.append(db, photo_id, "local", objects_model, objects_found)
+                objects.append(db, photo_id, "local", objects_model, objects_found, image=image)
             else:
                 objects.record_run(
-                    db, photo_id, "local", "skipped", None, objects_skipped or "nicht gelaufen"
-                )
+                    db, photo_id, "local", "skipped", None, objects_skipped or "nicht gelaufen",
+                    image=image,
+                )  # fmt: skip
     return True
 
 

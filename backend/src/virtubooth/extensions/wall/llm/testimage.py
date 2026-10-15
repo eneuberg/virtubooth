@@ -157,7 +157,12 @@ def run(svc: LlmService, form: TestForm) -> TestImageOut:
     names = _analyzers(form.analyzers)
     cfg = svc.config()
     if form.external:
-        # fail fast, before the local run: no key, or the budget is used up
+        # fail fast, before the local run: a provider that can't see photos, no key,
+        # or the budget is used up
+        if not PROVIDERS[cfg.provider].vision:
+            raise errors.bad_request(
+                f"{PROVIDERS[cfg.provider].title} kann keine Fotos ansehen.", "llm_no_vision"
+            )
         try:
             svc.provider(cfg)
         except Unavailable as exc:
@@ -200,7 +205,9 @@ def run(svc: LlmService, form: TestForm) -> TestImageOut:
         source = PROVIDERS[cfg.provider].source
         small = downscale(image.data, cfg.image_max_px)
         try:
-            objs, usage = svc.call("test", None, lambda p, m: p.detect(small, model=m), config=cfg)
+            objs, usage = svc.call(
+                "test", None, lambda p, m: p.detect(small, model=m, effort=cfg.effort), config=cfg
+            )
             external = ExternalTestOut(
                 source=source, model=cfg.model, objects=_objects(objs),
                 usage=_usage(cfg.model, usage), error=None,

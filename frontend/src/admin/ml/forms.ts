@@ -5,7 +5,7 @@ import { isApiError } from '@/api/client';
 import { formatNumber } from '@/lib/format';
 import { errorText } from '../common/usePhotoActions';
 import { parseDecimal } from '../wall/categories/spec';
-import type { LlmKeyState, LlmStatus, PollerState } from './types';
+import type { Effort, LlmKeyState, LlmStatus, PollerState } from './types';
 
 export const POLLER_LABELS: Record<PollerState, string> = {
   off: 'aus',
@@ -46,6 +46,23 @@ export function partOffReason(status: Pick<LlmStatus, 'config' | 'key'>, partOn:
   return null;
 }
 
+/**
+ * Why nothing can go to the external AI right now (the red hint next to every AI feature):
+ * `off` (master switch „Externe KI verwenden“ off), `key` (no usable key), null: ready.
+ */
+export function aiUnavailable(status: Pick<LlmStatus, 'config' | 'key'> | undefined): 'off' | 'key' | null {
+  if (!status) return null;
+  if (!status.config.enabled) return 'off';
+  if (!status.key.set || !status.key.valid) return 'key';
+  return null;
+}
+
+export const EFFORT_LABELS: Record<Effort, string> = {
+  low: 'gering (Standard)',
+  medium: 'mittel',
+  high: 'hoch',
+};
+
 /** 1–60 whole minutes (the server takes 60–3600 s). */
 export function parseMinutes(text: string): number | null {
   const t = text.trim();
@@ -70,6 +87,9 @@ export function testErrorText(err: unknown): string {
 /** Why the external AI can't take the test image (null: it can). */
 export function externalBlocked(llm: LlmStatus | undefined): string | null {
   if (!llm) return 'Der KI-Dienst ist nicht eingerichtet.';
+  const provider = llm.providers.find((p) => p.id === llm.config.provider);
+  if (provider && !provider.vision) return `${provider.title} kann keine Fotos ansehen.`;
+  if (!llm.config.enabled) return 'Externe KI ist aus.';
   if (!llm.key.set) return 'Erst einen API-Schlüssel setzen.';
   if (!llm.key.valid) return 'Der API-Schlüssel ist ungültig.';
   if (llm.usage.blocked) return 'Budget erreicht – externe KI pausiert.';

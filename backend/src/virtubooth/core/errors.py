@@ -79,6 +79,7 @@ ErrorCode = Literal[
     # external AI (LLM)
     "invalid_llm_config",
     "llm_not_configured",
+    "llm_no_vision",
     "llm_key_invalid",
     "llm_budget_exhausted",
     "invalid_property",

@@ -121,6 +121,21 @@ def test_toggles(admin, core):
     assert {a["name"]: a["enabled"] for a in r.json()["analyzers"]}["basic"] is True
 
 
+def test_analysis_image_choice(admin, core):
+    """„Erkennung auf: Original / Gefiltertes Foto“ (default: the original)."""
+    assert admin.get(f"{BASE}/analysis").json()["image"] == "original"
+    r = admin.put(f"{BASE}/analysis/image", json={"use": "filtered"}, headers=ORIGIN)
+    assert r.status_code == 200, r.text
+    assert r.json()["image"] == "filtered"
+    assert jobs.analysis_image(core.repos.app_settings) == "filtered"
+    entry = core.repos.audit.list(1)[0]
+    assert entry.action == "wall.image" and entry.details == {"use": "filtered"}
+    r = admin.put(f"{BASE}/analysis/image", json={"use": "both"}, headers=ORIGIN)
+    assert r.status_code == 422
+    r = admin.put(f"{BASE}/analysis/image", json={"use": "original"}, headers=ORIGIN)
+    assert r.json()["image"] == "original"
+
+
 def test_unknown_analyzer(admin):
     r = admin.put(f"{BASE}/analysis/analyzers", json={"disabled": ["horoscope"]}, headers=ORIGIN)
     assert r.status_code == 400

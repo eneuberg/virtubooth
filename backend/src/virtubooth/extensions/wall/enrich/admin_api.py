@@ -12,7 +12,7 @@ from fastapi import APIRouter, Depends
 from ....api.deps import AdminDep, CoreDep, require_admin
 from ....core import errors
 from .analyzers import BY_NAME
-from .schemas import AnalysisStatus, AnalyzerIn, AnalyzersIn, PhotoAnalysis
+from .schemas import AnalysisImageIn, AnalysisStatus, AnalyzerIn, AnalyzersIn, PhotoAnalysis
 from .service import EnrichmentService, InvalidSettings, MlMissing
 
 router = APIRouter(
@@ -53,6 +53,17 @@ def set_analyzer(name: str, body: AnalyzerIn, core: CoreDep, admin: AdminDep) ->
                              actor=admin.actor)  # fmt: skip
     except InvalidSettings as exc:
         raise errors.bad_request(str(exc), "invalid_analyzer_settings") from None
+    return service.status()
+
+
+@router.put("/admin/analysis/image")
+def set_analysis_image(body: AnalysisImageIn, core: CoreDep, admin: AdminDep) -> AnalysisStatus:
+    """„Erkennung auf“: `original` (the unfiltered original when there is one) or
+    `filtered` (the photo as the guest saw it), for every analyzer and the external
+    AI's detection. Applies to photos analysed from now on; photos without a
+    separate original always use the photo."""
+    service = EnrichmentService.of(core)
+    service.set_image(body.use, actor=admin.actor)
     return service.status()
 
 

@@ -47,21 +47,30 @@ class FakeProvider:
     scored: list[tuple[str, list[PhotoLine], bool]] = field(default_factory=list)
     verdicts: list[tuple[str, list[PhotoLine]]] = field(default_factory=list)
     pings: int = 0
+    efforts: list[str] = field(default_factory=list)
 
     def _maybe_fail(self) -> None:
         if self.fail is not None:
             raise self.fail
 
     def detect(
-        self, image_jpeg: bytes, *, model: str
+        self, image_jpeg: bytes, *, model: str, effort: str = "low"
     ) -> tuple[list[ports.DetectedObject], TokenUsage]:
+        self.efforts.append(effort)
         self.detected.append(image_jpeg)
         self._maybe_fail()
         return list(self.objects), self.usage
 
     def score(
-        self, prompt: str, lines: Sequence[PhotoLine], *, model: str, relative: bool = False
+        self,
+        prompt: str,
+        lines: Sequence[PhotoLine],
+        *,
+        model: str,
+        relative: bool = False,
+        effort: str = "low",
     ) -> tuple[dict[str, list[float | None]], TokenUsage]:
+        self.efforts.append(effort)
         self.scored.append((prompt, list(lines), relative))
         self._maybe_fail()
         if self.score_fn is not None:
@@ -69,8 +78,9 @@ class FakeProvider:
         return {x.ref: [0.5] * len(x.labels) for x in lines}, self.usage
 
     def verdict(
-        self, prompt: str, lines: Sequence[PhotoLine], *, model: str
+        self, prompt: str, lines: Sequence[PhotoLine], *, model: str, effort: str = "low"
     ) -> tuple[VerdictOut, TokenUsage]:
+        self.efforts.append(effort)
         self.verdicts.append((prompt, list(lines)))
         self._maybe_fail()
         out = self.verdict_out or VerdictOut(
@@ -140,8 +150,11 @@ def add_photo(
     age_s: float = 3600,
     image: bytes | None = None,
     hidden: bool = False,
+    ai_detect: bool = False,
 ) -> tuple[int, str]:
-    """A photo with its file, its analysis row and local objects; (id, public id)."""
+    """A photo with its file, its analysis row and local objects; (id, public id).
+    `ai_detect`: the pipeline finished it while the AI detector was active (v15),
+    so the external AI may look at it."""
     n = next(_n)
     public_id = f"ph{n:06d}"
     filename = f"{public_id}.jpg"
@@ -165,8 +178,9 @@ def add_photo(
     assert pid is not None
     with core.db.tx() as c:
         c.execute(
-            "INSERT INTO wall_analysis (photo_id, state, rev, finished_at) VALUES (?,?,?,?)",
-            (pid, state, n, created),
+            "INSERT INTO wall_analysis (photo_id, state, rev, finished_at, ai_detect) "
+            "VALUES (?,?,?,?,?)",
+            (pid, state, n, created, int(ai_detect)),
         )
         if hidden:
             c.execute("UPDATE photos SET hidden_at=? WHERE id=?", (created, pid))

@@ -3,6 +3,7 @@ import { ApiError } from '@/api/client';
 import { analysisStatus } from '../wall/fixtures';
 import { llmStatus } from './fixtures';
 import {
+  aiUnavailable,
   externalBlocked,
   fill,
   keyStatusText,
@@ -11,7 +12,16 @@ import {
   testErrorText,
   validateProperty,
 } from './forms';
-import { ageText, modelText, queueText, sizeText, statsText, usageKindText, usdText } from './text';
+import {
+  ageText,
+  modelText,
+  queueText,
+  sizeText,
+  sourceText,
+  statsText,
+  usageKindText,
+  usdText,
+} from './text';
 
 describe('ML-Pipeline lines', () => {
   it('formats sizes, stats and the queue', () => {
@@ -33,8 +43,23 @@ describe('ML-Pipeline lines', () => {
     expect(usdText(1.25)).toBe('1,25 $');
     expect(usdText(0.0022)).toBe('0,0022 $');
     expect(
-      modelText({ id: 'm', provider: 'anthropic', title: 'Haiku', usd_in_mtok: 1, usd_out_mtok: 5 }),
+      modelText({
+        id: 'm',
+        provider: 'anthropic',
+        title: 'Haiku',
+        usd_in_mtok: 1,
+        usd_out_mtok: 5,
+        currency: 'USD',
+        price_in_mtok: 1,
+        price_out_mtok: 5,
+      }),
     ).toBe('Haiku · 1 $ / 5 $ pro Mio. Tokens');
+    // DeutschlandGPT: its own currency, not the converted dollars
+    const dgpt = llmStatus().models.find((m) => m.provider === 'deutschlandgpt');
+    expect(dgpt && modelText(dgpt).replaceAll('\u00a0', ' ')).toBe(
+      'Claude Haiku 5.5 · 0,83 € / 4,13 € pro Mio. Tokens',
+    );
+    expect(sourceText('deutschlandgpt')).toBe('DeutschlandGPT');
     expect(usageKindText({ kind: 'detect', ref: null })).toBe('Erkennung');
     expect(usageKindText({ kind: 'property', ref: 'coolness' })).toBe('Eigenschaft „coolness“');
     expect(usageKindText({ kind: 'verdict', ref: 'coolstes_objekt' })).toBe('Urteil „coolstes_objekt“');
@@ -76,6 +101,21 @@ describe('ML-Pipeline forms', () => {
     expect(keyStatusText({ set: true, set_at: null, provider: 'anthropic', valid: false })).toBe(
       'Schlüssel ungültig, bitte neu eingeben',
     );
+  });
+
+  it('knows when the external AI is off or has no key (the red hint)', () => {
+    const key = { set: true, set_at: null, provider: 'anthropic', valid: true };
+    expect(aiUnavailable(undefined)).toBeNull();
+    expect(aiUnavailable(llmStatus())).toBe('key');
+    expect(aiUnavailable(llmStatus({ key: { ...key, valid: false } }))).toBe('key');
+    expect(aiUnavailable(llmStatus({ key }))).toBeNull();
+    const off = llmStatus({ key });
+    off.config = { ...off.config, enabled: false };
+    expect(aiUnavailable(off)).toBe('off');
+    expect(externalBlocked(off)).toBe('Externe KI ist aus.');
+    const dgpt = llmStatus({ key });
+    dgpt.config = { ...dgpt.config, provider: 'deutschlandgpt', model: 'claude-haiku-5.5' };
+    expect(externalBlocked(dgpt)).toBe('DeutschlandGPT (Claude, Deutschland) kann keine Fotos ansehen.');
   });
 
   it('knows when the test image may go to Claude', () => {

@@ -96,7 +96,7 @@ function Limits({ status }: { status: LlmStatus }) {
     if (Object.keys(errs).length > 0) return;
     setBusy(true);
     try {
-      qc.setQueryData(wk.llm, await saveLlmConfig({ ...status.config, budget: next }));
+      qc.setQueryData(wk.llm, await saveLlmConfig({ budget: next }));
       showToast({ message: 'Limits gespeichert.', tone: 'success' });
     } catch (err) {
       setFormError(errorText(err));

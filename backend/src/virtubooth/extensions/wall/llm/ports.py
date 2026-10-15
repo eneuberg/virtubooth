@@ -82,7 +82,7 @@ def submit_test(
 
 
 def set_local_objects(core: Core, enabled: bool, *, by: str) -> None:
-    """`detect.local`: switch D1's `objects` analyzer in `x.wall.analyzers`
+    """The local detector: switch D1's `objects` analyzer in `x.wall.analyzers`
     (only the disabled set changes; the analyzers' settings stay). Off: the
     `people` value falls back to the face count."""
     repo = core.repos.app_settings

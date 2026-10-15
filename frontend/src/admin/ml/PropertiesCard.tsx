@@ -1,27 +1,157 @@
 /**
- * "Eigenschaften": what the external AI rates per object at every poll (coolness …).
- * Name and prompt are fixed once created (N7): no edit, no delete; archiving stops
- * the polling and keeps the last scores, and can be undone.
+ * "Eigenschaften": „Eigenschaften abfragen“ (the poll: its switch, interval, state, cost,
+ * last error and „Jetzt abfragen“) and what the external AI rates per object at every
+ * poll (coolness …). Name and prompt are fixed once created (N7): no edit, no delete;
+ * archiving stops the polling and keeps the last scores, and can be undone.
  */
 import { useQueryClient } from '@tanstack/react-query';
-import { Archive, ArchiveRestore, Plus, Tags } from 'lucide-react';
+import { Archive, ArchiveRestore, Plus, RefreshCw, Save, Tags } from 'lucide-react';
 import { useState, type FormEvent } from 'react';
 import { isApiError } from '@/api/client';
-import { formatDateTime, formatNumber, formatRelative } from '@/lib/format';
+import { formatDateTime, formatNumber, formatRelative, formatTime } from '@/lib/format';
 import { Badge } from '@/ui/Badge';
 import { Button } from '@/ui/Button';
 import { cx } from '@/ui/cx';
 import { Sheet } from '@/ui/Sheet';
 import { Spinner } from '@/ui/Spinner';
+import { Switch } from '@/ui/Switch';
 import { TextField } from '@/ui/TextField';
 import { showToast } from '@/ui/Toast';
 import { errorText, showError } from '../common/usePhotoActions';
 import { Card } from '../wall/fields';
 import { wk } from '../wall/keys';
-import { archiveProperty, createProperty } from './api';
-import { PROPERTY_PROMPT_MAX, validateProperty } from './forms';
+import { archiveProperty, createProperty, pollNow, saveLlmConfig } from './api';
+import { ExternalAiHint } from './ExternalAiHint';
+import { parseMinutes, PROPERTY_PROMPT_MAX, validateProperty } from './forms';
 import { useProperties } from './hooks';
-import type { LlmProperty } from './types';
+import { CostText, PartState } from './PartState';
+import type { LlmProperty, LlmStatus } from './types';
+
+/** „Eigenschaften abfragen“: switch and interval (one PUT /llm/config), then the poller's state. */
+function PollControls({ status }: { status: LlmStatus }) {
+  const qc = useQueryClient();
+  const base = { poll: status.config.poll, minutes: String(Math.round(status.config.poll_interval_s / 60)) };
+  const [edits, setEdits] = useState<typeof base | null>(null);
+  const [busy, setBusy] = useState<'save' | 'now' | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const f = edits ?? base;
+  const dirty = edits !== null && (edits.poll !== base.poll || edits.minutes !== base.minutes);
+  const minutes = parseMinutes(f.minutes);
+  const { poller } = status;
+  const set = (change: Partial<typeof base>) => {
+    setError(null);
+    setEdits({ ...f, ...change });
+  };
+
+  const save = async () => {
+    if (minutes === null) return;
+    setBusy('save');
+    try {
+      qc.setQueryData(wk.llm, await saveLlmConfig({ poll: f.poll, poll_interval_s: minutes * 60 }));
+      setEdits(null);
+      showToast({ message: 'Abfrage gespeichert.', tone: 'success' });
+    } catch (err) {
+      setError(errorText(err));
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const now = async () => {
+    setBusy('now');
+    try {
+      const out = await pollNow();
+      showToast({
+        message: out.started ? 'Die Abfrage läuft.' : (out.reason ?? 'Gerade nicht möglich.'),
+        tone: out.started ? 'success' : 'error',
+      });
+      void qc.invalidateQueries({ queryKey: wk.llm });
+    } catch (err) {
+      showError(err);
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  return (
+    <section className="grid gap-2 border-b border-line pb-4" data-testid="ml-part-poll">
+      <Switch isSelected={f.poll} onChange={(poll) => set({ poll })} data-testid="ml-llm-poll">
+        Eigenschaften abfragen
+      </Switch>
+      <ExternalAiHint status={status} />
+      <TextField
+        label="Abfrage alle … Minuten"
+        size="sm"
+        inputMode="numeric"
+        value={f.minutes}
+        onChange={(text) => set({ minutes: text })}
+        errorMessage={minutes === null ? 'Bitte eine ganze Zahl von 1 bis 60.' : null}
+        description="So oft bewertet die KI die Eigenschaften (nur Text: die Objektlisten der Fotos) neu und schreibt die Urteile."
+        className="max-w-xs"
+        data-testid="ml-llm-minutes"
+      />
+      {dirty ? (
+        <div className="flex flex-wrap items-center gap-2">
+          <Button
+            size="sm"
+            variant="primary"
+            icon={Save}
+            isPending={busy === 'save'}
+            isDisabled={minutes === null}
+            onPress={() => void save()}
+            data-testid="ml-poll-save"
+          >
+            Speichern
+          </Button>
+          <Button size="sm" variant="quiet" onPress={() => setEdits(null)}>
+            Verwerfen
+          </Button>
+        </div>
+      ) : null}
+      {error ? (
+        <p role="alert" className="text-sm text-danger">
+          {error}
+        </p>
+      ) : null}
+      <dl
+        className="grid grid-cols-[auto_minmax(0,1fr)] items-baseline gap-x-5 gap-y-1 text-sm"
+        data-testid="ml-poller"
+      >
+        <dt className="text-ink-muted">Stand</dt>
+        <dd className="flex flex-wrap items-center gap-2">
+          <PartState status={status} part="poll" state={poller.state} partOn={status.config.poll} />
+          {poller.last_poll_at ? (
+            <span className="text-ink-muted">zuletzt {formatRelative(poller.last_poll_at)}</span>
+          ) : null}
+          {poller.next_poll_at ? (
+            <span className="text-ink-muted">nächste um {formatTime(poller.next_poll_at)}</span>
+          ) : null}
+        </dd>
+        <dt className="text-ink-muted">Kosten</dt>
+        <dd>
+          <CostText status={status} part="poll" />
+        </dd>
+      </dl>
+      {poller.last_error ? (
+        <p className="text-sm text-danger" data-testid="ml-poller-error">
+          {poller.last_error}
+        </p>
+      ) : null}
+      <Button
+        size="xs"
+        variant="secondary"
+        icon={RefreshCw}
+        isPending={busy === 'now'}
+        isDisabled={!status.config.enabled || !status.config.poll || !status.key.set}
+        onPress={() => void now()}
+        className="justify-self-start"
+        data-testid="ml-poll-now"
+      >
+        Jetzt abfragen
+      </Button>
+    </section>
+  );
+}
 
 function NewPropertySheet({
   isOpen,
@@ -173,7 +303,7 @@ function PropertyRow({ property: p }: { property: LlmProperty }) {
   );
 }
 
-export function PropertiesCard() {
+export function PropertiesCard({ status }: { status: LlmStatus }) {
   const list = useProperties();
   const [open, setOpen] = useState(false);
   const props = list.data ?? [];
@@ -186,6 +316,7 @@ export function PropertiesCard() {
       icon={Tags}
       intro="Bei jeder Abfrage bewertet die KI alle Objekte neu, z. B. wie cool sie sind. Kategorien können danach sortieren."
     >
+      <PollControls status={status} />
       <Button
         size="sm"
         variant="secondary"

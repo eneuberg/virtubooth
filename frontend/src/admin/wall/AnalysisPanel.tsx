@@ -20,7 +20,8 @@ import { Switch } from '@/ui/Switch';
 import { durationsText, sourceText } from '../ml/text';
 import { isNoAnalysis, isRouteMissing } from './api';
 import { usePhotoAnalysis, useWallEnabled } from './hooks';
-import { ANALYSIS_STATE_LABELS, BOX_KIND_COLORS, BOX_KIND_LABELS } from './labels';
+import { labelColor, textOn } from './labelColors';
+import { ANALYSIS_STATE_LABELS, BOX_KIND_LABELS } from './labels';
 import { analysisFrames, analysisViews, type ObjectView } from './objectViews';
 import { ObjectViewTabs } from './ObjectViewTabs';
 import { boxStyle, factValue, type FrameBox } from './text';
@@ -83,6 +84,9 @@ export function BoxLayer({
       {boxes.map((box, i) => {
         const lit = highlight !== null && box.objectIndex === highlight;
         const dim = highlight !== null && !lit;
+        // the thing's colour, as on the Live tiles (faces and hands by their kind)
+        const color = box.color ?? labelColor(box.key ?? box.kind).color;
+        const outline = box.outline ?? (box.both ? 'double' : 'solid');
         return (
           <div
             // boxes have no id; their order is the server's
@@ -93,18 +97,20 @@ export function BoxLayer({
             data-object={box.objectIndex}
             data-sources={box.sources}
             data-both={box.both || undefined}
+            data-outline={outline}
             data-lit={lit || undefined}
             className={cx(
               'absolute rounded-[2px] transition-opacity duration-(--duration-quick)',
-              // a merged entry both sources found: a double outline
-              box.both ? 'border-4 border-double' : lit ? 'border-[3px]' : 'border-2',
+              // who found it: the local model solid, an AI dashed, both double
+              outline === 'double' ? 'border-4 border-double' : lit ? 'border-[3px]' : 'border-2',
+              outline === 'dashed' && 'border-dashed',
               dim && 'opacity-30',
             )}
-            style={{ ...boxStyle(box), borderColor: box.color ?? BOX_KIND_COLORS[box.kind] }}
+            style={{ ...boxStyle(box), borderColor: color }}
           >
             <span
-              className="absolute -top-px -left-px max-w-[12rem] truncate px-1 text-[0.6875rem] leading-4 font-semibold text-black"
-              style={{ backgroundColor: box.color ?? BOX_KIND_COLORS[box.kind] }}
+              className="absolute -top-px -left-px max-w-[12rem] truncate px-1 text-[0.6875rem] leading-4 font-semibold"
+              style={{ backgroundColor: color, color: textOn(color) }}
             >
               {box.label || BOX_KIND_LABELS[box.kind]}
             </span>
@@ -185,6 +191,13 @@ function OptOutMarks({ optOut }: { optOut: PhotoAnalysis['opt_out'] }) {
   );
 }
 
+/** which image a run looked at („Erkennung auf“) */
+const RUN_IMAGE: Record<'original' | 'filtered' | 'photo', string> = {
+  original: 'auf Original',
+  filtered: 'auf gefiltertem Foto',
+  photo: 'auf dem Foto',
+};
+
 const RUN_STATE: Record<PhotoAnalysis['runs'][number]['state'], string> = {
   done: 'fertig',
   failed: 'fehlgeschlagen',
@@ -231,6 +244,7 @@ function Objects({ photoId, analysis }: { photoId: string; analysis: PhotoAnalys
             <li key={r.source}>
               Erkennung {sourceText(r.source)}: {RUN_STATE[r.state]}
               {r.model ? <span className="font-mono"> ({r.model})</span> : null}
+              {r.image ? <span data-testid="analysis-run-image"> · {RUN_IMAGE[r.image]}</span> : null}
               {r.error ? <span className="text-danger"> – {r.error}</span> : null}
             </li>
           ))}

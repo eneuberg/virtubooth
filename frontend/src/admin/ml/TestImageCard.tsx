@@ -19,7 +19,8 @@ import { ObjectViewTabs } from '../wall/ObjectViewTabs';
 import { factValue, type FrameBox } from '../wall/text';
 import { runTestImage } from './api';
 import { useLlm } from './hooks';
-import { externalBlocked, testErrorText } from './forms';
+import { ExternalAiHint } from './ExternalAiHint';
+import { aiUnavailable, externalBlocked, testErrorText } from './forms';
 import { durationsText, usdText } from './text';
 import type { TestImageResult } from './types';
 
@@ -28,7 +29,7 @@ const ALL = '__all__';
 
 const EMPTY: Record<ObjectView, string> = {
   local: 'Das lokale Modell lief nicht (nicht gewählt oder aus).',
-  ai: 'Nicht an die KI geschickt (Haken „Auch an Claude schicken“).',
+  ai: 'Nicht an die KI geschickt (Haken „Auch an die KI schicken“).',
   merged: 'Keine Objekte erkannt.',
 };
 
@@ -213,9 +214,15 @@ export function TestImageCard() {
           onChange={setExternal}
           data-testid="ml-test-external"
         >
-          Auch an Claude schicken (kostet)
+          Auch an die KI schicken (kostet)
         </Checkbox>
-        {blocked ? <p className="-mt-2 text-xs text-ink-muted">{blocked}</p> : null}
+        {aiUnavailable(llm.data) ? (
+          <ExternalAiHint status={llm.data} className="-mt-2" />
+        ) : blocked ? (
+          <p className="-mt-2 text-xs text-ink-muted" data-testid="ml-test-external-blocked">
+            {blocked}
+          </p>
+        ) : null}
         <Button
           size="sm"
           variant="primary"

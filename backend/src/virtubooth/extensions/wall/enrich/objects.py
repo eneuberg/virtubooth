@@ -1,4 +1,10 @@
-"""A photo's object lists (migrations 11, 14): frozen, append-only.
+"""A photo's object lists (migrations 11, 14, 15): frozen, append-only.
+
+Since v15 object detection is either/or: a new photo gets the local detector's
+list OR the external AI's (whichever was active when the pipeline finished it),
+so its merged list is exactly that one source's list (the merge has nothing to
+link). Photos from before that may have both lists, merged as below; they stay
+as they are, and so do their idx and the property scores that index them.
 
 Each source keeps its own list as it found it (`photo_source_objects`: the
 local model's, the external AI's), and the photo has ONE merged list
@@ -32,7 +38,7 @@ if TYPE_CHECKING:
     from .merge import Entry
 
 RunState = Literal["done", "failed", "skipped"]
-SOURCES = ("local", "claude", "mistral")
+SOURCES = ("local", "claude", "mistral", "deutschlandgpt")
 _CHUNK = 500
 
 
@@ -95,8 +101,9 @@ def _box(o: DetectedObject) -> tuple[float | None, ...]:
 
 
 def append(
-    db: Database, photo_id: int, source: str, model: str, objs: Sequence[DetectedObject]
-) -> list[int]:
+    db: Database, photo_id: int, source: str, model: str, objs: Sequence[DetectedObject],
+    *, image: str | None = None,
+) -> list[int]:  # fmt: skip
     """Store `objs` (in this order) as the source's list, merge them into the
     photo's merged list and record the source's `done` run. Returns, per object,
     the merged idx it became or was linked to. FrozenError when the source ran."""
@@ -136,8 +143,8 @@ def append(
         )
         c.execute(
             "INSERT INTO photo_detection_runs (photo_id, source, state, model, error, objects, "
-            "created_at) VALUES (?, ?, 'done', ?, NULL, ?, ?)",
-            (photo_id, source, model, len(source_rows), at),
+            "created_at, image) VALUES (?, ?, 'done', ?, NULL, ?, ?, ?)",
+            (photo_id, source, model, len(source_rows), at, image),
         )
         _bump_rev(c, photo_id)
     return out
@@ -166,7 +173,7 @@ def _entries(c: sqlite3.Connection, photo_id: int) -> list[Entry]:
 
 def record_run(
     db: Database, photo_id: int, source: str, state: RunState, model: str | None,
-    error: str | None,
+    error: str | None, *, image: str | None = None,
 ) -> None:  # fmt: skip
     """Record a run without objects (`failed`, `skipped`; `done` with none).
     `append` records `done` itself. FrozenError when the source ran."""
@@ -176,8 +183,8 @@ def record_run(
         _check_new(c, photo_id, source)
         c.execute(
             "INSERT INTO photo_detection_runs (photo_id, source, state, model, error, objects, "
-            "created_at) VALUES (?, ?, ?, ?, ?, 0, ?)",
-            (photo_id, source, state, model, (error or None) and error[:200], now_iso()),
+            "created_at, image) VALUES (?, ?, ?, ?, ?, 0, ?, ?)",
+            (photo_id, source, state, model, (error or None) and error[:200], now_iso(), image),
         )
         _bump_rev(c, photo_id)
 
@@ -256,7 +263,7 @@ def source_objects_of(db: Database, photo_id: int) -> dict[str, list[SourceObjec
 
 
 def runs_of(db: Database, photo_id: int) -> list[dict[str, str | int | None]]:
-    """The photo's detection runs: {source, state, model, error, objects}."""
+    """The photo's detection runs: {source, state, model, error, objects, image}."""
     return [
         {
             "source": r["source"],
@@ -264,35 +271,39 @@ def runs_of(db: Database, photo_id: int) -> list[dict[str, str | int | None]]:
             "model": r["model"],
             "error": r["error"],
             "objects": int(r["objects"]),
+            "image": r["image"],
         }
         for r in db.all(
-            "SELECT source, state, model, error, objects FROM photo_detection_runs "
+            "SELECT source, state, model, error, objects, image FROM photo_detection_runs "
             "WHERE photo_id=? ORDER BY rowid",
             (photo_id,),
         )
     ]
 
 
-# Photos an external source may still see (also counted for the admin): the
-# local pipeline finished them, `source` has no run for them, they are visible
-# and their guest is not banned and has neither opt-out on (live flags).
+# Photos the external AI may still see (also counted for the admin): the pipeline
+# finished them WHILE the AI detector was active (`ai_detect`, v15: no backfill of
+# older photos), no external source has run for them yet (one AI list per photo,
+# also after a provider change), they are visible and their guest is not banned
+# and has neither opt-out on (live flags). The `source` parameter is kept for the
+# callers; any non-local run counts.
 _ELIGIBLE_SQL = (
     "FROM photos p JOIN users u ON u.id = p.user_id "
     "JOIN wall_analysis a ON a.photo_id = p.id "
-    "WHERE a.state IN ('done', 'failed', 'skipped') "
+    "WHERE a.state = 'done' AND a.ai_detect = 1 AND ? IS NOT NULL "
     "AND p.hidden_at IS NULL AND p.deleted_at IS NULL "
     "AND u.analysis_opt_out = 0 AND u.ai_opt_out = 0 AND u.banned_at IS NULL "
     "AND NOT EXISTS (SELECT 1 FROM photo_detection_runs r "
-    "                WHERE r.photo_id = p.id AND r.source = ?) "
+    "                WHERE r.photo_id = p.id AND r.source != 'local') "
 )
 
 
 def eligible_for_external(db: Database, source: str, limit: int) -> list[int]:
-    """Photo ids an external source may still analyse, newest first: the local
-    pipeline finished them (`done`/`failed`/`skipped`), `source` has no run
-    for them, they are visible (not hidden, not deleted) and their guest is not
-    banned and has neither the analysis opt-out nor the external-AI opt-out on
-    (live flags)."""
+    """Photo ids the external AI may still analyse, newest first: the pipeline
+    finished them while the AI detector was active (`wall_analysis.ai_detect`),
+    no external source ran for them, they are visible (not hidden, not deleted)
+    and their guest is not banned and has neither the analysis opt-out nor the
+    external-AI opt-out on (live flags)."""
     rows = db.all(
         f"SELECT p.id {_ELIGIBLE_SQL} ORDER BY p.id DESC LIMIT ?", (source, max(0, int(limit)))
     )

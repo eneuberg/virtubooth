@@ -1,13 +1,17 @@
-"""Object detection by the external AI (PLAN-NIGHT N9), „Objekterkennung mit KI“.
+"""Object detection by the external AI (PLAN-NIGHT N9), „Objekte mit KI“ in the
+Modelle card: the pipeline's step for photos while it is the active detector.
 
-Independent of the poll (poller.py): its own switch (`detect.external`, under
-the master switch `enabled`), its own state for the admin, its own usage kind
-(`detect`). The AI's objects are stored as its own list and merged into the
-photo's object list (enrich/merge.py), which the poll then rates.
+Either/or with the local detector (config.DetectConfig): while `detect.external`
+(and the master switch `enabled`) is on, the worker skips the local `objects`
+analyzer and marks each photo it finishes (`wall_analysis.ai_detect`); this
+runner sends exactly those photos. Photos finished before (or while the local
+detector was active) are never sent: there is no backfill sweep. Its own usage
+kind (`detect`); the AI's list is the photo's object list (the merged list holds
+just that one source for new photos), which the poll then rates.
 
-A thread in the main process, one photo at a time, while `enabled` and
-`detect.external` are on and a key is stored: the newest photo the local
-pipeline has finished and this source has not seen yet → the guest's flags
+A thread in the main process, one photo at a time, while the AI detector is
+active and a key is stored: the newest photo the pipeline marked and no AI has
+seen yet → the guest's flags
 are read again right before sending → the photo goes out downscaled (long
 edge ≤ `image_max_px`, JPEG q80, no metadata) → its objects are appended
 after the local ones (idx continues). Each source runs once per photo: a
@@ -25,11 +29,13 @@ from typing import TYPE_CHECKING, Literal
 
 from PIL import Image, ImageOps
 
+from ..enrich import jobs
 from . import ports
 from .providers import BY_ID as PROVIDERS
 from .providers.base import ProviderError
 
 if TYPE_CHECKING:
+    from .config import LlmConfig
     from .service import LlmService
 
 log = logging.getLogger("virtubooth.llm")
@@ -46,6 +52,7 @@ class _Photo:
     public_id: str
     path_ext: str
     filename: str
+    image: str
 
 
 def downscale(raw: bytes, max_px: int) -> bytes:
@@ -77,13 +84,17 @@ class DetectionRunner:
         blocked (budget) or idle."""
         svc = self.service
         cfg = svc.config()
-        if not (cfg.enabled and cfg.detect.external) or svc.keys.load(cfg.provider) is None:
+        if not self.active(cfg) or svc.keys.load(cfg.provider) is None:
             return "off"
         if self.running:
             return "running"
         if self.blocked or svc.blocked_reason(cfg):
             return "blocked"
         return "idle"
+
+    @staticmethod
+    def active(cfg: LlmConfig) -> bool:
+        return cfg.ai_detection and PROVIDERS[cfg.provider].vision
 
     def start(self) -> None:
         self._ticker.start()
@@ -105,9 +116,9 @@ class DetectionRunner:
     def _sendable(self, photo_id: int) -> _Photo | None:
         """The photo if it may leave the server right now (live flags)."""
         row = self.service.core.db.one(
-            # the unfiltered original when there is one (as the local analysis)
-            "SELECT p.id, p.public_id, p.extension, "
-            "COALESCE(p.raw_filename, p.filename) AS filename FROM photos p "
+            # „Erkennung auf“ (as the local analysis): the original when there is one,
+            # or the filtered photo
+            "SELECT p.id, p.public_id, p.extension, p.filename, p.raw_filename FROM photos p "
             "JOIN users u ON u.id = p.user_id WHERE p.id = ? AND p.deleted_at IS NULL "
             "AND p.hidden_at IS NULL AND u.ai_opt_out = 0 AND u.analysis_opt_out = 0 "
             "AND u.banned_at IS NULL",
@@ -115,7 +126,9 @@ class DetectionRunner:
         )
         if row is None:
             return None
-        return _Photo(row["id"], row["public_id"], row["extension"], row["filename"])
+        use = jobs.analysis_image(self.service.core.repos.app_settings)
+        filename, image = jobs.pick_image(use, row["filename"], row["raw_filename"])
+        return _Photo(row["id"], row["public_id"], row["extension"], filename, image)
 
     def run_once(self) -> str:
         """One photo: `idle` (nothing to do or switched off), `done` (one photo
@@ -124,7 +137,7 @@ class DetectionRunner:
 
         svc = self.service
         cfg = svc.config()
-        if not (cfg.enabled and cfg.detect.external):
+        if not self.active(cfg):
             self.blocked = None
             return "idle"
         if svc.keys.load(cfg.provider) is None:
@@ -146,12 +159,15 @@ class DetectionRunner:
             image = downscale(raw, cfg.image_max_px)
         except (OSError, ValueError, Image.DecompressionBombError) as exc:
             log.warning("llm detect: photo %s unreadable: %s", photo.public_id, exc)
-            self._record(photo.id, source, "failed", None, "Foto nicht lesbar.")
+            self._record(photo.id, source, "failed", None, "Foto nicht lesbar.", photo.image)
             return "done"
         self.running = True
         try:
             objs, _ = svc.call(
-                "detect", photo.public_id, lambda p, m: p.detect(image, model=m), config=cfg
+                "detect",
+                photo.public_id,
+                lambda p, m: p.detect(image, model=m, effort=cfg.effort),
+                config=cfg,
             )
         except Unavailable as exc:
             self.blocked = exc.message if exc.code == "llm_budget_exhausted" else None
@@ -161,21 +177,29 @@ class DetectionRunner:
                 self.last_error = exc.message
                 log.warning("llm detect: %s (retrying later)", exc.message)
                 return "backoff"
-            self._record(photo.id, source, "failed", cfg.model, exc.message[:200])
+            self._record(photo.id, source, "failed", cfg.model, exc.message[:200], photo.image)
             return "done"
         finally:
             self.running = False
         self.last_error = None
         try:
-            ports.append(db, photo.id, source, cfg.model, objs)
+            ports.append(db, photo.id, source, cfg.model, objs, image=photo.image)
         except ports.FrozenError:
             log.info("llm detect: %s already ran for %s", source, photo.public_id)
         return "done"
 
     def _record(
-        self, photo_id: int, source: str, state: ports.RunState, model: str | None, error: str
+        self,
+        photo_id: int,
+        source: str,
+        state: ports.RunState,
+        model: str | None,
+        error: str,
+        image: str | None = None,
     ) -> None:
         try:
-            ports.record_run(self.service.core.db, photo_id, source, state, model, error[:200])
+            ports.record_run(
+                self.service.core.db, photo_id, source, state, model, error[:200], image=image
+            )
         except ports.FrozenError:
             pass

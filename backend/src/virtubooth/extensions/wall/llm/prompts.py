@@ -75,6 +75,36 @@ def parse_json(text: str, usage: TokenUsage) -> Any:
         ) from exc
 
 
+_FENCE = re.compile(r"^```[a-zA-Z]*\s*(.*?)\s*```$", re.S)
+
+
+def parse_json_loose(text: str, usage: TokenUsage) -> Any:
+    """`parse_json` for providers that ignore the JSON schema (DeutschlandGPT):
+    also the JSON inside a ``` fence or between the first `{` and the last `}`."""
+    stripped = text.strip()
+    candidates = [stripped]
+    fence = _FENCE.match(stripped)
+    if fence:
+        candidates.append(fence.group(1))
+    start, end = stripped.find("{"), stripped.rfind("}")
+    if 0 <= start < end:
+        candidates.append(stripped[start : end + 1])
+    for cand in candidates:
+        try:
+            return json.loads(cand)
+        except ValueError:
+            continue
+    raise ProviderError("Antwort war kein gültiges JSON.", kind="bad_output", usage=usage)
+
+
+def schema_instruction(schema: dict[str, Any]) -> str:
+    """Appended to the system prompt where the provider ignores `output_config.format`."""
+    return (
+        "\n\nAnswer with exactly one JSON object that matches this JSON schema, with no "
+        "text, markdown or code fence around it:\n" + json.dumps(schema, separators=(",", ":"))
+    )
+
+
 def _number(value: Any) -> float | None:
     if isinstance(value, bool) or not isinstance(value, int | float) or not math.isfinite(value):
         return None

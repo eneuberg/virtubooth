@@ -8,6 +8,7 @@ import { apiFetch, isApiError, type ApiFetchInit } from '@/api/client';
 import { authGate } from '../store/api';
 import { editable } from './draft';
 import type {
+  AnalysisImage,
   AnalysisStatus,
   CategoryItem,
   CategoryPreview,
@@ -114,6 +115,11 @@ export function fetchAnalysisStatus(): Promise<AnalysisStatus> {
 }
 
 /** One analyzer on/off, and its settings (they apply to photos analysed from now on). */
+/** „Erkennung auf: Original / Gefiltertes Foto“ (new photos). */
+export function setAnalysisImage(use: AnalysisImage): Promise<AnalysisStatus> {
+  return wallFetch('/analysis/image', { method: 'PUT', json: { use } });
+}
+
 export function setAnalyzer(
   name: string,
   change: { enabled: boolean; settings?: Record<string, number> },

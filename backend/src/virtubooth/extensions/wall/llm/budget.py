@@ -61,13 +61,14 @@ def record(
     usage: TokenUsage,
     ok: bool,
     timezone: str,
+    ms: int | None = None,
 ) -> int:
-    """Store one call; returns its estimated cost in micro-USD."""
+    """Store one call; returns its estimated cost in micro-USD. `ms`: how long it took."""
     cost = pricing.cost_micro_usd(model, usage.input_tokens, usage.output_tokens)
     with db.tx() as c:
         c.execute(
             "INSERT INTO llm_usage (at, day, kind, ref, provider, model, input_tokens, "
-            "output_tokens, cost_micro_usd, ok) VALUES (?,?,?,?,?,?,?,?,?,?)",
+            "output_tokens, cost_micro_usd, ok, ms) VALUES (?,?,?,?,?,?,?,?,?,?,?)",
             (
                 now_iso(),
                 party_day(timezone),
@@ -79,6 +80,7 @@ def record(
                 usage.output_tokens,
                 cost,
                 1 if ok else 0,
+                ms,
             ),
         )
     return cost
@@ -126,3 +128,34 @@ def blocked(db: Database, budget: BudgetConfig, timezone: str) -> str | None:
     if budget.daily_calls is not None and today.calls >= budget.daily_calls:
         return f"{BLOCKED} (heute: {today.calls} von {budget.daily_calls} Aufrufen)."
     return None
+
+
+@dataclass(frozen=True)
+class DetectStats:
+    """The AI detector's numbers for the Modelle row (all detection calls so far)."""
+
+    processed: int
+    errors: int
+    avg_ms: float | None
+    last_ms: float | None
+    cost_micro_usd: int
+
+
+def detect_stats(db: Database) -> DetectStats:
+    row = db.one(
+        "SELECT COALESCE(SUM(ok), 0) AS ok, COUNT(*) - COALESCE(SUM(ok), 0) AS bad, "
+        "AVG(ms) AS avg_ms, COALESCE(SUM(cost_micro_usd), 0) AS cost "
+        "FROM llm_usage WHERE kind = 'detect'"
+    )
+    last = db.one(
+        "SELECT ms FROM llm_usage WHERE kind = 'detect' AND ms IS NOT NULL ORDER BY id DESC LIMIT 1"
+    )
+    assert row is not None
+    avg = row["avg_ms"]
+    return DetectStats(
+        processed=int(row["ok"]),
+        errors=int(row["bad"]),
+        avg_ms=round(float(avg), 1) if avg is not None else None,
+        last_ms=float(last["ms"]) if last is not None else None,
+        cost_micro_usd=int(row["cost"]),
+    )

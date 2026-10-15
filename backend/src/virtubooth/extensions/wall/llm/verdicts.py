@@ -73,10 +73,10 @@ def clean_verdict(
 
 
 def _verdict_call(
-    prompt: str, lines: list[PhotoLine]
+    prompt: str, lines: list[PhotoLine], effort: str = "low"
 ) -> Callable[[Provider, str], tuple[VerdictOut, TokenUsage]]:
     def run(provider: Provider, model: str) -> tuple[VerdictOut, TokenUsage]:
-        return provider.verdict(prompt, lines, model=model)
+        return provider.verdict(prompt, lines, model=model, effort=effort)
 
     return run
 
@@ -157,7 +157,7 @@ def run_verdicts(
             out, _ = svc.call(
                 "verdict",
                 cid,
-                _verdict_call(prompt, lines),
+                _verdict_call(prompt, lines, cfg.effort),
                 config=cfg,
             )
         except Unavailable as exc:

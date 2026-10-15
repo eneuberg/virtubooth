@@ -48,7 +48,11 @@ class MistralProvider:
         self._base = base_url.rstrip("/")
         self._wait = retry_wait_s
 
-    def detect(self, image_jpeg: bytes, *, model: str) -> tuple[list[DetectedObject], TokenUsage]:
+    # no thinking here: `effort` is accepted and ignored
+
+    def detect(
+        self, image_jpeg: bytes, *, model: str, effort: str = "low"
+    ) -> tuple[list[DetectedObject], TokenUsage]:
         url = "data:image/jpeg;base64," + base64.standard_b64encode(image_jpeg).decode("ascii")
         content = [
             {"type": "text", "text": prompts.DETECT_TEXT},
@@ -60,7 +64,13 @@ class MistralProvider:
         return prompts.parse_detection(data, usage), usage
 
     def score(
-        self, prompt: str, lines: Sequence[PhotoLine], *, model: str, relative: bool = False
+        self,
+        prompt: str,
+        lines: Sequence[PhotoLine],
+        *,
+        model: str,
+        relative: bool = False,
+        effort: str = "low",
     ) -> tuple[dict[str, list[float | None]], TokenUsage]:
         text = prompts.score_text(prompt, lines, relative=relative)
         data, usage = self._json(
@@ -69,7 +79,7 @@ class MistralProvider:
         return prompts.parse_scores(data, usage), usage
 
     def verdict(
-        self, prompt: str, lines: Sequence[PhotoLine], *, model: str
+        self, prompt: str, lines: Sequence[PhotoLine], *, model: str, effort: str = "low"
     ) -> tuple[VerdictOut, TokenUsage]:
         text = prompts.verdict_text(prompt, lines)
         data, usage = self._json(

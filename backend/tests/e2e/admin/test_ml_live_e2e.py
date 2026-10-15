@@ -50,17 +50,21 @@ def api(page: Page, live: LiveServer, method: str, path: str, body: Any = None) 
 
 
 def analysed(live: LiveServer, public_id: str, labels: list[tuple[str, str]]) -> int:
-    """What the worker does for a photo: claim it, store facts and local objects."""
+    """What the worker does for a photo: claim it, store facts and the local objects,
+    or (either/or) none and queue it for the external AI while that is the detector."""
     db = live.core.db
     pid = live.core.repos.photos.internal_id(public_id)
     assert pid is not None
     claimed = jobs.claim(db)
     assert claimed is not None and claimed.id == pid
+    ai = jobs.ai_detection_active(live.core.repos.app_settings)
     objs = [DetectedObject(en, de, 0.8, (0.1 * i, 0.1, 0.2, 0.3)) for i, (en, de) in
             enumerate(labels)]  # fmt: skip
     assert jobs.finish(db, pid, facts={"brightness": 0.5, "faces": 1.0, "people": 1.0},
-                       data={}, versions={"basic": "1"}, objects_found=objs,
-                       objects_model="e2e@1")  # fmt: skip
+                       data={}, versions={"basic": "1"}, objects_found=[] if ai else objs,
+                       objects_model=None if ai else "e2e@1",
+                       objects_skipped=jobs.AI_ACTIVE if ai else None,
+                       ai_detect=ai)  # fmt: skip
     return pid
 
 
@@ -97,15 +101,12 @@ def test_ml_pipeline_categories_and_the_wall_verdict(
     # two guests: Fuchs allows everything, Otter says „Keine Weitergabe an externe KI“
     fuchs = Guest(live)
     otter = Guest(live)
-    try:
-        r = fuchs.client.patch("/api/me", json={"display_name": "Partyfuchs"})
-        assert r.status_code == 200, r.text
-        assert otter.client.put("/api/me/external-ai", json={"opt_out": True}).status_code == 200
-        cool = fuchs.upload()
-        other = otter.upload()
-    finally:
-        fuchs.client.close()
-        otter.client.close()
+    r = fuchs.client.patch("/api/me", json={"display_name": "Partyfuchs"})
+    assert r.status_code == 200, r.text
+    assert otter.client.put("/api/me/external-ai", json={"opt_out": True}).status_code == 200
+    cool = fuchs.upload()
+    other = otter.upload()
+    # analysed while the local detector is the one (the default)
     analysed(live, other, [("person", "Person"), ("hat", "Hut")])
     analysed(live, cool, [("person", "Person"), ("sunglasses", "Sonnenbrille")])
 
@@ -131,7 +132,6 @@ def test_ml_pipeline_categories_and_the_wall_verdict(
     stored = live.core.db.one("SELECT value FROM settings WHERE key='x.llm.key'")
     assert stored is not None and SECRET not in stored["value"]
     page.get_by_test_id("ml-llm-enabled").click()
-    page.get_by_test_id("ml-detect-external").click()
     page.get_by_test_id("ml-llm-save").click()
     expect(toast(page)).to_contain_text("KI-Einstellungen gespeichert.")
     page.get_by_test_id("ml-property-new").click()
@@ -142,10 +142,30 @@ def test_ml_pipeline_categories_and_the_wall_verdict(
     expect(toast(page)).to_contain_text("Eigenschaft „coolness“ angelegt.")
     expect(page.locator("[data-property=coolness]")).to_be_visible()
 
-    # detection at upload: only Fuchs's photo goes out
-    wait_until(lambda: len(fake.detected) >= 1, timeout=10, what="detection")
+    # object detection either/or: „KI“ in Modelle switches the local detector off
+    page.get_by_test_id("ml-object-detection").get_by_text("KI", exact=True).click()
+    expect(page.get_by_test_id("ml-ai-detect-active")).to_have_text("aktiv")
+    expect(page.get_by_test_id("ml-local-detect-active")).to_have_text("aus")
+    assert "objects" in jobs.disabled_analyzers(live.core.repos.app_settings)
+    # only photos the pipeline finishes from now on go out (no backfill of the two above),
+    # and of those only Fuchs's (Otter opted out)
+    try:
+        new_other = otter.upload()
+        new_cool = fuchs.upload()
+    finally:
+        fuchs.client.close()
+        otter.client.close()
+    analysed(live, new_cool, [])
+    analysed(live, new_other, [])
+    wait_until(lambda: len(fake.detected) >= 1, timeout=15, what="detection")
     page.wait_for_timeout(500)
     assert len(fake.detected) == 1
+    new_id = live.core.repos.photos.internal_id(new_cool)
+    runs = live.core.db.all(
+        "SELECT photo_id, source FROM photo_detection_runs WHERE source != 'local'"
+    )
+    assert [(r["photo_id"], r["source"]) for r in runs] == [(new_id, "claude")]
+    expect(page.get_by_test_id("ml-ai-detect-state")).to_contain_text("1 fertig", timeout=15_000)
 
     # the editor: the coolest-object preset needs the property; switch it on
     goto(page, live, "/admin/manage?tab=livewall")
