@@ -1,7 +1,7 @@
 /**
  * /admin/manage?tab=livewall: the Live Wall's settings. Edits collect in a draft and go
  * to the server in one PUT ("Änderungen speichern"); open walls pick them up at once.
- * Password, analyzers and re-runs are their own requests.
+ * Password and categories are their own requests; the analysis is in the ML-Pipeline.
  */
 import { useQueryClient } from '@tanstack/react-query';
 import { ExternalLink, Save, Tv, Undo2 } from 'lucide-react';
@@ -16,9 +16,8 @@ import { toastAvoid } from '@/ui/toastPlacement';
 import { errorText, showError } from '../common/usePhotoActions';
 import { useLeaveGuard } from '../lib/leaveGuard';
 import { AccessCard } from './AccessCard';
-import { AnalysisCard } from './AnalysisCard';
 import { isRouteMissing, saveWallConfig } from './api';
-import { CategoriesCard } from './CategoriesCard';
+import { CategoriesCard } from './categories/CategoriesCard';
 import { GalleryCard, LookCard, OverlayCard, PhotosCard, PlaylistCard, SpotlightCard } from './ConfigCards';
 import { isDirty, validate } from './draft';
 import { useWallAdmin, useWallEnabled } from './hooks';
@@ -147,8 +146,7 @@ function Editor({ admin }: { admin: WallAdminOut }) {
         <div className="grid min-w-0 content-start gap-y-8" data-testid="wall-column">
           <LookCard {...props} defaults={admin.defaults} />
           <OverlayCard {...props} />
-          <CategoriesCard {...props} categories={admin.categories} />
-          <AnalysisCard />
+          <CategoriesCard />
         </div>
       </div>
       {dirty ? (

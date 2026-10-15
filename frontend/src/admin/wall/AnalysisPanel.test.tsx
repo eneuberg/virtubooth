@@ -90,7 +90,7 @@ describe('AnalysisPanel', () => {
     renderPanel({ [PATH]: () => photoAnalysis() });
     expect(await screen.findByText('fertig')).toBeTruthy();
     const boxes = screen.getAllByTestId('analysis-box');
-    expect(boxes).toHaveLength(2);
+    expect(boxes).toHaveLength(3);
     expect(boxes[0]?.dataset.kind).toBe('face');
     expect(boxes[0]?.style.left).toBe('10.00%');
     expect(boxes[0]?.style.height).toBe('30.00%');
@@ -105,14 +105,39 @@ describe('AnalysisPanel', () => {
     await waitFor(() => expect(screen.queryAllByTestId('analysis-box')).toHaveLength(0));
   });
 
-  it('"Neu analysieren" posts and shows the photo waiting', async () => {
-    const { requests } = renderPanel({
-      [PATH]: () => photoAnalysis('failed'),
-      'POST /api/x/wall/admin/photos/p1/analysis': () => photoAnalysis('pending'),
-    });
+  it('has no "Neu analysieren" (analyses are frozen)', async () => {
+    renderPanel({ [PATH]: () => photoAnalysis('failed') });
     expect(await screen.findByText('fehlgeschlagen')).toBeTruthy();
-    fireEvent.click(screen.getByRole('button', { name: 'Neu analysieren' }));
-    expect(await screen.findByText('wartet')).toBeTruthy();
-    expect(requests.some((r) => r.method === 'POST' && r.url.endsWith('/photos/p1/analysis'))).toBe(true);
+    expect(screen.queryByRole('button', { name: /analysieren/i })).toBeNull();
+  });
+
+  it('lists the objects with source, scores and runs; a hovered object lights its frame', async () => {
+    renderPanel({ [PATH]: () => photoAnalysis() });
+    const objects = await screen.findAllByTestId('analysis-object');
+    expect(objects).toHaveLength(2);
+    expect(objects[0]?.textContent).toContain('Weinglas');
+    expect(objects[0]?.textContent).toContain('91');
+    expect(objects[0]?.textContent).toContain('lokal');
+    expect(objects[1]?.textContent).toContain('Claude');
+    // property scores per object (index = idx)
+    expect(objects[0]?.textContent).toContain('coolness 0,20');
+    expect(objects[1]?.textContent).toContain('coolness 0,90');
+    expect(screen.getByTestId('analysis-runs').textContent).toContain('Erkennung Claude: fertig');
+    // faces and hands from boxes, plus the one object with a box
+    const frames = screen.getAllByTestId('analysis-box');
+    expect(frames.map((f) => f.dataset.kind)).toEqual(['face', 'hand', 'object']);
+    fireEvent.pointerEnter(objects[0] as HTMLElement);
+    await waitFor(() => expect(frames[2]?.dataset.lit).toBe('true'));
+    fireEvent.pointerLeave(objects[0] as HTMLElement);
+    await waitFor(() => expect(screen.getAllByTestId('analysis-box')[2]?.dataset.lit).toBeUndefined());
+  });
+
+  it('marks the guest\'s opt-outs', async () => {
+    renderPanel({
+      [PATH]: () => ({ ...photoAnalysis(), opt_out: { analysis: true, external_ai: true } }),
+    });
+    const marks = await screen.findByTestId('analysis-opt-out');
+    expect(marks.textContent).toContain('Gast möchte keine Auswertung');
+    expect(marks.textContent).toContain('Keine externe KI');
   });
 });

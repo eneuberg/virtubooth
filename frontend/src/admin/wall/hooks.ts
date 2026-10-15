@@ -5,7 +5,13 @@
  */
 import { useQuery } from '@tanstack/react-query';
 import { useExtensions } from '../store/hooks';
-import { fetchAnalysisStatus, fetchPhotoAnalysis, fetchWallAdmin, fetchWallCategories } from './api';
+import {
+  fetchAnalysisStatus,
+  fetchPhotoAnalysis,
+  fetchValues,
+  fetchWallAdmin,
+  fetchWallCategories,
+} from './api';
 import { wk } from './keys';
 
 /** true / false once the extension list is there: is the wall extension loaded here? */
@@ -33,6 +39,18 @@ export function useWallCategories(enabled = true) {
     queryFn: fetchWallCategories,
     enabled,
     staleTime: 0,
+    refetchOnWindowFocus: true,
+    retry: false,
+  });
+}
+
+/** The value catalogue and the object labels seen so far (the category editor). */
+export function useValues(enabled = true) {
+  return useQuery({
+    queryKey: wk.values,
+    queryFn: fetchValues,
+    enabled,
+    staleTime: 30_000,
     refetchOnWindowFocus: true,
     retry: false,
   });
