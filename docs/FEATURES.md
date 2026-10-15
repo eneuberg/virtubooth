@@ -769,8 +769,9 @@ Server.
 
 - **Immer:** Bildwerte mit Pillow (Helligkeit, Farbigkeit, Schärfe), dazu die Details
   „Aufgenommen“, „Quelle“, Filter bzw. Gefäß, „Gast“, „QR-Code“ und „Größe“.
-- **Mit dem KI-Paket** (Docker-Image mit `VB_ML=1`, lokal `make models`) und den
-  heruntergeladenen Modellen ([DEPLOY.md → Live-Wall](DEPLOY.md#live-wall-and-photo-analysis)):
+- **Mit dem KI-Paket** (Docker-Image mit `VB_ML=1`, auf Coolify Standard, lokal
+  `make models`) und den Modellen (Admin → ML-Pipeline → „Modelle herunterladen“;
+  [DEPLOY.md → Live-Wall](DEPLOY.md#live-wall-and-photo-analysis)):
   „Gesichter“, „Gesichtsausdruck“, „Hände und Gesten“, „Objekte“ (EfficientDet-Lite2,
   alle 80 COCO-Klassen mit deutschen Namen, z. B. „Weinglas“, „Sonnenbrille“),
   „Brillen, Hüte, Altersgruppe“ und „Alter (FairFace)“ (aus, bis der Host es
@@ -857,7 +858,16 @@ Tab „ML-Pipeline“ (`?tab=ml`), fünf Karten:
 
 - **„Modelle“:** jede Analyse mit Beschreibung, Größe, an/aus, ihren Einstellungen und
   Zahlen (Ø und letzte Dauer, Fotos, Fehler), dazu die Warteschlange und der
-  Herzschlag des Analyse-Prozesses.
+  Herzschlag des Analyse-Prozesses. Fehlen Modelldateien, steht oben **„Modelle
+  herunterladen“**: der Server lädt die fehlenden Modelle (die Standard-Modelle und die
+  eingeschalteter Analysen, z. B. FairFace erst, wenn „Alter“ an ist) von festen,
+  versionierten Adressen, prüft ihre SHA256-Summe und legt sie ins Daten-Volume
+  (`/data/wall/models`), wo sie Redeploys überstehen; mit Fortschritt und Fehlertext,
+  ein zweiter Klick startet nichts doppelt. Fehlt das KI-Paket selbst (Image mit
+  `VB_ML=0`), sagt die Karte das und wie man es behebt (in Coolify `VB_ML=1`,
+  Redeploy). Der Schalter einer Analyse, die gerade nicht laufen kann („läuft nicht“
+  mit Grund), geht in beide Richtungen: er speichert den Wunsch, und sie läuft, sobald
+  ihre Modelle da sind.
 - **„Testbild“:** ein JPEG hochladen und sehen, was die ganze Pipeline oder einzelne
   Analysen finden (Werte, Objekte mit Rahmen, Dauer, was nicht lief und warum), auf
   Wunsch auch der KI-Dienst („kostet“). Nichts wird als Partyfoto gespeichert;

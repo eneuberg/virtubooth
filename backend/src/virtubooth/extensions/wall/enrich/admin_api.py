@@ -13,7 +13,7 @@ from ....api.deps import AdminDep, CoreDep, require_admin
 from ....core import errors
 from .analyzers import BY_NAME
 from .schemas import AnalysisStatus, AnalyzerIn, AnalyzersIn, PhotoAnalysis
-from .service import EnrichmentService, InvalidSettings
+from .service import EnrichmentService, InvalidSettings, MlMissing
 
 router = APIRouter(
     tags=["wall"],
@@ -53,6 +53,25 @@ def set_analyzer(name: str, body: AnalyzerIn, core: CoreDep, admin: AdminDep) ->
                              actor=admin.actor)  # fmt: skip
     except InvalidSettings as exc:
         raise errors.bad_request(str(exc), "invalid_analyzer_settings") from None
+    return service.status()
+
+
+@router.post("/admin/analysis/models/download", responses=errors.error_responses(409))
+def download_models(core: CoreDep, admin: AdminDep) -> AnalysisStatus:
+    """„Modelle herunterladen“: fetch the missing model files (the standard
+    ones plus those of enabled analyzers) from the built-in registry, SHA256-
+    checked, into the data volume, in the background. The progress is in
+    `models.download` of the status. Idempotent: while one runs, or with
+    nothing missing, nothing happens. 409 `ml_missing` without the ML packages."""
+    service = EnrichmentService.of(core)
+    try:
+        service.download_models(actor=admin.actor)
+    except MlMissing:
+        raise errors.ApiError(
+            409, "ml_missing",
+            "Die KI-Pakete fehlen in diesem Docker-Image, Modelle allein helfen nicht. "
+            "Das Image mit VB_ML=1 bauen (in Coolify: Variable VB_ML=1, dann Redeploy).",
+        ) from None  # fmt: skip
     return service.status()
 
 

@@ -125,6 +125,22 @@ export const analysisStatus: AnalysisStatus = {
       ],
     }),
   ],
+  models: {
+    ml: true,
+    missing: [],
+    missing_mb: 0,
+    dest: '/data/wall/models',
+    can_download: false,
+    download: {
+      state: 'idle',
+      current: null,
+      models: [],
+      done_bytes: 0,
+      total_bytes: 0,
+      error: null,
+      finished_at: null,
+    },
+  },
 };
 
 export function photoAnalysis(state: PhotoAnalysis['state'] = 'done'): PhotoAnalysis {

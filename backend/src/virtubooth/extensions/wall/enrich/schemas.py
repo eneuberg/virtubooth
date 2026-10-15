@@ -74,11 +74,38 @@ class AnalysisQueue(BaseModel):
     oldest_pending_s: int | None = Field(description="Age of the oldest waiting photo (s).")
 
 
+class ModelDownload(BaseModel):
+    """„Modelle herunterladen“: the app's download of the missing model files."""
+
+    state: Literal["idle", "running", "done", "failed"]
+    current: str | None = Field(description="The model being downloaded right now.")
+    models: list[str] = Field(description="The models this download fetches.")
+    done_bytes: int
+    total_bytes: int
+    error: str | None = Field(description="Why it failed (German).")
+    finished_at: str | None
+
+
+class ModelsStatus(BaseModel):
+    """The model files the enabled and the standard analyzers need, as the app
+    sees them in its data dir (the worker reports its own view per analyzer)."""
+
+    ml: bool = Field(description="The ML packages are installed (image built with VB_ML=1).")
+    missing: list[str] = Field(description="Needed models that are not on the server.")
+    missing_mb: float = Field(description="Their download size (MB).")
+    dest: str = Field(description="Where downloads go (persistent: in the data volume).")
+    can_download: bool = Field(
+        description="POST /admin/analysis/models/download would fetch something now."
+    )
+    download: ModelDownload
+
+
 class AnalysisStatus(BaseModel):
     worker: WorkerStatus
     counts: AnalysisCounts
     queue: AnalysisQueue
     analyzers: list[AnalyzerStatus]
+    models: ModelsStatus
 
 
 class AnalyzersIn(BaseModel):

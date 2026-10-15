@@ -87,6 +87,7 @@ class Supervisor:
         if threads := thread_limit():
             env.setdefault("OMP_NUM_THREADS", str(threads))
         env.setdefault("MPLBACKEND", "Agg")
+        env.setdefault("ORT_DISABLE_TELEMETRY", "1")
         env.setdefault("PYTHONUNBUFFERED", "1")
         return env
 

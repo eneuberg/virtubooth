@@ -12,14 +12,17 @@
 # The app runs as an unprivileged user (uid/gid 10001) and keeps all state in
 # the /data volume.
 #
-# Live-Wall photo analysis (optional, ~+480 MB image, ~+145 MB models):
+# Live-Wall photo analysis (optional; sizes: docs/DEPLOY.md "Live-Wall"):
 #   docker build --build-arg VB_ML=1 -t virtubooth:ml .
 #       adds the `ml` extra (mediapipe, onnxruntime, OpenCV) + libEGL/GLES;
-#       models then come from /data/wall/models (run `virtubooth wall models
-#       fetch` in the container once)
+#       the models then go to /data/wall/models (the data volume, so they
+#       survive rebuilds): the admin's „Modelle herunterladen“ button in
+#       ML-Pipeline, or `virtubooth wall models fetch` in the container
 #   docker build --build-arg VB_ML=1 --build-arg VB_BAKE_MODELS=1 -t virtubooth:ml .
 #       also downloads the models (SHA256-checked) into /opt/vb-models
 # Without VB_ML the image is unchanged and only the basic analysis (Pillow) runs.
+# docker-compose.coolify.yaml builds with VB_ML=1 (Coolify variables VB_ML and
+# VB_BAKE_MODELS); compose.yaml and a plain `docker build` use the defaults below.
 
 # Keep these in sync with the repo files they mirror:
 #   frontend/.node-version, frontend/package.json "packageManager",
@@ -136,7 +139,15 @@ ENV PATH="/opt/venv/bin:${PATH}" \
     VB_DATA_DIR=/data \
     VB_HOST=0.0.0.0 \
     VB_PORT=8000 \
-    VB_WEB_DIR=/app/web
+    VB_WEB_DIR=/app/web \
+    XDG_CACHE_HOME=/tmp/.cache \
+    MPLCONFIGDIR=/tmp/matplotlib \
+    ORT_DISABLE_TELEMETRY=1
+# The root filesystem may be read-only (docker-compose.coolify.yaml) and HOME
+# (/nonexistent) does not exist: the ML libraries' caches (fontconfig,
+# matplotlib's font list, a few hundred KB) go to the /tmp tmpfs instead.
+# ORT_DISABLE_TELEMETRY: onnxruntime >= 1.31 would otherwise keep a device id
+# and send usage events to Microsoft.
 
 WORKDIR /app
 USER 10001:10001

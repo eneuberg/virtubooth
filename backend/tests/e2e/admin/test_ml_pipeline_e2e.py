@@ -326,3 +326,78 @@ def test_ml_section_on_a_phone(admin_page: Page, live: LiveServer) -> None:
     page.get_by_role("heading", name="Budget", level=2).scroll_into_view_if_needed()
     shot(page, "ui1_ml_phone_budget", 300)
     assert errors(page) == []
+
+
+MISSING_REASON = "Modell fehlt: yunet. Oben „Modelle herunterladen“ drücken."
+
+
+def test_models_download_and_switches_of_analyzers_that_cannot_run(
+    desktop_page: Page, live: LiveServer, ml: MlFake
+) -> None:
+    page = desktop_page
+    # ML packages there, models not (image built with VB_BAKE_MODELS=0)
+    ml.models.update(missing=["yunet", "face_landmarker"], missing_mb=4, can_download=True)
+    ml.unavailable = {"faces": MISSING_REASON, "objects": MISSING_REASON}
+
+    def start_download() -> dict[str, Any]:
+        ml.models.update(can_download=False, download={
+            "state": "running", "current": "face_landmarker", "models": ["yunet", "face_landmarker"],
+            "done_bytes": 1_500_000, "total_bytes": 4_000_000, "error": None, "finished_at": None,
+        })  # fmt: skip
+        return ml.status()
+
+    ml.start_download = start_download  # type: ignore[method-assign]
+    goto(page, live, "/admin/manage?tab=ml")
+    missing = page.get_by_test_id("ml-models-missing")
+    expect(missing).to_contain_text("2 Modelle fehlen")
+    faces = page.locator("[data-analyzer=faces]")
+    expect(faces.get_by_test_id("ml-analyzer-reason")).to_have_text(MISSING_REASON)
+    expect(faces).to_contain_text("läuft nicht")
+
+    # the switch of an analyzer that can't run: off, then on again (the bug)
+    switch = page.get_by_role("switch", name="Gesichter an")
+    label = faces.locator("label:has([role=switch])")
+    expect(switch).to_be_checked()
+    expect(switch).to_be_enabled()
+    label.click()
+    expect(switch).not_to_be_checked()
+    expect(switch).to_be_enabled()
+    label.click()
+    expect(switch).to_be_checked()
+    assert [b["enabled"] for b in ml.sent("PUT", "/analysis/analyzers/faces")] == [False, True]
+
+    # the download: one POST without a body, then the progress
+    missing.get_by_role("button", name="Modelle herunterladen").click()
+    expect(page.get_by_test_id("ml-models-progress")).to_have_text("2 von 4 MB")
+    assert ml.sent("POST", "/analysis/models/download") == [None]
+
+    # done (the worker beats): the analyzers run, the button is gone
+    ml.models.update(missing=[], missing_mb=0, download={
+        **ml.models["download"], "state": "done", "current": None, "done_bytes": 4_000_000,
+        "finished_at": "2026-10-15T20:00:00Z",
+    })  # fmt: skip
+    ml.unavailable = {}
+    goto(page, live, "/admin/manage?tab=ml")
+    expect(page.get_by_test_id("ml-models-done")).to_contain_text("Modelle heruntergeladen")
+    expect(page.get_by_role("button", name="Modelle herunterladen")).to_have_count(0)
+    expect(faces.get_by_test_id("ml-analyzer-reason")).to_have_count(0)
+    assert no_horizontal_scroll(page)
+    assert errors(page) == []
+
+
+def test_without_the_ml_packages_it_says_how_to_fix_it(
+    desktop_page: Page, live: LiveServer, ml: MlFake
+) -> None:
+    page = desktop_page
+    ml.models.update(ml=False, missing=["yunet"], missing_mb=0.2, can_download=False)
+    ml.worker = {
+        "ml": False,
+        "message": "Ohne KI-Paket: nur Bildwerte (Helligkeit, Farbe, Schärfe).",
+    }
+    goto(page, live, "/admin/manage?tab=ml")
+    box = page.get_by_test_id("ml-packages-missing")
+    expect(box).to_contain_text("KI-Pakete fehlen in diesem Server-Image")
+    expect(box).to_contain_text("VB_ML")
+    expect(box).to_contain_text("Redeploy")
+    expect(page.get_by_role("button", name="Modelle herunterladen")).to_have_count(0)
+    assert errors(page) == []

@@ -314,6 +314,33 @@ export interface AnalysisStatus {
   counts: { pending: number; running: number; done: number; failed: number; skipped: number; total: number };
   queue: { pending: number; running: number; oldest_pending_s: number | null };
   analyzers: Analyzer[];
+  models: ModelsStatus;
+}
+
+export const MODEL_DOWNLOAD_STATES = ['idle', 'running', 'done', 'failed'] as const;
+export type ModelDownloadState = (typeof MODEL_DOWNLOAD_STATES)[number];
+
+/** „Modelle herunterladen“: the model files the analyzers need, as the app sees them. */
+export interface ModelsStatus {
+  /** the ML packages are installed (image built with VB_ML=1) */
+  ml: boolean;
+  /** needed models that are not on the server */
+  missing: string[];
+  missing_mb: number;
+  /** where downloads go (the data volume) */
+  dest: string;
+  /** POST /analysis/models/download would fetch something now */
+  can_download: boolean;
+  download: {
+    state: ModelDownloadState;
+    current: string | null;
+    models: string[];
+    done_bytes: number;
+    total_bytes: number;
+    /** German */
+    error: string | null;
+    finished_at: string | null;
+  };
 }
 
 export const BOX_KINDS = ['face', 'hand', 'person', 'object'] as const;

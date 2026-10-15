@@ -32,6 +32,7 @@ ErrorCode = Literal[
     "category_exists",
     "invalid_analyzer_settings",
     "worker_off",
+    "ml_missing",
     # uploads
     "uploads_paused",
     "uploads_stopped",

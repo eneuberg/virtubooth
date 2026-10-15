@@ -103,3 +103,15 @@ def test_off_never_spawns(data_dir, monkeypatch):
     assert sup.state == "off" and sup.process is None
     sup.stop()
     assert sup.state == "off"
+
+
+def test_the_worker_runs_without_onnxruntime_telemetry(tmp_path):
+    """onnxruntime >= 1.31 sends usage events to Microsoft unless told not to."""
+    from virtubooth.extensions.wall.enrich.supervisor import Supervisor
+
+    assert (
+        Supervisor(tmp_path, env={"PATH": "/usr/bin"})._child_env()["ORT_DISABLE_TELEMETRY"] == "1"
+    )
+    # an explicit choice of the host wins
+    env = {"ORT_DISABLE_TELEMETRY": "0"}
+    assert Supervisor(tmp_path, env=env)._child_env()["ORT_DISABLE_TELEMETRY"] == "0"

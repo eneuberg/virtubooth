@@ -1252,6 +1252,30 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/x/wall/admin/analysis/models/download": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Download Models
+         * @description „Modelle herunterladen“: fetch the missing model files (the standard
+         *     ones plus those of enabled analyzers) from the built-in registry, SHA256-
+         *     checked, into the data volume, in the background. The progress is in
+         *     `models.download` of the status. Idempotent: while one runs, or with
+         *     nothing missing, nothing happens. 409 `ml_missing` without the ML packages.
+         */
+        post: operations["download_models_api_x_wall_admin_analysis_models_download_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/x/wall/admin/categories": {
         parameters: {
             query?: never;
@@ -2229,6 +2253,7 @@ export interface components {
             /** Analyzers */
             analyzers: components["schemas"]["AnalyzerStatus"][];
             counts: components["schemas"]["AnalysisCounts"];
+            models: components["schemas"]["ModelsStatus"];
             queue: components["schemas"]["AnalysisQueue"];
             worker: components["schemas"]["WorkerStatus"];
         };
@@ -3070,7 +3095,7 @@ export interface components {
              * @description Machine-readable error code.
              * @enum {string}
              */
-            error: "scan_qr" | "needs_consent" | "banned" | "consent_outdated" | "invalid_instagram" | "join_closed" | "invalid_display_name" | "display_name_taken" | "wall_login_required" | "wall_no_password" | "wall_password_too_short" | "invalid_wall_config" | "invalid_category" | "category_exists" | "invalid_analyzer_settings" | "worker_off" | "uploads_paused" | "uploads_stopped" | "unsupported_type" | "too_large" | "invalid_meta" | "empty_upload" | "invalid_image" | "photo_limit" | "storage_full" | "invalid_pdf" | "invalid_layout" | "no_template" | "admin_required" | "wrong_password" | "login_locked" | "invalid_filter" | "unknown_analyzer" | "invalid_cursor" | "no_fingerprint" | "restore_required" | "invalid_event_name" | "invalid_public_address" | "invalid_theme" | "password_too_short" | "password_unchanged" | "no_filter_enabled" | "unknown_filter" | "export_not_ready" | "export_running" | "invalid_token" | "token_taken" | "code_revoked" | "invalid_target" | "invalid_note" | "invalid_llm_config" | "llm_not_configured" | "llm_key_invalid" | "llm_budget_exhausted" | "invalid_property" | "property_exists" | "bad_origin" | "length_required" | "rate_limited" | "invalid_request" | "not_found" | "http_404" | "http_405";
+            error: "scan_qr" | "needs_consent" | "banned" | "consent_outdated" | "invalid_instagram" | "join_closed" | "invalid_display_name" | "display_name_taken" | "wall_login_required" | "wall_no_password" | "wall_password_too_short" | "invalid_wall_config" | "invalid_category" | "category_exists" | "invalid_analyzer_settings" | "worker_off" | "ml_missing" | "uploads_paused" | "uploads_stopped" | "unsupported_type" | "too_large" | "invalid_meta" | "empty_upload" | "invalid_image" | "photo_limit" | "storage_full" | "invalid_pdf" | "invalid_layout" | "no_template" | "admin_required" | "wrong_password" | "login_locked" | "invalid_filter" | "unknown_analyzer" | "invalid_cursor" | "no_fingerprint" | "restore_required" | "invalid_event_name" | "invalid_public_address" | "invalid_theme" | "password_too_short" | "password_unchanged" | "no_filter_enabled" | "unknown_filter" | "export_not_ready" | "export_running" | "invalid_token" | "token_taken" | "code_revoked" | "invalid_target" | "invalid_note" | "invalid_llm_config" | "llm_not_configured" | "llm_key_invalid" | "llm_budget_exhausted" | "invalid_property" | "property_exists" | "bad_origin" | "length_required" | "rate_limited" | "invalid_request" | "not_found" | "http_404" | "http_405";
             /**
              * Field
              * @description The form field a 400 is about, when the answer names one (e.g. `invalid_category`: title, line, where, by, count, verdict, ...).
@@ -3847,6 +3872,38 @@ export interface components {
         MeOut: {
             user: components["schemas"]["GuestUser"];
         };
+        /**
+         * ModelDownload
+         * @description „Modelle herunterladen“: the app's download of the missing model files.
+         */
+        ModelDownload: {
+            /**
+             * Current
+             * @description The model being downloaded right now.
+             */
+            current: string | null;
+            /** Done Bytes */
+            done_bytes: number;
+            /**
+             * Error
+             * @description Why it failed (German).
+             */
+            error: string | null;
+            /** Finished At */
+            finished_at: string | null;
+            /**
+             * Models
+             * @description The models this download fetches.
+             */
+            models: string[];
+            /**
+             * State
+             * @enum {string}
+             */
+            state: "idle" | "running" | "done" | "failed";
+            /** Total Bytes */
+            total_bytes: number;
+        };
         /** ModelOut */
         ModelOut: {
             /** Id */
@@ -3859,6 +3916,39 @@ export interface components {
             usd_in_mtok: number;
             /** Usd Out Mtok */
             usd_out_mtok: number;
+        };
+        /**
+         * ModelsStatus
+         * @description The model files the enabled and the standard analyzers need, as the app
+         *     sees them in its data dir (the worker reports its own view per analyzer).
+         */
+        ModelsStatus: {
+            /**
+             * Can Download
+             * @description POST /admin/analysis/models/download would fetch something now.
+             */
+            can_download: boolean;
+            /**
+             * Dest
+             * @description Where downloads go (persistent: in the data volume).
+             */
+            dest: string;
+            download: components["schemas"]["ModelDownload"];
+            /**
+             * Missing
+             * @description Needed models that are not on the server.
+             */
+            missing: string[];
+            /**
+             * Missing Mb
+             * @description Their download size (MB).
+             */
+            missing_mb: number;
+            /**
+             * Ml
+             * @description The ML packages are installed (image built with VB_ML=1).
+             */
+            ml: boolean;
         };
         /**
          * MyPhotosOut
@@ -12447,6 +12537,89 @@ export interface operations {
             };
             /** @description Not found, or no party access (`scan_qr`) */
             404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Request validation failed (`invalid_request`) */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Rate limited (`Retry-After` header) */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    download_models_api_x_wall_admin_analysis_models_download_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AnalysisStatus"];
+                };
+            };
+            /** @description Invalid input (see `error`) */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Needs consent or an admin session */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Forbidden: banned, paused, stopped, joining closed or a foreign Origin (CSRF) */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Not found, or no party access (`scan_qr`) */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Conflict */
+            409: {
                 headers: {
                     [name: string]: unknown;
                 };

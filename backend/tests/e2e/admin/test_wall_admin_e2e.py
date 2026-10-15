@@ -145,6 +145,15 @@ class FakeWall:
         self.analysis: dict[str, dict[str, Any]] = {}
         self.winners: list[str] = []  # photo ids leading "eroeffnung", best first
         self.worker: dict[str, Any] = {}  # extra heartbeat fields of the worker
+        # analyzer → why it can't run (models missing, ...)
+        self.unavailable: dict[str, str] = {}
+        # GET /analysis `models` („Modelle herunterladen“)
+        self.models: dict[str, Any] = {
+            "ml": True, "missing": [], "missing_mb": 0, "dest": "/data/wall/models",
+            "can_download": False,
+            "download": {"state": "idle", "current": None, "models": [], "done_bytes": 0,
+                         "total_bytes": 0, "error": None, "finished_at": None},
+        }  # fmt: skip
         self.requests: list[tuple[str, str, Any]] = []
         self.open_walls = 2
         self.cats: list[dict[str, Any]] = [
@@ -201,6 +210,10 @@ class FakeWall:
             "event_name": "Testparty",
         }
 
+    def start_download(self) -> dict[str, Any]:
+        """Tests replace it (the real one fetches in the background)."""
+        return self.status()
+
     def status(self) -> dict[str, Any]:
         analyzers = [
             ("basic", "Helligkeit und Farben", "basic", True, None, None),
@@ -216,7 +229,9 @@ class FakeWall:
             "queue": {"pending": 3, "running": 1, "oldest_pending_s": 12},
             "analyzers": [
                 {"name": n, "title": t, "kind": k, "version": "1",
-                 "enabled": n not in self.disabled_analyzers, "available": a, "reason": r,
+                 "enabled": n not in self.disabled_analyzers,
+                 "available": a and n not in self.unavailable,
+                 "reason": self.unavailable.get(n, r),
                  "facts": [], "description": f"{t}: was es tut.", "size_mb": size,
                  "stats": {"processed": 128, "errors": 2, "avg_ms": 340, "last_ms": 290},
                  "settings": dict(self.settings) if n == "objects" else None,
@@ -228,6 +243,7 @@ class FakeWall:
                  ] if n == "objects" else []}
                 for n, t, k, a, r, size in analyzers
             ],
+            "models": copy.deepcopy(self.models),
         }  # fmt: skip
 
     def photo_analysis(self, photo_id: str, state: str = "done") -> dict[str, Any]:
@@ -323,6 +339,8 @@ class FakeWall:
                 return 200, VALUES
             case "GET", "/analysis":
                 return 200, self.status()
+            case "POST", "/analysis/models/download":
+                return 200, self.start_download()
         m = re.fullmatch(r"/categories/([a-z0-9_]+)", path)
         if m and (cat := self.find(m[1])):
             if method == "PUT":

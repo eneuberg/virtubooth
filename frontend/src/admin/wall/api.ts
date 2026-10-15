@@ -120,6 +120,11 @@ export function setAnalyzer(
   return wallFetch(`/analysis/analyzers/${encodeURIComponent(name)}`, { method: 'PUT', json: change });
 }
 
+/** „Modelle herunterladen“: the missing models, in the background (idempotent). */
+export function downloadModels(): Promise<AnalysisStatus> {
+  return wallFetch('/analysis/models/download', { method: 'POST' });
+}
+
 export function fetchPhotoAnalysis(publicId: string): Promise<PhotoAnalysis> {
   return wallFetch(`/photos/${encodeURIComponent(publicId)}/analysis`);
 }

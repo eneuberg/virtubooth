@@ -3,11 +3,13 @@ router under the wall extension's prefix `/api/x/wall`."""
 
 from __future__ import annotations
 
+import hashlib
 from datetime import UTC, datetime, timedelta
+from pathlib import Path
 
 import pytest
 
-from virtubooth.extensions.wall.enrich import admin_api, jobs
+from virtubooth.extensions.wall.enrich import admin_api, downloads, jobs, models
 from virtubooth.extensions.wall.enrich.service import EnrichmentService
 
 from ..conftest import JPEG, ORIGIN, jpeg
@@ -37,6 +39,7 @@ def internal(core, public_id: str) -> int:
 def test_admin_only(client):
     for method, path in [
         ("get", f"{BASE}/analysis"),
+        ("post", f"{BASE}/analysis/models/download"),
         ("put", f"{BASE}/analysis/analyzers"),
         ("put", f"{BASE}/analysis/analyzers/faces"),
         ("get", f"{BASE}/photos/x/analysis"),
@@ -189,3 +192,105 @@ def test_service_port(core, guest):
     assert summaries[a].state == "pending" and summaries[a].facts == {}
     assert summaries[b].state == "done" and summaries[b].facts["people"] == 4.0
     assert 999 not in summaries
+
+
+def test_an_analyzer_that_cannot_run_switches_both_ways(admin):
+    """No models here: `faces` is unavailable, yet the switch is the stored wish
+    in both directions (the UI keeps it usable and shows the reason)."""
+    for enabled in (False, True, False, True):
+        r = admin.put(f"{BASE}/analysis/analyzers/faces", json={"enabled": enabled},
+                      headers=ORIGIN)  # fmt: skip
+        assert r.status_code == 200, r.text
+        faces = {a["name"]: a for a in r.json()["analyzers"]}["faces"]
+        assert faces["enabled"] is enabled and faces["available"] is False
+        assert "Modelle herunterladen" in faces["reason"]
+
+
+# ------------------------------------------------------- Modelle herunterladen
+
+
+def beat(core, *, ml: bool, missing: list[str] | None = None) -> None:
+    now = datetime.now(UTC).isoformat()
+    value = {"pid": 1, "beat_at": now, "ml": ml, "models_missing": missing or []}
+    core.repos.app_settings.put(jobs.WORKER_KEY, value, at=now)
+
+
+@pytest.fixture
+def registry(tmp_path, monkeypatch) -> list[models.ModelFile]:
+    """The real registry's names and files, served from local file URLs."""
+    fake: list[models.ModelFile] = []
+    for m in models.REGISTRY:
+        content = m.name.encode() * 50
+        src = tmp_path / "upstream" / m.file
+        src.parent.mkdir(parents=True, exist_ok=True)
+        src.write_bytes(content)
+        fake.append(models.ModelFile(m.name, m.file, src.as_uri(),
+                                     hashlib.sha256(content).hexdigest(), len(content), m.license,
+                                     m.optional))  # fmt: skip
+    monkeypatch.setattr(models, "REGISTRY", tuple(fake))
+    monkeypatch.setattr(models, "BY_NAME", {m.name: m for m in fake})
+    monkeypatch.setattr(models, "BAKED_DIR", tmp_path / "no-baked-models")
+    return fake
+
+
+def test_models_status_without_the_ml_packages(admin, core, registry):
+    beat(core, ml=False)
+    body = admin.get(f"{BASE}/analysis").json()
+    m = body["models"]
+    assert m["ml"] is False and m["can_download"] is False
+    # the standard set; FairFace only once `age` is switched on
+    assert m["missing"] == ["yunet", "face_landmarker", "ferplus", "gesture_recognizer",
+                            "efficientdet_lite2", "clip_vision"]  # fmt: skip
+    assert m["dest"] == str(core.settings.data_dir / "wall" / "models")
+    r = admin.post(f"{BASE}/analysis/models/download", headers=ORIGIN)
+    assert r.status_code == 409 and r.json()["error"] == "ml_missing"
+    assert "VB_ML=1" in r.json()["message"]
+    assert not (core.settings.data_dir / "wall" / "models").exists()
+
+
+def test_download_needs_the_origin(admin, core, registry):
+    beat(core, ml=True)
+    r = admin.post(f"{BASE}/analysis/models/download")
+    assert r.status_code == 403 and r.json()["error"] == "bad_origin"
+
+
+def test_download_the_missing_models(admin, core, registry, monkeypatch):
+    beat(core, ml=True, missing=[m.name for m in registry])
+    monkeypatch.setattr(downloads, "_free_bytes", lambda _p: 1 << 40)  # VB_MIN_FREE_MB is 2 GB
+    started: list[downloads.Downloader] = []
+    real_start = downloads.Downloader.start
+
+    def start_inline(self, wanted, **kw):  # run it in the request (deterministic)
+        started.append(self)
+        return real_start(self, wanted, **{**kw, "wait": True})
+
+    monkeypatch.setattr(downloads.Downloader, "start", start_inline)
+    m = admin.get(f"{BASE}/analysis").json()["models"]
+    assert m["can_download"] is True and len(m["missing"]) == 6
+    assert m["download"]["state"] == "idle"
+
+    # the client sends nothing: the server picks the files and their URLs
+    r = admin.post(f"{BASE}/analysis/models/download", headers=ORIGIN)
+    assert r.status_code == 200, r.text
+    m = r.json()["models"]
+    assert m["download"]["state"] == "done", m
+    assert m["missing"] == [] and m["can_download"] is False
+    assert m["download"]["done_bytes"] == m["download"]["total_bytes"] > 0
+    dest = Path(m["dest"])
+    assert sorted(p.name for p in dest.iterdir()) == sorted(
+        x.file for x in registry if not x.optional
+    )
+    entry = core.repos.audit.list(1)[0]
+    assert entry.action == "wall.models.download" and len(entry.details["models"]) == 6
+
+    # idempotent: nothing missing, nothing happens
+    r = admin.post(f"{BASE}/analysis/models/download", headers=ORIGIN)
+    assert r.status_code == 200 and len(started) == 1
+
+    # switching FairFace on makes its model needed: the button comes back for it
+    admin.put(f"{BASE}/analysis/analyzers/age", json={"enabled": True}, headers=ORIGIN)
+    m = admin.get(f"{BASE}/analysis").json()["models"]
+    assert m["missing"] == ["fairface_age"] and m["can_download"] is True
+    r = admin.post(f"{BASE}/analysis/models/download", headers=ORIGIN)
+    assert r.json()["models"]["missing"] == []
+    assert (dest / "fairface_age_model_int8.onnx").is_file()
