@@ -13,7 +13,20 @@ from virtubooth.extensions.sdk import discover_extensions
 
 from ..conftest import JPEG, jpeg, scan
 
-REQUIRED_FILTERS = {"normal", "bw", "sepia", "colorpop", "retro", "vhs", "party", "emoji"}
+REQUIRED_FILTERS = {
+    "normal",
+    "bw",
+    "sepia",
+    "colorpop",
+    "retro",
+    "vhs",
+    "party",
+    "emoji",
+    "thermal",
+    "disco",
+    "kaleido",
+    "glow",
+}
 
 
 @pytest.fixture
