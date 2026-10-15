@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { installPreloadRecovery } from './boot';
+import { installPreloadRecovery, LEAVE_GRACE_MS, quietWhileLeaving } from './boot';
 
 const html = (entry: string) =>
   `<!doctype html><script type="module" crossorigin src="/assets/${entry}.js"></script><div id="app"></div>`;
@@ -91,5 +91,62 @@ describe('preload recovery', () => {
     expect(sessionStorage.getItem('vb_chunk_reload')).toBe('1');
     vi.advanceTimersByTime(1);
     expect(sessionStorage.getItem('vb_chunk_reload')).toBeNull();
+  });
+});
+
+describe('quietWhileLeaving', () => {
+  const aborted = new TypeError('error loading dynamically imported module');
+  const settled = vi.fn<(outcome: unknown) => void>();
+
+  beforeEach(() => {
+    settled.mockReset();
+    vi.useFakeTimers({ toFake: ['setTimeout', 'Date'] });
+    installPreloadRecovery();
+  });
+  afterEach(() => {
+    window.dispatchEvent(new Event('pageshow')); // the next test's page stays
+    vi.useRealTimers();
+  });
+
+  function loadFailing(): void {
+    void quietWhileLeaving(() => Promise.reject(aborted))().then(settled, settled);
+  }
+
+  it('fails as usual while the page stays', async () => {
+    loadFailing();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(settled).toHaveBeenCalledWith(aborted);
+  });
+
+  it('keeps quiet while the page leaves (Firefox aborts its chunks)', async () => {
+    window.dispatchEvent(new Event('beforeunload'));
+    loadFailing();
+    await vi.advanceTimersByTimeAsync(LEAVE_GRACE_MS - 1);
+    expect(settled).not.toHaveBeenCalled();
+    // still here: the navigation was cancelled or became a download
+    await vi.advanceTimersByTimeAsync(1);
+    expect(settled).toHaveBeenCalledWith(aborted);
+  });
+
+  it('fails as usual once a cancelled leave is long past', async () => {
+    window.dispatchEvent(new Event('beforeunload'));
+    await vi.advanceTimersByTimeAsync(LEAVE_GRACE_MS);
+    loadFailing();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(settled).toHaveBeenCalledWith(aborted);
+  });
+
+  it('fails as usual on a page back from the back/forward cache', async () => {
+    window.dispatchEvent(new Event('beforeunload'));
+    window.dispatchEvent(new Event('pageshow'));
+    loadFailing();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(settled).toHaveBeenCalledWith(aborted);
+  });
+
+  it('passes a chunk that loads through', async () => {
+    window.dispatchEvent(new Event('beforeunload'));
+    const mod = { default: 'Card' };
+    await expect(quietWhileLeaving(() => Promise.resolve(mod))()).resolves.toBe(mod);
   });
 });

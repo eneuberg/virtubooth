@@ -177,7 +177,8 @@ steht im „Protokoll“.
   [Live-Zahlen](#übersicht).
 - **Analyse** (mit der Live-Wall): Chips unter jeder Kachel („3 Personen“, „2
   lächeln“, Objekte, gewonnene Kategorien, die Wünsche des Gasts) und Rahmen
-  über dem Vorschaubild: Objekte pink, Gesichter orange, Hände grün. Das große
+  über dem Vorschaubild, jedes Ding in seiner eigenen Farbe (gleiche Dinge gleiche
+  Farbe, auch Gesicht und Hand; der Name steht am Rahmen, keine Legende). Das große
   Foto zeigt die volle Analyse. Fertige Analysen erscheinen ohne Neuladen.
   „Analyse zeigen“ blendet alles aus; der Browser merkt es sich.
 - **„Filter zeigen“** (wie in „Fotos“, eine Einstellung für die ganze

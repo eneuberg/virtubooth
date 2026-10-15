@@ -7471,6 +7471,11 @@
             ],
             "description": "On the full photo (0..1, to 3 places); null when the source gives none."
           },
+          "label": {
+            "description": "The English key (the COCO class when it is one); the Live tile colours the frame by it, so the same thing has the same colour everywhere.",
+            "title": "Label",
+            "type": "string"
+          },
           "label_de": {
             "title": "Label De",
             "type": "string"
@@ -7495,6 +7500,7 @@
           }
         },
         "required": [
+          "label",
           "label_de",
           "source",
           "sources",

@@ -408,6 +408,36 @@ def _is_error(msg: Any) -> bool:
     return not ("downloadable font: download failed" in text and ABORTED_FONT in text)
 
 
+# What a console argument that is an object was: Firefox reports console.error(obj)
+# (React logging a caught error, say) as the bare text "JSHandle@object".
+_DESCRIBE_ARG = """(x) => {
+  if (x === null || typeof x !== 'object') return String(x);
+  const parts = [x.constructor?.name ?? 'Object'];
+  for (const key of ['name', 'message', 'reason', 'type', 'cause', 'stack']) {
+    try {
+      if (x[key] !== undefined) parts.push(`${key}=${String(x[key])}`);
+    } catch {}
+  }
+  try { parts.push(`str=${String(x)}`); } catch {}
+  return parts.join(' | ');
+}"""
+
+
+def _console_text(msg: Any) -> str:
+    """The console message's text; object arguments spelled out where the text is a
+    bare JSHandle. The page may be navigating away: then the bare text stays."""
+    text: str = msg.text
+    if "JSHandle@" not in text:
+        return text
+    described: list[str] = []
+    for arg in msg.args:
+        try:
+            described.append(str(arg.evaluate(_DESCRIBE_ARG)))
+        except Exception as exc:  # the page or its context may be gone
+            described.append(f"{arg} (not readable: {type(exc).__name__})")
+    return f"{text} [{'; '.join(described)}]" if described else text
+
+
 def track_errors(page: Page) -> Page:
     """page.js_errors: uncaught exceptions and console errors."""
     errors: list[str] = []
@@ -415,7 +445,9 @@ def track_errors(page: Page) -> Page:
     page.on(
         "console",
         lambda msg: (
-            errors.append(f"{msg.text} @ {msg.location.get('url', '')}") if _is_error(msg) else None
+            errors.append(f"{_console_text(msg)} @ {msg.location.get('url', '')}")
+            if _is_error(msg)
+            else None
         ),
     )
     page.js_errors = errors  # type: ignore[attr-defined]

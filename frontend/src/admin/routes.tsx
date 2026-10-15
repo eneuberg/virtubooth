@@ -6,6 +6,7 @@
 import { CircleQuestionMark } from 'lucide-react';
 import { lazy, Suspense } from 'react';
 import { Redirect, Route, Router, Switch, useLocation } from 'wouter';
+import { quietWhileLeaving } from '@/lib/boot';
 import { LinkButton } from '@/ui/Button';
 import { Notice } from '@/ui/Notice';
 import { Spinner } from '@/ui/Spinner';
@@ -15,8 +16,12 @@ import { LivePage } from './live/LivePage';
 import { LoginPage } from './login/LoginPage';
 
 // the manage area and the user page load on demand: the party phone needs live only
-const ManagePage = lazy(() => import('./manage/ManagePage').then((m) => ({ default: m.ManagePage })));
-const UserPage = lazy(() => import('./user/UserPage').then((m) => ({ default: m.UserPage })));
+const ManagePage = lazy(
+  quietWhileLeaving(() => import('./manage/ManagePage').then((m) => ({ default: m.ManagePage }))),
+);
+const UserPage = lazy(
+  quietWhileLeaving(() => import('./user/UserPage').then((m) => ({ default: m.UserPage }))),
+);
 
 function Loading() {
   return (

@@ -8,7 +8,12 @@ const near = (x: number, y: number, w: number, h: number) => ({
   h: expect.closeTo(h, 6),
 });
 
-const o = (label_de: string, box: { x: number; y: number; w: number; h: number } | null) => ({
+const o = (
+  label_de: string,
+  box: { x: number; y: number; w: number; h: number } | null,
+  label = label_de,
+) => ({
+  label,
   label_de,
   source: 'local',
   sources: ['local'],
@@ -60,8 +65,8 @@ describe('tileFrames', () => {
     const frames = tileFrames(
       {
         objects: [
-          o('Becher', { x: 0.1, y: 0.1, w: 0.2, h: 0.2 }),
-          o('Person', { x: 0, y: 0, w: 0.9, h: 1 }),
+          o('Becher', { x: 0.1, y: 0.1, w: 0.2, h: 0.2 }, 'cup'),
+          o('Person', { x: 0, y: 0, w: 0.9, h: 1 }, 'person'),
           o('Kuchen', null),
         ],
         boxes: [
@@ -71,11 +76,11 @@ describe('tileFrames', () => {
       },
       3 / 4,
     );
-    expect(frames.map((f) => [f.kind, f.label])).toEqual([
-      ['object', 'Person'],
-      ['face', null], // faces and hands: the outline only
-      ['object', null], // the cup is too small for its name
-      ['hand', null],
+    expect(frames.map((f) => [f.kind, f.key, f.label])).toEqual([
+      ['object', 'person', 'Person'],
+      ['face', 'face', null], // faces and hands: the outline only, keyed by their kind
+      ['object', 'cup', null], // the cup is too small for its name
+      ['hand', 'hand', null],
     ]);
   });
 

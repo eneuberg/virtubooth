@@ -1,8 +1,9 @@
 /**
  * The analysis on the Live screen: the frames of the objects, faces and hands on each
- * photo tile (mapped onto the tile's 3:4 crop, tileFrames.ts), compact chips under it
+ * photo tile (mapped onto the tile's 3:4 crop, tileFrames.ts; one colour per kind of
+ * thing, labelColors.ts, so no legend), compact chips under it
  * („3 Personen · 2 lächeln · Flasche, Becher“), and the switch „Analyse zeigen“
- * (remembered in this browser, with the frames' legend) that turns frames, chips and
+ * (remembered in this browser) that turns frames, chips and
  * the viewer's analysis block on and off. The
  * full analysis (frames on the photo, objects with score and source, details, property
  * scores) is the manage area's {@link AnalysisPanel}, shown in the photo viewer.
@@ -15,7 +16,7 @@ import { Sparkles } from 'lucide-react';
 import { cx } from '@/ui/cx';
 import { Switch } from '@/ui/Switch';
 import { useWallEnabled } from './hooks';
-import { BOX_KIND_COLORS } from './labels';
+import { labelColor } from './labelColors';
 import { useAnalysisSummary, useLiveAnalysis, useShowAnalysis } from './liveAnalysisState';
 import { analysisChips, chipsLabel, type ChipTone } from './summaryText';
 import { frameStyle, tileFrames } from './tileFrames';
@@ -33,37 +34,6 @@ export function AnalysisToggle({ className }: { className?: string }) {
   );
 }
 
-const LEGEND = [
-  // the merged list: the local model's objects and the AI's, each thing once
-  { kind: 'object', label: 'Objekte', title: 'Lokales Modell und KI zusammengeführt (✨ = von der KI)' },
-  { kind: 'face', label: 'Gesichter', title: undefined },
-  { kind: 'hand', label: 'Hände', title: undefined },
-] as const;
-
-/** What the frames' colours mean (next to the switch, while the analysis shows). */
-export function AnalysisLegend({ className }: { className?: string }) {
-  const show = useLiveAnalysis();
-  if (!show) return null;
-  return (
-    <ul
-      aria-label="Rahmen auf den Fotos"
-      className={cx('flex gap-2 text-[0.6875rem] leading-4 text-ink-muted', className)}
-      data-testid="analysis-legend"
-    >
-      {LEGEND.map(({ kind, label, title }) => (
-        <li key={kind} className="inline-flex items-center gap-1" data-kind={kind} title={title}>
-          <span
-            aria-hidden="true"
-            className="size-2.5 rounded-[2px] border-2"
-            style={{ borderColor: BOX_KIND_COLORS[kind] }}
-          />
-          {label}
-        </li>
-      ))}
-    </ul>
-  );
-}
-
 /**
  * The frames on one tile's thumbnail (inside PhotoTile's photo frame); `aspect` is the
  * photo's width / height. Nothing while the analysis is hidden or off.
@@ -76,26 +46,30 @@ export function AnalysisTileFrames({ photoId, aspect }: { photoId: string; aspec
   if (frames.length === 0) return null;
   return (
     <div aria-hidden="true" className="pointer-events-none absolute inset-0" data-testid="tile-frames">
-      {frames.map((f, i) => (
-        <div
-          // frames have no id; their order is stable for one summary
-          // oxlint-disable-next-line react/no-array-index-key
-          key={i}
-          data-testid="tile-frame"
-          data-kind={f.kind}
-          className="absolute rounded-[2px] border-2 shadow-[0_0_0_1px_rgb(0_0_0/0.35)]"
-          style={{ ...frameStyle(f), borderColor: BOX_KIND_COLORS[f.kind] }}
-        >
-          {f.label ? (
-            <span
-              className="absolute -top-px -left-px max-w-[calc(100%+2px)] truncate px-0.5 text-[0.625rem] leading-3.5 font-semibold text-black"
-              style={{ backgroundColor: BOX_KIND_COLORS[f.kind] }}
-            >
-              {f.label}
-            </span>
-          ) : null}
-        </div>
-      ))}
+      {frames.map((f, i) => {
+        const { color, text } = labelColor(f.key);
+        return (
+          <div
+            // frames have no id; their order is stable for one summary
+            // oxlint-disable-next-line react/no-array-index-key
+            key={i}
+            data-testid="tile-frame"
+            data-kind={f.kind}
+            data-key={f.key}
+            className="absolute rounded-[2px] border-2 shadow-[0_0_0_1px_rgb(0_0_0/0.35)]"
+            style={{ ...frameStyle(f), borderColor: color }}
+          >
+            {f.label ? (
+              <span
+                className="absolute -top-px -left-px max-w-[calc(100%+2px)] truncate px-0.5 text-[0.625rem] leading-3.5 font-semibold"
+                style={{ backgroundColor: color, color: text }}
+              >
+                {f.label}
+              </span>
+            ) : null}
+          </div>
+        );
+      })}
     </div>
   );
 }

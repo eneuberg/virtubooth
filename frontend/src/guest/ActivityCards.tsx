@@ -11,6 +11,7 @@ import { ChevronRight } from 'lucide-react';
 import { lazy, Suspense } from 'react';
 import { Link } from 'react-aria-components';
 import { listExtensions } from '@/extensions/registry';
+import { quietWhileLeaving } from '@/lib/boot';
 import type { Activity } from '@/sdk/activities';
 import { cx } from '@/ui/cx';
 import { Skeleton } from '@/ui/Skeleton';
@@ -21,7 +22,7 @@ import { tidy } from './copy';
 const cards = new Map(
   listExtensions().flatMap((ext) => {
     if (!ext.card) return [];
-    const Card = lazy(ext.card);
+    const Card = lazy(quietWhileLeaving(ext.card));
     return [[ext.id, (id: string) => <Card id={id} />] as const];
   }),
 );

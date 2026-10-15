@@ -1,7 +1,8 @@
 """The analysis on the Live screen: frames on each tile's thumbnail and chips under
 it, updated through the event stream when the worker finishes (`photo.analyzed`, no
 polling), the full analysis with frames in the viewer, and „Analyse zeigen“
-(remembered in the browser, with the frames' legend) to switch it all off. The worker itself is off here: the test does what it does
+(remembered in the browser) to switch it all off. No legend: every frame has its
+thing's colour (the same thing the same colour on every tile). The worker itself is off here: the test does what it does
 (`jobs.claim/finish`, like test_ml_live_e2e.py)."""
 
 from __future__ import annotations
@@ -9,7 +10,7 @@ from __future__ import annotations
 from collections.abc import Callable
 
 import pytest
-from playwright.sync_api import Page, expect
+from playwright.sync_api import Locator, Page, expect
 
 from virtubooth.extensions.wall.enrich import jobs
 from virtubooth.extensions.wall.enrich.objects import DetectedObject
@@ -45,6 +46,14 @@ def analyse(
                        objects_model="e2e@1")  # fmt: skip
 
 
+def border_color(el: Locator) -> str:
+    return str(el.evaluate("(e) => getComputedStyle(e).borderTopColor"))
+
+
+def border_colors(frames: Locator) -> list[str]:
+    return [border_color(f) for f in frames.all()]
+
+
 def test_analysis_chips_frames_and_the_switch(
     desktop_page: Page, live: LiveServer, guests: Callable[..., Guest]
 ) -> None:
@@ -78,7 +87,9 @@ def test_analysis_chips_frames_and_the_switch(
     assert pic and bottle
     assert abs((bottle["x"] - pic["x"]) / pic["width"] - 0.1) < 0.02
     assert abs(bottle["width"] / pic["width"] - 0.4) < 0.02
-    expect(page.get_by_test_id("analysis-legend")).to_contain_text("Objekte")
+    # no legend: each thing its own colour, the face one too
+    expect(page.get_by_test_id("analysis-legend")).to_have_count(0)
+    assert len(set(border_colors(frames))) == 3
 
     # open it (the frames never catch the tap): the frames lie on the photo, the object list says label, score, source
     tile.locator("figure button").first.click()
@@ -101,7 +112,6 @@ def test_analysis_chips_frames_and_the_switch(
     page.get_by_test_id("analysis-toggle").click()
     expect(page.get_by_test_id("analysis-chips")).to_have_count(0)
     expect(page.get_by_test_id("tile-frame")).to_have_count(0)
-    expect(page.get_by_test_id("analysis-legend")).to_have_count(0)
     tile.locator("figure button").first.click()
     expect(viewer).to_be_visible()
     expect(viewer.get_by_test_id("analysis")).to_have_count(0)
@@ -156,7 +166,14 @@ def test_frames_on_every_tile(
             len(objs) + len(frames)
         )
     expect(card(page, pending).get_by_test_id("tile-frame")).to_have_count(0)
-    expect(page.get_by_test_id("analysis-legend")).to_be_visible()
+    # the same thing has the same colour on every tile, different things differ
+    by_key: dict[str, set[str]] = {}
+    for el in page.locator("[data-testid=tile-frame]").all():
+        key = el.get_attribute("data-key") or ""
+        by_key.setdefault(key, set()).add(border_color(el))
+    assert {"person", "bottle", "cup", "wine glass", "cake", "face", "hand"} <= set(by_key)
+    assert all(len(c) == 1 for c in by_key.values()), by_key
+    assert len({next(iter(c)) for c in by_key.values()}) == len(by_key)
     page.evaluate(
         "() => Promise.all([...document.images].map((i) => i.decode().catch(() => null)))"
     )

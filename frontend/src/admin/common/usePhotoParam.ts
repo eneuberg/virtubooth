@@ -44,8 +44,13 @@ export function usePhotoParam(): {
   const closePhoto = () => {
     if (pushedHere()) {
       // mark it first: a second close (the API answer and the event both report a
-      // deletion) must not go back once more, off the page
-      history.replaceState({ ...historyState(), vbPhoto: false }, '');
+      // deletion) must not go back once more, off the page. And drop ?photo from this
+      // entry right away: going back takes a moment (Firefox: a while on a busy
+      // machine), and a reload or a link meanwhile would open the photo again. (The
+      // forward button then no longer reopens it.)
+      const url = new URL(location.href);
+      url.searchParams.delete('photo');
+      history.replaceState({ ...historyState(), vbPhoto: false }, '', url.pathname + url.search + url.hash);
       history.back();
       return;
     }

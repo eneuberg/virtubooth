@@ -6,7 +6,8 @@ import { NBSP } from '@/lib/format';
 import { UiProvider } from '@/ui/UiProvider';
 import { applyAdminEvent } from '../store/applyEvent';
 import { stubApi, testClient } from '../testing';
-import { AnalysisChips, AnalysisLegend, AnalysisTileFrames, AnalysisToggle } from './LiveAnalysis';
+import { labelColor } from './labelColors';
+import { AnalysisChips, AnalysisTileFrames, AnalysisToggle } from './LiveAnalysis';
 import { useShowAnalysis } from './liveAnalysisState';
 import { analysisChips, chipsLabel } from './summaryText';
 import type { PhotoAnalysisSummary } from './types';
@@ -41,7 +42,8 @@ const obj = (
   source = 'local',
   box: SummaryObject['box'] = null,
   score = 0.8,
-): SummaryObject => ({ label_de, source, sources: [source], box, score });
+  label = label_de.toLowerCase(),
+): SummaryObject => ({ label, label_de, source, sources: [source], box, score });
 
 const texts = (s: PhotoAnalysisSummary) => analysisChips(s).map((c) => c.text);
 
@@ -111,7 +113,6 @@ function renderTiles(
     <QueryClientProvider client={qc}>
       <UiProvider>
         <AnalysisToggle />
-        <AnalysisLegend />
         {ids.map((id) => (
           <div key={id}>
             <div data-testid={`photo-${id}`} className="relative">
@@ -187,8 +188,8 @@ describe('AnalysisChips', () => {
 const frames = (id: string) => within(screen.getByTestId(`photo-${id}`)).queryAllByTestId('tile-frame');
 
 describe('AnalysisTileFrames', () => {
-  const bottle = obj('Flasche', 'local', { x: 0.1, y: 0.2, w: 0.5, h: 0.5 });
-  const cup = obj('Becher', 'local', { x: 0.7, y: 0.7, w: 0.1, h: 0.1 });
+  const bottle = obj('Flasche', 'local', { x: 0.1, y: 0.2, w: 0.5, h: 0.5 }, 0.8, 'bottle');
+  const cup = obj('Becher', 'local', { x: 0.7, y: 0.7, w: 0.1, h: 0.1 }, 0.8, 'cup');
   const face = { kind: 'face' as const, x: 0.4, y: 0.1, w: 0.2, h: 0.2 };
 
   it('draws objects, faces and hands on every tile, labels only the big ones, from the same batch', async () => {
@@ -215,11 +216,31 @@ describe('AnalysisTileFrames', () => {
       ['face', 'hand', 'object'],
     );
     expect(rest.every((f) => f.textContent === '')).toBe(true);
-    expect(
-      within(screen.getByTestId('analysis-legend'))
-        .getAllByRole('listitem')
-        .map((li) => li.textContent),
-    ).toEqual(['Objekte', 'Gesichter', 'Hände']);
+    // no legend: every frame has its thing's colour, the chip names it
+    expect(screen.queryByTestId('analysis-legend')).toBeNull();
+  });
+
+  it('colours every frame by what it is: the same thing the same colour on every tile', async () => {
+    const otherCup = obj('Tasse', 'claude', { x: 0.1, y: 0.1, w: 0.5, h: 0.5 }, 0.8, 'cup');
+    renderTiles(['a', 'b'], (ids) =>
+      ids.map((id) =>
+        id === 'a'
+          ? summary(id, { objects: [bottle, cup], boxes: [face] })
+          : summary(id, { objects: [otherCup], boxes: [{ ...face, kind: 'hand' }] }),
+      ),
+    );
+    await waitFor(() => expect(frames('b')).toHaveLength(2));
+    const colour = (id: string, key: string) =>
+      frames(id).find((f) => f.getAttribute('data-key') === key)!.style.borderColor;
+    // „Becher“ (local) and „Tasse“ (the AI) are both a cup: one colour
+    expect(colour('a', 'cup')).toBe(colour('b', 'cup'));
+    const all = [colour('a', 'bottle'), colour('a', 'cup'), colour('a', 'face'), colour('b', 'hand')];
+    expect(new Set(all).size).toBe(4);
+    // the chip: the frame's colour, its text black or white by contrast
+    const chip = frames('b')[0]!.querySelector('span')!;
+    expect(chip.textContent).toBe('Tasse');
+    expect(chip.style.backgroundColor).toBe(colour('b', 'cup'));
+    expect(chip.style.color).toBe(labelColor('cup').text); // black on the cup's yellow
   });
 
   it('maps the frames onto a cropped thumbnail (a landscape photo in the 3:4 tile)', async () => {

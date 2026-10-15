@@ -389,6 +389,8 @@ export interface PhotoAnalysisSummary {
   facts: Record<string, number>;
   /** score to 2 places; box on the full photo (0..1, 3 places), null when the source gave none */
   objects: Array<{
+    /** the English key (the COCO class when it is one): the frame's colour */
+    label: string;
     label_de: string;
     /** the source that added the entry */
     source: ObjectSource;
