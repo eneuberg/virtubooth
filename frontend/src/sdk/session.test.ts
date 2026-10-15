@@ -21,10 +21,13 @@ vi.mock('./device', () => ({
 
 const user = (over: Partial<GuestUser> = {}): GuestUser => ({
   name: 'Verrückte Ente #3',
+  display_name: null,
+  shown_name: 'Verrückte Ente #3',
   instagram: null,
   banned: false,
   uploads_paused: false,
   analysis_opt_out: false,
+  ai_opt_out: false,
   ...over,
 });
 
@@ -37,6 +40,7 @@ const consent = (over: Partial<ConsentInfo> = {}): ConsentInfo => ({
   party_name: 'Testparty',
   instagram_account: '@testparty',
   analysis: false,
+  external_ai: false,
   ...over,
 });
 

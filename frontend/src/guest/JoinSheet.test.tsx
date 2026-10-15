@@ -22,6 +22,7 @@ const join: ConsentInfo = {
   party_name: 'Lenas Geburtstag',
   instagram_account: '@lenas.party',
   analysis: false,
+  external_ai: false,
 };
 
 function renderSheet(destination: string | null = 'Beer Cam', texts: ConsentInfo = join) {

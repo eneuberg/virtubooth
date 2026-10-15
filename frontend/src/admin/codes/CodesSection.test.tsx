@@ -3,9 +3,10 @@ import { fireEvent, render, screen, waitFor, within } from '@testing-library/rea
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { Router } from 'wouter';
 import { memoryLocation } from 'wouter/memory-location';
-import type { AdminExtension } from '@/api/types';
+import type { AdminExtension, AdminSettings, PublicAddress } from '@/api/types';
 import { clearToasts, ToastSlot } from '@/ui/Toast';
 import { UiProvider } from '@/ui/UiProvider';
+import { settingsKey } from '../settings/keys';
 import { qk } from '../store/keys';
 import { bodyField, json, must, stubApi, testClient } from '../testing';
 import { CodesSection } from './CodesSection';
@@ -27,8 +28,28 @@ function extension(id: string, title: string): AdminExtension {
   };
 }
 
-function renderSection(search = 'tab=qr', routes: Parameters<typeof stubApi>[0] = {}) {
+const AUTO: PublicAddress = {
+  address: null,
+  effective: 'http://localhost:3000',
+  source: 'auto',
+  check: { status: 'auto', url: null, at: null, message: '' },
+};
+
+function settings(address: PublicAddress): AdminSettings {
+  return {
+    event: { name: 'Party', default_name: 'Party', custom: false, updated_at: null, by: null },
+    password: { source: 'env', changed_at: null },
+    public_address: address,
+  };
+}
+
+function renderSection(
+  search = 'tab=qr',
+  routes: Parameters<typeof stubApi>[0] = {},
+  address: PublicAddress = AUTO,
+) {
   const qc = testClient();
+  qc.setQueryData(settingsKey, settings(address));
   qc.setQueryData(qk.extensions, [extension('booth', 'Fotobox'), extension('beer', 'Beer Cam')]);
   const codes = list([
     code({ id: 1, stats: { ...code().stats, scans: 12, people: 9, guests: 7, photos: 30 } }),
@@ -71,6 +92,46 @@ const sent = (requests: Request[], method: string, path: string) =>
 afterEach(() => {
   vi.unstubAllGlobals();
   clearToasts();
+});
+
+describe('CodesSection: the public address', () => {
+  const at = new Date().toISOString();
+  const set = (check: Partial<PublicAddress['check']>): PublicAddress => ({
+    address: 'https://party.example.com',
+    effective: 'https://party.example.com',
+    source: 'setting',
+    check: { status: 'ok', url: 'https://party.example.com', at, message: 'Erreichbar.', ...check },
+  });
+
+  it('no warning while automatic or checked OK', () => {
+    renderSection();
+    expect(screen.queryByTestId('address-warning')).toBeNull();
+  });
+
+  it('warns while unreachable and links to Allgemeines', () => {
+    const { requests } = renderSection('tab=qr', {}, set({ status: 'unreachable' }));
+    const warning = screen.getByTestId('address-warning');
+    expect(warning.textContent).toContain(
+      'Die öffentliche Adresse ist nicht geprüft oder nicht erreichbar. Prüfe sie unter „Allgemeines“, bevor du druckst.',
+    );
+    expect(within(warning).getByRole('link', { name: 'Zu „Allgemeines“' }).getAttribute('href')).toContain(
+      'tab=allgemein',
+    );
+    // checked a moment ago: no new check
+    expect(sent(requests, 'POST', '/api/admin/settings/public-address/check')).toHaveLength(0);
+  });
+
+  it('re-checks a stale check on open and follows the answer', async () => {
+    const old = new Date(Date.now() - 11 * 60_000).toISOString();
+    const { requests } = renderSection(
+      'tab=qr',
+      { 'POST /api/admin/settings/public-address/check': () => ({ ...set({}).check }) },
+      set({ status: 'unchecked', at: old }),
+    );
+    expect(screen.getByTestId('address-warning')).toBeTruthy();
+    await waitFor(() => expect(screen.queryByTestId('address-warning')).toBeNull());
+    expect(sent(requests, 'POST', '/api/admin/settings/public-address/check')).toHaveLength(1);
+  });
 });
 
 describe('CodesSection', () => {

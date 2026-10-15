@@ -14,6 +14,15 @@ describe('manage URL state', () => {
     expect(sectionHref('sperren')).toBe('/manage?tab=sperren');
   });
 
+  it('opens Allgemeines and Fotobox; the old Einstellungen bookmark opens Allgemeines', () => {
+    expect(parseSection('allgemein')).toBe('allgemein');
+    expect(parseSection('fotobox')).toBe('fotobox');
+    expect(parseSection('einstellungen')).toBe('allgemein');
+    expect(parseSection('constructor')).toBe('fotos');
+    expect(parseSection('__proto__')).toBe('fotos');
+    expect(sectionHref('allgemein')).toBe('/manage?tab=allgemein');
+  });
+
   it('reads the photo filters and drops invalid values', () => {
     expect(parsePhotoFilter(q('ext=beer&status=hidden&user=12'))).toEqual({
       ext: 'beer',

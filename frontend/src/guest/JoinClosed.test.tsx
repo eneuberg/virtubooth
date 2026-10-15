@@ -22,6 +22,7 @@ const join: ConsentInfo = {
   party_name: 'Testparty',
   instagram_account: '@testparty',
   analysis: false,
+  external_ai: false,
 };
 
 function reply(status: number, body: unknown): Response {

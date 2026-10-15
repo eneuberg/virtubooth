@@ -2,8 +2,8 @@
  * The manage area's state in the URL (manageUrl.test.ts). Section names are the
  * pre-overhaul tab names, so old bookmarks keep working:
  *
- *   /admin/manage?tab=uebersicht|fotos|gaeste|instagram|livewall|sperren|protokoll|qr|plakat|export
- *   /admin/manage?tab=einstellungen   (sidebar footer / phone header, not in the list)
+ *   /admin/manage?tab=uebersicht|allgemein|fotos|gaeste|instagram|fotobox|livewall|sperren|protokoll|qr|plakat|export
+ *   /admin/manage?tab=einstellungen   (old bookmarks) → allgemein
  *   Fotos: &ext=<activity>&status=visible|hidden&user=<id>&photo=<id>
  *   Gäste: &q=<search>&show=banned|ok|paused&code=<QR code number>
  *   QR-Codes: &code=<number> (its sheet is open)&deleted=1 (show deleted codes)
@@ -16,6 +16,7 @@ export const SECTIONS = [
   'fotos',
   'gaeste',
   'instagram',
+  'fotobox',
   'livewall',
   'sperren',
   'protokoll',
@@ -23,15 +24,19 @@ export const SECTIONS = [
   'plakat',
   'export',
   'uebersicht',
-  'einstellungen',
+  'allgemein',
 ] as const;
 export type Section = (typeof SECTIONS)[number];
+
+/** Old section names that still open a section (bookmarks from before the rename). */
+const ALIASES: Readonly<Record<string, Section>> = { einstellungen: 'allgemein' };
 
 const EXT_RE = /^[a-z][a-z0-9-]{1,30}$/;
 const ID_RE = /^[1-9]\d{0,15}$/;
 
 export function parseSection(raw: string | null): Section {
-  return SECTIONS.find((s) => s === raw) ?? 'fotos';
+  const alias = raw !== null && Object.hasOwn(ALIASES, raw) ? ALIASES[raw] : undefined;
+  return SECTIONS.find((s) => s === raw) ?? alias ?? 'fotos';
 }
 
 export function sectionHref(section: Section): string {

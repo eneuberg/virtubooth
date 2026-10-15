@@ -101,7 +101,6 @@ export type ExportKind = S['ExportJob']['kind'];
 export type ExportStatus = S['ExportJob']['status'];
 export type ArchiveOptions = S['ArchiveOptions'];
 export type TimelapseOptions = S['TimelapseOptions'];
-export type QrOptions = S['QrOptions'];
 /** POST /api/admin/exports body (one variant per kind) */
 export type ExportRequest = S['ExportIn'];
 /** POST /api/admin/exports: 202 + created:true, or 200 + created:false (already queued/running) */
@@ -129,6 +128,8 @@ export type CodesList = S['CodesOut'];
 /** GET /api/admin/settings */
 export type AdminSettings = S['AdminSettingsOut'];
 export type EventSettings = S['EventSettings'];
+export type PublicAddress = S['PublicAddress'];
+export type AddressCheck = S['AddressCheck'];
 export type PasswordState = S['PasswordState'];
 /** GET/PUT /api/admin/x/booth/filters */
 export type BoothFilterSettings = S['BoothFilterSettingsOut'];
