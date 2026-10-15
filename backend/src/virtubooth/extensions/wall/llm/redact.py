@@ -65,13 +65,27 @@ class RedactFilter(logging.Filter):
 
 
 def install() -> None:
-    """Idempotent. A logger's filter sees the records logged on it, so every
-    `virtubooth.*` logger that exists by now gets one, too."""
+    """Idempotent. A logger's filter only sees the records logged on that very
+    logger, so: the provider SDKs are imported first (their module loggers
+    exist then), every `virtubooth.*`/SDK logger that exists gets the filter,
+    and so does every handler of the root and uvicorn loggers (they see the
+    records of loggers made later, too)."""
+    from .providers import anthropic as _anthropic  # noqa: F401
+    from .providers import mistral as _mistral  # noqa: F401
+
     names = set(LOGGERS)
     names.update(
-        n for n in logging.root.manager.loggerDict if n.startswith(("virtubooth.", "anthropic."))
+        n
+        for n in logging.root.manager.loggerDict
+        if n.startswith(("virtubooth.", "anthropic.", "httpx", "httpcore"))
     )
     for name in names:
-        logger = logging.getLogger(name)
-        if not any(isinstance(f, RedactFilter) for f in logger.filters):
-            logger.addFilter(RedactFilter())
+        _add(logging.getLogger(name))
+    for name in ("", "uvicorn", "uvicorn.error", "uvicorn.access"):
+        for handler in logging.getLogger(name).handlers:
+            _add(handler)
+
+
+def _add(target: logging.Filterer) -> None:
+    if not any(isinstance(f, RedactFilter) for f in target.filters):
+        target.addFilter(RedactFilter())

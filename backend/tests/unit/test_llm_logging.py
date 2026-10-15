@@ -97,3 +97,25 @@ def test_provider_errors_are_masked_before_storing(core):
     )
     assert run["error"] == "rejected [redacted]"
     assert API_KEY not in core.db.one("SELECT error FROM llm_polls")["error"]
+
+
+def test_loggers_made_after_install_are_masked_at_the_handler():
+    """A child logger created later has no filter of its own; the root's
+    handlers carry one."""
+    records: list[logging.LogRecord] = []
+
+    class Keep(logging.Handler):
+        def emit(self, record: logging.LogRecord) -> None:
+            records.append(record)
+
+    handler = Keep()
+    root = logging.getLogger()
+    root.addHandler(handler)
+    try:
+        redact.install()
+        late = logging.getLogger("some.library.made.later")
+        late.setLevel(logging.INFO)
+        late.warning("Authorization: Bearer %s", API_KEY)
+    finally:
+        root.removeHandler(handler)
+    assert records and API_KEY not in records[-1].getMessage()
