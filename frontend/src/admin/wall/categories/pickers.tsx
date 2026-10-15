@@ -87,7 +87,7 @@ export function ValuePicker({
         <ListBox className="outline-none">
           {groupsOf(list).map((g) => (
             <ListBoxSection key={g.group} className="pb-1">
-              <Header className="px-3 pt-2 pb-1 text-xs font-bold tracking-wide text-ink-muted uppercase">
+              <Header className="px-3 pt-2 pb-1 text-xs font-bold text-ink-muted uppercase">
                 {g.group}
               </Header>
               {g.items.map((c) => (
