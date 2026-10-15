@@ -1,5 +1,6 @@
-"""The wall's admin API (PLAN-WALL §4.3) and the categories on both sides,
-with a fake photo analysis; and the wall with the real analysis service."""
+"""The wall's admin API (PLAN-WALL §4.3) with a fake photo analysis, and the
+wall with the real analysis service. The categories' own API:
+test_wall_categories.py."""
 
 from __future__ import annotations
 
@@ -8,7 +9,7 @@ from fastapi.testclient import TestClient
 
 from virtubooth.app import create_app
 from virtubooth.extensions.wall import make_extension
-from virtubooth.extensions.wall.enrich.categories import CATALOGUE
+from virtubooth.extensions.wall.enrich.presets import PRESETS
 from virtubooth.extensions.wall.enrich.service import EnrichmentService
 from virtubooth.extensions.wall.enrichment import load_enrichment
 
@@ -71,29 +72,29 @@ def test_get_config(admin, core, fake):
     assert body["sources"] == [{"id": "demo", "title": "Demo", "emoji": "🧪"}]
     assert body["open_walls"] == 0 and body["event_name"] == "Testparty"
     cats = {c["id"]: c for c in body["categories"]}
-    assert list(cats) == ["volles_haus", "generationen", "farbexplosion"]
+    assert list(cats) == [pid for pid, _, _ in PRESETS]
     assert cats["volles_haus"] == {
         "id": "volles_haus",
         "emoji": "👥",
         "title": "Volles Haus",
-        "line": "Die meisten Leute",
+        "line": "Die meisten Leute auf einem Foto",
         "enabled": True,
         "available": True,
         "reason": None,
     }
-    # FairFace ("age") is off until the analysis admin switches it on
-    assert cats["generationen"]["available"] is False
-    assert cats["generationen"]["reason"] == "Braucht die Analyse „age“."
-    fake.active = {"basic", "faces", "tags", "age"}
+    # the LLM preset is off and needs its property
+    assert cats["coolstes_objekt"]["enabled"] is False
+    assert cats["coolstes_objekt"]["reason"] == "Braucht die Eigenschaft „coolness“."
+    fake.active = {"basic", "tags"}
     cats = {c["id"]: c for c in admin.get("/api/x/wall/admin/config").json()["categories"]}
-    assert cats["generationen"]["available"] is True
-    assert cats["volles_haus"]["reason"] == "Braucht die Analyse „objects“."
+    assert cats["hutparade"]["available"] is True
+    assert cats["volles_haus"]["reason"] == "Braucht die Analyse „Objekte“."
 
 
 def test_put_config(admin, core):
     config = admin.get("/api/x/wall/admin/config").json()["config"]
     config["look"]["primary"] = "#00FF00"
-    config["categories"]["disabled"] = ["generationen"]
+    config["categories"]["disabled"] = ["generationen"]  # an old client: ignored
     config |= {"rev": 41, "by": "someone", "updated_at": "never", "delay_s": 5}
     r = admin.put("/api/x/wall/admin/config", json=config, headers=ORIGIN)
     assert r.status_code == 200, r.text
@@ -102,11 +103,11 @@ def test_put_config(admin, core):
     assert saved["updated_at"] != "never" and saved["look"]["primary"] == "#00ff00"
     assert saved["delay_s"] == 5
     cats = {c["id"]: c["enabled"] for c in r.json()["categories"]}
-    assert cats == {"volles_haus": True, "generationen": False, "farbexplosion": True}
+    assert cats["generationen"] is True and saved["categories"]["disabled"] == []
     assert admin.get("/api/x/wall/admin/config").json()["config"] == saved
     action, _, details = audit_actions(core)[0]
     assert action == "wall.config"
-    assert details == {"changed": ["categories", "delay_s", "look"]}
+    assert details == {"changed": ["delay_s", "look"]}
     assert put_config(admin, delay_s=6)["config"]["rev"] == 2
 
 
@@ -131,53 +132,6 @@ def test_put_config_errors(admin, core):
     assert not [a for a, _, _ in audit_actions(core) if a == "wall.config"]
 
 
-def test_categories(admin, guest, core, fake, make_client):
-    g = guest()
-    a, b, c, d, hidden = (upload(g) for _ in range(5))
-    age_photos(core)
-    fresh = upload(g)  # still within the delay
-    ids = {p: internal_id(core, p) for p in (a, b, c, d, hidden, fresh)}
-    admin.post(f"/api/admin/photos/{hidden}/hide", headers=ORIGIN)
-    fake.values = {
-        "volles_haus": {ids[a]: 3, ids[b]: 7, ids[c]: 5, ids[d]: 4, ids[hidden]: 9, ids[fresh]: 8},
-        "generationen": {ids[a]: 2},
-        "farbexplosion": {ids[hidden]: 80},
-    }
-    # the screen: enabled categories with winners only, at most 3 each
-    put_config(admin, categories={"per_category_s": 10, "disabled": ["generationen"]})
-    r = admin.get("/livewall/api/categories")
-    assert r.status_code == 200 and r.headers["cache-control"] == "no-store"
-    (cat,) = r.json()["categories"]
-    assert (cat["id"], cat["emoji"], cat["title"], cat["line"]) == (
-        "volles_haus",
-        "👥",
-        "Volles Haus",
-        "Die meisten Leute",
-    )
-    assert [(w["photo"]["id"], w["value"], w["label"]) for w in cat["winners"]] == [
-        (b, 7, "7 Stück"),
-        (c, 5, "5 Stück"),
-        (d, 4, "4 Stück"),
-    ]
-    assert cat["winners"][0]["photo"]["urls"]["s"] == f"/livewall/media/{b}?s=s"
-    assert fake.asked[-1] == ["volles_haus", "farbexplosion"]
-    flt = fake.filters[-1]
-    assert flt.sources == ("demo",) and flt.not_after < core.repos.photos.get(fresh).created_at
-
-    # the admin: every category, disabled ones too
-    body = admin.get("/api/x/wall/admin/categories").json()["categories"]
-    assert [(x["id"], x["enabled"]) for x in body] == [
-        ("volles_haus", True),
-        ("generationen", False),
-        ("farbexplosion", True),
-    ]
-    assert body[1]["winners"] == [
-        {"photo_id": a, "thumb_url": f"/media/{a}?thumb=1", "value": 2, "label": "2 Stück"}
-    ]
-    assert [w["photo_id"] for w in body[0]["winners"]] == [b, c, d]
-    assert body[2]["winners"] == []
-
-
 def test_with_the_real_analysis(settings, demo_extension):
     """The app's own service: its catalogue, photos `pending` until the worker
     (off in tests) gets to them, the analysis admin routes under /api/x/wall."""
@@ -189,7 +143,7 @@ def test_with_the_real_analysis(settings, demo_extension):
             admin.post("/api/admin/login", json={"password": ADMIN_PASSWORD}, headers=ORIGIN)
             body = admin.get("/api/x/wall/admin/config").json()
             cats = {c["id"]: c for c in body["categories"]}
-            assert list(cats) == [c.id for c in CATALOGUE]
+            assert list(cats) == [pid for pid, _, _ in PRESETS]
             # without the ml extra only the basic image values run
             assert cats["farbexplosion"]["available"] is True
             assert cats["eroeffnung"]["available"] is True
@@ -209,3 +163,98 @@ def test_with_the_real_analysis(settings, demo_extension):
 
 def test_fake_analysis_runs_with_the_app(fake, client):
     assert fake.started == 1 and fake.stopped == 0
+
+
+def test_the_ml_pipeline_status_and_analyzer_settings(settings, demo_extension):
+    """GET /analysis: queue, per-analyzer description, size, stats, settings;
+    PUT /analysis/analyzers/{name}: on/off plus settings, audited."""
+    app = create_app(settings, extensions=[demo_extension, make_extension()])
+    try:
+        with TestClient(app, base_url=BASE_URL, follow_redirects=False) as admin:
+            core = app.state.core
+            admin.post("/api/admin/login", json={"password": ADMIN_PASSWORD}, headers=ORIGIN)
+            core.repos.app_settings.put("x.wall.worker", {"stats": {"basic": {
+                "processed": 4, "errors": 1, "avg_ms": 12.5, "last_ms": 10}}}, at="now")  # fmt: skip
+            scan(admin)
+            accept_consent(admin)
+            upload(admin)
+            status = admin.get("/api/x/wall/admin/analysis").json()
+            assert status["queue"]["pending"] == 1 and status["queue"]["running"] == 0
+            assert status["queue"]["oldest_pending_s"] >= 0
+            by = {a["name"]: a for a in status["analyzers"]}
+            assert by["basic"]["stats"] == {"processed": 4, "errors": 1, "avg_ms": 12.5,
+                                            "last_ms": 10.0}  # fmt: skip
+            assert by["faces"]["stats"]["processed"] == 0 and by["faces"]["size_mb"] == 4.0
+            assert by["objects"]["description"] and by["objects"]["size_mb"] == 7.5
+            assert by["objects"]["settings"] == {"score_min": 0.35, "max_objects": 50}
+            assert [s["key"] for s in by["objects"]["settings_schema"]] == [
+                "score_min", "max_objects",
+            ]  # fmt: skip
+            assert by["basic"]["settings"] is None and by["basic"]["settings_schema"] == []
+
+            url = "/api/x/wall/admin/analysis/analyzers"
+            r = admin.put(f"{url}/objects", json={"enabled": False,
+                          "settings": {"score_min": 0.5}}, headers=ORIGIN)  # fmt: skip
+            assert r.status_code == 200, r.text
+            by = {a["name"]: a for a in r.json()["analyzers"]}
+            assert by["objects"]["enabled"] is False
+            assert by["objects"]["settings"] == {"score_min": 0.5, "max_objects": 50}
+            for body, error in [
+                ({"enabled": True, "settings": {"score_min": 2}}, "invalid_analyzer_settings"),
+                ({"enabled": True, "settings": {"nope": 1}}, "invalid_analyzer_settings"),
+                ({"enabled": True, "settings": {"max_objects": 2.5}}, "invalid_analyzer_settings"),
+            ]:
+                r = admin.put(f"{url}/objects", json=body, headers=ORIGIN)
+                assert r.status_code == 400 and r.json()["error"] == error, body
+            r = admin.put(f"{url}/basic", json={"enabled": False}, headers=ORIGIN)
+            assert r.json()["error"] == "invalid_analyzer_settings"
+            r = admin.put(f"{url}/gibts", json={"enabled": True}, headers=ORIGIN)
+            assert r.status_code == 400 and r.json()["error"] == "unknown_analyzer"
+            action, target, details = audit_actions(core)[0]
+            assert (action, target) == ("wall.analyzers", "objects")
+            assert details == {"enabled": False, "settings": {"score_min": 0.5}}
+    finally:
+        app.state.core.db.close()
+
+
+def test_photo_analysis_shows_objects_runs_and_opt_outs(settings, demo_extension):
+    app = create_app(settings, extensions=[demo_extension, make_extension()])
+    try:
+        with TestClient(app, base_url=BASE_URL, follow_redirects=False) as admin:
+            core = app.state.core
+            admin.post("/api/admin/login", json={"password": ADMIN_PASSWORD}, headers=ORIGIN)
+            scan(admin)
+            accept_consent(admin)
+            pub = upload(admin)
+            pid = internal_id(core, pub)
+            from virtubooth.extensions.wall.enrich import jobs, objects
+            from virtubooth.extensions.wall.enrich.objects import DetectedObject
+
+            jobs.claim(core.db)
+            jobs.finish(core.db, pid, facts={"people": 1}, versions={"objects": "2"},
+                        data={"boxes": [], "details": [], "durations_ms": {"objects": 81},
+                              "opt_out": False},
+                        objects_found=[DetectedObject("hat", "Hut", 0.9, (0.1, 0.2, 0.3, 0.4))],
+                        objects_model="efficientdet_lite2@2")  # fmt: skip
+            objects.record_run(core.db, pid, "claude", "failed", "claude-haiku-5-5", "timeout")
+            with core.db.tx() as c:
+                c.execute("INSERT INTO llm_properties (id, name, prompt, created_at) "
+                          "VALUES (1, 'coolness', 'p', 'now')")  # fmt: skip
+                c.execute("INSERT INTO property_scores VALUES (1, ?, '[0.7]', 1, 'now')", (pid,))
+                c.execute("UPDATE users SET ai_opt_out=1")
+            body = admin.get(f"/api/x/wall/admin/photos/{pub}/analysis").json()
+            assert body["objects"] == [{
+                "idx": 0, "label": "hat", "label_de": "Hut", "score": 0.9,
+                "box": {"x": 0.1, "y": 0.2, "w": 0.3, "h": 0.4}, "source": "local",
+                "model": "efficientdet_lite2@2"}]  # fmt: skip
+            assert body["runs"] == [
+                {"source": "local", "state": "done", "model": "efficientdet_lite2@2", "error": None},
+                {"source": "claude", "state": "failed", "model": "claude-haiku-5-5",
+                 "error": "timeout"},
+            ]  # fmt: skip
+            assert body["opt_out"] == {"analysis": False, "external_ai": True}
+            assert body["opt_out_at_analysis"] is False
+            assert body["properties"] == [{"name": "coolness", "archived": False, "scores": [0.7]}]
+            assert body["durations_ms"] == {"objects": 81}
+    finally:
+        app.state.core.db.close()

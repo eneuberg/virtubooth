@@ -725,6 +725,38 @@
         "title": "AnalysisCounts",
         "type": "object"
       },
+      "AnalysisQueue": {
+        "properties": {
+          "oldest_pending_s": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Age of the oldest waiting photo (s).",
+            "title": "Oldest Pending S"
+          },
+          "pending": {
+            "description": "Photos waiting for their analysis.",
+            "title": "Pending",
+            "type": "integer"
+          },
+          "running": {
+            "title": "Running",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "pending",
+          "running",
+          "oldest_pending_s"
+        ],
+        "title": "AnalysisQueue",
+        "type": "object"
+      },
       "AnalysisStatus": {
         "properties": {
           "analyzers": {
@@ -737,6 +769,9 @@
           "counts": {
             "$ref": "#/components/schemas/AnalysisCounts"
           },
+          "queue": {
+            "$ref": "#/components/schemas/AnalysisQueue"
+          },
           "worker": {
             "$ref": "#/components/schemas/WorkerStatus"
           }
@@ -744,9 +779,118 @@
         "required": [
           "worker",
           "counts",
+          "queue",
           "analyzers"
         ],
         "title": "AnalysisStatus",
+        "type": "object"
+      },
+      "AnalyzerIn": {
+        "properties": {
+          "enabled": {
+            "title": "Enabled",
+            "type": "boolean"
+          },
+          "settings": {
+            "anyOf": [
+              {
+                "additionalProperties": {
+                  "type": "number"
+                },
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Only the keys of its `settings_schema`; omitted = unchanged.",
+            "title": "Settings"
+          }
+        },
+        "required": [
+          "enabled"
+        ],
+        "title": "AnalyzerIn",
+        "type": "object"
+      },
+      "AnalyzerSettingSpec": {
+        "properties": {
+          "key": {
+            "title": "Key",
+            "type": "string"
+          },
+          "max": {
+            "title": "Max",
+            "type": "number"
+          },
+          "min": {
+            "title": "Min",
+            "type": "number"
+          },
+          "step": {
+            "title": "Step",
+            "type": "number"
+          },
+          "title": {
+            "description": "German.",
+            "title": "Title",
+            "type": "string"
+          }
+        },
+        "required": [
+          "key",
+          "title",
+          "min",
+          "max",
+          "step"
+        ],
+        "title": "AnalyzerSettingSpec",
+        "type": "object"
+      },
+      "AnalyzerStats": {
+        "properties": {
+          "avg_ms": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Average duration (recent photos weigh most).",
+            "title": "Avg Ms"
+          },
+          "errors": {
+            "description": "Photos that failed in this analyzer.",
+            "title": "Errors",
+            "type": "integer"
+          },
+          "last_ms": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Duration on the last photo.",
+            "title": "Last Ms"
+          },
+          "processed": {
+            "description": "Photos this analyzer ran on (worker heartbeat).",
+            "title": "Processed",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "processed",
+          "errors",
+          "avg_ms",
+          "last_ms"
+        ],
+        "title": "AnalyzerStats",
         "type": "object"
       },
       "AnalyzerStatus": {
@@ -754,6 +898,11 @@
           "available": {
             "title": "Available",
             "type": "boolean"
+          },
+          "description": {
+            "description": "What it does (German, one sentence).",
+            "title": "Description",
+            "type": "string"
           },
           "enabled": {
             "title": "Enabled",
@@ -790,6 +939,36 @@
             "description": "Why it cannot run (German); null when available.",
             "title": "Reason"
           },
+          "settings": {
+            "anyOf": [
+              {
+                "additionalProperties": {
+                  "type": "number"
+                },
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Its current settings; null when it has none.",
+            "title": "Settings"
+          },
+          "settings_schema": {
+            "items": {
+              "$ref": "#/components/schemas/AnalyzerSettingSpec"
+            },
+            "title": "Settings Schema",
+            "type": "array"
+          },
+          "size_mb": {
+            "description": "Its model files on disk (MB); 0 without models.",
+            "title": "Size Mb",
+            "type": "number"
+          },
+          "stats": {
+            "$ref": "#/components/schemas/AnalyzerStats"
+          },
           "title": {
             "title": "Title",
             "type": "string"
@@ -807,7 +986,12 @@
           "enabled",
           "available",
           "reason",
-          "facts"
+          "facts",
+          "description",
+          "size_mb",
+          "stats",
+          "settings",
+          "settings_schema"
         ],
         "title": "AnalyzerStatus",
         "type": "object"
@@ -1237,6 +1421,473 @@
         "title": "BulkOut",
         "type": "object"
       },
+      "CategoriesOut": {
+        "properties": {
+          "categories": {
+            "items": {
+              "$ref": "#/components/schemas/CategoryItem"
+            },
+            "title": "Categories",
+            "type": "array"
+          }
+        },
+        "required": [
+          "categories"
+        ],
+        "title": "CategoriesOut",
+        "type": "object"
+      },
+      "CategoryCondition": {
+        "properties": {
+          "op": {
+            "enum": [
+              "gt",
+              "lt",
+              "gte",
+              "lte",
+              "eq",
+              "ne",
+              "between",
+              "exists",
+              "not_exists",
+              "contains",
+              "not_contains",
+              "contains_any"
+            ],
+            "title": "Op",
+            "type": "string"
+          },
+          "operand": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "string"
+              },
+              {
+                "items": {
+                  "type": "number"
+                },
+                "type": "array"
+              },
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "number (gt…ne), [a, b] (between), label (contains, not_contains), [labels] (contains_any), null (exists, not_exists).",
+            "title": "Operand"
+          },
+          "value": {
+            "description": "A value key (GET /admin/values), e.g. `people`, `objects.count:hat`, `prop.coolness.max`.",
+            "title": "Value",
+            "type": "string"
+          }
+        },
+        "required": [
+          "value",
+          "op"
+        ],
+        "title": "CategoryCondition",
+        "type": "object"
+      },
+      "CategoryItem": {
+        "properties": {
+          "available": {
+            "title": "Available",
+            "type": "boolean"
+          },
+          "enabled": {
+            "title": "Enabled",
+            "type": "boolean"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "position": {
+            "title": "Position",
+            "type": "integer"
+          },
+          "preset": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The preset it came from; null = made by the host.",
+            "title": "Preset"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Why it cannot win anything (German), or null.",
+            "title": "Reason"
+          },
+          "spec": {
+            "$ref": "#/components/schemas/CategorySpec"
+          },
+          "verdict": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CategoryVerdictOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "winners": {
+            "description": "Right now, best first (≤ count).",
+            "items": {
+              "$ref": "#/components/schemas/CategoryWinnerOut"
+            },
+            "title": "Winners",
+            "type": "array"
+          }
+        },
+        "required": [
+          "id",
+          "enabled",
+          "preset",
+          "position",
+          "spec",
+          "available",
+          "reason",
+          "verdict",
+          "winners"
+        ],
+        "title": "CategoryItem",
+        "type": "object"
+      },
+      "CategoryLabel": {
+        "properties": {
+          "many": {
+            "default": "",
+            "description": "Plural word.",
+            "title": "Many",
+            "type": "string"
+          },
+          "one": {
+            "default": "",
+            "description": "Singular word (or the fixed text).",
+            "title": "One",
+            "type": "string"
+          },
+          "style": {
+            "default": "count",
+            "enum": [
+              "count",
+              "percent",
+              "number",
+              "time",
+              "fixed",
+              "object"
+            ],
+            "title": "Style",
+            "type": "string"
+          },
+          "value": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The value shown (and required); null = `select.by`.",
+            "title": "Value"
+          }
+        },
+        "title": "CategoryLabel",
+        "type": "object"
+      },
+      "CategoryOrderIn": {
+        "properties": {
+          "ids": {
+            "description": "First in this order; the rest after.",
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 200,
+            "title": "Ids",
+            "type": "array"
+          }
+        },
+        "required": [
+          "ids"
+        ],
+        "title": "CategoryOrderIn",
+        "type": "object"
+      },
+      "CategoryPreviewOut": {
+        "properties": {
+          "matched": {
+            "description": "Visible photos meeting every condition.",
+            "title": "Matched",
+            "type": "integer"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Why it cannot win (German), or null.",
+            "title": "Reason"
+          },
+          "winners": {
+            "items": {
+              "$ref": "#/components/schemas/CategoryWinnerOut"
+            },
+            "title": "Winners",
+            "type": "array"
+          }
+        },
+        "required": [
+          "winners",
+          "matched",
+          "reason"
+        ],
+        "title": "CategoryPreviewOut",
+        "type": "object"
+      },
+      "CategorySelect": {
+        "properties": {
+          "by": {
+            "description": "The value to rank by (missing values rank last).",
+            "title": "By",
+            "type": "string"
+          },
+          "count": {
+            "default": 3,
+            "description": "1–10 winners.",
+            "title": "Count",
+            "type": "integer"
+          },
+          "one_per_guest": {
+            "default": true,
+            "title": "One Per Guest",
+            "type": "boolean"
+          },
+          "order": {
+            "default": "top",
+            "enum": [
+              "top",
+              "bottom"
+            ],
+            "title": "Order",
+            "type": "string"
+          },
+          "then_by": {
+            "description": "≤ 2 tie-breakers (a plain key string = top).",
+            "items": {
+              "$ref": "#/components/schemas/CategoryThenBy"
+            },
+            "title": "Then By",
+            "type": "array"
+          }
+        },
+        "required": [
+          "by"
+        ],
+        "title": "CategorySelect",
+        "type": "object"
+      },
+      "CategorySpec": {
+        "description": "A rule-based wall category. Invalid input → 400 `invalid_category`\nnaming the field in German.",
+        "properties": {
+          "emoji": {
+            "description": "One emoji.",
+            "title": "Emoji",
+            "type": "string"
+          },
+          "label": {
+            "$ref": "#/components/schemas/CategoryLabel"
+          },
+          "line": {
+            "default": "",
+            "description": "0–80 chars (the subtitle).",
+            "title": "Line",
+            "type": "string"
+          },
+          "select": {
+            "$ref": "#/components/schemas/CategorySelect"
+          },
+          "title": {
+            "description": "1–40 chars.",
+            "title": "Title",
+            "type": "string"
+          },
+          "verdict": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CategoryVerdictSpec"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "where": {
+            "description": "0–8 conditions, all must hold.",
+            "items": {
+              "$ref": "#/components/schemas/CategoryCondition"
+            },
+            "title": "Where",
+            "type": "array"
+          }
+        },
+        "required": [
+          "emoji",
+          "title",
+          "select"
+        ],
+        "title": "CategorySpec",
+        "type": "object"
+      },
+      "CategoryThenBy": {
+        "properties": {
+          "by": {
+            "title": "By",
+            "type": "string"
+          },
+          "order": {
+            "default": "top",
+            "enum": [
+              "top",
+              "bottom"
+            ],
+            "title": "Order",
+            "type": "string"
+          }
+        },
+        "required": [
+          "by"
+        ],
+        "title": "CategoryThenBy",
+        "type": "object"
+      },
+      "CategoryVerdictOut": {
+        "properties": {
+          "emoji": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Emoji"
+          },
+          "photo_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Public id of the photo it names (visible), or null.",
+            "title": "Photo Id"
+          },
+          "text": {
+            "description": "German, ≤ 160 chars.",
+            "title": "Text",
+            "type": "string"
+          }
+        },
+        "required": [
+          "text",
+          "emoji",
+          "photo_id"
+        ],
+        "title": "CategoryVerdictOut",
+        "type": "object"
+      },
+      "CategoryVerdictSpec": {
+        "properties": {
+          "prompt": {
+            "description": "1–1000 chars: the LLM verdict prompt (each poll).",
+            "title": "Prompt",
+            "type": "string"
+          }
+        },
+        "required": [
+          "prompt"
+        ],
+        "title": "CategoryVerdictSpec",
+        "type": "object"
+      },
+      "CategoryWinnerOut": {
+        "properties": {
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "object_idx": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The object the value points at, if any.",
+            "title": "Object Idx"
+          },
+          "photo_id": {
+            "title": "Photo Id",
+            "type": "string"
+          },
+          "thumb_url": {
+            "title": "Thumb Url",
+            "type": "string"
+          },
+          "value": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Value"
+          }
+        },
+        "required": [
+          "photo_id",
+          "thumb_url",
+          "value",
+          "label",
+          "object_idx"
+        ],
+        "title": "CategoryWinnerOut",
+        "type": "object"
+      },
       "CodeChangedData": {
         "properties": {
           "change": {
@@ -1625,6 +2276,53 @@
         "title": "DetailLine",
         "type": "object"
       },
+      "DetectionRun": {
+        "properties": {
+          "error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error"
+          },
+          "model": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Model"
+          },
+          "source": {
+            "title": "Source",
+            "type": "string"
+          },
+          "state": {
+            "enum": [
+              "done",
+              "failed",
+              "skipped"
+            ],
+            "title": "State",
+            "type": "string"
+          }
+        },
+        "required": [
+          "source",
+          "state",
+          "model",
+          "error"
+        ],
+        "title": "DetectionRun",
+        "type": "object"
+      },
       "DeviceBanOut": {
         "properties": {
           "created_at": {
@@ -1740,6 +2438,10 @@
               "wall_no_password",
               "wall_password_too_short",
               "invalid_wall_config",
+              "invalid_category",
+              "category_exists",
+              "invalid_analyzer_settings",
+              "worker_off",
               "uploads_paused",
               "uploads_stopped",
               "unsupported_type",
@@ -2983,6 +3685,30 @@
         "title": "JoinStopEvent",
         "type": "object"
       },
+      "LabelInfo": {
+        "properties": {
+          "count": {
+            "description": "Photos (not deleted) with at least one such object.",
+            "title": "Count",
+            "type": "integer"
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "label_de": {
+            "title": "Label De",
+            "type": "string"
+          }
+        },
+        "required": [
+          "label",
+          "label_de",
+          "count"
+        ],
+        "title": "LabelInfo",
+        "type": "object"
+      },
       "LoginIn": {
         "properties": {
           "password": {
@@ -3083,6 +3809,36 @@
         "title": "NeedsConsentOut",
         "type": "object"
       },
+      "ObjectBox": {
+        "properties": {
+          "h": {
+            "title": "H",
+            "type": "number"
+          },
+          "w": {
+            "title": "W",
+            "type": "number"
+          },
+          "x": {
+            "description": "0..1 from the left",
+            "title": "X",
+            "type": "number"
+          },
+          "y": {
+            "description": "0..1 from the top",
+            "title": "Y",
+            "type": "number"
+          }
+        },
+        "required": [
+          "x",
+          "y",
+          "w",
+          "h"
+        ],
+        "title": "ObjectBox",
+        "type": "object"
+      },
       "OkOut": {
         "properties": {
           "ok": {
@@ -3095,6 +3851,26 @@
           "ok"
         ],
         "title": "OkOut",
+        "type": "object"
+      },
+      "OptOutState": {
+        "properties": {
+          "analysis": {
+            "description": "Live: the guest does not want the analysis.",
+            "title": "Analysis",
+            "type": "boolean"
+          },
+          "external_ai": {
+            "description": "Live: the guest's photos never go to an external AI.",
+            "title": "External Ai",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "analysis",
+          "external_ai"
+        ],
+        "title": "OptOutState",
         "type": "object"
       },
       "OverviewActivity": {
@@ -3619,6 +4395,13 @@
             "title": "Details",
             "type": "array"
           },
+          "durations_ms": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "title": "Durations Ms",
+            "type": "object"
+          },
           "error": {
             "anyOf": [
               {
@@ -3648,10 +4431,39 @@
             ],
             "title": "Finished At"
           },
+          "objects": {
+            "items": {
+              "$ref": "#/components/schemas/PhotoObject"
+            },
+            "title": "Objects",
+            "type": "array"
+          },
+          "opt_out": {
+            "$ref": "#/components/schemas/OptOutState"
+          },
+          "opt_out_at_analysis": {
+            "description": "The guest had the analysis opt-out on when the photo was analysed.",
+            "title": "Opt Out At Analysis",
+            "type": "boolean"
+          },
           "photo_id": {
             "description": "The photo's public id.",
             "title": "Photo Id",
             "type": "string"
+          },
+          "properties": {
+            "items": {
+              "$ref": "#/components/schemas/PropertyScores"
+            },
+            "title": "Properties",
+            "type": "array"
+          },
+          "runs": {
+            "items": {
+              "$ref": "#/components/schemas/DetectionRun"
+            },
+            "title": "Runs",
+            "type": "array"
           },
           "state": {
             "enum": [
@@ -3681,7 +4493,13 @@
           "versions",
           "facts",
           "boxes",
-          "details"
+          "details",
+          "objects",
+          "runs",
+          "opt_out",
+          "opt_out_at_analysis",
+          "properties",
+          "durations_ms"
         ],
         "title": "PhotoAnalysis",
         "type": "object"
@@ -3850,6 +4668,59 @@
           "next"
         ],
         "title": "PhotoListOut",
+        "type": "object"
+      },
+      "PhotoObject": {
+        "properties": {
+          "box": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ObjectBox"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "idx": {
+            "description": "Position in the photo's object list (0-based).",
+            "title": "Idx",
+            "type": "integer"
+          },
+          "label": {
+            "description": "Canonical English label, e.g. „wine glass“.",
+            "title": "Label",
+            "type": "string"
+          },
+          "label_de": {
+            "description": "German label, e.g. „Weinglas“.",
+            "title": "Label De",
+            "type": "string"
+          },
+          "model": {
+            "title": "Model",
+            "type": "string"
+          },
+          "score": {
+            "title": "Score",
+            "type": "number"
+          },
+          "source": {
+            "description": "local | claude | mistral",
+            "title": "Source",
+            "type": "string"
+          }
+        },
+        "required": [
+          "idx",
+          "label",
+          "label_de",
+          "score",
+          "box",
+          "source",
+          "model"
+        ],
+        "title": "PhotoObject",
         "type": "object"
       },
       "PhotoOut": {
@@ -4126,6 +4997,40 @@
         "title": "PosterTemplate",
         "type": "object"
       },
+      "PropertyScores": {
+        "properties": {
+          "archived": {
+            "title": "Archived",
+            "type": "boolean"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "scores": {
+            "description": "Index = the object's idx.",
+            "items": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "title": "Scores",
+            "type": "array"
+          }
+        },
+        "required": [
+          "name",
+          "archived",
+          "scores"
+        ],
+        "title": "PropertyScores",
+        "type": "object"
+      },
       "PublicExtension": {
         "properties": {
           "emoji": {
@@ -4216,34 +5121,20 @@
         "title": "QrOptions",
         "type": "object"
       },
-      "RerunIn": {
+      "RestoreOut": {
         "properties": {
-          "scope": {
-            "enum": [
-              "failed",
-              "all"
-            ],
-            "title": "Scope",
-            "type": "string"
+          "added": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Added",
+            "type": "array"
           }
         },
         "required": [
-          "scope"
+          "added"
         ],
-        "title": "RerunIn",
-        "type": "object"
-      },
-      "RerunOut": {
-        "properties": {
-          "queued": {
-            "title": "Queued",
-            "type": "integer"
-          }
-        },
-        "required": [
-          "queued"
-        ],
-        "title": "RerunOut",
+        "title": "RestoreOut",
         "type": "object"
       },
       "SessionOut": {
@@ -5133,43 +6024,43 @@
         "title": "UserUploadsOut",
         "type": "object"
       },
-      "WallAdminCategoriesOut": {
+      "ValueInfo": {
         "properties": {
-          "categories": {
-            "items": {
-              "$ref": "#/components/schemas/WallAdminCategory"
-            },
-            "title": "Categories",
-            "type": "array"
-          }
-        },
-        "required": [
-          "categories"
-        ],
-        "title": "WallAdminCategoriesOut",
-        "type": "object"
-      },
-      "WallAdminCategory": {
-        "properties": {
+          "archived": {
+            "description": "A value of an archived property (scores stay readable).",
+            "title": "Archived",
+            "type": "boolean"
+          },
           "available": {
             "title": "Available",
             "type": "boolean"
           },
-          "emoji": {
-            "title": "Emoji",
+          "group": {
+            "description": "German group heading (the analyzer, „Objekte“, …).",
+            "title": "Group",
             "type": "string"
           },
-          "enabled": {
-            "title": "Enabled",
-            "type": "boolean"
-          },
-          "id": {
-            "title": "Id",
+          "key": {
+            "title": "Key",
             "type": "string"
           },
-          "line": {
-            "title": "Line",
+          "kind": {
+            "enum": [
+              "number",
+              "count",
+              "labels",
+              "time"
+            ],
+            "title": "Kind",
             "type": "string"
+          },
+          "needs": {
+            "description": "Analyzer names (any of them) or `prop:<name>`; empty = always there.",
+            "items": {
+              "type": "string"
+            },
+            "title": "Needs",
+            "type": "array"
           },
           "reason": {
             "anyOf": [
@@ -5180,32 +6071,55 @@
                 "type": "null"
               }
             ],
-            "description": "Why it can't win anything (German), or null.",
             "title": "Reason"
           },
           "title": {
+            "description": "German.",
             "title": "Title",
             "type": "string"
           },
-          "winners": {
+          "unit": {
+            "title": "Unit",
+            "type": "string"
+          }
+        },
+        "required": [
+          "key",
+          "title",
+          "group",
+          "kind",
+          "unit",
+          "needs",
+          "available",
+          "reason",
+          "archived"
+        ],
+        "title": "ValueInfo",
+        "type": "object"
+      },
+      "ValuesOut": {
+        "properties": {
+          "labels": {
+            "description": "Object labels seen so far, most frequent first: compose `objects.count:<label>` and `prop.<name>.at:<label>` with them.",
             "items": {
-              "$ref": "#/components/schemas/WallAdminWinner"
+              "$ref": "#/components/schemas/LabelInfo"
             },
-            "title": "Winners",
+            "title": "Labels",
+            "type": "array"
+          },
+          "values": {
+            "items": {
+              "$ref": "#/components/schemas/ValueInfo"
+            },
+            "title": "Values",
             "type": "array"
           }
         },
         "required": [
-          "id",
-          "emoji",
-          "title",
-          "line",
-          "enabled",
-          "available",
-          "reason",
-          "winners"
+          "values",
+          "labels"
         ],
-        "title": "WallAdminCategory",
+        "title": "ValuesOut",
         "type": "object"
       },
       "WallAdminOut": {
@@ -5260,34 +6174,6 @@
           "event_name"
         ],
         "title": "WallAdminOut",
-        "type": "object"
-      },
-      "WallAdminWinner": {
-        "properties": {
-          "label": {
-            "title": "Label",
-            "type": "string"
-          },
-          "photo_id": {
-            "title": "Photo Id",
-            "type": "string"
-          },
-          "thumb_url": {
-            "title": "Thumb Url",
-            "type": "string"
-          },
-          "value": {
-            "title": "Value",
-            "type": "number"
-          }
-        },
-        "required": [
-          "photo_id",
-          "thumb_url",
-          "value",
-          "label"
-        ],
-        "title": "WallAdminWinner",
         "type": "object"
       },
       "WallByeData": {
@@ -5358,14 +6244,14 @@
         "type": "object"
       },
       "WallCategoriesConfig": {
+        "description": "The categories themselves live in `wall_categories` (admin: /categories);\nan old `disabled` list is accepted and ignored (it was taken over into\nthe categories' `enabled` once, when the presets were seeded).",
         "properties": {
           "disabled": {
-            "description": "Category ids switched off (unknown ids are kept and ignored).",
+            "deprecated": true,
+            "description": "Deprecated, always empty: switch categories on and off with PUT /admin/categories/{id}. Input is ignored.",
             "items": {
-              "pattern": "^[a-z][a-z0-9_]{1,40}$",
               "type": "string"
             },
-            "maxItems": 200,
             "title": "Disabled",
             "type": "array"
           },
@@ -5415,8 +6301,19 @@
             "title": "Title",
             "type": "string"
           },
+          "verdict": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/WallVerdict"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Only for categories with a verdict prompt, once a poll made one."
+          },
           "winners": {
-            "description": "1–3, best first.",
+            "description": "1–10, in order (best first).",
             "items": {
               "$ref": "#/components/schemas/WallWinner"
             },
@@ -6343,19 +7240,77 @@
         "title": "WallSpotlight",
         "type": "object"
       },
+      "WallVerdict": {
+        "properties": {
+          "emoji": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Emoji"
+          },
+          "photo_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Public id of the photo it names, or null.",
+            "title": "Photo Id"
+          },
+          "text": {
+            "description": "The LLM's verdict (German, ≤ 160 chars), shown below.",
+            "title": "Text",
+            "type": "string"
+          }
+        },
+        "required": [
+          "text",
+          "emoji",
+          "photo_id"
+        ],
+        "title": "WallVerdict",
+        "type": "object"
+      },
       "WallWinner": {
         "properties": {
           "label": {
-            "description": "German, e.g. „7 Personen“.",
+            "description": "German, e.g. „7 Personen“, „um 19:42“, „Sonnenbrille“.",
             "title": "Label",
             "type": "string"
+          },
+          "object_idx": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The object in the photo's list the value points at, if any.",
+            "title": "Object Idx"
           },
           "photo": {
             "$ref": "#/components/schemas/WallPhoto"
           },
           "value": {
-            "title": "Value",
-            "type": "number"
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Value"
           }
         },
         "required": [
@@ -13168,7 +14123,7 @@
     },
     "/api/x/wall/admin/analysis": {
       "get": {
-        "description": "Worker state, photo counts per state and the analyzers.",
+        "description": "Worker state, photo counts per state, the queue and the analyzers\n(with description, model size, stats and settings).",
         "operationId": "analysis_status_api_x_wall_admin_analysis_get",
         "responses": {
           "200": {
@@ -13342,15 +14297,26 @@
         ]
       }
     },
-    "/api/x/wall/admin/analysis/rerun": {
-      "post": {
-        "description": "Analyse failed (or all) photos again; the worker picks them up newest first.",
-        "operationId": "rerun_api_x_wall_admin_analysis_rerun_post",
+    "/api/x/wall/admin/analysis/analyzers/{name}": {
+      "put": {
+        "description": "Switch one analyzer on or off and change its settings. Applies to\nphotos analysed from now on; finished analyses never change.",
+        "operationId": "set_analyzer_api_x_wall_admin_analysis_analyzers__name__put",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "name",
+            "required": true,
+            "schema": {
+              "title": "Name",
+              "type": "string"
+            }
+          }
+        ],
         "requestBody": {
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/RerunIn"
+                "$ref": "#/components/schemas/AnalyzerIn"
               }
             }
           },
@@ -13361,7 +14327,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/RerunOut"
+                  "$ref": "#/components/schemas/AnalysisStatus"
                 }
               }
             },
@@ -13428,7 +14394,7 @@
             "description": "Rate limited (`Retry-After` header)"
           }
         },
-        "summary": "Rerun",
+        "summary": "Set Analyzer",
         "tags": [
           "extension:wall",
           "wall"
@@ -13437,14 +14403,14 @@
     },
     "/api/x/wall/admin/categories": {
       "get": {
-        "description": "Every category (disabled ones too) with what would win right now.",
+        "description": "Every category (disabled ones too), position order, with its spec,\navailability, the latest verdict and what would win right now.",
         "operationId": "categories_api_x_wall_admin_categories_get",
         "responses": {
           "200": {
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/WallAdminCategoriesOut"
+                  "$ref": "#/components/schemas/CategoriesOut"
                 }
               }
             },
@@ -13512,6 +14478,603 @@
           }
         },
         "summary": "Categories",
+        "tags": [
+          "extension:wall"
+        ]
+      },
+      "post": {
+        "description": "A new category (at the end). 409 `category_exists`, 400 `invalid_category`.",
+        "operationId": "create_category_api_x_wall_admin_categories_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "properties": {
+                  "enabled": {
+                    "default": true,
+                    "type": "boolean"
+                  },
+                  "id": {
+                    "pattern": "^[a-z][a-z0-9_]{1,40}$",
+                    "type": "string"
+                  },
+                  "spec": {
+                    "$ref": "#/components/schemas/CategorySpec"
+                  }
+                },
+                "required": [
+                  "id",
+                  "spec"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CategoryItem"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Invalid input (see `error`)"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Needs consent or an admin session"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Forbidden: banned, paused, stopped, joining closed or a foreign Origin (CSRF)"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Not found, or no party access (`scan_qr`)"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Request validation failed (`invalid_request`)"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Rate limited (`Retry-After` header)"
+          }
+        },
+        "summary": "Create Category",
+        "tags": [
+          "extension:wall"
+        ]
+      }
+    },
+    "/api/x/wall/admin/categories/order": {
+      "put": {
+        "description": "The wall's order: `ids` first, in this order; the others after them.",
+        "operationId": "order_categories_api_x_wall_admin_categories_order_put",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CategoryOrderIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CategoriesOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Invalid input (see `error`)"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Needs consent or an admin session"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Forbidden: banned, paused, stopped, joining closed or a foreign Origin (CSRF)"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Not found, or no party access (`scan_qr`)"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Request validation failed (`invalid_request`)"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Rate limited (`Retry-After` header)"
+          }
+        },
+        "summary": "Order Categories",
+        "tags": [
+          "extension:wall"
+        ]
+      }
+    },
+    "/api/x/wall/admin/categories/preview": {
+      "post": {
+        "description": "What a spec would pick right now (nothing is stored).",
+        "operationId": "preview_category_api_x_wall_admin_categories_preview_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "properties": {
+                  "spec": {
+                    "$ref": "#/components/schemas/CategorySpec"
+                  }
+                },
+                "required": [
+                  "spec"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CategoryPreviewOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Invalid input (see `error`)"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Needs consent or an admin session"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Forbidden: banned, paused, stopped, joining closed or a foreign Origin (CSRF)"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Not found, or no party access (`scan_qr`)"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Request validation failed (`invalid_request`)"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Rate limited (`Retry-After` header)"
+          }
+        },
+        "summary": "Preview Category",
+        "tags": [
+          "extension:wall"
+        ]
+      }
+    },
+    "/api/x/wall/admin/categories/restore-presets": {
+      "post": {
+        "description": "„Vorlagen wiederherstellen“: add the presets that were deleted.",
+        "operationId": "restore_presets_api_x_wall_admin_categories_restore_presets_post",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RestoreOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Invalid input (see `error`)"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Needs consent or an admin session"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Forbidden: banned, paused, stopped, joining closed or a foreign Origin (CSRF)"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Not found, or no party access (`scan_qr`)"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Request validation failed (`invalid_request`)"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Rate limited (`Retry-After` header)"
+          }
+        },
+        "summary": "Restore Presets",
+        "tags": [
+          "extension:wall"
+        ]
+      }
+    },
+    "/api/x/wall/admin/categories/{cid}": {
+      "delete": {
+        "description": "Delete a category (a preset comes back with „Vorlagen wiederherstellen“).",
+        "operationId": "delete_category_api_x_wall_admin_categories__cid__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "cid",
+            "required": true,
+            "schema": {
+              "title": "Cid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OkOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Invalid input (see `error`)"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Needs consent or an admin session"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Forbidden: banned, paused, stopped, joining closed or a foreign Origin (CSRF)"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Not found, or no party access (`scan_qr`)"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Request validation failed (`invalid_request`)"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Rate limited (`Retry-After` header)"
+          }
+        },
+        "summary": "Delete Category",
+        "tags": [
+          "extension:wall"
+        ]
+      },
+      "put": {
+        "description": "Change a category's spec and on/off switch (presets too).",
+        "operationId": "put_category_api_x_wall_admin_categories__cid__put",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "cid",
+            "required": true,
+            "schema": {
+              "title": "Cid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "properties": {
+                  "enabled": {
+                    "type": "boolean"
+                  },
+                  "spec": {
+                    "$ref": "#/components/schemas/CategorySpec"
+                  }
+                },
+                "required": [
+                  "spec",
+                  "enabled"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CategoryItem"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Invalid input (see `error`)"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Needs consent or an admin session"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Forbidden: banned, paused, stopped, joining closed or a foreign Origin (CSRF)"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Not found, or no party access (`scan_qr`)"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Request validation failed (`invalid_request`)"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Rate limited (`Retry-After` header)"
+          }
+        },
+        "summary": "Put Category",
         "tags": [
           "extension:wall"
         ]
@@ -13945,7 +15508,7 @@
     },
     "/api/x/wall/admin/photos/{public_id}/analysis": {
       "get": {
-        "description": "One photo's analysis: facts, boxes, German details. A photo the worker\nhas not reached yet is `pending`.",
+        "description": "One photo's analysis: facts, boxes, German details, its object list,\ndetection runs, property scores, durations and the guest's opt-outs\n(live). A photo the worker has not reached yet is `pending`.",
         "operationId": "photo_analysis_api_x_wall_admin_photos__public_id__analysis_get",
         "parameters": [
           {
@@ -14035,27 +15598,18 @@
           "extension:wall",
           "wall"
         ]
-      },
-      "post": {
-        "description": "„Neu analysieren“: queue this photo again (state `pending`).",
-        "operationId": "request_analysis_api_x_wall_admin_photos__public_id__analysis_post",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "public_id",
-            "required": true,
-            "schema": {
-              "title": "Public Id",
-              "type": "string"
-            }
-          }
-        ],
+      }
+    },
+    "/api/x/wall/admin/values": {
+      "get": {
+        "description": "The values categories can use (PLAN-NIGHT §4.2) and the object\nlabels seen so far.",
+        "operationId": "analysis_values_api_x_wall_admin_values_get",
         "responses": {
           "200": {
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/PhotoAnalysis"
+                  "$ref": "#/components/schemas/ValuesOut"
                 }
               }
             },
@@ -14122,10 +15676,9 @@
             "description": "Rate limited (`Retry-After` header)"
           }
         },
-        "summary": "Request Analysis",
+        "summary": "Analysis Values",
         "tags": [
-          "extension:wall",
-          "wall"
+          "extension:wall"
         ]
       }
     },
@@ -14286,7 +15839,7 @@
     },
     "/livewall/api/categories": {
       "get": {
-        "description": "The enabled categories that have winners, in catalogue order.",
+        "description": "The enabled categories that have winners, in the admin's order (1–10 winners\neach, plus the LLM verdict when there is one).",
         "operationId": "categories_livewall_api_categories_get",
         "responses": {
           "200": {

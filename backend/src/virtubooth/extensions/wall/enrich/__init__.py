@@ -7,7 +7,9 @@ categories and the admin's „Analyse“ panel.
 - `pipeline` + `analyzers/`    the analyzer plugins (basic always; ML with the
                                `ml` extra and downloaded models)
 - `models`                     model registry, download with SHA256 pins
-- `categories`                 the 19 categories and their winners
+- `engine`, `values`, `presets` rule-based wall categories (specs in `wall_categories`)
+- `objects`                    the frozen object list (`photo_objects`)
+- `testjobs`                   test images through the worker, nothing stored
 - `admin_api`                  `/admin/analysis…` under the wall router
 
 CLI: `python -m virtubooth.extensions.wall.enrich --help`.

@@ -7,6 +7,7 @@ status   [--data-dir DIR]                 counts, worker heartbeat, analyzers
 models fetch [--with-age] [--dest DIR]    download the models (SHA256-checked)
 models list  [--data-dir DIR]             which models are present
 bench PHOTO_DIR [--age] [--passes N]      timings and memory on this machine
+burst [--clients N] [--photos N]          upload burst with and without the worker
 
 The ML libraries are imported lazily (after `tune_process` has set the thread
 limits), never by these top-level imports.
@@ -63,6 +64,16 @@ def _bench(args: argparse.Namespace) -> int:
     result = run_bench(photos, with_age=args.age, passes=args.passes, data_dir=data_dir)
     print(json.dumps(result, ensure_ascii=False) if args.json else render(result))
     return 0
+
+
+def _burst(args: argparse.Namespace) -> int:
+    from .burst import compare, render
+
+    if args.clients < 1 or args.photos < args.clients:
+        raise ToolError("--photos must be at least --clients (≥ 1)")
+    result = compare(args.clients, args.photos, log=lambda m: print(m, file=sys.stderr))
+    print(json.dumps(result, ensure_ascii=False) if args.json else render(result))
+    return 0 if result["p95_ok"] else 1
 
 
 def _status(args: argparse.Namespace) -> int:
@@ -129,6 +140,12 @@ def parser(prog: str = "python -m virtubooth.extensions.wall.enrich") -> argpars
     b.add_argument("--json", action="store_true", help="machine-readable output")
     b.add_argument("--data-dir", metavar="DIR", help="also look for models in DIR/wall/models")
     b.set_defaults(fn=_bench)
+    u = sub.add_parser("burst", help="upload burst on a throwaway party, with and without "
+                       "the worker (numbers for the queue behaviour)")  # fmt: skip
+    u.add_argument("--clients", type=int, default=20, help="guests uploading at once")
+    u.add_argument("--photos", type=int, default=60, help="uploads in total")
+    u.add_argument("--json", action="store_true", help="machine-readable output")
+    u.set_defaults(fn=_burst)
     s = sub.add_parser("status", help="counts, heartbeat, analyzers")
     add_data_dir_arg(s)
     s.set_defaults(fn=_status)

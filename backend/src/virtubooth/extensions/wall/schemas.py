@@ -72,8 +72,17 @@ class WallOk(BaseModel):
 
 class WallWinner(BaseModel):
     photo: WallPhoto
-    value: float
-    label: str = Field(description="German, e.g. „7 Personen“.")
+    value: float | None
+    label: str = Field(description="German, e.g. „7 Personen“, „um 19:42“, „Sonnenbrille“.")
+    object_idx: int | None = Field(
+        None, description="The object in the photo's list the value points at, if any."
+    )
+
+
+class WallVerdict(BaseModel):
+    text: str = Field(description="The LLM's verdict (German, ≤ 160 chars), shown below.")
+    emoji: str | None
+    photo_id: str | None = Field(description="Public id of the photo it names, or null.")
 
 
 class WallCategory(BaseModel):
@@ -81,7 +90,10 @@ class WallCategory(BaseModel):
     emoji: str
     title: str
     line: str
-    winners: list[WallWinner] = Field(description="1–3, best first.")
+    winners: list[WallWinner] = Field(description="1–10, in order (best first).")
+    verdict: WallVerdict | None = Field(
+        None, description="Only for categories with a verdict prompt, once a poll made one."
+    )
 
 
 class WallCategoriesOut(BaseModel):
@@ -125,21 +137,6 @@ class WallAdminOut(BaseModel):
     categories: list[WallCategoryInfo]
     open_walls: int = Field(description="Wall screens connected right now.")
     event_name: str
-
-
-class WallAdminWinner(BaseModel):
-    photo_id: str
-    thumb_url: str
-    value: float
-    label: str
-
-
-class WallAdminCategory(WallCategoryInfo):
-    winners: list[WallAdminWinner]
-
-
-class WallAdminCategoriesOut(BaseModel):
-    categories: list[WallAdminCategory]
 
 
 # ------------------------------------------------------------------ events

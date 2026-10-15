@@ -9,7 +9,9 @@
   restart gap) → `stream.resync`, so every open wall refetches its feed;
 - a poller: every POLL_SECONDS the analysis' changes → `photo.update` for
   visible photos, and `categories.changed` CATEGORIES_DEBOUNCE_SECONDS after
-  the first change (more changes in between are folded in);
+  the first change (more changes in between are folded in); a newly finished
+  LLM poll (`MAX(llm_polls.id)` grew: new scores and verdicts) counts as a
+  change too;
 - the admin API: `config` after a save, `bye` when every wall is logged out;
 - a media sweep (`media.sweep_cache`): at start, after missed events, hourly.
 
@@ -32,7 +34,7 @@ from anyio import to_thread
 from ...core.events import Closed, Event, EventBus
 from .auth import LoginLimits, ScreenLimits
 from .config import WallConfig, load_config
-from .enrich import jobs
+from .enrich import engine, jobs, presets
 from .enrich.pipeline import SourceLabels
 from .enrichment import Enrichment, load_enrichment
 from .feed import (
@@ -81,6 +83,7 @@ class WallHub:
         self._categories_timer: asyncio.TimerHandle | None = None
         self._has_categories = False
         self.rev = 0
+        self.llm_poll = 0
 
     # ------------------------------------------------------------- lifecycle
 
@@ -103,9 +106,11 @@ class WallHub:
         except Exception:
             log.exception("wall: storing the source names failed")
         try:
-            self._has_categories = bool(self.enrichment.catalogue())
+            # the preset categories, once (taking over the old disabled list)
+            presets.ensure_seeded(self.core.db, self.core.repos.app_settings)
+            self._has_categories = engine.has_enabled(self.core.db)
         except Exception:
-            log.exception("wall: the category catalogue failed")
+            log.exception("wall: seeding the categories failed")
         self._spawn(self._translate())
         self._spawn(self._poll())
         self._spawn(self._sweep_media())
@@ -313,6 +318,7 @@ class WallHub:
                 self._categories_soon()
 
     def _catch_up(self) -> int:
+        self.llm_poll = engine.last_poll(self.core.db)
         rev = self.rev
         for _ in range(10_000):
             new, ids = self.enrichment.changes_since(rev)
@@ -322,10 +328,15 @@ class WallHub:
         return rev
 
     def _poll_once(self) -> bool:
+        db = self.core.db
+        self._has_categories = engine.has_enabled(db)
+        polled = engine.last_poll(db)
+        new_poll = polled > self.llm_poll
+        self.llm_poll = max(self.llm_poll, polled)
         new, ids = self.enrichment.changes_since(self.rev)
         self.rev = new
         if not ids:
-            return False
+            return new_poll
         config = load_config(self.core.repos.app_settings)
         photos = visible_by_ids(self.core, config, ids)
         for photo in wall_photos(self.core, config, self.enrichment, list(photos.values())):

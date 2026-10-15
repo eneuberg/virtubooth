@@ -1041,7 +1041,8 @@ export interface paths {
         };
         /**
          * Analysis Status
-         * @description Worker state, photo counts per state and the analyzers.
+         * @description Worker state, photo counts per state, the queue and the analyzers
+         *     (with description, model size, stats and settings).
          */
         get: operations["analysis_status_api_x_wall_admin_analysis_get"];
         put?: never;
@@ -1073,7 +1074,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/x/wall/admin/analysis/rerun": {
+    "/api/x/wall/admin/analysis/analyzers/{name}": {
         parameters: {
             query?: never;
             header?: never;
@@ -1081,12 +1082,13 @@ export interface paths {
             cookie?: never;
         };
         get?: never;
-        put?: never;
         /**
-         * Rerun
-         * @description Analyse failed (or all) photos again; the worker picks them up newest first.
+         * Set Analyzer
+         * @description Switch one analyzer on or off and change its settings. Applies to
+         *     photos analysed from now on; finished analyses never change.
          */
-        post: operations["rerun_api_x_wall_admin_analysis_rerun_post"];
+        put: operations["set_analyzer_api_x_wall_admin_analysis_analyzers__name__put"];
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -1102,12 +1104,101 @@ export interface paths {
         };
         /**
          * Categories
-         * @description Every category (disabled ones too) with what would win right now.
+         * @description Every category (disabled ones too), position order, with its spec,
+         *     availability, the latest verdict and what would win right now.
          */
         get: operations["categories_api_x_wall_admin_categories_get"];
         put?: never;
+        /**
+         * Create Category
+         * @description A new category (at the end). 409 `category_exists`, 400 `invalid_category`.
+         */
+        post: operations["create_category_api_x_wall_admin_categories_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/x/wall/admin/categories/order": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Order Categories
+         * @description The wall's order: `ids` first, in this order; the others after them.
+         */
+        put: operations["order_categories_api_x_wall_admin_categories_order_put"];
         post?: never;
         delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/x/wall/admin/categories/preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Preview Category
+         * @description What a spec would pick right now (nothing is stored).
+         */
+        post: operations["preview_category_api_x_wall_admin_categories_preview_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/x/wall/admin/categories/restore-presets": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Restore Presets
+         * @description „Vorlagen wiederherstellen“: add the presets that were deleted.
+         */
+        post: operations["restore_presets_api_x_wall_admin_categories_restore_presets_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/x/wall/admin/categories/{cid}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Put Category
+         * @description Change a category's spec and on/off switch (presets too).
+         */
+        put: operations["put_category_api_x_wall_admin_categories__cid__put"];
+        post?: never;
+        /**
+         * Delete Category
+         * @description Delete a category (a preset comes back with „Vorlagen wiederherstellen“).
+         */
+        delete: operations["delete_category_api_x_wall_admin_categories__cid__delete"];
         options?: never;
         head?: never;
         patch?: never;
@@ -1191,16 +1282,34 @@ export interface paths {
         };
         /**
          * Photo Analysis
-         * @description One photo's analysis: facts, boxes, German details. A photo the worker
-         *     has not reached yet is `pending`.
+         * @description One photo's analysis: facts, boxes, German details, its object list,
+         *     detection runs, property scores, durations and the guest's opt-outs
+         *     (live). A photo the worker has not reached yet is `pending`.
          */
         get: operations["photo_analysis_api_x_wall_admin_photos__public_id__analysis_get"];
         put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/x/wall/admin/values": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
         /**
-         * Request Analysis
-         * @description „Neu analysieren“: queue this photo again (state `pending`).
+         * Analysis Values
+         * @description The values categories can use (PLAN-NIGHT §4.2) and the object
+         *     labels seen so far.
          */
-        post: operations["request_analysis_api_x_wall_admin_photos__public_id__analysis_post"];
+        get: operations["analysis_values_api_x_wall_admin_values_get"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -1255,7 +1364,8 @@ export interface paths {
         };
         /**
          * Categories
-         * @description The enabled categories that have winners, in catalogue order.
+         * @description The enabled categories that have winners, in the admin's order (1–10 winners
+         *     each, plus the LLM verdict when there is one).
          */
         get: operations["categories_livewall_api_categories_get"];
         put?: never;
@@ -1614,17 +1724,89 @@ export interface components {
             /** Total */
             total: number;
         };
+        /** AnalysisQueue */
+        AnalysisQueue: {
+            /**
+             * Oldest Pending S
+             * @description Age of the oldest waiting photo (s).
+             */
+            oldest_pending_s: number | null;
+            /**
+             * Pending
+             * @description Photos waiting for their analysis.
+             */
+            pending: number;
+            /** Running */
+            running: number;
+        };
         /** AnalysisStatus */
         AnalysisStatus: {
             /** Analyzers */
             analyzers: components["schemas"]["AnalyzerStatus"][];
             counts: components["schemas"]["AnalysisCounts"];
+            queue: components["schemas"]["AnalysisQueue"];
             worker: components["schemas"]["WorkerStatus"];
+        };
+        /** AnalyzerIn */
+        AnalyzerIn: {
+            /** Enabled */
+            enabled: boolean;
+            /**
+             * Settings
+             * @description Only the keys of its `settings_schema`; omitted = unchanged.
+             */
+            settings?: {
+                [key: string]: number;
+            } | null;
+        };
+        /** AnalyzerSettingSpec */
+        AnalyzerSettingSpec: {
+            /** Key */
+            key: string;
+            /** Max */
+            max: number;
+            /** Min */
+            min: number;
+            /** Step */
+            step: number;
+            /**
+             * Title
+             * @description German.
+             */
+            title: string;
+        };
+        /** AnalyzerStats */
+        AnalyzerStats: {
+            /**
+             * Avg Ms
+             * @description Average duration (recent photos weigh most).
+             */
+            avg_ms: number | null;
+            /**
+             * Errors
+             * @description Photos that failed in this analyzer.
+             */
+            errors: number;
+            /**
+             * Last Ms
+             * @description Duration on the last photo.
+             */
+            last_ms: number | null;
+            /**
+             * Processed
+             * @description Photos this analyzer ran on (worker heartbeat).
+             */
+            processed: number;
         };
         /** AnalyzerStatus */
         AnalyzerStatus: {
             /** Available */
             available: boolean;
+            /**
+             * Description
+             * @description What it does (German, one sentence).
+             */
+            description: string;
             /** Enabled */
             enabled: boolean;
             /** Facts */
@@ -1641,6 +1823,21 @@ export interface components {
              * @description Why it cannot run (German); null when available.
              */
             reason: string | null;
+            /**
+             * Settings
+             * @description Its current settings; null when it has none.
+             */
+            settings: {
+                [key: string]: number;
+            } | null;
+            /** Settings Schema */
+            settings_schema: components["schemas"]["AnalyzerSettingSpec"][];
+            /**
+             * Size Mb
+             * @description Its model files on disk (MB); 0 without models.
+             */
+            size_mb: number;
+            stats: components["schemas"]["AnalyzerStats"];
             /** Title */
             title: string;
             /** Version */
@@ -1836,6 +2033,217 @@ export interface components {
             missing: string[];
             /** Unchanged */
             unchanged: string[];
+        };
+        /** CategoriesOut */
+        CategoriesOut: {
+            /** Categories */
+            categories: components["schemas"]["CategoryItem"][];
+        };
+        /** CategoryCondition */
+        CategoryCondition: {
+            /**
+             * Op
+             * @enum {string}
+             */
+            op: "gt" | "lt" | "gte" | "lte" | "eq" | "ne" | "between" | "exists" | "not_exists" | "contains" | "not_contains" | "contains_any";
+            /**
+             * Operand
+             * @description number (gt…ne), [a, b] (between), label (contains, not_contains), [labels] (contains_any), null (exists, not_exists).
+             */
+            operand?: number | string | number[] | string[] | null;
+            /**
+             * Value
+             * @description A value key (GET /admin/values), e.g. `people`, `objects.count:hat`, `prop.coolness.max`.
+             */
+            value: string;
+        };
+        /** CategoryItem */
+        CategoryItem: {
+            /** Available */
+            available: boolean;
+            /** Enabled */
+            enabled: boolean;
+            /** Id */
+            id: string;
+            /** Position */
+            position: number;
+            /**
+             * Preset
+             * @description The preset it came from; null = made by the host.
+             */
+            preset: string | null;
+            /**
+             * Reason
+             * @description Why it cannot win anything (German), or null.
+             */
+            reason: string | null;
+            spec: components["schemas"]["CategorySpec"];
+            verdict: components["schemas"]["CategoryVerdictOut"] | null;
+            /**
+             * Winners
+             * @description Right now, best first (≤ count).
+             */
+            winners: components["schemas"]["CategoryWinnerOut"][];
+        };
+        /** CategoryLabel */
+        CategoryLabel: {
+            /**
+             * Many
+             * @description Plural word.
+             * @default
+             */
+            many: string;
+            /**
+             * One
+             * @description Singular word (or the fixed text).
+             * @default
+             */
+            one: string;
+            /**
+             * Style
+             * @default count
+             * @enum {string}
+             */
+            style: "count" | "percent" | "number" | "time" | "fixed" | "object";
+            /**
+             * Value
+             * @description The value shown (and required); null = `select.by`.
+             */
+            value?: string | null;
+        };
+        /** CategoryOrderIn */
+        CategoryOrderIn: {
+            /**
+             * Ids
+             * @description First in this order; the rest after.
+             */
+            ids: string[];
+        };
+        /** CategoryPreviewOut */
+        CategoryPreviewOut: {
+            /**
+             * Matched
+             * @description Visible photos meeting every condition.
+             */
+            matched: number;
+            /**
+             * Reason
+             * @description Why it cannot win (German), or null.
+             */
+            reason: string | null;
+            /** Winners */
+            winners: components["schemas"]["CategoryWinnerOut"][];
+        };
+        /** CategorySelect */
+        CategorySelect: {
+            /**
+             * By
+             * @description The value to rank by (missing values rank last).
+             */
+            by: string;
+            /**
+             * Count
+             * @description 1–10 winners.
+             * @default 3
+             */
+            count: number;
+            /**
+             * One Per Guest
+             * @default true
+             */
+            one_per_guest: boolean;
+            /**
+             * Order
+             * @default top
+             * @enum {string}
+             */
+            order: "top" | "bottom";
+            /**
+             * Then By
+             * @description ≤ 2 tie-breakers (a plain key string = top).
+             */
+            then_by?: components["schemas"]["CategoryThenBy"][];
+        };
+        /**
+         * CategorySpec
+         * @description A rule-based wall category. Invalid input → 400 `invalid_category`
+         *     naming the field in German.
+         */
+        CategorySpec: {
+            /**
+             * Emoji
+             * @description One emoji.
+             */
+            emoji: string;
+            label?: components["schemas"]["CategoryLabel"];
+            /**
+             * Line
+             * @description 0–80 chars (the subtitle).
+             * @default
+             */
+            line: string;
+            select: components["schemas"]["CategorySelect"];
+            /**
+             * Title
+             * @description 1–40 chars.
+             */
+            title: string;
+            verdict?: components["schemas"]["CategoryVerdictSpec"] | null;
+            /**
+             * Where
+             * @description 0–8 conditions, all must hold.
+             */
+            where?: components["schemas"]["CategoryCondition"][];
+        };
+        /** CategoryThenBy */
+        CategoryThenBy: {
+            /** By */
+            by: string;
+            /**
+             * Order
+             * @default top
+             * @enum {string}
+             */
+            order: "top" | "bottom";
+        };
+        /** CategoryVerdictOut */
+        CategoryVerdictOut: {
+            /** Emoji */
+            emoji: string | null;
+            /**
+             * Photo Id
+             * @description Public id of the photo it names (visible), or null.
+             */
+            photo_id: string | null;
+            /**
+             * Text
+             * @description German, ≤ 160 chars.
+             */
+            text: string;
+        };
+        /** CategoryVerdictSpec */
+        CategoryVerdictSpec: {
+            /**
+             * Prompt
+             * @description 1–1000 chars: the LLM verdict prompt (each poll).
+             */
+            prompt: string;
+        };
+        /** CategoryWinnerOut */
+        CategoryWinnerOut: {
+            /** Label */
+            label: string;
+            /**
+             * Object Idx
+             * @description The object the value points at, if any.
+             */
+            object_idx: number | null;
+            /** Photo Id */
+            photo_id: string;
+            /** Thumb Url */
+            thumb_url: string;
+            /** Value */
+            value: number | null;
         };
         /** CodeChangedData */
         CodeChangedData: {
@@ -2038,6 +2446,20 @@ export interface components {
             /** Value */
             value: string;
         };
+        /** DetectionRun */
+        DetectionRun: {
+            /** Error */
+            error: string | null;
+            /** Model */
+            model: string | null;
+            /** Source */
+            source: string;
+            /**
+             * State
+             * @enum {string}
+             */
+            state: "done" | "failed" | "skipped";
+        };
         /** DeviceBanOut */
         DeviceBanOut: {
             /** Created At */
@@ -2083,7 +2505,7 @@ export interface components {
              * @description Machine-readable error code.
              * @enum {string}
              */
-            error: "scan_qr" | "needs_consent" | "banned" | "consent_outdated" | "invalid_instagram" | "join_closed" | "wall_login_required" | "wall_no_password" | "wall_password_too_short" | "invalid_wall_config" | "uploads_paused" | "uploads_stopped" | "unsupported_type" | "too_large" | "invalid_meta" | "empty_upload" | "invalid_image" | "invalid_pdf" | "invalid_layout" | "no_template" | "admin_required" | "wrong_password" | "login_locked" | "invalid_filter" | "unknown_analyzer" | "invalid_cursor" | "no_fingerprint" | "restore_required" | "invalid_event_name" | "password_too_short" | "password_unchanged" | "no_filter_enabled" | "unknown_filter" | "export_not_ready" | "export_running" | "base_url_required" | "invalid_base_url" | "invalid_token" | "token_taken" | "code_revoked" | "invalid_target" | "invalid_note" | "bad_origin" | "length_required" | "rate_limited" | "invalid_request" | "not_found" | "http_404" | "http_405";
+            error: "scan_qr" | "needs_consent" | "banned" | "consent_outdated" | "invalid_instagram" | "join_closed" | "wall_login_required" | "wall_no_password" | "wall_password_too_short" | "invalid_wall_config" | "invalid_category" | "category_exists" | "invalid_analyzer_settings" | "worker_off" | "uploads_paused" | "uploads_stopped" | "unsupported_type" | "too_large" | "invalid_meta" | "empty_upload" | "invalid_image" | "invalid_pdf" | "invalid_layout" | "no_template" | "admin_required" | "wrong_password" | "login_locked" | "invalid_filter" | "unknown_analyzer" | "invalid_cursor" | "no_fingerprint" | "restore_required" | "invalid_event_name" | "password_too_short" | "password_unchanged" | "no_filter_enabled" | "unknown_filter" | "export_not_ready" | "export_running" | "base_url_required" | "invalid_base_url" | "invalid_token" | "token_taken" | "code_revoked" | "invalid_target" | "invalid_note" | "bad_origin" | "length_required" | "rate_limited" | "invalid_request" | "not_found" | "http_404" | "http_405";
             /**
              * Message
              * @description German text for the guest or admin, shown as-is.
@@ -2650,6 +3072,18 @@ export interface components {
              */
             type: "settings.join_stop";
         };
+        /** LabelInfo */
+        LabelInfo: {
+            /**
+             * Count
+             * @description Photos (not deleted) with at least one such object.
+             */
+            count: number;
+            /** Label */
+            label: string;
+            /** Label De */
+            label_de: string;
+        };
         /** LoginIn */
         LoginIn: {
             /** Password */
@@ -2703,6 +3137,23 @@ export interface components {
              */
             state: "needs_consent";
         };
+        /** ObjectBox */
+        ObjectBox: {
+            /** H */
+            h: number;
+            /** W */
+            w: number;
+            /**
+             * X
+             * @description 0..1 from the left
+             */
+            x: number;
+            /**
+             * Y
+             * @description 0..1 from the top
+             */
+            y: number;
+        };
         /** OkOut */
         OkOut: {
             /**
@@ -2710,6 +3161,19 @@ export interface components {
              * @constant
              */
             ok: true;
+        };
+        /** OptOutState */
+        OptOutState: {
+            /**
+             * Analysis
+             * @description Live: the guest does not want the analysis.
+             */
+            analysis: boolean;
+            /**
+             * External Ai
+             * @description Live: the guest's photos never go to an external AI.
+             */
+            external_ai: boolean;
         };
         /** OverviewActivity */
         OverviewActivity: {
@@ -2958,6 +3422,10 @@ export interface components {
             boxes: components["schemas"]["AnalysisBox"][];
             /** Details */
             details: components["schemas"]["DetailLine"][];
+            /** Durations Ms */
+            durations_ms: {
+                [key: string]: number;
+            };
             /** Error */
             error: string | null;
             /** Facts */
@@ -2966,11 +3434,23 @@ export interface components {
             };
             /** Finished At */
             finished_at: string | null;
+            /** Objects */
+            objects: components["schemas"]["PhotoObject"][];
+            opt_out: components["schemas"]["OptOutState"];
+            /**
+             * Opt Out At Analysis
+             * @description The guest had the analysis opt-out on when the photo was analysed.
+             */
+            opt_out_at_analysis: boolean;
             /**
              * Photo Id
              * @description The photo's public id.
              */
             photo_id: string;
+            /** Properties */
+            properties: components["schemas"]["PropertyScores"][];
+            /** Runs */
+            runs: components["schemas"]["DetectionRun"][];
             /**
              * State
              * @enum {string}
@@ -3052,6 +3532,34 @@ export interface components {
             photos: components["schemas"]["AdminPhoto"][];
             /** Total */
             total?: number | null;
+        };
+        /** PhotoObject */
+        PhotoObject: {
+            box: components["schemas"]["ObjectBox"] | null;
+            /**
+             * Idx
+             * @description Position in the photo's object list (0-based).
+             */
+            idx: number;
+            /**
+             * Label
+             * @description Canonical English label, e.g. „wine glass“.
+             */
+            label: string;
+            /**
+             * Label De
+             * @description German label, e.g. „Weinglas“.
+             */
+            label_de: string;
+            /** Model */
+            model: string;
+            /** Score */
+            score: number;
+            /**
+             * Source
+             * @description local | claude | mistral
+             */
+            source: string;
         };
         /** PhotoOut */
         PhotoOut: {
@@ -3195,6 +3703,18 @@ export interface components {
             /** Uploaded At */
             uploaded_at: string;
         };
+        /** PropertyScores */
+        PropertyScores: {
+            /** Archived */
+            archived: boolean;
+            /** Name */
+            name: string;
+            /**
+             * Scores
+             * @description Index = the object's idx.
+             */
+            scores: (number | null)[];
+        };
         /** PublicExtension */
         PublicExtension: {
             /** Emoji */
@@ -3235,18 +3755,10 @@ export interface components {
              */
             code_id?: number | null;
         };
-        /** RerunIn */
-        RerunIn: {
-            /**
-             * Scope
-             * @enum {string}
-             */
-            scope: "failed" | "all";
-        };
-        /** RerunOut */
-        RerunOut: {
-            /** Queued */
-            queued: number;
+        /** RestoreOut */
+        RestoreOut: {
+            /** Added */
+            added: string[];
         };
         /** SessionOut */
         SessionOut: {
@@ -3639,32 +4151,51 @@ export interface components {
             changed: boolean;
             user: components["schemas"]["AdminUser"];
         };
-        /** WallAdminCategoriesOut */
-        WallAdminCategoriesOut: {
-            /** Categories */
-            categories: components["schemas"]["WallAdminCategory"][];
-        };
-        /** WallAdminCategory */
-        WallAdminCategory: {
+        /** ValueInfo */
+        ValueInfo: {
+            /**
+             * Archived
+             * @description A value of an archived property (scores stay readable).
+             */
+            archived: boolean;
             /** Available */
             available: boolean;
-            /** Emoji */
-            emoji: string;
-            /** Enabled */
-            enabled: boolean;
-            /** Id */
-            id: string;
-            /** Line */
-            line: string;
             /**
-             * Reason
-             * @description Why it can't win anything (German), or null.
+             * Group
+             * @description German group heading (the analyzer, „Objekte“, …).
              */
+            group: string;
+            /** Key */
+            key: string;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "number" | "count" | "labels" | "time";
+            /**
+             * Needs
+             * @description Analyzer names (any of them) or `prop:<name>`; empty = always there.
+             */
+            needs: string[];
+            /** Reason */
             reason: string | null;
-            /** Title */
+            /**
+             * Title
+             * @description German.
+             */
             title: string;
-            /** Winners */
-            winners: components["schemas"]["WallAdminWinner"][];
+            /** Unit */
+            unit: string;
+        };
+        /** ValuesOut */
+        ValuesOut: {
+            /**
+             * Labels
+             * @description Object labels seen so far, most frequent first: compose `objects.count:<label>` and `prop.<name>.at:<label>` with them.
+             */
+            labels: components["schemas"]["LabelInfo"][];
+            /** Values */
+            values: components["schemas"]["ValueInfo"][];
         };
         /** WallAdminOut */
         WallAdminOut: {
@@ -3690,17 +4221,6 @@ export interface components {
              * @constant
              */
             wall_path: "/livewall";
-        };
-        /** WallAdminWinner */
-        WallAdminWinner: {
-            /** Label */
-            label: string;
-            /** Photo Id */
-            photo_id: string;
-            /** Thumb Url */
-            thumb_url: string;
-            /** Value */
-            value: number;
         };
         /** WallByeData */
         WallByeData: {
@@ -3744,11 +4264,17 @@ export interface components {
              */
             type: "categories.changed";
         };
-        /** WallCategoriesConfig */
+        /**
+         * WallCategoriesConfig
+         * @description The categories themselves live in `wall_categories` (admin: /categories);
+         *     an old `disabled` list is accepted and ignored (it was taken over into
+         *     the categories' `enabled` once, when the presets were seeded).
+         */
         WallCategoriesConfig: {
             /**
              * Disabled
-             * @description Category ids switched off (unknown ids are kept and ignored).
+             * @deprecated
+             * @description Deprecated, always empty: switch categories on and off with PUT /admin/categories/{id}. Input is ignored.
              */
             disabled?: string[];
             /**
@@ -3775,9 +4301,11 @@ export interface components {
             line: string;
             /** Title */
             title: string;
+            /** @description Only for categories with a verdict prompt, once a poll made one. */
+            verdict?: components["schemas"]["WallVerdict"] | null;
             /**
              * Winners
-             * @description 1–3, best first.
+             * @description 1–10, in order (best first).
              */
             winners: components["schemas"]["WallWinner"][];
         };
@@ -4252,16 +4780,36 @@ export interface components {
              */
             transition_ms: number;
         };
+        /** WallVerdict */
+        WallVerdict: {
+            /** Emoji */
+            emoji: string | null;
+            /**
+             * Photo Id
+             * @description Public id of the photo it names, or null.
+             */
+            photo_id: string | null;
+            /**
+             * Text
+             * @description The LLM's verdict (German, ≤ 160 chars), shown below.
+             */
+            text: string;
+        };
         /** WallWinner */
         WallWinner: {
             /**
              * Label
-             * @description German, e.g. „7 Personen“.
+             * @description German, e.g. „7 Personen“, „um 19:42“, „Sonnenbrille“.
              */
             label: string;
+            /**
+             * Object Idx
+             * @description The object in the photo's list the value points at, if any.
+             */
+            object_idx?: number | null;
             photo: components["schemas"]["WallPhoto"];
             /** Value */
-            value: number;
+            value: number | null;
         };
         /** WorkerStatus */
         WorkerStatus: {
@@ -9994,16 +10542,18 @@ export interface operations {
             };
         };
     };
-    rerun_api_x_wall_admin_analysis_rerun_post: {
+    set_analyzer_api_x_wall_admin_analysis_analyzers__name__put: {
         parameters: {
             query?: never;
             header?: never;
-            path?: never;
+            path: {
+                name: string;
+            };
             cookie?: never;
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["RerunIn"];
+                "application/json": components["schemas"]["AnalyzerIn"];
             };
         };
         responses: {
@@ -10013,7 +10563,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["RerunOut"];
+                    "application/json": components["schemas"]["AnalysisStatus"];
                 };
             };
             /** @description Invalid input (see `error`) */
@@ -10087,7 +10637,490 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["WallAdminCategoriesOut"];
+                    "application/json": components["schemas"]["CategoriesOut"];
+                };
+            };
+            /** @description Invalid input (see `error`) */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Needs consent or an admin session */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Forbidden: banned, paused, stopped, joining closed or a foreign Origin (CSRF) */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Not found, or no party access (`scan_qr`) */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Request validation failed (`invalid_request`) */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Rate limited (`Retry-After` header) */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    create_category_api_x_wall_admin_categories_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /** @default true */
+                    enabled?: boolean;
+                    id: string;
+                    spec: components["schemas"]["CategorySpec"];
+                };
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CategoryItem"];
+                };
+            };
+            /** @description Invalid input (see `error`) */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Needs consent or an admin session */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Forbidden: banned, paused, stopped, joining closed or a foreign Origin (CSRF) */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Not found, or no party access (`scan_qr`) */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Request validation failed (`invalid_request`) */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Rate limited (`Retry-After` header) */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    order_categories_api_x_wall_admin_categories_order_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CategoryOrderIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CategoriesOut"];
+                };
+            };
+            /** @description Invalid input (see `error`) */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Needs consent or an admin session */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Forbidden: banned, paused, stopped, joining closed or a foreign Origin (CSRF) */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Not found, or no party access (`scan_qr`) */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Request validation failed (`invalid_request`) */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Rate limited (`Retry-After` header) */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    preview_category_api_x_wall_admin_categories_preview_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    spec: components["schemas"]["CategorySpec"];
+                };
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CategoryPreviewOut"];
+                };
+            };
+            /** @description Invalid input (see `error`) */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Needs consent or an admin session */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Forbidden: banned, paused, stopped, joining closed or a foreign Origin (CSRF) */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Not found, or no party access (`scan_qr`) */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Request validation failed (`invalid_request`) */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Rate limited (`Retry-After` header) */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    restore_presets_api_x_wall_admin_categories_restore_presets_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RestoreOut"];
+                };
+            };
+            /** @description Invalid input (see `error`) */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Needs consent or an admin session */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Forbidden: banned, paused, stopped, joining closed or a foreign Origin (CSRF) */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Not found, or no party access (`scan_qr`) */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Request validation failed (`invalid_request`) */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Rate limited (`Retry-After` header) */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    put_category_api_x_wall_admin_categories__cid__put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                cid: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    enabled: boolean;
+                    spec: components["schemas"]["CategorySpec"];
+                };
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CategoryItem"];
+                };
+            };
+            /** @description Invalid input (see `error`) */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Needs consent or an admin session */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Forbidden: banned, paused, stopped, joining closed or a foreign Origin (CSRF) */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Not found, or no party access (`scan_qr`) */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Request validation failed (`invalid_request`) */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Rate limited (`Retry-After` header) */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    delete_category_api_x_wall_admin_categories__cid__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                cid: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OkOut"];
                 };
             };
             /** @description Invalid input (see `error`) */
@@ -10600,13 +11633,11 @@ export interface operations {
             };
         };
     };
-    request_analysis_api_x_wall_admin_photos__public_id__analysis_post: {
+    analysis_values_api_x_wall_admin_values_get: {
         parameters: {
             query?: never;
             header?: never;
-            path: {
-                public_id: string;
-            };
+            path?: never;
             cookie?: never;
         };
         requestBody?: never;
@@ -10617,7 +11648,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["PhotoAnalysis"];
+                    "application/json": components["schemas"]["ValuesOut"];
                 };
             };
             /** @description Invalid input (see `error`) */
