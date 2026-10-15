@@ -39,10 +39,10 @@ from .core.security import (
     ACCESS_COOKIE,
     GUEST_COOKIE_MAX_AGE,
     SECURITY_HEADERS,
-    UID_COOKIE,
     client_ip,
     origin_allowed,
     set_cookie,
+    uid_cookie,
 )
 from .domain.codes import TOKEN_RE
 from .runtime import Core
@@ -120,7 +120,7 @@ class GuardMiddleware:
             return None, ""
         # identified guests get their own bucket, so one noisy device on the
         # venue WiFi can't use up the budget of everyone behind the same IP
-        public_id = core.signer.unsign("uid", request.cookies.get(UID_COOKIE))
+        public_id = core.signer.unsign("uid", uid_cookie(request, core.settings))
         if public_id:
             return core.limits.api_guest, f"uid:{public_id}"
         return core.limits.api_ip, client_ip(request)

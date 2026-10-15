@@ -30,10 +30,21 @@ SupervisorState = Literal["starting", "running", "stopped", "crashed", "off"]
 # alive this long → "running"
 RUNNING_AFTER_S = 2.0
 STABLE_AFTER_S = 60.0
+# never handed to the worker: it reads stored photos with native ML code (the
+# app's biggest decoder surface) and needs none of the app's secrets. Without
+# VB_SECRET_KEY it can't forge cookies or decrypt what the app encrypts with
+# it (security review 3, ENV-01). Plus every *_API_KEY / *_SECRET variable.
+SECRET_ENV = frozenset({"VB_SECRET_KEY", "VB_ADMIN_PASSWORD", "VB_PARTY_TOKEN"})
 
 
 def worker_disabled() -> bool:
     return os.environ.get(WORKER_ENV, "").strip().lower() in ("off", "0", "false", "no")
+
+
+def is_secret_env(name: str) -> bool:
+    """A variable the worker must not inherit (SECRET_ENV, *_API_KEY, *_SECRET)."""
+    upper = name.upper()
+    return upper in SECRET_ENV or upper.endswith(("_API_KEY", "_SECRET"))
 
 
 def worker_command(data_dir: Path) -> list[str]:
@@ -68,7 +79,11 @@ class Supervisor:
         self._lock = threading.Lock()
 
     def _child_env(self) -> dict[str, str]:
-        env = dict(os.environ if self.env is None else self.env)
+        env = {
+            k: v
+            for k, v in (os.environ if self.env is None else self.env).items()
+            if not is_secret_env(k)
+        }
         if threads := thread_limit():
             env.setdefault("OMP_NUM_THREADS", str(threads))
         env.setdefault("MPLBACKEND", "Agg")

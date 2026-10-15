@@ -1334,3 +1334,377 @@ frontend change, so no Vitest or e2e run was needed.
 - **The wall lock can be triggered from outside.** The trade-off is the same as for the
   admin login: walls that are logged in keep running for 30 days, and admins still see
   the wall.
+
+## Review 3: PSA (2026-10-15)
+
+Reviewer: security agent, branch `night/sec-psa` (from `main` at `cee7da5`).
+
+**Scope.** An attacker-centred pass over the whole app as it is on `main`. It does not
+repeat the checks of reviews 1 and 2. The question was: who can get at what?
+- **Targets:** guests' photos, QR tokens, secrets (admin and wall passwords, their hashes,
+  `VB_SECRET_KEY`, the coming Anthropic API key), and admin or wall sessions.
+- **Attacker positions:**
+  - an anonymous internet user;
+  - a guest with a valid cookie;
+  - someone on the party Wi-Fi;
+  - a viewer of the TV wall;
+  - someone holding an exported archive;
+  - a reader of the public repository: the tree, the full history of all refs, the images
+    and CI.
+
+**Method.**
+1. The code was read with these positions in mind.
+2. Every suspicion was checked live against a throwaway server on `127.0.0.1:8437`, with
+   its own data dir, `gen-env` secrets, the built `frontend/dist` and
+   `VB_WALL_WORKER=off`. `X-Forwarded-For` stood in for distinct clients, and
+   `X-Forwarded-Proto: https` for a TLS proxy.
+3. An authorization matrix was run over all 80 routes of the OpenAPI schema, each as
+   anonymous, guest and wall-cookie caller.
+4. A sub-agent read the git history: every patch on all 40 refs, all 1,048 paths ever
+   committed and all 153 image blobs.
+
+### Summary
+
+| Severity | Count | IDs |
+|---|---|---|
+| Critical | 0 | |
+| High | 0 | |
+| Medium | 1 | REPO-01 (needs a history rewrite by the owner) |
+| Low | 5 | REPO-02 (fixed in the tree), COOKIE-01 (fixed), ENV-01 (fixed), ARCH-02 (fixed, preparation), EXP-01 (accepted, follow-up) |
+| Info | 6 | R3-I1 … R3-I6 |
+
+The app's access model holds from every position:
+- no route answers more than its dependency allows;
+- no photo leaves the wall or `/media` outside the documented rules;
+- no secret appears in any API answer, event, log line or error message that was tested.
+
+The one Medium finding is not in the code. It is in the public git history.
+
+### Attack vectors
+
+| Position | Vector | Result |
+|---|---|---|
+| Anonymous | All 80 API routes without cookies (matrix) | Holds. Every `/api/admin/*` and `/api/x/wall/admin/*` route answers 401. Guest routes answer 404 `scan_qr`. Wall routes answer 401. `/media` answers 404. |
+| Anonymous | `/openapi.json`, `/docs`, `/redoc`, `/__ui`, `/ui.html`, `/.vite/manifest.json`, `*.html.gz`, `/wall.html` | All 404. Only `/livewall` (the page) is public. |
+| Anonymous | Enumerating activities or pages | Holds. `/x/beer/` and `/x/nope/` give the same gate. |
+| Anonymous | CORS | Holds. No `Access-Control-*` header anywhere, and `CORP: same-origin`. |
+| Anonymous | Test or dev endpoints | None in `src/`. `VB_DEV` only selects placeholder pages. The e2e hooks live in `tests/`, which is not in the image. |
+| Anonymous | Brute-forcing tokens, admin or wall passwords | Covered by reviews 1 and 2 (QR-01, SEC-01, WALL-01). Not repeated. |
+| Anonymous (DNS rebinding) | A page that rebinds its own name to the server's address | The CSRF check accepts it, because `Origin` and `Host` agree. There are no cookies to ride on, so all it gets is login attempts, still limited per IP. See R3-I1. |
+| Guest | Another guest's photos (`/media`, `/api/me/photos`, query and path IDs) | Holds. Photo and user ids are 96-bit random. No guest answer carries another guest's ids. |
+| Guest | A forged or another guest's `vb_uid` | Holds. The value is an HMAC. A forged one gets `needs_consent`. |
+| Guest | A **planted** `vb_uid` (attacker's own signed id in the victim's browser) | **COOKIE-01**: the victim silently became the attacker. Fixed on https. |
+| Guest | The wall API with guest cookies; guest API with the wall cookie | Holds (401 and 404). |
+| Party Wi-Fi | An http deployment | Everything travels in clear: the token in the QR URL, the cookies, the passwords. Phones only open the camera over https anyway. Accepted (R3-I2). |
+| Party Wi-Fi | An https deployment: cookie injection via plain http | COOKIE-01 (fixed). The other cookies are worthless when planted (see COOKIE-01). |
+| Party Wi-Fi | Token in Referer | Holds. `Referrer-Policy: no-referrer` everywhere, and the `?t=` entry redirects (303, `no-store`) to a URL without the token. |
+| TV wall viewer | What the screen and its API show | Visible photos only. Pseudonyms are shown. Instagram handles appear only with `show_instagram`. The QR overlay shows a live token (R2-I2, by design). |
+| TV wall viewer | Photos inside the delay; hidden photos | Holds. Inside `delay_s`: `/livewall/media` gives 404 and the feed leaves the photo out. Hidden photos give 404 in all three sizes. |
+| TV wall viewer | The TV browser's cookies | `vb_wall` is HttpOnly with `Path=/livewall`. An **admin session** opened on the TV would give the whole admin (R3-I4). |
+| Archive holder | `virtubooth.db`, CSVs, README | No admin sessions and no password hashes (reviews 1 and 2). The QR tokens are there (accepted in review 2). Now also no `*.secret` setting (ARCH-02). Two smaller leaks: R3-I3 and EXP-01. |
+| Archive holder | Photos deleted after the export | **EXP-01**: they stay in the finished zip on the server and can be downloaded. |
+| Repo reader | Secrets: `.env`, DBs, keys, `sk-ant-`, `ghp_`, AWS, private keys, high-entropy strings | Clean in the whole history. Every token and password is a placeholder or a test value. `.env.example` has empty secrets. |
+| Repo reader | Private hostnames, personal data, local paths | **REPO-01**: the owner's private hostname is in the history. **REPO-02**: the real party name, Instagram handles and local paths were in the tree and are in the history. |
+| Repo reader | Screenshots | No QR code, no token, no URL bar. The `wave2-gp` shots show the real party name and handles (REPO-02). |
+| Repo reader | CI | Holds. `push` / `pull_request` only (no `pull_request_target`), `contents: read`, no secrets, no artifacts, no untrusted `${{ }}` in `run:`. |
+| Docker image | What is inside | Holds. The `.dockerignore` allow-list ships `backend/src` and the `frontend/dist` build: no tests, no `.env`, no `*.db`, no source maps. The image runs as uid 10001. Gap: `frontend/.env.local` would enter the build stage (Low, never happened). |
+| Logs | Tokens and passwords | Holds in the app (`t=***`, SEC-07). Not under the app's control: a reverse proxy's access log keeps the full `?t=` URL (R3-I5). |
+| Secrets | `/api/admin/settings`, wall config, poster, overview, analysis, audit | Holds. No hash, password, secret key or token in any of them. Full tokens appear only in `/api/admin/codes*` and the admin stream. |
+| Secrets | The analysis worker process | **ENV-01**: it inherited `VB_SECRET_KEY` and the admin password. Fixed. |
+| Sessions | Admin and wall session fixation or theft | Holds. Both are random and signed, set only after a correct password; the admin cookie is `SameSite=Strict`. A planted admin or wall cookie only logs the victim into the attacker's own session. |
+| Caching | Media | `private, max-age=86400` on `/media` and `/livewall/media`. The API is `no-store`, HTML is `private, no-cache`, and the `?t=` 303 is `no-store`. Browser copies after a hide: R2-I5. |
+| SSE | The wall stream | A wall cookie or an admin session is required. History replay can carry the metadata of photos that were later removed (R3-I6). |
+
+### Findings
+
+#### REPO-01 · Medium · confirmed · open (owner): the owner's private hostname is in the public history
+
+**Where.** Commits `427dbf0` (`tests/blockerlists.py`, as `HOST`/`BASE`) and `7d5c900`
+(`docs/overhaul/analysis/test-suite-map.md`). Both are on `origin/main`. Later commits
+(`381e342`, `9b60ec2`) replaced the host in the tree, so the tree is clean. The history is
+not.
+
+**Impact.**
+- It names the owner's own server, which other services run on, and ties it to this
+  project.
+- It breaks the project's rule that private domains never appear in the public repo.
+
+It holds no credentials. The hostname is deliberately not repeated here.
+
+**Fix (owner, not possible on a branch).**
+1. Run one `git filter-repo` pass. Use `--replace-text` with a file that maps the hostname
+   to `party.example.com`, and add the replacements from REPO-02 (the party name, the
+   handles, the local paths) in the same pass.
+2. For the screenshots, either add
+   `--path docs/overhaul/design/shots/wave2-gp --invert-paths` or replace the 20 images
+   with demo shots.
+3. Force-push `main`.
+4. Delete or rebase the local branches and worktrees that still carry the old commits.
+   There are 40 refs; pushing any one of them would publish the history again.
+5. GitHub keeps unreachable commits reachable by their SHA for a while. If that matters,
+   ask GitHub Support to purge cached views.
+
+#### REPO-02 · Low · confirmed · fixed in the tree (`6178172`), history open: real party name, handles and local paths
+
+**What.**
+- The real party name with its date, and the Instagram handles of the host
+  and a guest. They were in test fixtures, the UI gallery, the design mockups and the UX
+  audit, and they are visible in 20 screenshots under
+  `docs/overhaul/design/shots/wave2-gp/`.
+- `REPORT.md` already listed them as real and asked for a history rewrite before the
+  first push. That did not happen.
+- The analysis docs named the local home directory, the Claude session folder and
+  scratch paths.
+
+**Fix.** The text now uses demo values of the same length. The tests that use them pass:
+- Vitest: 4 files;
+- `test_tools.py`;
+- the e2e files `test_screens_e2e.py` and `test_join_e2e.py`.
+
+The screenshots and the history stay for the REPO-01 rewrite.
+
+#### COOKIE-01 · Low · confirmed · fixed (`2d29a37`): a planted guest id makes a new guest upload into the attacker's identity
+
+**Description.** `vb_uid` is a signed, valid id of a real guest. The attack:
+1. The attacker joins and takes their own `vb_uid` value.
+2. They put it into a victim's browser before the victim's first scan. Two ways:
+   - a sibling subdomain of the party host (any other app on the same registrable domain)
+     sets it with `Domain=`;
+   - on the party Wi-Fi, before the browser has an HSTS entry for the host, the attacker
+     answers any plain-http request to the host with a `Set-Cookie`.
+3. The victim scans, and `/api/identify` returns the attacker's identity: no join sheet,
+   the attacker's pseudonym.
+4. Every photo the victim takes becomes the attacker's. The attacker sees all of them in
+   `/api/me/photos` and under `/media`, including photos the wall never shows and photos
+   an admin hid.
+
+The other cookies give nothing when planted:
+- `vb_access` only grants party access;
+- a valid `vb_admin` or `vb_wall` value would only log the victim into the attacker's
+  own session;
+- `vb_vid` only feeds statistics.
+
+**Repro** (`p3_fixation.py`, http):
+```python
+att = client("10.1.0.1"); uid = join(att)["uid_token"]
+vic = client("10.1.0.2"); vic.cookies.set("vb_uid", uid); access(vic)
+vic.post("/api/identify", json={...})  # -> state ok, user "Durstige Robbe #3" (the attacker)
+pid = upload(vic).json()["photo"]["id"]
+att.get(f"/media/{pid}")               # -> 200: the attacker gets the victim's photo
+```
+
+**Fix.** Where cookies are Secure (`cookie_secure()`), the guest id is set and read only
+as **`__Host-vb_uid`**. Browsers accept a `__Host-` cookie only when this exact host set it
+over TLS, with `Secure`, `Path=/` and no `Domain`. Neither the sibling subdomain nor the
+plain-http answer can set it, and the plain `vb_uid` is never read on https.
+- Plain-http setups (LAN) keep `vb_uid`, since browsers drop Secure cookies there.
+- Guests who still have the old cookie are recognised by the localStorage copy that
+  `/api/identify` already sends (`uid`), and get the new cookie. Nobody loses their
+  identity on the update.
+
+Live re-run behind `X-Forwarded-Proto: https`: a planted `vb_uid` gives `needs_consent`;
+the prefixed cookie gives `ok`.
+
+Tests: `tests/api/test_security_review3.py` (COOKIE-01 section).
+
+**Residual.** A network attacker can still plant a cookie on a plain-http deployment. That
+deployment has no confidentiality anyway (R3-I2).
+
+#### ENV-01 · Low · fixed (`e000ec1`): the analysis worker inherited the app's secrets
+
+**Description.** `Supervisor._child_env` copied the whole environment into the worker:
+`VB_SECRET_KEY`, `VB_ADMIN_PASSWORD` and `VB_PARTY_TOKEN`. Review 2 recorded this as
+R2-I3. The worker decodes stored photos with native ML code (mediapipe, onnxruntime,
+OpenCV), the largest decoder surface in the app, and needs none of those values. Two
+consequences:
+- A memory-corruption bug there gets the cookie-signing key: it could forge access, guest
+  and wall cookies (admin sessions are random tokens, not signed values).
+- Once the Anthropic key is stored encrypted with a key derived from `VB_SECRET_KEY`, it
+  would get that key too.
+
+**Fix.** The worker gets the environment without `VB_SECRET_KEY`, `VB_ADMIN_PASSWORD`,
+`VB_PARTY_TOKEN` and any `*_API_KEY` or `*_SECRET` variable (`supervisor.is_secret_env`).
+Test: `test_the_worker_inherits_no_secrets`.
+
+#### ARCH-02 · Low · fixed (`e000ec1`), preparation: secrets stored in `settings` would have gone into archives
+
+**Description.** The archive scrub dropped only `admin.password` and `x.*.password`. A new
+secret in `settings`, such as the Anthropic key, would have landed in every archive's DB
+copy.
+
+**Fix.** A naming rule. Every settings key that ends in **`.secret`** is deleted from the
+copy, like the password hashes. README.txt says so. Test:
+`test_snapshot_drops_every_secret_setting`.
+
+#### EXP-01 · Low · confirmed · accepted with a follow-up: finished exports keep photos deleted later
+
+**Description.** "Endgültig löschen" removes the photo, its thumbnail and the wall's
+1280 px copy. But an archive (or timelapse) finished earlier stays in `<data>/exports/`.
+Up to 10 are kept, and each can still be downloaded with the deleted photo in it.
+
+**Repro** (`p2_archive.py`): export, delete the photo, download the export again → `200`,
+and the photo's file and CSV row are inside.
+
+Only an admin can download exports, so nobody gains access they did not have. But a
+deletion made for a guest's sake (a privacy request, an embarrassing photo) is not
+complete while an older export exists.
+
+**Why not fixed here.** Deleting exports automatically would silently throw away the
+host's final archive. The admin decides better, and that needs a frontend change.
+
+**Follow-up.** The delete dialog (`DeletePhotosDialog`) should say "Fertige Exporte
+enthalten das Foto noch" and link to Export, or offer "auch Exporte löschen, die es
+enthalten". The jobs have `created_at`; a photo is in a job when it was created before it.
+
+#### Info
+
+- **R3-I1 · no Host allow-list (DNS rebinding).**
+  - The CSRF check compares `Origin` with the request's own `Host`. A page that rebinds its
+    own name to the server's address passes that check.
+  - It brings no victim cookies, so it can only try logins. From loopback (a browser on
+    the server machine itself, e.g. the party laptop running `virtubooth serve`) those
+    are exempt from the global lock (SEC-01), but the per-IP limit of 20 per hour still
+    applies.
+  - Hardening, if wanted: answer 421 to `Host` values that are not an IP literal,
+    `localhost`, the host of `VB_PUBLIC_BASE_URL` or of `VB_ALLOWED_ORIGINS`.
+- **R3-I2 · plain http.**
+  - Supported for LAN tests, but everything is readable on the Wi-Fi: the token, cookies,
+    and the admin and wall passwords.
+  - Phones don't open the camera on http (except `localhost`), so a real party runs https.
+  - Worth a line in DEPLOY.md: "on http, anyone on the Wi-Fi can read the admin password".
+- **R3-I3 · README.txt names the server's data dir.**
+  - "Created … from `<absolute data dir>`" ends up in every archive. In Docker that is
+    `/data`; on a laptop it is the host's home path.
+  - Harmless, but it could say only the folder name.
+- **R3-I4 · an admin session on the TV is the whole admin.**
+  - `wall_auth` accepts an admin session everywhere. A host who opens `/livewall` on the
+    TV while logged in as admin (instead of using the wall password) leaves a 12-hour admin
+    session in a browser that guests can touch.
+  - Worth a hint in the wall admin: "Für den Fernseher das Wall-Passwort nutzen, nicht den
+    Admin-Login".
+- **R3-I5 · reverse-proxy access logs keep the token.**
+  - The app masks `?t=`, but nginx (on by default), Caddy (when enabled) and Traefik
+    (when enabled) log the full request URL of every scan.
+  - DEPLOY.md could suggest a log format without the query string, or turning access logs
+    off for the virtual host.
+- **R3-I6 · wall event replay keeps metadata of removed photos.**
+  - `?since=` / `Last-Event-ID` replay up to 1024 wall events. A `photo.add` before its
+    `photo.remove` still carries the pseudonym, the time and the facts of a photo that
+    was later hidden or deleted.
+  - The image itself answers 404.
+  - Only wall-cookie holders and admins can read the stream.
+
+### Status
+
+| ID | Severity | Status | Commit |
+|---|---|---|---|
+| REPO-01 | Medium | open: history rewrite by the owner | – |
+| REPO-02 | Low | fixed in the tree; history and screenshots with REPO-01 | `6178172` |
+| COOKIE-01 | Low | fixed | `2d29a37` |
+| ENV-01 | Low | fixed | `e000ec1` |
+| ARCH-02 | Low | fixed (preparation) | `e000ec1` |
+| EXP-01 | Low | accepted; frontend follow-up | – |
+| R3-I1 … R3-I6 | Info | notes | – |
+
+**Tests run (targeted).**
+- Backend, `uv run pytest -n 4`:
+  - `test_security_review3`
+  - `test_security_fixes`
+  - `test_core_access`
+  - `test_code_access`
+  - `test_admin_api`
+  - `test_core_admin_auth`
+  - `test_admin_upload_controls`
+  - `test_here`
+  - `test_admin_dashboard`
+  - `test_code_guests`
+  - `test_admin_exports`
+  - `tests/unit/test_enrich_supervisor`
+  - `tests/unit/test_tools`
+
+  All passed.
+- Vitest: the 4 changed test files.
+- e2e (Chromium): `test_screens_e2e.py` and `test_join_e2e.py`.
+- `ruff check`, `ruff format --check`, `mypy`, `tsc -b` and prettier are clean.
+- No OpenAPI change.
+
+### Accepted risks
+
+- **EXP-01:** older exports keep deleted photos until the admin deletes them (see the
+  follow-up).
+- **Plain-http deployments (R3-I2):** no protection against the Wi-Fi, by nature.
+  COOKIE-01's fix only applies with Secure cookies.
+- **The QR overlay** (R2-I2) and **QR tokens in the archive** (review 2) stay as decided.
+- **Repository history (REPO-01/02):** open until the owner rewrites it. A branch commit
+  cannot remove it.
+
+### Storing an API key (notes for the Anthropic key)
+
+These rules let the coming Anthropic API key pass every vector above. Items 1 to 3 are
+already enforced by this review's changes.
+
+1. **Key name.** Store it under a `settings` key that ends in `.secret`, for example
+   `ai.anthropic.secret`. The archive scrub then drops it (ARCH-02, tested). Never use an
+   `x.<id>.config` blob or any other key.
+2. **The worker.** It must never see the key or `VB_SECRET_KEY` (ENV-01). If the analysis
+   worker ever calls Claude itself:
+   - hand it the plaintext key per job over its stdin pipe, never through the environment
+     or a file;
+   - better, let the app make the API call.
+3. **Variable names.** Any env variable named `*_API_KEY` or `*_SECRET` is already kept
+   from the worker.
+4. **Encryption.**
+   - Use AES-256-GCM from `cryptography` (a new runtime dependency: pin it exactly and let
+     `uv.lock` hash it).
+   - The key comes from HKDF-SHA256 over `VB_SECRET_KEY`, with `info=b"virtubooth
+     settings-secret v1"` and a fixed salt. Never use `VB_SECRET_KEY` directly; use a
+     separate purpose like the `Signer` does.
+   - Store `{"v": 1, "nonce": <96-bit random, b64>, "ct": <b64>, "last4": "…abcd",
+     "set_at", "by"}`, with `aad = b"ai.anthropic.secret|v1"` so a ciphertext can't be
+     moved to another key.
+   - Then a copied `virtubooth.db` or a volume backup alone does not reveal the key; it
+     also needs the env.
+5. **Rotating `VB_SECRET_KEY`.**
+   - Decryption fails (`InvalidTag`). Treat that as "no key stored": state `key_unreadable`
+     in the admin, log one warning without the value, and ask the host to enter it again.
+   - Never fall back to the plaintext.
+6. **A write-only API.**
+   - `PUT` takes the key; `GET` returns only `{set, last4, set_at, by}`; `DELETE` removes
+     it. Never return the key, not even to the admin.
+   - The input model uses `SecretStr` (no echo in `repr` or logs). The 422 handler already
+     answers a generic `invalid_request`; keep it that way, because FastAPI's default
+     validation error echoes the input.
+   - Validate `^sk-ant-[A-Za-z0-9_-]{20,200}$`.
+   - All routes sit behind `require_admin`, under `/api/admin/…` (CSRF and `no-store`
+     come for free).
+7. **Never in events, audit or logs.**
+   - The admin SSE event says only `{"set": true, "last4": …}`.
+   - Audit `ai.key_set` / `ai.key_removed` with `last4` only.
+   - Add `sk-ant-[A-Za-z0-9_-]+` → `sk-ant-***` to `core/logs.py` as defence in depth (the
+     access log filter only touches `uvicorn.access`; add a root-logger filter too).
+   - Never log `str(exc)` of an HTTP client error that may include request headers, and
+     never `repr()` the client.
+8. **Outbound calls.**
+   - Use a fixed base URL `https://api.anthropic.com`. It must not be admin-configurable:
+     a settable base URL is a key-exfiltration and SSRF primitive.
+   - Set a timeout and no redirects to other hosts. Only the app process calls out.
+9. **Use and memory.** Decrypt per use, keep the plaintext in a local variable only, and
+   don't cache it on long-lived objects (`Core`, hubs, the bus).
+10. **Consent and privacy.**
+    - The join text promises today: "Nichts davon verlässt den Server"
+      (`WALL_ANALYSIS_TEXT`). Sending photos to Anthropic breaks that promise, so:
+      - change the text;
+      - bump `VB_CONSENT_VERSION`;
+      - honour `analysis_opt_out` (never send an opted-out guest's photo);
+      - send only visible, non-hidden photos past the wall delay.
+    - Say in the admin what leaves the server.
+11. **The frontend field.**
+    - `type="password"` and `autocomplete="off"`; never prefill it.
+    - Show `…last4` and "gesetzt am …".
+    - A "Schlüssel prüfen" button that makes one cheap API call on the server, rate
+      limited, which reports only ok, invalid or no credit.
+12. **Tests to add with it.**
+    - The key never appears in: `GET` answers, the admin stream, the audit list, the
+      archive DB copy (the marker test pattern of ARCH-02), the log output (caplog), or a
+      422 answer.
+    - After a secret-key change, the state is "unreadable", not a 500.

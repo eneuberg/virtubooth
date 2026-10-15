@@ -46,7 +46,7 @@ OWN = [
 
 @pytest.fixture
 def e2e_settings() -> dict[str, Any]:
-    return {"party_name": "Eriks Geburtstag", "instagram_account": "@eriks.party"}
+    return {"party_name": "Lenas Geburtstag", "instagram_account": "@lenas.party"}
 
 
 def scene(name: str) -> list[int]:
@@ -118,7 +118,7 @@ def test_guest_screens(make_page, live: LiveServer, view: str):
     for ext, name in OWN:
         upload_scene(page, ext, name)
     me = live.core.repos.users.list()[0]  # newest first: this guest
-    live.core.repos.users.set_instagram(me.id, "erik.n")
+    live.core.repos.users.set_instagram(me.id, "lena.k")
     reload(page)
     expect(page.locator("[data-testid=my-photos] [data-testid^=photo-]")).to_have_count(len(OWN))
     page.evaluate(

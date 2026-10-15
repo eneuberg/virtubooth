@@ -2,7 +2,7 @@
 
 The repo was not modified. I ran my own server on port 8121 (stopped at the end; the host's server on port 8000 was not touched) and seeded it through the real API: 13 guests (with and without handles, one 29-character handle), about 50 beer and booth photos, 2 hidden photos, 1 deleted photo, 1 guest banned with a fingerprint ban plus an auto-banned twin, 1 paused guest, and a stop-all / pause-new-guests round trip.
 
-I took 172 screenshots and reviewed all of them through 38 montages. Scratch root: `/tmp/claude-1000/-home-erikli-a-personal-aaa-doingthings-random-projects/c8c156ec-0ba7-4a87-baaa-c6c050bea40f/scratchpad/ux-audit/`
+I took 172 screenshots and reviewed all of them through 38 montages. Scratch root: `<scratchpad>/ux-audit/`
 - `shots/`: every state (naming scheme in section 10)
 - `mont/`: the review montages
 - `lib.py`, `phase_a.py`, `seed.py`, `moderate.py`, `phase_beer.py`, `phase_booth.py`, `phase_admin.py`, `phase_states.py`, `measure.py`: re-runnable. Point `lib.BASE` at the rebuilt app to get before/after shots.
@@ -78,7 +78,7 @@ DOM measurements are in `measure.json`: touch targets under 44 px, text under 13
 | R1 | **No tokens or scale.** Spacing, radius, type and colour are set per component. | Counts in §0, item 1. Radii in use: 2, 3, 6, 8, 10, 12, 14, 16, 18, 20, 22, 24, 26, 28, 50% and 999 px. Home h1 is `clamp(2rem,8vw,3rem)`, the sheet h2 is 1.7rem, admin h1 is 1.35rem, and the beer success title uses its own sizes. |
 | R2 | **No hierarchy, because everything is emphasised.** | Gradient in 19 places. Weights 800/900 everywhere. Every live card has a red primary-sized button plus a green "✓ Sichtbar" badge (`a10-live-phone`). Tabs, chips, toggles and pills all use the same 999 px pill shape and weight. |
 | R3 | **Three icon languages.** | Emoji (📸 🍺 🙈 🚪 ⏱️ 🔄 ⬇️ 📜 🧬), unicode glyphs (■ ⏸ ▶ ↻ ← › ✕), and SVG (Beer Cam back and switch). Beer Cam uses an SVG chevron for back; Fotobox uses the "←" glyph (`booth/static/index.html:18`). |
-| R4 | **A template palette.** | Purple radial glow, pink/orange/yellow gradient and system-ui type could belong to any party app. Nothing says *Erik's birthday*, *beer*, *photo booth* or *night*. The only on-brand moments are inside the photos: the "Eriks Geburtstag" party frame (`f02-camera-party-phone`) and the bottle outline. |
+| R4 | **A template palette.** | Purple radial glow, pink/orange/yellow gradient and system-ui type could belong to any party app. Nothing says *Lena's birthday*, *beer*, *photo booth* or *night*. The only on-brand moments are inside the photos: the "Lenas Geburtstag" party frame (`f02-camera-party-phone`) and the bottle outline. |
 | R5 | **Camera UI built as a page.** | `beer.css:145-155` and `booth.css:97-109` draw a rounded, glowing preview card. Dead purple bands sit above and below (`b01-camera-bottle-phone`). Controls float. Filter name sits at `top:42%`, over the face (`booth.css:136-146`). |
 | R6 | **Overlays without a layout slot.** | Toasts fixed top-center, unlimited stack (`vb.css:342-353`). Pause chip fixed at `top:68px` (`vb.css:370-397`). New pill, bulk bar, filter-name pill. They collide with headers, prints and tiles (`a41`–`a43`, `s09`, `a21-…-phone`). |
 | R7 | **Admin layouts are not designed per device.** | Phone: the sticky header takes about 190 px (3 rows: title/nav, stats, uploads chip, plus tabs on manage). Landscape: the header plus filters fill the screen (`a20-manage-fotos-land`). Desktop: phone components scaled into a 1440 canvas, small type, guests as full-width rows instead of a table. |
@@ -113,7 +113,7 @@ What works:
 
 | P | Issue |
 |---|---|
-| P1 | About 110 words before the input (3 paragraphs, `identity.py:108-115`). Slightly drunk people won't read it. Lead with one sentence (photos are stored and may be posted on @eriks.party) and move the device-recognition detail into a disclosure ("Mehr dazu"). It still has to be visible before the button, and wording changes need a `VB_CONSENT_VERSION` bump. |
+| P1 | About 110 words before the input (3 paragraphs, `identity.py:108-115`). Slightly drunk people won't read it. Lead with one sentence (photos are stored and may be posted on @lenas.party) and move the device-recognition detail into a disclosure ("Mehr dazu"). It still has to be visible before the button, and wording changes need a `VB_CONSENT_VERSION` bump. |
 | P1 | "…nutze die Fotobox bitte nicht" names one activity even when the guest scanned the Beer Cam code (`g07`). Use "…mach hier bitte keine Fotos." |
 | P1 | The Instagram label is a bold two-sentence run-on ("Dein Instagram (freiwillig). Dann markieren wir dich!"). Use a label "Instagram (freiwillig)" plus helper text "Dann können wir dich markieren." |
 | P1 | The sheet doesn't say where you are going ("Gleich geht's zur Beer Cam"). The party name is blurred behind the scrim. |
@@ -179,7 +179,7 @@ What works:
 
 What works:
 - the filters are fun and good;
-- the party frame with "Eriks Geburtstag 13.10.2026" is the best-looking thing in the app;
+- the party frame with "Lenas Geburtstag 13.10.2026" is the best-looking thing in the app;
 - landscape works.
 
 | P | Issue |
@@ -484,10 +484,10 @@ Tone: keep the warm du-form and the beer cheers. Errors say what happened and wh
 ```
 ┌──────────────────────────────────────────┐
 │ ┌───────────────────────────┐   ┌─────┐  │ guest pass 44h (status slot) · help
-│ │ ▣ Verrückte Ente  @erik.n │   │  ?  │  │
+│ │ ▣ Verrückte Ente  @lena.k │   │  ?  │  │
 │ └───────────────────────────┘   └─────┘  │
 │                                          │
-│  Eriks                                   │ display 44/46, left-aligned
+│  Lenas                                   │ display 44/46, left-aligned
 │  Geburtstag                              │
 │                                          │
 │ ┌──────────────────────────────────────┐ │ whole card is the link
@@ -587,7 +587,7 @@ reads "Foto 0018 · hochgeladen" or "wartet" or "Erneut senden"; buttons [Speich
 **Admin manage on desktop (1440×900, light "Leuchttisch")**
 ```
 ┌──────────────────┬─────────────────────────────────────────────────────────────────────┐
-│ Eriks Geburtstag │ Fotos   49, davon 6 ausgeblendet                                    │
+│ Lenas Geburtstag │ Fotos   49, davon 6 ausgeblendet                                    │
 │ ● verbunden      │ [Aktivität: Alle ▾] [Gast: Alle ▾] [Alle|Sichtbar|Ausgeblendet] [⌕] │
 │                  ├──────────────────────────────────────────────┬──────────────────────┤
 │ Fotos         49 │ ┌───┐ ┌───┐ ┌───┐ ┌───┐ ┌───┐ ┌───┐ ┌───┐   │ ┌──────────────────┐ │
@@ -854,7 +854,7 @@ Borrow from C, optionally: Atkinson Hyperlegible Next as a fallback for long bod
 Scripts are in the scratch root above. Run them in this order:
 
 ```bash
-UX=/tmp/claude-1000/-home-erikli-a-personal-aaa-doingthings-random-projects/c8c156ec-0ba7-4a87-baaa-c6c050bea40f/scratchpad/ux-audit
+UX=<scratchpad>/ux-audit
 cd <repo> && uv run virtubooth gen-env > $UX/env && $UX/serve.sh &   # port 8121, data in $UX/data
 cd $UX && PY=<repo>/.venv/bin/python
 $PY phase_a.py          # empty states, then join creates guest_state.json and guest2_state.json

@@ -7,7 +7,7 @@ from typing import Any
 from fastapi import APIRouter, Request, Response
 
 from ...core.errors import error_responses
-from ...core.security import GUEST_COOKIE_MAX_AGE, UID_COOKIE, client_ip, set_cookie
+from ...core.security import GUEST_COOKIE_MAX_AGE, client_ip, set_cookie, uid_cookie_name
 from ...domain.models import User
 from ...runtime import Core
 from ..deps import AccessDep, CoreDep, MeDep, guest_from_cookie
@@ -42,7 +42,8 @@ def _user_agent(request: Request) -> str:
 def _identified(request: Request, response: Response, core: Core, user: User) -> IdentifiedOut:
     """The device's identity, pinned with the signed `vb_uid` cookie."""
     token = core.signer.sign("uid", user.public_id)
-    set_cookie(response, request, core.settings, UID_COOKIE, token, max_age=GUEST_COOKIE_MAX_AGE)
+    name = uid_cookie_name(core.settings, request)
+    set_cookie(response, request, core.settings, name, token, max_age=GUEST_COOKIE_MAX_AGE)
     identity = core.services.identity
     return IdentifiedOut(
         state="banned" if user.banned else "ok",
