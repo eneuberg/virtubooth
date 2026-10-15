@@ -259,12 +259,14 @@ const FPS_OPTIONS = [
   { id: '60', label: '60 fps' },
 ] as const;
 
+const themeHint = (value: string | null) => (value === null ? 'Wie Theme' : undefined);
+
 export function LookCard({ draft, update, errors }: DraftProps & { defaults: WallConfig }) {
   const look = draft.look;
   const set = (patch: Partial<WallConfig['look']>) =>
     update((c) => ({ ...c, look: { ...c.look, ...patch } }));
   // a colour left at null follows the theme (Allgemeines → Erscheinungsbild)
-  const theme = (useAdminTheme().data?.theme.colors ?? NEON_NACHT) as ThemeColors;
+  const theme: ThemeColors = useAdminTheme().data?.theme.colors ?? NEON_NACHT;
   const resolved = {
     ...look,
     primary: look.primary ?? theme.primary,
@@ -272,7 +274,6 @@ export function LookCard({ draft, update, errors }: DraftProps & { defaults: Wal
     background: look.background ?? theme.background,
   };
   const followsTheme = look.primary === null && look.secondary === null && look.background === null;
-  const themeHint = (value: string | null) => (value === null ? 'Wie Theme' : undefined);
   return (
     <Card id="aussehen" title="Aussehen" icon={Palette}>
       <WallPreview look={resolved} overlay={draft.overlay} />

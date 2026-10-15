@@ -64,7 +64,8 @@ function channel(c: number): number {
 }
 
 function rgb(hex: string): [number, number, number] {
-  return [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16)) as [number, number, number];
+  const at = (i: number) => parseInt(hex.slice(i, i + 2), 16);
+  return [at(1), at(3), at(5)];
 }
 
 /** WCAG relative luminance of `#rrggbb`. */
@@ -153,23 +154,37 @@ export function applyTheme(colors: ThemeColors, el: HTMLElement = document.docum
   }
 }
 
+function isTheme(value: unknown): value is PublicTheme {
+  if (!value || typeof value !== 'object' || !('colors' in value)) return false;
+  const { colors } = value;
+  return (
+    !!colors &&
+    typeof colors === 'object' &&
+    THEME_COLOR_KEYS.every((k) => {
+      const c: unknown = Object.getOwnPropertyDescriptor(colors, k)?.value;
+      return typeof c === 'string' && HEX_RE.test(c);
+    })
+  );
+}
+
 /** Re-read `/api/theme` (ETag: usually a 304) and apply it when it changed. */
 export async function refreshTheme(): Promise<void> {
   try {
     const res = await fetch('/api/theme', { credentials: 'same-origin' });
     if (!res.ok) return;
-    const theme = (await res.json()) as PublicTheme;
-    if (theme?.colors) applyTheme(theme.colors);
+    const theme: unknown = await res.json();
+    if (isTheme(theme)) applyTheme(theme.colors);
   } catch {
     // offline: the colours from the page load stay
   }
 }
 
 /** Guest pages: refresh the theme whenever the page becomes visible again. */
+function onVisible(): void {
+  if (document.visibilityState === 'visible') void refreshTheme();
+}
+
 export function followTheme(): () => void {
-  const onVisible = () => {
-    if (document.visibilityState === 'visible') void refreshTheme();
-  };
   document.addEventListener('visibilitychange', onVisible);
   return () => document.removeEventListener('visibilitychange', onVisible);
 }

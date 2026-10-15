@@ -96,17 +96,16 @@ describe('ThemeCard (Erscheinungsbild)', () => {
 
   it('an edited colour becomes „Eigene“ and is saved with all colours', async () => {
     const { requests } = renderCard({
-      'PUT /api/admin/theme': async (req) =>
-        out('custom', (await bodyField(req, 'colors')) as ThemeColors, true),
+      'PUT /api/admin/theme': () => out('custom', { ...NEON_NACHT, primary: '#22c55e' }, true),
     });
     fireEvent.change(screen.getByLabelText('Hauptfarbe'), { target: { value: '#22C55E' } });
     expect(previewVar('--t-primary')).toBe('#22c55e');
     const selected = within(screen.getByTestId('theme-preset')).getByRole('radio', { name: 'Eigene' });
-    expect((selected as HTMLInputElement).checked).toBe(true);
+    expect(selected).toHaveProperty('checked', true);
     fireEvent.click(save());
     await waitFor(() => expect(requests).toHaveLength(1));
     expect(await bodyField(requests[0]!, 'preset')).toBe('custom');
-    expect(((await bodyField(requests[0]!, 'colors')) as ThemeColors).primary).toBe('#22c55e');
+    expect(await bodyField(requests[0]!, 'colors')).toMatchObject({ primary: '#22c55e' });
   });
 
   it('warns about unreadable text before the server does', () => {

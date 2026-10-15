@@ -24,7 +24,7 @@ import { ColorField } from '../wall/fields';
 import { SettingsCard } from './SettingsCard';
 import { resetTheme, saveTheme, type AdminThemeOut, type ThemeChoice } from './themeApi';
 
-export const COLOR_LABELS: Record<ThemeColorKey, { label: string; hint: string }> = {
+const COLOR_LABELS: Record<ThemeColorKey, { label: string; hint: string }> = {
   background: { label: 'Hintergrund', hint: 'Grundfläche aller Gästeseiten' },
   surface: { label: 'Fläche', hint: 'Karten, Fenster, Gästepass' },
   depth: { label: 'Tiefe', hint: 'Schatten, Felder, Abdunkeln' },
@@ -52,12 +52,12 @@ type Busy = 'save' | 'reset' | null;
 
 export function ThemeCard({ data }: { data: AdminThemeOut }) {
   const qc = useQueryClient();
-  const saved = data.theme.colors as ThemeColors;
+  const saved = data.theme.colors;
   // null: not edited, the card shows the saved theme (also when another admin changes it)
   const [draft, setDraft] = useState<{ choice: ThemeChoice; colors: ThemeColors } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState<Busy>(null);
-  const choice = draft?.choice ?? (data.theme.preset as ThemeChoice);
+  const choice: ThemeChoice = draft?.choice ?? data.theme.preset;
   const colors = draft?.colors ?? saved;
   const presetOf = (id: ThemeChoice) => data.presets.find((p) => p.id === id);
 
@@ -68,13 +68,13 @@ export function ThemeCard({ data }: { data: AdminThemeOut }) {
   const pick = (id: ThemeChoice) => {
     setError(null);
     const preset = presetOf(id);
-    setDraft({ choice: id, colors: preset ? (preset.colors as ThemeColors) : colors });
+    setDraft({ choice: id, colors: preset ? preset.colors : colors });
   };
   const setColor = (key: ThemeColorKey, value: string) => {
     setError(null);
     const next = { ...colors, [key]: value };
     const preset = presetOf(choice);
-    const stillPreset = preset && sameColors(preset.colors as ThemeColors, next);
+    const stillPreset = preset && sameColors(preset.colors, next);
     setDraft({ choice: stillPreset ? choice : 'custom', colors: next });
   };
 
@@ -95,7 +95,7 @@ export function ThemeCard({ data }: { data: AdminThemeOut }) {
 
   const save = () => {
     const preset = presetOf(choice);
-    const asPreset = choice !== 'custom' && preset && sameColors(preset.colors as ThemeColors, colors);
+    const asPreset = choice !== 'custom' && preset && sameColors(preset.colors, colors);
     void run(
       'save',
       () => saveTheme(qc, asPreset ? choice : 'custom', asPreset ? null : colors),
@@ -136,7 +136,7 @@ export function ThemeCard({ data }: { data: AdminThemeOut }) {
               ))}
             </div>
             {problems.length ? (
-              <ul className="grid gap-1 text-sm text-danger" data-testid="theme-contrast" role="status">
+              <ul className="grid gap-1 text-sm text-danger" data-testid="theme-contrast" aria-live="polite">
                 {problems.map(([fg, bg, ratio]) => (
                   <li key={`${fg}-${bg}`}>
                     {COLOR_LABELS[fg].label} auf {COLOR_LABELS[bg].label} ist schlecht lesbar (
@@ -195,7 +195,7 @@ const v = (name: string) => `var(--t-${name})`;
 export function ThemePreview({ colors }: { colors: ThemeColors }) {
   const vars = themeVariables(colors) as CSSProperties;
   return (
-    <div className="grid gap-3" style={vars} data-testid="theme-preview" aria-label="Vorschau" role="img">
+    <div className="grid gap-3" style={vars} data-testid="theme-preview" aria-hidden="true">
       <div
         className="grid gap-3 overflow-hidden rounded-[18px] p-4"
         style={{
