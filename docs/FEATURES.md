@@ -998,6 +998,30 @@ Was die externe KI tut, wenn sie an ist:
   Wall Instagram-Namen zeigt, sonst der Zufallsname), immer als Daten markiert: was in
   Namen steht, ist für die KI keine Anweisung.
 
+### Externe KI: zwei Teile, drei Objektlisten
+
+- **Zwei Schalter unter „Externe KI verwenden“** (Karte „Claude (KI-Dienst)“), jeder
+  mit eigenem Stand, letztem Fehler und Kosten bisher: **„Objekterkennung mit KI (beim
+  Hochladen)“** (Foto verkleinert an den Dienst, Objekte mit Rahmen) und
+  **„Eigenschaften abfragen“** (alle … Minuten, nur Text; dazu die Urteile, „Jetzt
+  abfragen“). Ein Teil aus: er schickt nichts und kostet nichts. „Externe KI verwenden“
+  aus: nichts verlässt den Server, egal was darunter an ist. Gespeicherte Einstellungen
+  von vorher: die Erkennung bleibt, wie sie war; die Abfrage ist an (sie lief vorher
+  immer, wenn die externe KI an war). Die lokale Erkennung hat ihren eigenen Haken.
+- **Drei Listen pro Foto:** was das lokale Modell erkannt hat, was die KI erkannt hat
+  (mit Anbieter und Modell), und die **zusammengeführte Liste**, mit der Abfrage,
+  Kategorien („Anzahl von …“, „enthält …“) und die Wall arbeiten. Alle drei sind
+  eingefroren. Zusammengeführt wird so: die zuerst fertige Liste (meist die lokale)
+  kommt hinein; ein Objekt der anderen, das dasselbe ist (gleicher Name, auch über
+  Synonyme und deutsche Namen auf die 80 COCO-Klassen abgebildet, z. B. „smartphone“ =
+  „cell phone“, und Rahmen, die sich zu mindestens 50 % decken, IoU), wird nur
+  verknüpft, alles andere angehängt. Kein Eintrag rückt je nach: die Werte der
+  Eigenschaften bleiben richtig, auch wenn die KI erst später antwortet.
+- **Ansehen:** im Foto-Inspektor (Analyse) und beim Testbild als Reiter „Lokales
+  Modell“, „KI (Claude)“ und „Zusammengeführt (für Eigenschaften)“, jeder mit eigenen
+  Rahmen in eigener Farbe; was beide gefunden haben, ist markiert („beide“, doppelter
+  Rahmen, beide Werte). Die Kacheln auf Live zeigen die zusammengeführte Liste.
+
 ### Deep Links
 
 | Adresse | Öffnet |
