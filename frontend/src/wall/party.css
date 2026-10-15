@@ -38,14 +38,14 @@
         color-mix(in oklab, var(--wall-primary) 30%, transparent) 70%,
         transparent 100%
       )
-      1.5vmin 0 / 12vmin 1.3vmin repeat-x,
+      2.5vmin 0 / 20vmin 1.3vmin repeat-x,
     radial-gradient(
         circle closest-side,
         var(--t-hit, #b6ff3c) 0 45%,
         color-mix(in oklab, var(--t-hit, #b6ff3c) 30%, transparent) 70%,
         transparent 100%
       )
-      7.5vmin 0 / 12vmin 1.3vmin repeat-x,
+      12.5vmin 0 / 20vmin 1.3vmin repeat-x,
     linear-gradient(
         transparent 47%,
         color-mix(in oklab, var(--wall-ink) 14%, transparent) 47% 55%,
@@ -61,14 +61,14 @@
         color-mix(in oklab, var(--wall-accent) 30%, transparent) 70%,
         transparent 100%
       )
-      4.5vmin 0 / 12vmin 1.3vmin repeat-x,
+      7.5vmin 0 / 20vmin 1.3vmin repeat-x,
     radial-gradient(
         circle closest-side,
         var(--wall-highlight) 0 45%,
         color-mix(in oklab, var(--wall-highlight) 30%, transparent) 70%,
         transparent 100%
       )
-      10.5vmin 0 / 12vmin 1.3vmin repeat-x;
+      17.5vmin 0 / 20vmin 1.3vmin repeat-x;
   animation-delay: -3.2s;
 }
 @keyframes wall-p-breathe {
@@ -193,6 +193,8 @@
 /* the value: a prize ribbon with a swallowtail (accent into primary, kept on the
    magenta side so the dark text reads at 4.5:1), it flaps open after the photo lands */
 :root[data-vb-style='party'] .wall-cat-value {
+  /* over the pin: the ribbon is pinned on with it */
+  z-index: 3;
   padding-right: 3.4vmin;
   border-radius: 0.6vmin 0 0 0.6vmin;
   background: linear-gradient(
