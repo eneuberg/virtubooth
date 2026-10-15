@@ -8138,7 +8138,7 @@
             "type": "string"
           },
           "author": {
-            "description": "The guest's pseudonym.",
+            "description": "The name the wall shows: the display name, else „@instagram“ while the wall shows Instagram names, else the pseudonym.",
             "title": "Author",
             "type": "string"
           },

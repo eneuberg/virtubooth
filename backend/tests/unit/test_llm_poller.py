@@ -44,7 +44,7 @@ def test_scores_are_stored_aligned(core):
     svc = setup_llm(core, fake)
     prop = add_property(core)
     a, a_pub = add_photo(core, add_guest(core, name="Flinker Fuchs"), labels=("person", "hat"))
-    b, _ = add_photo(core, add_guest(core, instagram="anna.b"), labels=("dog",))
+    b, _ = add_photo(core, add_guest(core, name="Kluge Katze", instagram="anna.b"), labels=("dog",))
     result = poll_once(svc)
     assert result is not None and result.state == "done"
     assert scores(core, prop) == {a: [0.1, 0.2], b: [0.1]}
@@ -52,7 +52,7 @@ def test_scores_are_stored_aligned(core):
     assert prompt == "Wie cool ist das?" and relative is False
     assert [(x.ref, x.author, x.labels) for x in lines] == [
         (f"P{a_pub}", "Flinker Fuchs", ("person", "hat")),
-        (lines[1].ref, "@anna.b", ("dog",)),
+        (lines[1].ref, "Kluge Katze", ("dog",)),  # the wall hides Instagram names (default)
     ]
     assert polls(core) == [{"id": result.poll_id, "state": "done", "photos": 2, "error": None}]
     row = core.db.one("SELECT poll_id FROM property_scores LIMIT 1")
@@ -266,3 +266,23 @@ def test_trigger(core):
         time.sleep(0.01)
     assert len(fake.scored) == 1 and svc.poller.last_poll_at is not None
     assert svc.poller.state() == "idle"
+
+
+def test_handles_go_out_only_while_the_wall_shows_them(core):
+    """The verdict text lands on the wall: a guest is named as the wall names
+    them (display name, „@handle“ only with show_instagram, else the pseudonym)."""
+    from virtubooth.extensions.wall import config as wall_config
+
+    fake = FakeProvider()
+    svc = setup_llm(core, fake)
+    add_property(core)
+    add_photo(core, add_guest(core, name="Kluge Katze", instagram="anna.b"), labels=("dog",))
+    add_photo(core, add_guest(core, name="Wilder Wal", display_name="Walfisch"), labels=("cup",))
+    poll_once(svc)
+    assert sorted(x.author for x in fake.scored[-1][1]) == ["Kluge Katze", "Walfisch"]
+    repo = core.repos.app_settings
+    cfg = wall_config.load_config(repo).model_copy(update={"show_instagram": True})
+    wall_config.store_config(repo, cfg, at="2026-10-15T20:00:00.000+00:00")
+    assert wall_config.load_config(repo).show_instagram
+    poll_once(svc, force=True)
+    assert sorted(x.author for x in fake.scored[-1][1]) == ["@anna.b", "Walfisch"]

@@ -28,7 +28,10 @@ class WallPhoto(BaseModel):
     taken_at: str
     width: int
     height: int
-    author: str = Field(description="The guest's pseudonym.")
+    author: str = Field(
+        description="The name the wall shows: the display name, else „@instagram“ while "
+        "the wall shows Instagram names, else the pseudonym."
+    )
     instagram: str | None = Field(description="Only when the wall shows Instagram handles.")
     author_key: str = Field(description="Stable per guest, not reversible (12 chars).")
     urls: WallPhotoUrls

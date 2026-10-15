@@ -7,6 +7,7 @@ import pytest
 
 from virtubooth.extensions.wall.llm import admin_api, ports
 from virtubooth.extensions.wall.llm.providers.base import ProviderError
+from virtubooth.extensions.wall.llm.service import LlmService
 
 from ..conftest import ORIGIN, jpeg, png
 from ..llm_fakes import FakeProvider, setup_llm
@@ -120,9 +121,13 @@ def test_validated_like_uploads(admin, core, settings):
     assert r.status_code == 400 and r.json()["error"] == "empty_upload"
 
 
-def test_rate_limit(admin):
+def test_rate_limit(admin, core):
+    # the app's service (LlmRuntime holds it in the app; here the test does, else
+    # every request may get a fresh one, depending on when the GC runs)
+    svc = LlmService.of(core)
     codes = [send(admin, b"x", analyzers="").status_code for _ in range(7)]
     assert codes[:6] == [400] * 6 and codes[6] == 429
+    assert svc.test_limiter is LlmService.of(core).test_limiter
 
 
 def test_admin_only(client):

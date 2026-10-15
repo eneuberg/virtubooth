@@ -22,6 +22,7 @@ from typing import TYPE_CHECKING, Literal
 
 from ....core.clock import now_iso
 from ....db.database import Database
+from ....repositories.app_settings import AppSettingsRepo
 from . import ports, properties
 from .providers.base import PhotoLine, Provider, ProviderError, TokenUsage
 
@@ -58,8 +59,11 @@ class PollResult:
     reason: str | None = None
 
 
-# the shown name (PLAN-NIGHT N15): display name, else @instagram, else the pseudonym
+# the name the wall shows (PLAN-NIGHT N15, feed.py): the display name, else
+# „@instagram“ while the wall shows Instagram names, else the pseudonym. The
+# verdict text lands on the wall, so it must not name a handle the wall hides.
 SHOWN_NAME_SQL = "COALESCE(NULLIF(TRIM(u.display_name), ''), '@' || u.instagram, u.name)"
+WALL_NAME_SQL = "COALESCE(NULLIF(TRIM(u.display_name), ''), u.name)"
 _ALLOWED_SQL = (
     "p.deleted_at IS NULL AND p.hidden_at IS NULL AND u.analysis_opt_out = 0 "
     "AND u.ai_opt_out = 0 AND u.banned_at IS NULL"
@@ -69,8 +73,12 @@ _ALLOWED_SQL = (
 def eligible_photos(db: Database) -> list[PolledPhoto]:
     """Photos the poll may send, oldest first, with their objects (photos
     without objects have nothing to rate and are left out)."""
+    from .. import config as wall_config
+
+    show_instagram = wall_config.load_config(AppSettingsRepo(db)).show_instagram
+    name_sql = SHOWN_NAME_SQL if show_instagram else WALL_NAME_SQL
     rows = db.all(
-        f"SELECT p.id, p.public_id, p.user_id, {SHOWN_NAME_SQL} AS author FROM photos p "
+        f"SELECT p.id, p.public_id, p.user_id, {name_sql} AS author FROM photos p "
         "JOIN users u ON u.id = p.user_id "
         "JOIN wall_analysis a ON a.photo_id = p.id AND a.state = 'done' "
         f"WHERE {_ALLOWED_SQL} ORDER BY p.created_at, p.id"

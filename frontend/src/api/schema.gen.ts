@@ -5401,7 +5401,7 @@ export interface components {
             analysis: "pending" | "running" | "done" | "failed" | "skipped" | "off";
             /**
              * Author
-             * @description The guest's pseudonym.
+             * @description The name the wall shows: the display name, else „@instagram“ while the wall shows Instagram names, else the pseudonym.
              */
             author: string;
             /**
