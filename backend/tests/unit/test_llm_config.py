@@ -25,6 +25,7 @@ def test_defaults(core):
         "enabled": False,
         "provider": "anthropic",
         "model": "claude-haiku-5-5",
+        "poll": True,
         "poll_interval_s": 180,
         "detect": {"local": True, "external": False},
         "image_max_px": 1024,

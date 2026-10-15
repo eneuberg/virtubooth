@@ -237,20 +237,38 @@ def test_photo_analysis_shows_objects_runs_and_opt_outs(settings, demo_extension
                         objects_found=[DetectedObject("hat", "Hut", 0.9, (0.1, 0.2, 0.3, 0.4))],
                         objects_model="efficientdet_lite2@2")  # fmt: skip
             objects.record_run(core.db, pid, "claude", "failed", "claude-haiku-5-5", "timeout")
+            # Mistral (another provider, earlier) found the hat too and a cap: linked + appended
+            objects.append(core.db, pid, "mistral", "mistral-small", [
+                DetectedObject("hats", "Hut", 0.6, (0.11, 0.2, 0.3, 0.4)),
+                DetectedObject("cap", "Kappe", 0.5, None),
+            ])  # fmt: skip
             with core.db.tx() as c:
                 c.execute("INSERT INTO llm_properties (id, name, prompt, created_at) "
                           "VALUES (1, 'coolness', 'p', 'now')")  # fmt: skip
                 c.execute("INSERT INTO property_scores VALUES (1, ?, '[0.7]', 1, 'now')", (pid,))
                 c.execute("UPDATE users SET ai_opt_out=1")
             body = admin.get(f"/api/x/wall/admin/photos/{pub}/analysis").json()
-            assert body["objects"] == [{
-                "idx": 0, "label": "hat", "label_de": "Hut", "score": 0.9,
-                "box": {"x": 0.1, "y": 0.2, "w": 0.3, "h": 0.4}, "source": "local",
-                "model": "efficientdet_lite2@2"}]  # fmt: skip
+            # the merged list (what the poll rates), and each source's own list
+            assert body["objects"] == [
+                {"idx": 0, "label": "hat", "label_de": "Hut", "score": 0.9,
+                 "box": {"x": 0.1, "y": 0.2, "w": 0.3, "h": 0.4}, "source": "local",
+                 "model": "efficientdet_lite2@2", "sources": ["local", "mistral"]},
+                {"idx": 1, "label": "cap", "label_de": "Kappe", "score": 0.5, "box": None,
+                 "source": "mistral", "model": "mistral-small", "sources": ["mistral"]},
+            ]  # fmt: skip
+            assert body["objects_local"] == [
+                {"pos": 0, "label": "hat", "label_de": "Hut", "score": 0.9,
+                 "box": {"x": 0.1, "y": 0.2, "w": 0.3, "h": 0.4}, "source": "local",
+                 "model": "efficientdet_lite2@2", "merged_idx": 0},
+            ]  # fmt: skip
+            assert [(o["pos"], o["label"], o["source"], o["merged_idx"])
+                    for o in body["objects_ai"]] == [(0, "hats", "mistral", 0),
+                                                     (1, "cap", "mistral", 1)]  # fmt: skip
             assert body["runs"] == [
                 {"source": "local", "state": "done", "model": "efficientdet_lite2@2", "error": None},
                 {"source": "claude", "state": "failed", "model": "claude-haiku-5-5",
                  "error": "timeout"},
+                {"source": "mistral", "state": "done", "model": "mistral-small", "error": None},
             ]  # fmt: skip
             assert body["opt_out"] == {"analysis": False, "external_ai": True}
             assert body["opt_out_at_analysis"] is False
@@ -325,9 +343,10 @@ def test_photo_analysis_summaries_for_the_live_screen(settings, demo_extension):
             assert items[1]["facts"] == {"people": 3.0, "smiles": 2.0}
             # objects with score and frame (3 places), faces and hands as frames
             assert items[1]["objects"] == [
-                {"label_de": "Flasche", "source": "local", "score": 0.91,
+                {"label_de": "Flasche", "source": "local", "sources": ["local"], "score": 0.91,
                  "box": {"x": 0.1, "y": 0.2, "w": 0.3, "h": 0.4}},
-                {"label_de": "Kuchen", "source": "local", "score": 0.5, "box": None},
+                {"label_de": "Kuchen", "source": "local", "sources": ["local"], "score": 0.5,
+                 "box": None},
             ]  # fmt: skip
             assert items[1]["boxes"] == [
                 {"kind": "face", "x": 0.123, "y": 0.2, "w": 0.1, "h": 0.15},

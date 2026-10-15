@@ -204,6 +204,7 @@ _DELETED = "SELECT id FROM photos WHERE deleted_at IS NOT NULL"
 _LEFTOVERS = (
     f"SELECT 1 FROM wall_facts WHERE photo_id IN ({_DELETED}) LIMIT 1",
     f"SELECT 1 FROM photo_objects WHERE photo_id IN ({_DELETED}) LIMIT 1",
+    f"SELECT 1 FROM photo_source_objects WHERE photo_id IN ({_DELETED}) LIMIT 1",
     f"SELECT 1 FROM photo_detection_runs WHERE photo_id IN ({_DELETED}) LIMIT 1",
     f"SELECT 1 FROM property_scores WHERE photo_id IN ({_DELETED}) LIMIT 1",
     f"SELECT 1 FROM wall_category_verdicts WHERE photo_id IN ({_DELETED}) LIMIT 1",
@@ -224,6 +225,7 @@ def purge_deleted(db: Database) -> int:
     deleted = _DELETED
     with db.tx() as c:
         c.execute(f"DELETE FROM wall_facts WHERE photo_id IN ({deleted})")
+        c.execute(f"DELETE FROM photo_source_objects WHERE photo_id IN ({deleted})")
         c.execute(f"DELETE FROM photo_objects WHERE photo_id IN ({deleted})")
         c.execute(f"DELETE FROM photo_detection_runs WHERE photo_id IN ({deleted})")
         c.execute(f"DELETE FROM property_scores WHERE photo_id IN ({deleted})")

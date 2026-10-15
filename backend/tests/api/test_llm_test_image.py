@@ -143,3 +143,39 @@ def test_a_worker_timeout_is_an_error_in_the_local_part(admin, monkeypatch):
     assert r.status_code == 200, r.text
     local = r.json()["local"]
     assert local["objects"] == [] and "Zeitüberschreitung" in local["error"]
+
+
+def test_local_and_ai_separately_plus_the_merged_preview(admin, core, monkeypatch):
+    """Both lists come back as their sources found them, and the merged list a
+    photo would get: the AI's duplicate linked to the local object, the rest appended."""
+
+    def submit(core_, image, analyzers, timeout_s=30):
+        return ports.TestRun(
+            width=800, height=600,
+            objects=[ports.DetectedObject("person", "Person", 0.9, (0.1, 0.1, 0.3, 0.8)),
+                     ports.DetectedObject("cup", "Becher", 0.6, (0.5, 0.5, 0.1, 0.1))],
+        )  # fmt: skip
+
+    monkeypatch.setattr(ports, "submit_test", submit)
+    fake = FakeProvider(
+        objects=[
+            ports.DetectedObject("mug", "Tasse", 0.8, (0.51, 0.5, 0.1, 0.1)),
+            ports.DetectedObject("party hat", "Partyhut", 0.7, (0.2, 0.0, 0.1, 0.1)),
+        ]
+    )
+    svc = setup_llm(core, fake)
+    body = send(admin, external="1").json()
+    assert [o["label"] for o in body["local"]["objects"]] == ["person", "cup"]
+    assert (
+        body["external"]["source"] == "claude" and body["external"]["model"] == svc.config().model
+    )
+    assert [o["label"] for o in body["external"]["objects"]] == ["mug", "party hat"]
+    assert [(m["idx"], m["label"], m["sources"], m["local_pos"], m["ai_pos"])
+            for m in body["merged"]] == [
+        (0, "person", ["local"], 0, None),
+        (1, "cup", ["local", "claude"], 1, 0),
+        (2, "party hat", ["claude"], None, 1),
+    ]  # fmt: skip
+    # without the AI: the merged list is the local one
+    only_local = send(admin).json()
+    assert [m["sources"] for m in only_local["merged"]] == [["local"], ["local"]]

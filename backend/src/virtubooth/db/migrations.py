@@ -360,6 +360,43 @@ ALTER TABLE photos ADD COLUMN raw_filename TEXT;
 ALTER TABLE photos ADD COLUMN raw_thumb_filename TEXT;
 """
 
+# v14: each source's own object list next to the merged one. `photo_objects` stays the
+# list the poller, the categories and the wall work on (property scores index into its
+# idx), now the MERGED list: append-only, idx = 0, 1, 2, … per photo. Every source's
+# objects as it found them live in `photo_source_objects` (pos = its own order), each
+# linked to the merged entry it became or duplicates (`merged_idx`; at most one object
+# per source and entry). Before v14 every object was its own merged entry: the rows are
+# copied over with their idx as the link, per source in idx order.
+SCHEMA_V14 = """
+CREATE TABLE photo_source_objects (
+    photo_id   INTEGER NOT NULL REFERENCES photos(id),
+    source     TEXT    NOT NULL,          -- local | claude | mistral
+    pos        INTEGER NOT NULL,          -- 0-based position in this source's own list
+    label      TEXT    NOT NULL,          -- as the source named it
+    label_de   TEXT    NOT NULL,
+    score      REAL    NOT NULL,
+    x REAL, y REAL, w REAL, h REAL,       -- 0..1, top-left origin; all NULL = no box
+    model      TEXT    NOT NULL,
+    merged_idx INTEGER NOT NULL,          -- photo_objects.idx it became or is linked to
+    created_at TEXT    NOT NULL,
+    PRIMARY KEY (photo_id, source, pos)
+);
+CREATE UNIQUE INDEX photo_source_objects_link ON photo_source_objects(photo_id, merged_idx, source);
+INSERT INTO photo_source_objects (photo_id, source, pos, label, label_de, score, x, y, w, h,
+                                  model, merged_idx, created_at)
+SELECT photo_id, source, ROW_NUMBER() OVER (PARTITION BY photo_id, source ORDER BY idx) - 1,
+       label, label_de, score, x, y, w, h, model, idx, created_at
+FROM photo_objects;
+CREATE TRIGGER photo_source_objects_frozen BEFORE UPDATE ON photo_source_objects
+BEGIN SELECT RAISE(ABORT, 'source object lists are frozen'); END;
+CREATE TRIGGER photo_source_objects_linked BEFORE INSERT ON photo_source_objects
+WHEN NOT EXISTS (SELECT 1 FROM photo_objects WHERE photo_id = NEW.photo_id AND idx = NEW.merged_idx)
+BEGIN SELECT RAISE(ABORT, 'a source object links to an entry of the merged list'); END;
+CREATE TRIGGER photo_objects_append_only BEFORE INSERT ON photo_objects
+WHEN NEW.idx != (SELECT COALESCE(MAX(idx) + 1, 0) FROM photo_objects WHERE photo_id = NEW.photo_id)
+BEGIN SELECT RAISE(ABORT, 'photo_objects are append-only'); END;
+"""
+
 # (version, script): each step upgrades the database from the version before.
 MIGRATIONS: tuple[tuple[int, str], ...] = (
     (1, SCHEMA),
@@ -373,6 +410,7 @@ MIGRATIONS: tuple[tuple[int, str], ...] = (
     (11, SCHEMA_V11),
     (12, SCHEMA_V12),
     (13, SCHEMA_V13),
+    (14, SCHEMA_V14),
 )
 SCHEMA_VERSION = MIGRATIONS[-1][0]
 

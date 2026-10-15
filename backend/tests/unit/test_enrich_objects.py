@@ -73,10 +73,12 @@ def test_append_continues_the_idx_and_bumps_the_rev(party):
     listed = objects.objects_of(party.db, [pid, 999])
     assert list(listed) == [pid]
     assert listed[pid] == [
-        StoredObject("hat", "Hut", 0.9, (0.1, 0.2, 0.3, 0.4), 0, "local", "efficientdet_lite2@2"),
-        StoredObject("wine glass", "Weinglas", 0.7, None, 1, "local", "efficientdet_lite2@2"),
+        StoredObject("hat", "Hut", 0.9, (0.1, 0.2, 0.3, 0.4), 0, "local", "efficientdet_lite2@2",
+                     ("local",)),
+        StoredObject("wine glass", "Weinglas", 0.7, None, 1, "local", "efficientdet_lite2@2",
+                     ("local",)),
         StoredObject("party hat", "Partyhut", 0.95, (0.5, 0.5, 0.2, 0.2), 2, "claude",
-                     "claude-haiku-5-5"),
+                     "claude-haiku-5-5", ("claude",)),
     ]  # fmt: skip
     runs = objects.runs_of(party.db, pid)
     assert [(r["source"], r["state"], r["objects"]) for r in runs] == [

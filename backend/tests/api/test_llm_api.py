@@ -82,7 +82,9 @@ def test_status_shape(admin):
     assert models["claude-haiku-5-5"]["usd_in_mtok"] == 0.1
     assert {"claude-haiku-5-5", "claude-sonnet-5-5", "claude-opus-5-5"} <= set(models)
     assert body["poller"]["state"] == "off"
-    assert body["detection"] == {"pending": 0, "done": 0, "failed": 0}
+    assert body["detection"] == {"state": "off", "pending": 0, "done": 0, "failed": 0,
+                                 "last_run_at": None, "last_error": None}  # fmt: skip
+    assert body["config"]["poll"] is True and body["config"]["detect"]["external"] is False
     assert body["usage"]["party"]["calls"] == 0 and body["usage"]["blocked"] is False
 
 

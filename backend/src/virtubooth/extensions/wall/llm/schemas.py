@@ -45,16 +45,25 @@ class ModelOut(BaseModel):
 
 
 class PollerOut(BaseModel):
+    """„Eigenschaften abfragen“ (properties and verdicts): its own state and error."""
+
     state: Literal["off", "idle", "running", "blocked"]
     last_poll_at: str | None
     next_poll_at: str | None
-    last_error: str | None
+    last_error: str | None = Field(description="The poll's last error (not the detection's).")
 
 
 class DetectionOut(BaseModel):
+    """„Objekterkennung mit KI“ (at upload): its own state and error."""
+
+    state: Literal["off", "idle", "running", "blocked"] = Field(
+        description="off: switched off (or external AI off, no key); running: a photo is out."
+    )
     pending: int = Field(description="Photos the external detector will still look at.")
     done: int
     failed: int
+    last_run_at: str | None = Field(description="When the detector last finished a photo.")
+    last_error: str | None = Field(description="The detection's last error (provider trouble).")
 
 
 class UsageTotals(BaseModel):
@@ -147,9 +156,20 @@ class TestRunOut(BaseModel):
 
 
 class ExternalTestOut(BaseModel):
+    source: str = Field(description="claude | mistral")
+    model: str
     objects: list[ObjectOut]
     usage: UsageTotals | None
     error: str | None
+
+
+class MergedObjectOut(ObjectOut):
+    """An entry of the merged list (what the poll would rate)."""
+
+    idx: int
+    sources: list[str] = Field(description="local and/or the AI's source (claude | mistral).")
+    local_pos: int | None = Field(description="Its object in `local.objects`, if any.")
+    ai_pos: int | None = Field(description="Its object in `external.objects`, if any.")
 
 
 class TestImageOut(BaseModel):
@@ -159,3 +179,7 @@ class TestImageOut(BaseModel):
     height: int
     local: TestRunOut | None
     external: ExternalTestOut | None
+    merged: list[MergedObjectOut] = Field(
+        description="Both lists merged as a photo's would be (local first, the AI's linked "
+        "or appended)."
+    )
