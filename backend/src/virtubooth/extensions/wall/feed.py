@@ -214,7 +214,7 @@ def wall_qr(core: Core, config: WallConfig, origin: str | None = None) -> WallQr
         code = next((c for c in active if c.id == wanted), None)
     if code is None:
         return None
-    base = (core.settings.public_base_url or origin or "").rstrip("/")
+    base = (core.services.host_settings.public_base_url() or origin or "").rstrip("/")
     return WallQr(url=base + entry_path(code.target, code.token), name=code.name)
 
 

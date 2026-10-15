@@ -43,7 +43,7 @@ def list_exports(core: CoreDep) -> ExportJobsOut:
     exports = core.services.exports
     return ExportJobsOut(
         jobs=[ExportJob.of(j) for j in exports.jobs()],
-        public_base_url=core.settings.public_base_url or None,
+        public_base_url=core.services.host_settings.public_base_url(),
         ffmpeg=exports.ffmpeg_available(),
     )
 

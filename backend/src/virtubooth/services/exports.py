@@ -220,10 +220,8 @@ class ExportService:
         suffix = f"{stamp}-{job.id[:8]}"
         if job.kind == "archive":
             return f"archiv-{suffix}.zip"
-        if job.kind == "timelapse":
-            extension = str(job.options.get("extension") or "fotos")
-            return f"zeitraffer-{extension}-{suffix}.mp4"
-        return f"export-{suffix}.zip"
+        extension = str(job.options.get("extension") or "fotos")
+        return f"zeitraffer-{extension}-{suffix}.mp4"
 
     # ------------------------------------------------------------- worker
 

@@ -190,6 +190,11 @@ class UploadOutBase(BaseModel):
 
 class HealthOut(BaseModel):
     ok: Literal[True]
+    probe_mac: str | None = Field(
+        default=None,
+        description="With `?probe=<nonce>`: proof that this server answered (the admin's "
+        "public-address check); otherwise null.",
+    )
 
 
 class HereIn(BaseModel):

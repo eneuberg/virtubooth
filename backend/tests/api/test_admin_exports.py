@@ -34,7 +34,7 @@ from virtubooth.services import exports as exports_service
 from virtubooth.services.export_runners import JobContext
 from virtubooth.tools.timelapse import Size
 
-from ..conftest import ADMIN_PASSWORD, JPEG, ORIGIN, PARTY_TOKEN, jpeg
+from ..conftest import ADMIN_PASSWORD, JPEG, ORIGIN, jpeg
 from .test_admin_events import Stream
 
 HAS_FFMPEG = bool(shutil.which("ffmpeg") and shutil.which("ffprobe"))
