@@ -355,7 +355,15 @@ class HostSettingsService:
         except ProbeError as exc:
             return "unreachable", exc.message
         if 300 <= answer.status < 400:
-            where = f" nach {answer.location[:120]}" if answer.location else ""
+            # only the target's origin: a path or query of some other (internal)
+            # server is none of the admin's business (security pass 2, SSRF)
+            target = urlsplit(answer.location or "")
+            origin = (
+                f"{target.scheme}://{target.netloc}"[:120]
+                if target.scheme in ("http", "https") and target.netloc
+                else ""
+            )
+            where = f" nach {origin}" if origin else ""
             return "mismatch", f"Leitet weiter{where}. Trag die Zieladresse ein."
         if answer.status != 200:
             return "mismatch", f"Antwortet mit HTTP {answer.status}."

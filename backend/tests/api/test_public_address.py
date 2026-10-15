@@ -171,7 +171,7 @@ def test_unchanged_address_is_not_audited_again(admin, core, fake):
     [
         ("other", "mismatch", "anderer Server"),
         ("html", "mismatch", "nicht von virtubooth"),
-        ("redirect", "mismatch", "https://elsewhere.example/healthz"),
+        ("redirect", "mismatch", "nach https://elsewhere.example."),
         ("404", "mismatch", "HTTP 404"),
         ("down", "unreachable", "abgelehnt"),
     ],
