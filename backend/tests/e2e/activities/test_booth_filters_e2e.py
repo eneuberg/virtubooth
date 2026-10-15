@@ -51,7 +51,7 @@ def test_switched_off_filters_leave_the_strip_and_the_count(
     guest: Page, live: LiveServer, admin: Admin
 ) -> None:
     page = guest
-    card_count = page.get_by_text(f"10{NBSP}Filter")
+    card_count = page.get_by_text(f"{len(IDS)}{NBSP}Filter")
     expect(card_count).to_be_visible()
 
     open_booth(page, live)
@@ -72,9 +72,9 @@ def test_switched_off_filters_leave_the_strip_and_the_count(
 
     fonts_ready(page)
     page.goto(live.url("/"))
-    expect(page.get_by_text(f"8{NBSP}Filter")).to_be_visible()
+    expect(page.get_by_text(f"{len(IDS) - len(OFF)}{NBSP}Filter")).to_be_visible()
 
-    # back on: the next visit of the booth has all ten again
+    # back on: the next visit of the booth has them all again
     set_filters(admin, IDS)
     open_booth(page, live)
     assert strip_ids(page) == IDS
