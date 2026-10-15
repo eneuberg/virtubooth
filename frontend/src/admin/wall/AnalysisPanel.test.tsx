@@ -132,7 +132,7 @@ describe('AnalysisPanel', () => {
     await waitFor(() => expect(screen.getAllByTestId('analysis-box')[2]?.dataset.lit).toBeUndefined());
   });
 
-  it('marks the guest\'s opt-outs', async () => {
+  it("marks the guest's opt-outs", async () => {
     renderPanel({
       [PATH]: () => ({ ...photoAnalysis(), opt_out: { analysis: true, external_ai: true } }),
     });

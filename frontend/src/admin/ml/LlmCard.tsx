@@ -127,6 +127,8 @@ function KeyBlock({ status }: { status: LlmStatus }) {
         >
           <TextField
             label={key.set ? 'Neuer API-Schlüssel' : 'API-Schlüssel'}
+            // the status line above already says „API-Schlüssel“
+            hideLabel={!key.set}
             type="password"
             autoComplete="new-password"
             spellCheck="false"

@@ -112,6 +112,50 @@ export function ValuePicker({
   );
 }
 
+/** A short single choice without a visible label (the operator of a condition). */
+export function PlainPicker<K extends string>({
+  label,
+  options,
+  value,
+  onChange,
+  testid,
+}: {
+  /** the accessible name */
+  label: string;
+  options: ReadonlyArray<{ id: K; label: string }>;
+  value: K;
+  onChange: (value: K) => void;
+  testid?: string;
+}) {
+  const surface = useSurface();
+  return (
+    <Select
+      aria-label={label}
+      selectedKey={value}
+      onSelectionChange={(key) => {
+        const hit = options.find((o) => o.id === key);
+        if (hit) onChange(hit.id);
+      }}
+      className="group grid min-w-0 content-start"
+      data-testid={testid}
+    >
+      <AriaButton className={cx(TRIGGER, 'border-field')}>
+        <SelectValue className="min-w-0 flex-1 truncate" />
+        <ChevronDown aria-hidden="true" className="size-4 shrink-0" strokeWidth={2.25} />
+      </AriaButton>
+      <Popover offset={6} data-surface={surface} className={POPOVER}>
+        <ListBox className="outline-none" items={options}>
+          {(o) => (
+            <ListBoxItem id={o.id} textValue={o.label} className={ITEM}>
+              {o.label}
+            </ListBoxItem>
+          )}
+        </ListBox>
+      </Popover>
+    </Select>
+  );
+}
+
 function labelText(labels: readonly LabelInfo[], label: string): string {
   return labels.find((l) => l.label === label)?.label_de ?? label;
 }

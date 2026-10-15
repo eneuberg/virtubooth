@@ -24,7 +24,6 @@ import type { TestImageResult, TestObject } from './types';
 const ACCEPT = ['image/jpeg', 'image/png'];
 const ALL = '__all__';
 
-
 type Row = TestObject & { source: string };
 
 const row = (o: TestObject, source: string): Row => ({

@@ -33,7 +33,7 @@ import {
   type ConditionOp,
   type ValuesOut,
 } from '../types';
-import { LabelPicker, LabelsPicker, ValuePicker } from './pickers';
+import { LabelPicker, LabelsPicker, PlainPicker, ValuePicker } from './pickers';
 import {
   emptyCondition,
   emptyDraft,
@@ -147,14 +147,12 @@ function ConditionRow({
         ) : null}
       </div>
       <div className="grid min-w-0 gap-1">
-        <Select<ConditionOp>
+        <PlainPicker<ConditionOp>
           label={`Bedingung ${index + 1}: Vergleich`}
-          inlineLabel
-          size="sm"
           options={ops.map((op) => ({ id: op, label: OP_LABELS[op] }))}
           value={cond.op}
           onChange={(op) => onChange({ ...cond, op })}
-          data-testid="cond-op"
+          testid="cond-op"
         />
         {errors[`${f}.op`] ? <span className="text-sm text-danger">{errors[`${f}.op`]}</span> : null}
       </div>
