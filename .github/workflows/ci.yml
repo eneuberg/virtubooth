@@ -152,7 +152,8 @@ jobs:
         run: ${{ matrix.browser == 'firefox' && 'xvfb-run -a ' || '' }}uv run pytest -m e2e -v -n 4 --dist worksteal -o faulthandler_timeout=150
       - name: DEBUG GL log
         if: always()
-        run: cat /tmp/gl-*.log | grep -v "console: WebGL warning: texImage" | head -300 || true
+        run: |
+          cat /tmp/gl-*.log | grep -v "texImage" | head -300 || true
 
   docker:
     name: docker (build + smoke)

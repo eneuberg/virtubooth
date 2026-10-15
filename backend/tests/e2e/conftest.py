@@ -342,7 +342,7 @@ def _gl_debug(b: Browser, when: str) -> None:  # DEBUG, to be dropped
             const gl = c.getContext('webgl'); return gl ? gl.getParameter(gl.RENDERER) : 'NO WEBGL ' + msg; }"""
         )
         p.close()
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         res = f"probe failed {e}"
     with open(f"/tmp/gl-{worker}.log", "a") as f:
         f.write(f"{_t.strftime('%H:%M:%S')} {worker} {when}: {res}\n")
