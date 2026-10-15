@@ -45,7 +45,11 @@ function user(over: Partial<AdminUser> = {}): AdminUser {
   return {
     id: 1,
     name: 'Ente',
+    display_name: null,
+    shown_name: 'Ente',
     instagram: null,
+    analysis_opt_out: false,
+    ai_opt_out: false,
     created_at: '2026-10-13T20:00:00.000+00:00',
     last_seen_at: '2026-10-13T20:00:00.000+00:00',
     consent_at: '2026-10-13T20:00:00.000+00:00',

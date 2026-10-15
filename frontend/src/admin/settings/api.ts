@@ -1,5 +1,5 @@
 /**
- * Einstellungen: reads and writes. Every request goes through `call()` (event cursor,
+ * Allgemeines (and the Fotobox section's filters): reads and writes. Every request goes through `call()` (event cursor,
  * 401 → login); each write puts the server's answer into the cache at once, the event
  * stream's copy (`settings.event`, `extension.settings`) arrives later and changes
  * nothing.
@@ -7,16 +7,27 @@
 import { useQuery, type QueryClient } from '@tanstack/react-query';
 import { api } from '@/api/client';
 import type {
+  AddressCheck,
   AdminSettings,
   BoothFilterSetting,
   BoothFilterSettings,
   EventSettings,
   PasswordState,
+  PublicAddress,
 } from '@/api/types';
+import { codesKey } from '../codes/keys';
 import { call } from '../store/api';
 import { extensionSettingsKey, settingsKey } from './keys';
 
-export type { AdminSettings, BoothFilterSetting, BoothFilterSettings, EventSettings, PasswordState };
+export type {
+  AddressCheck,
+  AdminSettings,
+  BoothFilterSetting,
+  BoothFilterSettings,
+  EventSettings,
+  PasswordState,
+  PublicAddress,
+};
 
 export const BOOTH_ID = 'booth';
 export const boothFiltersKey = extensionSettingsKey(BOOTH_ID);
@@ -55,6 +66,46 @@ export async function changePassword(qc: QueryClient, current: string, next: str
   const res = await call(api.POST('/api/admin/settings/password', { body: { current, new: next } }));
   void qc.invalidateQueries({ queryKey: settingsKey });
   return res.sessions_ended;
+}
+
+// ------------------------------------------------------- public address
+
+function patchAddress(qc: QueryClient, update: (old: PublicAddress) => PublicAddress): void {
+  qc.setQueryData<AdminSettings>(settingsKey, (old) =>
+    old ? { ...old, public_address: update(old.public_address) } : old,
+  );
+}
+
+/** Set the public address (null = VB_PUBLIC_BASE_URL or automatic); the server checks it at once. */
+export async function savePublicAddress(qc: QueryClient, address: string | null): Promise<PublicAddress> {
+  const res = await call(api.PUT('/api/admin/settings/public-address', { body: { address } }));
+  patchAddress(qc, () => res);
+  // the codes' links (and the posters') follow the address
+  void qc.invalidateQueries({ queryKey: codesKey });
+  return res;
+}
+
+/** Check the public address now: does it reach this server? */
+export async function checkPublicAddress(qc: QueryClient): Promise<AddressCheck> {
+  const check = await call(api.POST('/api/admin/settings/public-address/check'));
+  patchAddress(qc, (old) => ({ ...old, check }));
+  return check;
+}
+
+/** A check older than this is repeated when the QR-Codes tab opens. */
+export const CHECK_MAX_AGE_MS = 10 * 60_000;
+
+/** The address is fine for printing: checked OK, or automatic (nothing to check). */
+export function addressIsFine(check: AddressCheck): boolean {
+  return check.status === 'ok' || check.status === 'auto';
+}
+
+/** Whether a stored check is missing or older than CHECK_MAX_AGE_MS (auto: never). */
+export function checkIsStale(check: AddressCheck, now: number = Date.now()): boolean {
+  if (check.status === 'auto') return false;
+  if (!check.at) return true;
+  const at = new Date(check.at).getTime();
+  return Number.isNaN(at) || now - at > CHECK_MAX_AGE_MS;
 }
 
 // ---------------------------------------------------------- booth filters

@@ -86,7 +86,9 @@ class AdminCode(BaseModel):
 
 class CodesOut(BaseModel):
     codes: list[AdminCode] = Field(description="Every code by number, revoked ones included.")
-    base_url: str | None = Field(description="VB_PUBLIC_BASE_URL, or null.")
+    base_url: str | None = Field(
+        description="The public address (Allgemeines, else VB_PUBLIC_BASE_URL), or null."
+    )
     active: int
     revoked: int
 

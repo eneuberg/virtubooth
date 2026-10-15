@@ -48,7 +48,11 @@ export function splitPrompt(prompt: string): { label: string; help: string | nul
 
 /** The Live-Wall's photo analysis, in the join texts (the server's own words). */
 export const WALL_ANALYSIS_TEXT =
-  'Für die Live-Wall der Party werden Fotos automatisch auf dem Server ausgewertet: Gesichter und Hände zählen, Gesichtsausdruck und ungefähres Alter schätzen – nur zum Spaß, für Kategorien wie „Grinsekatzen“. Nichts davon verlässt den Server, und du kannst es für deine Fotos ausschalten.';
+  'Für die Live-Wall der Party werden Fotos automatisch auf dem Server ausgewertet: Gesichter und Hände zählen, Gesichtsausdruck und ungefähres Alter schätzen – nur zum Spaß, für Kategorien wie „Grinsekatzen“. Du kannst das für deine Fotos ausschalten.';
+
+/** The external AI (always under „Mehr dazu“; the server's own words). */
+export const EXTERNAL_AI_TEXT =
+  'Wenn der Gastgeber es einschaltet, können Fotos und erkannte Dinge (z. B. „Glas“, „Hut“) zusätzlich von einem externen KI-Dienst (Anthropic, USA) ausgewertet werden – für lustige Kategorien auf der Live-Wall. Mit „Keine Weitergabe an externe KI“ schließt du deine Fotos davon aus; das kannst du jederzeit unter „Du“ ändern.';
 
 /**
  * "Was passiert mit meinen Fotos?" before the session knows the server's join texts
@@ -62,6 +66,7 @@ export function fallbackJoinText(instagramAccount: string): string[] {
     'Damit sie Missbrauch verhindern können, erkennt die Seite dein Gerät wieder: eine anonyme Geräte-ID, kein Name.',
     'Die Gastgeber sehen zu jedem Gast eine kleine Statistik: wie viele Fotos du gemacht hast, wie lange die Seite bei dir offen war und über welchen QR-Code du gekommen bist.',
     WALL_ANALYSIS_TEXT,
+    EXTERNAL_AI_TEXT,
     'Wenn du das nicht möchtest, mach hier bitte keine Fotos.',
   ];
 }

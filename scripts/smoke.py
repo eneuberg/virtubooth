@@ -338,14 +338,17 @@ def check_admin(base: str, password: str, photos: list[dict[str, Any]]) -> None:
     requests = {
         "archive": {"include_hidden": True, "include_db": True},
         "timelapse": {"extension": "beer", "fps": 12},
-        "qr": {"base_url": base},
     }
     jobs: dict[str, str] = {}
     for kind, options in requests.items():
         res = admin.post("/api/admin/exports", json_body={"kind": kind, "options": options})
         expect(res.status == 202, f"{kind} export: {res.status} {res.body!r}")
         jobs[kind] = res.json()["job"]["id"]
-    ok("three export jobs queued (202)")
+    ok("two export jobs queued (202)")
+    # the QR sheet left the admin (PLAN-NIGHT N16): the kind is refused now
+    res = admin.post("/api/admin/exports", json_body={"kind": "qr", "options": {}})
+    expect(res.status == 422, f"qr export: {res.status} {res.body!r}")
+    ok("the removed qr export kind is refused (422)")
 
     deadline = time.monotonic() + EXPORT_TIMEOUT_S
     while True:
@@ -370,11 +373,9 @@ def check_admin(base: str, password: str, photos: list[dict[str, Any]]) -> None:
         else:
             archive = zipfile.ZipFile(io.BytesIO(res.body))
             names = archive.namelist()
-            want = ("manifest.json", "virtubooth.db") if kind == "archive" else ("qr-sheet.html",)
-            for name in want:
+            for name in ("manifest.json", "virtubooth.db"):
                 expect(any(n.endswith("/" + name) for n in names), f"{kind} zip lacks {name}")
-            if kind == "archive":
-                check_db_copy(archive.read(next(n for n in names if n.endswith("/virtubooth.db"))))
+            check_db_copy(archive.read(next(n for n in names if n.endswith("/virtubooth.db"))))
         ok(f"{kind} export done and downloaded: {job['file_name']} ({job['bytes']:,} bytes)")
 
 

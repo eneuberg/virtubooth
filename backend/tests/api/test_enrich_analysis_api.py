@@ -8,7 +8,7 @@ from datetime import UTC, datetime, timedelta
 import pytest
 
 from virtubooth.extensions.wall.enrich import admin_api, jobs
-from virtubooth.extensions.wall.enrich.service import EnrichmentService, PhotoFilter
+from virtubooth.extensions.wall.enrich.service import EnrichmentService
 
 from ..conftest import JPEG, ORIGIN, jpeg
 
@@ -38,9 +38,8 @@ def test_admin_only(client):
     for method, path in [
         ("get", f"{BASE}/analysis"),
         ("put", f"{BASE}/analysis/analyzers"),
-        ("post", f"{BASE}/analysis/rerun"),
+        ("put", f"{BASE}/analysis/analyzers/faces"),
         ("get", f"{BASE}/photos/x/analysis"),
-        ("post", f"{BASE}/photos/x/analysis"),
     ]:
         r = client.request(method, path, json={}, headers=ORIGIN)
         assert r.status_code == 401 and r.json()["error"] == "admin_required", path
@@ -59,11 +58,16 @@ def test_status(admin, guest, core):
     }  # fmt: skip
     analyzers = {a["name"]: a for a in body["analyzers"]}
     assert list(analyzers) == ["basic", "faces", "emotion", "gestures", "objects", "tags", "age"]
-    assert analyzers["basic"] == {
+    basic = analyzers["basic"]
+    assert {k: basic[k] for k in ("name", "title", "kind", "version", "enabled", "available",
+                                  "reason", "facts", "settings", "settings_schema")} == {
         "name": "basic", "title": "Bildwerte", "kind": "basic", "version": "1", "enabled": True,
         "available": True, "reason": None,
-        "facts": ["brightness", "colorfulness", "sharpness"],
+        "facts": ["brightness", "colorfulness", "sharpness"], "settings": None,
+        "settings_schema": [],
     }  # fmt: skip
+    assert basic["description"] and basic["stats"]["processed"] == 0
+    assert body["queue"]["pending"] == 2
     assert analyzers["age"]["enabled"] is False  # FairFace is opt-in
     # no models in the test data dir: the ML analyzers say why they cannot run
     assert analyzers["faces"]["available"] is False and analyzers["faces"]["reason"]
@@ -125,32 +129,27 @@ def test_mutations_need_the_origin(admin):
     assert r.status_code == 403 and r.json()["error"] == "bad_origin"
 
 
-def test_rerun(admin, guest, core):
-    g = guest()
-    a, b = upload(g), upload(g)
-    for _ in range(2):
-        jobs.claim(core.db)
-    jobs.finish(core.db, internal(core, b), facts={"faces": 1}, data={}, versions={})
-    with core.db.tx() as c:
-        c.execute("UPDATE wall_analysis SET state='failed', attempts=2 WHERE photo_id=?",
-                  (internal(core, a),))  # fmt: skip
-    r = admin.post(f"{BASE}/analysis/rerun", json={"scope": "failed"}, headers=ORIGIN)
-    assert r.json() == {"queued": 1}
-    assert admin.post(f"{BASE}/analysis/rerun", json={"scope": "all"}, headers=ORIGIN).json() == {
-        "queued": 1
-    }
-    r = admin.post(f"{BASE}/analysis/rerun", json={"scope": "some"}, headers=ORIGIN)
-    assert r.status_code == 422
+def test_no_reanalysis(admin, guest):
+    """Frozen analyses (PLAN-NIGHT N3): the re-run routes are gone."""
+    public_id = upload(guest())
+    assert admin.post(f"{BASE}/analysis/rerun", json={"scope": "all"}, headers=ORIGIN
+                      ).status_code in (404, 405)  # fmt: skip
+    assert admin.post(f"{BASE}/photos/{public_id}/analysis", headers=ORIGIN
+                      ).status_code in (404, 405)  # fmt: skip
 
 
 def test_photo_analysis(admin, guest, core):
     public_id = upload(guest())
     r = admin.get(f"{BASE}/photos/{public_id}/analysis")
     assert r.status_code == 200
-    assert r.json() == {
+    body = r.json()
+    assert {k: body[k] for k in ("photo_id", "state", "attempts", "error", "finished_at",
+                                 "versions", "facts", "boxes", "details", "objects")} == {
         "photo_id": public_id, "state": "pending", "attempts": 0, "error": None,
         "finished_at": None, "versions": {}, "facts": {}, "boxes": [], "details": [],
+        "objects": [],
     }  # fmt: skip
+    assert body["opt_out"] == {"analysis": False, "external_ai": False}
     pid = internal(core, public_id)
     jobs.claim(core.db)
     box = {"kind": "face", "x": 0.1, "y": 0.2, "w": 0.3, "h": 0.4, "label": "fröhlich 82 %",
@@ -163,11 +162,6 @@ def test_photo_analysis(admin, guest, core):
     assert body["facts"] == {"faces": 1.0, "happy_max": 0.82}
     assert body["boxes"] == [box] and body["details"] == data["details"]
     assert body["versions"] == {"faces": "1"}
-    # „Neu analysieren“
-    r = admin.post(f"{BASE}/photos/{public_id}/analysis", headers=ORIGIN)
-    assert r.status_code == 200
-    assert r.json()["state"] == "pending" and r.json()["attempts"] == 0
-    assert jobs.get(core.db, pid).state == "pending"
 
 
 def test_unknown_or_deleted_photo(admin, guest, core):
@@ -175,11 +169,11 @@ def test_unknown_or_deleted_photo(admin, guest, core):
     public_id = upload(guest())
     assert admin.delete(f"/api/admin/photos/{public_id}", headers=ORIGIN).status_code == 200
     assert admin.get(f"{BASE}/photos/{public_id}/analysis").status_code == 404
-    assert admin.post(f"{BASE}/photos/{public_id}/analysis", headers=ORIGIN).status_code == 404
 
 
 def test_service_port(core, guest):
-    """What the wall (W1) calls: summaries, changes_since, catalogue, winners."""
+    """What the wall calls: summaries, changes_since (the categories come from
+    the engine over the database: test_enrich_engine.py, test_wall_categories.py)."""
     svc = EnrichmentService.of(core)
     assert EnrichmentService.of(core) is svc
     g = guest()
@@ -195,9 +189,3 @@ def test_service_port(core, guest):
     assert summaries[a].state == "pending" and summaries[a].facts == {}
     assert summaries[b].state == "done" and summaries[b].facts["people"] == 4.0
     assert 999 not in summaries
-    assert len(svc.catalogue()) == 19
-    out = svc.winners(["volles_haus", "grinsekatzen", "prost"],
-                      PhotoFilter(sources=None, not_after="9999"))  # fmt: skip
-    assert [(w.category.id, w.winners) for w in out] == [
-        ("volles_haus", [(b, 4.0)]), ("grinsekatzen", [(b, 2.0)]), ("prost", []),
-    ]  # fmt: skip

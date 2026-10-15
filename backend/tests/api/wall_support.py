@@ -18,7 +18,7 @@ import queue
 import socket
 import threading
 import time
-from collections.abc import Callable, Collection, Iterator, Mapping, Sequence
+from collections.abc import Callable, Iterator, Mapping, Sequence
 from contextlib import contextmanager
 from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
@@ -32,7 +32,6 @@ from fastapi.testclient import TestClient
 
 from virtubooth.core.clock import iso
 from virtubooth.domain.models import User
-from virtubooth.extensions.wall.enrichment import PhotoFilter
 from virtubooth.runtime import Core
 
 from ..conftest import ADMIN_PASSWORD, JPEG, ORIGIN, PARTY_TOKEN, fp, jpeg
@@ -58,48 +57,17 @@ class FakeSummary:
     facts: Mapping[str, float]
 
 
-@dataclass(frozen=True)
-class FakeCategory:
-    id: str
-    emoji: str
-    title: str
-    line: str
-    needs: tuple[str, ...] = ()
-
-    def label(self, value: float) -> str:
-        return f"{value:g} Stück"
-
-    def available(self, enabled_analyzers: Collection[str]) -> str | None:
-        missing = [n for n in self.needs if n not in enabled_analyzers]
-        return f"Braucht die Analyse „{missing[0]}“." if missing else None
-
-
-@dataclass(frozen=True)
-class FakeWinners:
-    category: FakeCategory
-    winners: list[tuple[int, float]]
-
-
-CATEGORIES = (
-    FakeCategory("volles_haus", "👥", "Volles Haus", "Die meisten Leute", ("objects",)),
-    FakeCategory("generationen", "🎂", "Generationen-Foto", "Altersspanne", ("tags", "age")),
-    FakeCategory("farbexplosion", "🌈", "Farbexplosion", "Das bunteste Foto", ("basic",)),
-)
-
-
 @dataclass
 class FakeEnrichment:
-    """Records calls; `values[category id] = {internal photo id: value}` decide
-    the winners (unfiltered: the wall must drop what it can't show)."""
+    """Records the lifecycle calls; `analysed()` marks a photo as analysed
+    (its summary and a change for the hub). The categories come from D1's
+    engine over the database, not from here."""
 
     started: int = 0
     stopped: int = 0
     states: dict[int, FakeSummary] = field(default_factory=dict)
     rev: int = 0
     changes: list[tuple[int, int]] = field(default_factory=list)
-    values: dict[str, dict[int, float]] = field(default_factory=dict)
-    filters: list[PhotoFilter] = field(default_factory=list)
-    asked: list[list[str]] = field(default_factory=list)
     # analyzers switched on and able to run (FairFace "age" is off by default)
     active: set[str] = field(
         default_factory=lambda: {"basic", "faces", "emotion", "gestures", "objects", "tags"}
@@ -125,21 +93,6 @@ class FakeEnrichment:
     def changes_since(self, rev: int, limit: int = 500) -> tuple[int, list[int]]:
         newer = [(r, pid) for r, pid in self.changes if r > rev][:limit]
         return (newer[-1][0] if newer else rev), [pid for _, pid in newer]
-
-    def catalogue(self) -> list[FakeCategory]:
-        return list(CATEGORIES)
-
-    def winners(
-        self, ids: Sequence[str], flt: PhotoFilter, per_category: int = 3
-    ) -> list[FakeWinners]:
-        self.filters.append(flt)
-        self.asked.append(list(ids))
-        out = []
-        for cat in CATEGORIES:
-            if cat.id in ids and self.values.get(cat.id):
-                best = sorted(self.values[cat.id].items(), key=lambda kv: -kv[1])
-                out.append(FakeWinners(cat, best[: per_category + 2]))
-        return out
 
 
 # ------------------------------------------------------------ API helpers

@@ -1,5 +1,5 @@
 """The after-party tools in manage: the Instagram board (ZIP per name, the "Erledigt"
-mark) and the export section (archive, timelapse, QR sheet as background jobs)."""
+mark) and the export section (archive and timelapse as background jobs)."""
 
 from __future__ import annotations
 
@@ -166,23 +166,20 @@ def test_archive_export_with_progress_download_and_delete(
     assert errors(page) == []
 
 
-def test_qr_sheet_needs_an_address(desktop_page: Page, live: LiveServer) -> None:
+def test_no_qr_sheet_any_more(desktop_page: Page, live: LiveServer) -> None:
+    """N16: the QR-Bogen is gone (the QR-Codes tab has each code's PNG, PDF, poster);
+    an old qr job in the table stays hidden."""
+    live.core.repos.exports.insert(
+        "OldQrJob00000001", kind="qr", options={},  # type: ignore[arg-type]
+        created_at="2026-10-13T20:00:00.000+00:00", by="admin:test",
+    )  # fmt: skip
     page = desktop_page
     goto(page, live, "/admin/manage?tab=export")
-    form = page.get_by_test_id("export-qr")
-    field = form.get_by_label("Adresse der Party")
-    expect(field).to_have_value("")  # no VB_PUBLIC_BASE_URL in this party
-    form.get_by_role("button", name="QR-Bogen erstellen").click()
-    expect(form).to_contain_text("Bitte die Adresse der Party angeben.")
-    field.fill("not a url")
-    form.get_by_role("button", name="QR-Bogen erstellen").click()
-    expect(form.get_by_text(re.compile("Adresse|URL"))).not_to_have_count(0)
-    field.fill("https://party.example.org")
-    form.get_by_role("button", name="QR-Bogen erstellen").click()
-    job = page.get_by_test_id("export-job").first
-    expect(job).to_have_attribute("data-kind", "qr")
-    expect(job).to_have_attribute("data-status", "done", timeout=15_000)
-    assert errors(page, 400) == []
+    expect(page.get_by_test_id("export-archive")).to_be_visible()
+    expect(page.get_by_test_id("export-qr")).to_have_count(0)
+    expect(page.get_by_text("QR-Bogen")).to_have_count(0)
+    expect(page.get_by_test_id("export-job")).to_have_count(0)
+    assert errors(page) == []
 
 
 def test_timelapse_without_ffmpeg_is_explained(

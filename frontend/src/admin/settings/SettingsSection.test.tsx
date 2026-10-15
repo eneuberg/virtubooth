@@ -1,49 +1,30 @@
 import { QueryClientProvider } from '@tanstack/react-query';
-import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, it } from 'vitest';
-import type { AdminExtension } from '@/api/types';
 import { clearToasts, ToastSlot } from '@/ui/Toast';
 import { UiProvider } from '@/ui/UiProvider';
 import { applyAdminEvent } from '../store/applyEvent';
-import { qk } from '../store/keys';
 import { bodyField, json, must, stubApi, testClient, type Route } from '../testing';
-import type { AdminSettings, BoothFilterSettings } from './api';
-import { boothFiltersKey } from './api';
+import type { AdminSettings } from './api';
 import { settingsKey } from './keys';
 import { SettingsSection } from './SettingsSection';
+
+const AUTO: AdminSettings['public_address'] = {
+  address: null,
+  effective: 'http://localhost:3000',
+  source: 'auto',
+  check: { status: 'auto', url: null, at: null, message: 'Automatisch.' },
+};
 
 const SETTINGS: AdminSettings = {
   event: { name: 'Party', default_name: 'Party', custom: false, updated_at: null, by: null },
   password: { source: 'env', changed_at: null },
+  public_address: AUTO,
 };
 
-const BOOTH: AdminExtension = {
-  id: 'booth',
-  title: 'Fotobox',
-  emoji: '📸',
-  tagline: '',
-  url: '/x/booth/',
-  uploads: true,
-  loaded: true,
-  meta_labels: {},
-};
-
-function filters(...on: string[]): BoothFilterSettings {
-  return {
-    filters: ['normal', 'bw', 'neon'].map((id) => ({
-      id,
-      name: id === 'neon' ? 'Neon' : id,
-      icon: '',
-      enabled: on.includes(id),
-    })),
-  };
-}
-
-function renderSection(routes: Record<string, Route> = {}, booth: BoothFilterSettings | null = null) {
+function renderSection(routes: Record<string, Route> = {}, settings: AdminSettings = SETTINGS) {
   const qc = testClient();
-  qc.setQueryData(settingsKey, SETTINGS);
-  qc.setQueryData(qk.extensions, booth ? [BOOTH] : []);
-  if (booth) qc.setQueryData(boothFiltersKey, booth);
+  qc.setQueryData(settingsKey, settings);
   const requests = stubApi(routes);
   render(
     <QueryClientProvider client={qc}>
@@ -66,23 +47,22 @@ function input(el: HTMLElement): HTMLInputElement {
 }
 
 const valueOf = (label: string) => input(screen.getByLabelText(label)).value;
-const isOn = (name: string | RegExp) => input(screen.getByRole('switch', { name })).checked;
 
 afterEach(() => {
   act(() => clearToasts());
 });
 
-describe('Einstellungen', () => {
-  it('shows the three blocks; the filters only with the Fotobox', () => {
-    renderSection({}, filters('normal', 'bw', 'neon'));
-    expect(screen.getByRole('heading', { level: 1, name: 'Einstellungen' })).toBeTruthy();
+describe('Allgemeines', () => {
+  it('shows the three blocks, no Fotobox filters', () => {
+    renderSection();
+    expect(screen.getByRole('heading', { level: 1, name: 'Allgemeines' })).toBeTruthy();
     expect(screen.getByRole('heading', { name: 'Eventname' })).toBeTruthy();
-    expect(screen.getByRole('heading', { name: 'Fotobox-Filter' })).toBeTruthy();
+    expect(screen.getByRole('heading', { name: 'Öffentliche Adresse' })).toBeTruthy();
     expect(screen.getByRole('heading', { name: 'Admin-Passwort' })).toBeTruthy();
+    expect(screen.queryByTestId('settings-booth-filters')).toBeNull();
     expect(screen.getByTestId('password-source').textContent).toBe(
       'Gerade gilt das Passwort aus VB_ADMIN_PASSWORD.',
     );
-    cleanupAndRenderWithoutBooth();
   });
 
   it('saves the event name and offers the way back', async () => {
@@ -193,64 +173,69 @@ describe('Einstellungen', () => {
   });
 });
 
-describe('Fotobox-Filter', () => {
-  it('keeps the last filter on: its switch is disabled and says why', () => {
-    renderSection({}, filters('neon'));
-    const list = screen.getByTestId('booth-filter-list');
-    expect(input(within(list).getByRole('switch', { name: /Neon/ })).disabled).toBe(true);
-    expect(within(list).getByText('Mindestens ein Filter bleibt an.')).toBeTruthy();
-    expect(input(within(list).getByRole('switch', { name: 'bw' })).disabled).toBe(false);
+describe('Öffentliche Adresse', () => {
+  const ok = {
+    address: 'https://party.example.com',
+    effective: 'https://party.example.com',
+    source: 'setting' as const,
+    check: {
+      status: 'ok' as const,
+      url: 'https://party.example.com',
+      at: '2026-10-15T19:14:00Z',
+      message: 'Erreichbar.',
+    },
+  };
+
+  it('is automatic while empty: no check button', () => {
+    renderSection();
+    expect(screen.getByText('Leer lassen = automatisch aus dem Aufruf')).toBeTruthy();
+    expect(screen.getByTestId('address-status').dataset['status']).toBe('auto');
+    expect(screen.queryByTestId('public-address-check')).toBeNull();
   });
 
-  it('saves a switch at once with the whole list', async () => {
-    const { requests, qc } = renderSection(
-      {
-        'PUT /api/admin/x/booth/filters': async (req) => {
-          const enabled = await bodyField(req, 'enabled');
-          return filters(...(Array.isArray(enabled) ? enabled.map(String) : []));
-        },
-      },
-      filters('normal', 'bw', 'neon'),
-    );
-    fireEvent.click(screen.getByRole('switch', { name: 'Neon' }));
-    // optimistic: off at once
-    expect(isOn('Neon')).toBe(false);
-    await screen.findByText('„Neon“ ist aus.');
-    expect(await bodyField(must(requests[0]), 'enabled')).toEqual(['normal', 'bw']);
-    expect(qc.getQueryData<BoothFilterSettings>(boothFiltersKey)).toEqual(filters('normal', 'bw'));
-
-    fireEvent.click(screen.getByRole('switch', { name: 'Neon' }));
-    await screen.findByText('„Neon“ ist wieder an.');
-    expect(await bodyField(must(requests[1]), 'enabled')).toEqual(['normal', 'bw', 'neon']);
+  it('saves (the server checks) and shows the result', async () => {
+    const { requests, qc } = renderSection({ 'PUT /api/admin/settings/public-address': () => ok });
+    type('Adresse für QR-Codes und Plakate', ' https://party.example.com ');
+    fireEvent.click(screen.getByTestId('public-address-save'));
+    await screen.findByText('Adresse gespeichert.');
+    expect(await bodyField(must(requests[0]), 'address')).toBe('https://party.example.com');
+    expect(qc.getQueryData<AdminSettings>(settingsKey)?.public_address).toEqual(ok);
+    const status = await screen.findByTestId('address-status');
+    expect(status.textContent).toMatch(/^Erreichbar ✓ – geprüft \d\d:14$/);
+    expect(screen.getByTestId('public-address-check')).toBeTruthy();
   });
 
-  it('rolls back with a toast when the server refuses', async () => {
-    const { qc } = renderSection(
-      {
-        'PUT /api/admin/x/booth/filters': () =>
-          json(400, { error: 'no_filter_enabled', message: 'Mindestens ein Filter muss an bleiben.' }),
-      },
-      filters('normal', 'bw', 'neon'),
+  it('warns when it does not reach this server, and checks again', async () => {
+    const down = {
+      ...ok,
+      check: { ...ok.check, status: 'unreachable' as const, message: 'Verbindung abgelehnt.' },
+    };
+    const { requests } = renderSection(
+      { 'POST /api/admin/settings/public-address/check': () => ok.check },
+      { ...SETTINGS, public_address: down },
     );
-    fireEvent.click(screen.getByRole('switch', { name: 'bw' }));
-    await screen.findByText('Mindestens ein Filter muss an bleiben.');
-    expect(isOn('bw')).toBe(true);
-    expect(qc.getQueryData<BoothFilterSettings>(boothFiltersKey)).toEqual(filters('normal', 'bw', 'neon'));
+    const status = screen.getByTestId('address-status');
+    expect(status.dataset['status']).toBe('unreachable');
+    expect(status.textContent).toContain('Nicht erreichbar – QR-Codes würden ins Leere führen.');
+    expect(status.textContent).toContain('Verbindung abgelehnt.');
+    fireEvent.click(screen.getByTestId('public-address-check'));
+    await waitFor(() => expect(screen.getByTestId('address-status').dataset['status']).toBe('ok'));
+    expect(must(requests[0]).method).toBe('POST');
+  });
+
+  it('shows the server’s refusal at the field', async () => {
+    renderSection({
+      'PUT /api/admin/settings/public-address': () =>
+        json(400, {
+          error: 'invalid_public_address',
+          message: 'Die Adresse muss mit http:// oder https:// beginnen.',
+        }),
+    });
+    type('Adresse für QR-Codes und Plakate', 'party.example.com');
+    fireEvent.click(screen.getByTestId('public-address-save'));
+    await screen.findByText('Die Adresse muss mit http:// oder https:// beginnen.');
+    expect(screen.getByLabelText('Adresse für QR-Codes und Plakate').getAttribute('aria-invalid')).toBe(
+      'true',
+    );
   });
 });
-
-function cleanupAndRenderWithoutBooth() {
-  // a second render in the same test: without the Fotobox there is no filter block
-  const qc = testClient();
-  qc.setQueryData(settingsKey, SETTINGS);
-  qc.setQueryData(qk.extensions, []);
-  const { container } = render(
-    <QueryClientProvider client={qc}>
-      <UiProvider>
-        <SettingsSection />
-      </UiProvider>
-    </QueryClientProvider>,
-  );
-  expect(within(container).queryByTestId('settings-booth-filters')).toBeNull();
-  expect(within(container).getByTestId('settings-event')).toBeTruthy();
-}

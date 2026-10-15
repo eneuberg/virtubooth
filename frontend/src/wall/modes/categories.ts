@@ -1,8 +1,10 @@
-import type { WallCategory } from '../api/types';
+import { MAX_WINNERS, type WallCategory } from '../api/types';
 
 /**
  * The categories the wall may show: not disabled in the live config, without winners
- * that were removed since /categories answered, and with at least one winner left.
+ * that were removed since /categories answered, and with at least one winner left; at
+ * most 10 winners each, in the server's order. A verdict about a removed photo goes
+ * with it.
  */
 export function visibleCategories(
   categories: readonly WallCategory[],
@@ -18,9 +20,35 @@ export function visibleCategories(
       emoji: c.emoji,
       title: c.title,
       line: c.line,
-      winners: c.winners.filter((w) => !gone.has(w.photo.id)).slice(0, 3),
+      winners: c.winners.filter((w) => !gone.has(w.photo.id)).slice(0, MAX_WINNERS),
+      verdict: c.verdict && !(c.verdict.photo_id && gone.has(c.verdict.photo_id)) ? c.verdict : null,
     }))
     .filter((c) => c.winners.length > 0);
+}
+
+/** The index of the winner a verdict is about: its `photo_id`, else the first. */
+export function verdictIndex(category: Pick<WallCategory, 'winners' | 'verdict'>): number {
+  const id = category.verdict?.photo_id;
+  const at = id ? category.winners.findIndex((w) => w.photo.id === id) : -1;
+  return at < 0 ? 0 : at;
+}
+
+export type VerdictAlign = 'start' | 'center' | 'end';
+
+/**
+ * The verdict under photo `index` of `count` (1–3 in a row) may be wider than the
+ * photo: under the first it starts at the photo's left edge, under the last it ends
+ * at its right edge, else it is centred, so it stays inside the winners' column.
+ */
+export function verdictAlign(index: number, count: number): VerdictAlign {
+  if (count <= 1) return 'center';
+  if (index === 0) return 'start';
+  return index === count - 1 ? 'end' : 'center';
+}
+
+/** Columns of the compact grid (more than 3 winners): 2 rows, TV-safe sizes. */
+export function compactColumns(count: number): number {
+  return Math.max(2, Math.ceil(count / 2));
 }
 
 /** Winner photo ids in catalogue order (the `highlights` algorithm). */

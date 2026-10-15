@@ -31,6 +31,7 @@ import {
 } from 'lucide-react';
 import { useEffect, useState, type ReactNode } from 'react';
 import { formatCount, frameLabel } from '@/lib/format';
+import { HandleField } from '@/sdk/components/HandleField';
 import { Badge } from '@/ui/Badge';
 import { BottomBar } from '@/ui/BottomBar';
 import { Button, LinkButton } from '@/ui/Button';
@@ -270,18 +271,14 @@ function Forms() {
         {(tone) => (
           <>
             <div className="grid gap-4 sm:grid-cols-2">
-              <TextField
+              <HandleField
                 label="Instagram (freiwillig)"
                 description="Dann können wir dich markieren."
-                prefix="@"
-                placeholder="deinname…"
                 value={insta}
                 onChange={setInsta}
-                maxLength={31}
               />
-              <TextField
+              <HandleField
                 label="Instagram-Name"
-                prefix="@"
                 value={bad}
                 onChange={setBad}
                 errorMessage="Instagram-Namen haben keine Umlaute und kein ß. Schau nochmal, wie deiner genau geschrieben wird."
@@ -724,12 +721,11 @@ function Overlays() {
             Damit wir dich wiedererkennen, merkt sich die Seite dein Gerät. Deine Fotos bleiben auf dem
             Party-Server.
           </HelpDisclosure>
-          <TextField
+          <HandleField
             label="Instagram (freiwillig)"
             description="Dann können wir dich markieren."
-            prefix="@"
-            placeholder="deinname…"
-            maxLength={31}
+            value=""
+            onChange={() => undefined}
           />
         </div>
       </Sheet>

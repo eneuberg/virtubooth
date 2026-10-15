@@ -368,6 +368,30 @@ number); `python -m virtubooth.tools.qr` takes `--code N` or `--token`, else
 the lowest active code, and the stored event name unless `--party-name` is
 given.
 
+### Public address
+
+The settings key `public_address` (Admin → Allgemeines, `services/host_settings.py`)
+overrides `VB_PUBLIC_BASE_URL`; empty means the request origin. Codes, posters
+and the wall's QR corner use it; CSRF and cookie decisions do not (they stay on
+the environment, N14). Saving (and „Prüfen“) fetches
+`<address>/healthz?probe=<nonce>` from the server: no redirects followed, 4 s,
+at most 4 KB, http/https only. `/healthz` answers `probe_mac =
+signer.mac("probe", nonce)[:16]`, so only this server passes. The result
+(`ok`, `unreachable`, `mismatch`) is stored in `public_address_check`; a
+failed check never blocks saving or printing (hairpin NAT), the QR tab warns.
+
+### Guest names
+
+`users.display_name` (NULL = default). The shown name is display name, else
+„@instagram“, else the pseudonym (`domain.models.shown_name`); the wall uses
+„@instagram“ only while it shows handles, and so does the external AI's poll.
+`PATCH /api/me {display_name}` validates NFKC, 2–24 characters, no Cc/Cf/Co/Cs
+characters, no leading „@“, not reserved words or the event name, not another
+guest's shown name or pseudonym (case and `._-` ignored). The admin sees
+number, pseudonym and display name and can reset it
+(`DELETE /api/admin/users/{id}/display-name`). Guests can delete their own
+photos (`DELETE /api/me/photos/{public_id}`).
+
 ## Web serving
 
 The backend serves the built frontend from `VB_WEB_DIR`: `/app/web` in the
@@ -474,52 +498,82 @@ flowchart LR
   loaded are ignored (none left = all) and left out of the config screens and
   the admin get; a save may still carry them (they are dropped), a new unknown
   one is refused. `analysis` is `off` for photos of guests who switched the
-  analysis off (no facts will come). `WallPhoto` carries the pseudonym,
-  the Instagram name only when enabled, a non-reversible `author_key`, the
+  analysis off (no facts will come). `WallPhoto.author` is the shown name
+  (display name, else „@handle“ while the wall shows handles, else the
+  pseudonym), the Instagram name only when enabled, a non-reversible `author_key`, the
   public facts (`people`, `faces`, `hands`, `smiles`) and the analysis state.
-  `qr` is the chosen (or lowest active) QR code's URL, absolute with
-  `VB_PUBLIC_BASE_URL` or the request origin, a path in events.
+  `qr` is the chosen (or lowest active) QR code's URL, absolute with the
+  public address (Allgemeines, else `VB_PUBLIC_BASE_URL`) or the request
+  origin, a path in events.
 - **Photo analysis** (`extensions/wall/enrich/`): `EnrichmentService(core)`
   is the port the wall uses (`enrichment.py`: summaries, `changes_since(rev)`,
-  catalogue, winners, active analyzers). `start()` spawns the worker
+  active analyzers, the category board). `start()` spawns the worker
   (`python -m virtubooth.extensions.wall.enrich worker`) under a supervisor
   thread: stdin is a pipe (EOF = the app is gone, the worker exits), restart
   with backoff, exit 75 = recycle (200 photos or 900 MB RSS), nice 10,
   `VB_WALL_WORKER=off` never spawns. The worker finds work by a DB scan
   (photos without a row or `pending`), claims the newest, runs the analyzer
   pipeline (topological by `needs`; basic always, ML with the `ml` extra and
-  models) and writes facts and boxes; every write sets `rev = MAX(rev)+1`.
-  Heartbeat in the settings key `x.wall.worker`. Scratch (crops, landmarks,
-  CLIP vectors) never leaves the worker's memory; deleted photos are purged.
-  Categories (`categories.py`) are SQL over `wall_facts`, at most one winner
-  per guest and category (a window function keeps each guest's best). The
-  worker imports neither FastAPI nor the extensions: `wall/__init__.py` makes
-  `extension` lazily (PEP 562 `__getattr__`), and the details' names (source
-  title, meta labels, `Extension.meta_values` such as booth filter names) come
-  from the settings key `x.wall.sources`, which the wall writes at its start.
-- **Re-analysis sweep** (`Worker.sweep`, `jobs.stale`): each `done` row stores
-  the versions of the analyzers that ran. At worker start, whenever the set a
-  run would use changes (an analyzer switched on in the admin, a model file
-  arrived) and every 5 minutes, rows that lack an expected analyzer or carry
-  another version (`AnalyzerInfo.version` bumped) are queued again, newest
-  first, their facts kept until the new run replaces them. Opted-out guests
-  expect `basic` only and no ML entry. Switching an analyzer off queues
-  nothing (its facts are ignored). The cheap static check (gate, model files)
-  runs first; only when it finds stale rows are the analyzers loaded for the
-  exact answer, so a model that fails to load never requeues every photo
-  after each recycle.
-- **Opt-out:** `users.analysis_opt_out` (join flag, `PUT /api/me/analysis`).
-  Only a real change does anything. `UsersRepo.set_analysis_opt_out` drops the
-  guest's facts and boxes and requeues their rows (each with its own rev); the
-  worker then runs only `basic` for them, and categories that need an ML
-  analyzer skip them. `IdentityService` requeues at most once per guest and
-  5 minutes (`ANALYSIS_REQUEUE_SECONDS`, in memory, ANA-01). Inside that
-  window, switching off still drops facts and boxes at once (rows keep their
-  state with empty versions; a running row goes back to `pending`, so its ML
-  result is refused) and switching on touches nothing; the sweep redoes what
-  no longer matches. Flipping the switch in a loop costs one pass per window. The
-  join texts carry the analysis paragraph while the wall is loaded
-  (`ConsentInfo.analysis`).
+  models) and writes facts, boxes and the local object list in one
+  transaction. Heartbeat in `x.wall.worker`. Scratch (crops, landmarks, CLIP
+  vectors) never leaves the worker's memory. The worker imports neither
+  FastAPI nor the extensions (`wall/__init__.py` makes `extension` lazily).
+- **Frozen data (migration 11, PLAN-NIGHT N2/N3):** a photo is analysed once.
+  `wall_facts`, `photo_objects` (the ordered object list: idx, label,
+  label_de, score, box, source, model) and `photo_detection_runs` (one row per
+  photo and source: `local`, `claude`, `mistral`; done/failed/skipped) have
+  UPDATE-abort triggers. `enrich/objects.py` only appends (idx continues; a
+  source that ran raises `FrozenError`); every append bumps the photo's
+  `wall_analysis.rev` (bookkeeping) so walls get `photo.update`. There is no
+  re-run route, no version sweep; a crashed attempt is retried up to 3 times
+  before the photo is final. Analyzer switches and settings
+  (`x.wall.analyzers`: `disabled`, `settings.objects.{score_min,max_objects}`)
+  apply to photos analysed afterwards. Deleting a photo purges all of it.
+- **Test images** (`enrich/testjobs.py`): the app writes `<data>/wall/test/<id>.jpg`
+  + `.json`, the worker answers `<id>.result.json` between photos; the app
+  waits (30 s), then removes the files. Nothing becomes a photo.
+- **Categories** (`enrich/engine.py`, table `wall_categories`, N13): each row
+  is a JSON spec (`where` conditions on value keys, `select` top/bottom by a
+  value with tie-breakers and one-per-guest, `label` style, optional
+  `verdict.prompt`), validated by `engine.validate` (400 `invalid_category`
+  with the German field name and `field`, the editor's input). `evaluate`
+  runs over a per-`rev` cached snapshot of facts, objects and property scores
+  (`values.py` parses keys like `objects.count:hat`, `prop.coolness.max`).
+  `presets.py` holds the 19 old categories (golden-tested against the old SQL)
+  plus `coolstes_objekt`; they are seeded once (`x.wall.categories_seeded`),
+  taking over the old `WallConfig.categories.disabled` list, which the config
+  now ignores. The hub publishes `categories.changed` when the newest finished
+  `llm_polls` row grows; the screen gets each category's latest verdict.
+- **Opt-outs (N4/N5):** `users.analysis_opt_out` and `users.ai_opt_out`,
+  written by the guest API only (join, `PUT /api/me/analysis`,
+  `PUT /api/me/external-ai`); flipping one only flips the flag. Readers check
+  them live: the engine leaves analysis-opted-out guests out of every
+  category; the external path leaves both (and banned guests, hidden and
+  deleted photos) out of every send and re-checks right before each call; the
+  screen hides a verdict whose photo's guest opted out. The join texts carry
+  the analysis paragraph while the wall is loaded and always the external-AI
+  paragraph, naming the configured provider (`ConsentInfo.external_ai` says
+  whether the join switch is shown).
+- **External AI** (`extensions/wall/llm/`, optional, off by default):
+  `LlmRuntime` starts two daemon threads with the wall (`on_start`): the
+  detection runner (one photo at a time after the local pipeline finished it,
+  ≤ 1024 px JPEG without EXIF, objects appended with source `claude` or
+  `mistral`) and the poller (every `poll_interval_s`, text only: one call per
+  active property in chunks of ≤ 400 objects, structured output, arrays of
+  the wrong length dropped, `property_scores` overwritten; then one verdict
+  call per enabled category with a prompt; skipped when the input hash is
+  unchanged). Providers: `anthropic` (official SDK) and `mistral` (EU, plain
+  HTTPS), behind `providers/base.Provider`. Config in `x.llm.config`; every
+  call goes through `LlmService.call`, which checks the budget (party/day in
+  USD and calls, prices in `pricing.py`) and meters `llm_usage`. Guest text is
+  JSON-quoted inside a `<data>` block that the system prompt marks as data;
+  answers are validated and length-capped (labels 60, verdicts 160).
+- **The API key** (`llm/crypto.py`, N11): `x.llm.key` holds AES-256-GCM
+  ciphertext (random 96-bit nonce per write, key = HKDF-SHA256 over
+  `VB_SECRET_KEY` with salt `virtubooth`, info `llm-key-v1`, the provider as
+  AAD). The API answers only `{set, set_at, provider, valid}`. `redact.py`
+  masks keys in log records (logger and handler filters) and stored error
+  texts; archives drop the row.
 - **Frontend:** `src/wall/` has no router or design system: a canvas
   background (`background/`, `mountBackground` is framework-free; the admin
   preview lazy-loads it), modes, selection algorithms and transitions in plain

@@ -10,6 +10,8 @@ import {
   resetSession,
   sessionStore,
   setAnalysisOptOut,
+  setDisplayName,
+  setExternalAiOptOut,
   setInstagram,
   startSession,
   type SessionState,
@@ -21,10 +23,13 @@ vi.mock('./device', () => ({
 
 const user = (over: Partial<GuestUser> = {}): GuestUser => ({
   name: 'Verrückte Ente #3',
+  display_name: null,
+  shown_name: 'Verrückte Ente #3',
   instagram: null,
   banned: false,
   uploads_paused: false,
   analysis_opt_out: false,
+  ai_opt_out: false,
   ...over,
 });
 
@@ -37,6 +42,7 @@ const consent = (over: Partial<ConsentInfo> = {}): ConsentInfo => ({
   party_name: 'Testparty',
   instagram_account: '@testparty',
   analysis: false,
+  external_ai: false,
   ...over,
 });
 
@@ -146,6 +152,7 @@ describe('session state machine', () => {
         instagram: 'anna',
         fp: { hash: 'ab'.repeat(32) },
         analysis_opt_out: false,
+        ai_opt_out: false,
       },
     });
     expect(getSession()).toEqual({
@@ -282,6 +289,30 @@ describe('session state machine', () => {
     await startSession();
     await joinParty({ instagram: null, analysisOptOut: true });
     expect(calls[1]).toMatchObject({ path: '/api/join', body: { analysis_opt_out: true } });
+  });
+
+  it('joins with „Keine Weitergabe an externe KI“', async () => {
+    const calls = serve(unknownDevice(), joined(user({ ai_opt_out: true })));
+    await startSession();
+    await joinParty({ instagram: null, aiOptOut: true });
+    expect(calls[1]).toMatchObject({
+      path: '/api/join',
+      body: { ai_opt_out: true, analysis_opt_out: false },
+    });
+  });
+
+  it('setExternalAiOptOut and setDisplayName update the user', async () => {
+    const calls = serve(
+      known(),
+      { status: 200, body: { user: user({ ai_opt_out: true }) } },
+      { status: 200, body: { user: user({ ai_opt_out: true, display_name: 'Fred', shown_name: 'Fred' }) } },
+    );
+    await startSession();
+    await expect(setExternalAiOptOut(true)).resolves.toMatchObject({ ai_opt_out: true });
+    expect(calls[1]).toMatchObject({ method: 'PUT', path: '/api/me/external-ai', body: { opt_out: true } });
+    await setDisplayName('  Fred ');
+    expect(calls[2]).toMatchObject({ method: 'PATCH', path: '/api/me', body: { display_name: 'Fred' } });
+    expect(getSession()).toMatchObject({ user: { shown_name: 'Fred' } });
   });
 
   it('setAnalysisOptOut puts the switch and updates the user', async () => {

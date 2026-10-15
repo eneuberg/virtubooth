@@ -13,7 +13,7 @@ USER_COLS = (
     "u.consent_version, u.instagram, u.fp_hash, u.fp_components, u.first_ip, "
     "u.last_ip, u.user_agent, u.banned_at, u.ban_reason, u.uploads_paused_at, "
     "u.uploads_paused_source, u.uploads_lock_period, u.online_seconds, u.online_sessions, "
-    "u.online_at, u.code_id, u.analysis_opt_out"
+    "u.online_at, u.code_id, u.analysis_opt_out, u.display_name, u.ai_opt_out"
 )
 PHOTO_COLS = (
     "p.id, p.public_id, p.extension, p.user_id, p.seq, p.filename, p.thumb_filename, "
@@ -21,7 +21,7 @@ PHOTO_COLS = (
     "p.deleted_at, u.name AS user_name, u.instagram AS user_instagram, "
     "u.banned_at IS NOT NULL AS user_banned, "
     "u.uploads_paused_at IS NOT NULL AS user_uploads_paused, "
-    "u.ban_reason AS user_ban_reason"
+    "u.ban_reason AS user_ban_reason, u.display_name AS user_display_name"
 )
 # a user as other lists mention it
 REF_COLS = "u.id, u.name, u.instagram, u.banned_at IS NOT NULL AS banned, u.ban_reason"
@@ -32,6 +32,7 @@ def user_from_row(row: sqlite3.Row, photo_count: int = 0) -> User:
     d.pop("photo_count", None)
     d["fp_components"] = json.loads(d["fp_components"] or "{}")
     d["analysis_opt_out"] = bool(d.get("analysis_opt_out"))
+    d["ai_opt_out"] = bool(d.get("ai_opt_out"))
     return User(**d, photo_count=photo_count)
 
 

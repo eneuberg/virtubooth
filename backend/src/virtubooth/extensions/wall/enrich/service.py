@@ -8,26 +8,35 @@ container (`VB_WALL_WORKER=off` here, heartbeat in `x.wall.worker`).
 
 from __future__ import annotations
 
+import json
 import logging
 import threading
 import weakref
 from collections.abc import Collection, Mapping, Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime
-from typing import TYPE_CHECKING, Any, Literal, cast
+from typing import TYPE_CHECKING, Any, cast
 
 from ....core.clock import now_iso
-from . import categories, jobs, models
-from .analyzers import ALWAYS_ON, BY_NAME, INFOS, ml_installed
-from .categories import CategoryDef, CategoryWinners, PhotoFilter
+from . import jobs, models, objects
+from .analyzers import ALWAYS_ON, BY_NAME, INFOS, SETTINGS, ml_installed
+from .engine import PhotoFilter
 from .schemas import (
     AnalysisBox,
     AnalysisCounts,
+    AnalysisQueue,
     AnalysisState,
     AnalysisStatus,
+    AnalyzerSettingSpec,
+    AnalyzerStats,
     AnalyzerStatus,
     DetailLine,
+    DetectionRun,
+    ObjectBox,
+    OptOutState,
     PhotoAnalysis,
+    PhotoObject,
+    PropertyScores,
     WorkerState,
     WorkerStatus,
 )
@@ -36,13 +45,7 @@ from .supervisor import Supervisor
 if TYPE_CHECKING:
     from ....runtime import Core
 
-__all__ = [
-    "CategoryDef",
-    "CategoryWinners",
-    "EnrichmentService",
-    "PhotoFilter",
-    "PhotoSummary",
-]
+__all__ = ["EnrichmentService", "PhotoFilter", "PhotoSummary"]
 
 log = logging.getLogger("virtubooth.wall.enrich")
 
@@ -76,6 +79,16 @@ def _int_or_none(value: Any) -> int | None:
     if isinstance(value, bool) or not isinstance(value, int | float):
         return None
     return round(value)
+
+
+def _float_or_none(value: Any) -> float | None:
+    if isinstance(value, bool) or not isinstance(value, int | float):
+        return None
+    return float(value)
+
+
+class InvalidSettings(ValueError):
+    """Analyzer settings outside their schema (German message)."""
 
 
 class EnrichmentService:
@@ -138,14 +151,6 @@ class EnrichmentService:
             return rev, []
         return int(rows[-1]["rev"]), [int(r["photo_id"]) for r in rows]
 
-    def catalogue(self) -> list[CategoryDef]:
-        return list(categories.CATALOGUE)
-
-    def winners(
-        self, ids: Sequence[str], flt: PhotoFilter, per_category: int = 3
-    ) -> list[CategoryWinners]:
-        return categories.winners(self.core.db, ids, flt, per_category)
-
     # ------------------------------------------------------- admin helpers
 
     def heartbeat(self) -> dict[str, Any]:
@@ -170,6 +175,10 @@ class EnrichmentService:
                 models.missing([m.name for m in models.REGISTRY], self.core.settings.data_dir)
             )
         load_errors: dict[str, str] = dict(beat.get("load_errors") or {}) if beat else {}
+        # the heartbeat's stats outlive the beat's freshness (they are history)
+        stats = self.heartbeat().get("stats")
+        stats = stats if isinstance(stats, dict) else {}
+        settings = jobs.analyzer_settings(self.core.repos.app_settings)
         out: dict[str, AnalyzerStatus] = {}
         for info in INFOS:  # registry order is a valid dependency order
             reason: str | None = None
@@ -185,10 +194,26 @@ class EnrichmentService:
                     if dep is None or not dep.enabled or not dep.available:
                         reason = f"Braucht die Analyse „{BY_NAME[need].title}“."
                         break
+            st = stats.get(info.name)
+            st = st if isinstance(st, dict) else {}
             out[info.name] = AnalyzerStatus(
                 name=info.name, title=info.title, kind=info.kind, version=info.version,
                 enabled=info.name not in disabled, available=reason is None, reason=reason,
-                facts=list(info.facts),
+                facts=list(info.facts), description=info.description,
+                size_mb=round(sum(models.BY_NAME[m].size for m in info.models
+                                  if m in models.BY_NAME) / 1e6, 1),
+                stats=AnalyzerStats(
+                    processed=_int_or_none(st.get("processed")) or 0,
+                    errors=_int_or_none(st.get("errors")) or 0,
+                    avg_ms=_float_or_none(st.get("avg_ms")),
+                    last_ms=_float_or_none(st.get("last_ms")),
+                ),
+                settings=settings.get(info.name),
+                settings_schema=[
+                    AnalyzerSettingSpec(key=x.key, title=x.title, min=x.min, max=x.max,
+                                        step=x.step)
+                    for x in SETTINGS.get(info.name, ())
+                ],
             )  # fmt: skip
         return list(out.values())
 
@@ -239,8 +264,9 @@ class EnrichmentService:
     def status(self) -> AnalysisStatus:
         counts = jobs.counts(self.core.db)
         return AnalysisStatus(
-            worker=self.worker(), counts=AnalysisCounts(**counts), analyzers=self.analyzers()
-        )
+            worker=self.worker(), counts=AnalysisCounts(**counts),
+            queue=AnalysisQueue(**jobs.queue(self.core.db)), analyzers=self.analyzers(),
+        )  # fmt: skip
 
     def set_disabled(self, names: Collection[str], *, actor: str) -> set[str]:
         """Store the complete disabled set (unknown names must be rejected first)."""
@@ -252,15 +278,61 @@ class EnrichmentService:
             )
         return disabled
 
-    def rerun(self, scope: Literal["failed", "all"]) -> int:
-        return jobs.rerun(self.core.db, scope)
+    def set_analyzer(
+        self, name: str, *, enabled: bool, settings: Mapping[str, float] | None, actor: str
+    ) -> None:
+        """Switch one analyzer and/or change its settings (they apply to photos
+        analysed afterwards; analyses are frozen). Raises InvalidSettings."""
+        specs = {x.key: x for x in SETTINGS.get(name, ())}
+        if name in ALWAYS_ON and not enabled:
+            raise InvalidSettings("Die Bildwerte laufen immer.")
+        clean: dict[str, float] = {}
+        for key, value in (settings or {}).items():
+            spec = specs.get(key)
+            if spec is None:
+                raise InvalidSettings(f"Unbekannte Einstellung: {key}.")
+            if isinstance(value, bool) or not isinstance(value, int | float):
+                raise InvalidSettings(f"Ungültiger Wert für „{spec.title}“.")
+            if not spec.min <= value <= spec.max or (spec.integer and value != int(value)):
+                raise InvalidSettings(
+                    f"„{spec.title}“ muss zwischen {spec.min:g} und {spec.max:g} liegen."
+                )
+            clean[key] = int(value) if spec.integer else float(value)
+        repo = self.core.repos.app_settings
+        with self.core.db.tx():
+            disabled = jobs.disabled_analyzers(repo)
+            disabled = (disabled - {name}) if enabled else (disabled | {name})
+            all_settings = jobs.analyzer_settings(repo)
+            if clean:
+                all_settings[name] = all_settings.get(name, {}) | clean
+            jobs.save_disabled(repo, disabled, by=actor, settings=all_settings)
+            self.core.repos.audit.log(
+                actor, "wall.analyzers", name,
+                {"enabled": enabled, "settings": clean} if clean else {"enabled": enabled},
+                at=now_iso(),
+            )  # fmt: skip
 
     def photo_analysis(self, public_id: str) -> PhotoAnalysis | None:
         photo = self.core.repos.photos.get(public_id)
         if photo is None:
             return None
-        row = jobs.get(self.core.db, photo.id)
+        db = self.core.db
+        row = jobs.get(db, photo.id)
         data = row.data if row else {}
+        flags = db.one("SELECT analysis_opt_out, ai_opt_out FROM users WHERE id=?",
+                       (photo.user_id,))  # fmt: skip
+        objs = objects.objects_of(db, [photo.id]).get(photo.id, [])
+        props = [
+            PropertyScores(
+                name=r["name"], archived=r["archived_at"] is not None, scores=_scores(r["scores"])
+            )
+            for r in db.all(
+                "SELECT p.name, p.archived_at, s.scores FROM property_scores s "
+                "JOIN llm_properties p ON p.id = s.property_id WHERE s.photo_id=? ORDER BY p.name",
+                (photo.id,),
+            )
+        ]
+        durations = data.get("durations_ms")
         return PhotoAnalysis(
             photo_id=photo.public_id,
             state=cast(AnalysisState, row.state) if row else "pending",
@@ -268,14 +340,42 @@ class EnrichmentService:
             error=row.error if row else None,
             finished_at=row.finished_at if row else None,
             versions=row.versions if row else {},
-            facts=jobs.facts(self.core.db, photo.id),
+            facts=jobs.facts(db, photo.id),
             boxes=[AnalysisBox.model_validate(b) for b in data.get("boxes", [])],
             details=[DetailLine.model_validate(d) for d in data.get("details", [])],
+            objects=[
+                PhotoObject(
+                    idx=o.idx,
+                    label=o.label,
+                    label_de=o.label_de,
+                    score=o.score,
+                    box=ObjectBox(x=o.box[0], y=o.box[1], w=o.box[2], h=o.box[3])
+                    if o.box
+                    else None,
+                    source=o.source,
+                    model=o.model,
+                )
+                for o in objs
+            ],
+            runs=[DetectionRun.model_validate(r) for r in objects.runs_of(db, photo.id)],
+            opt_out=OptOutState(
+                analysis=bool(flags and flags[0]), external_ai=bool(flags and flags[1])
+            ),
+            opt_out_at_analysis=bool(data.get("opt_out", False)),
+            properties=props,
+            durations_ms={str(k): int(v) for k, v in durations.items()}
+            if isinstance(durations, dict)
+            else {},
         )
 
-    def request(self, public_id: str) -> PhotoAnalysis | None:
-        photo = self.core.repos.photos.get(public_id)
-        if photo is None:
-            return None
-        jobs.request(self.core.db, photo.id)
-        return self.photo_analysis(public_id)
+
+def _scores(raw: str) -> list[float | None]:
+    try:
+        values = json.loads(raw)
+    except ValueError:
+        return []
+    if not isinstance(values, list):
+        return []
+    return [
+        float(v) if isinstance(v, int | float) and not isinstance(v, bool) else None for v in values
+    ]

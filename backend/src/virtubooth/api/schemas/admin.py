@@ -176,8 +176,15 @@ class AdminUser(BaseModel):
     """Everything about a guest. The same shape in every response and event."""
 
     id: int
-    name: str
+    name: str = Field(description="The pseudonym (internal name, never changes).")
+    display_name: str | None = Field(description="The name the guest chose; null: default.")
+    shown_name: str = Field(
+        description="How other guests see them: display name, else „@<instagram>“, else "
+        "the pseudonym."
+    )
     instagram: str | None
+    analysis_opt_out: bool = Field(description="„Gast möchte keine Auswertung“.")
+    ai_opt_out: bool = Field(description="„Keine externe KI“.")
     created_at: str
     last_seen_at: str
     consent_at: str
@@ -211,7 +218,11 @@ class AdminUser(BaseModel):
         return cls(
             id=u.id,
             name=u.name,
+            display_name=u.display_name,
+            shown_name=u.shown_name,
             instagram=u.instagram,
+            analysis_opt_out=u.analysis_opt_out,
+            ai_opt_out=u.ai_opt_out,
             created_at=u.created_at,
             last_seen_at=u.last_seen_at,
             consent_at=u.consent_at,
@@ -294,6 +305,11 @@ class UnbanIn(BaseModel):
     # also lift the bans on every fingerprint this guest showed (and with them
     # the bans of other identities that only started banned because of them)
     fingerprint: bool = False
+
+
+class DisplayNameResetOut(BaseModel):
+    user: AdminUser
+    changed: bool
 
 
 class BanOut(BaseModel):

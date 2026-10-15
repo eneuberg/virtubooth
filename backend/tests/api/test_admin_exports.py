@@ -1,4 +1,4 @@
-"""Admin export jobs (`/api/admin/exports`): archive, timelapse and QR codes as
+"""Admin export jobs (`/api/admin/exports`): archive and timelapse as
 background jobs, one at a time, persisted, with events, audit, downloads and
 cleanup.
 
@@ -34,7 +34,7 @@ from virtubooth.services import exports as exports_service
 from virtubooth.services.export_runners import JobContext
 from virtubooth.tools.timelapse import Size
 
-from ..conftest import ADMIN_PASSWORD, JPEG, ORIGIN, PARTY_TOKEN, jpeg
+from ..conftest import ADMIN_PASSWORD, JPEG, ORIGIN, jpeg
 from .test_admin_events import Stream
 
 HAS_FFMPEG = bool(shutil.which("ffmpeg") and shutil.which("ffprobe"))
@@ -122,6 +122,16 @@ def gate(core) -> Iterator[Gate]:
     core.services.exports.runners["archive"] = g
     yield g
     g.release.set()  # never leave the worker hanging
+
+
+def _quick(ctx: JobContext) -> None:
+    ctx.part.write_bytes(b"quick")
+
+
+@pytest.fixture
+def quick(core) -> None:
+    """A timelapse job that only writes a small file (no ffmpeg needed)."""
+    core.services.exports.runners["timelapse"] = _quick
 
 
 @pytest.fixture
@@ -236,45 +246,34 @@ def test_archive_of_an_empty_party(admin, core):
     assert any(n.endswith("/manifest.json") for n in files)
 
 
-# ----------------------------------------------------------------------- qr
+# ------------------------------------------------- the removed QR sheet (N16)
 
 
-def test_qr_job_zip_has_sheet_and_codes(admin, core, base_url):
-    done = run(admin, core, "qr")
-    assert done["status"] == "done"
-    assert done["options"] == {"base_url": BASE, "code_id": 1}  # the defaults, recorded
-    assert re.fullmatch(r"qr-codes-\d{8}-\d{4}-[\w-]{8}\.zip", done["file_name"])
-    r = download(admin, done)
-    assert r.headers["content-type"] == "application/zip"
-    files = strip_root(unzip(r.content), done["file_name"][:-4])
-    assert set(files) == {
-        "qr-sheet.html", "qr-home.svg", "qr-home.png", "qr-demo.svg", "qr-demo.png",
-    }  # fmt: skip
-    assert files["qr-home.png"].startswith(b"\x89PNG") and b"<svg" in files["qr-demo.svg"]
-    sheet = files["qr-sheet.html"].decode()
-    assert "Testparty" in sheet and sheet.count('class="card"') == 2
-    # self-contained: no scripts, no external files; the token is only inside the codes
-    assert "<script" not in sheet and "<link" not in sheet and "src=" not in sheet
-    assert "url(" not in sheet and "@import" not in sheet
-    assert PARTY_TOKEN not in sheet
-    # big files resume: Range requests work
-    part = admin.get(done["download_url"], headers={"Range": "bytes=0-3"})
-    assert part.status_code == 206 and part.content == b"PK\x03\x04"
-
-
-def test_qr_base_url_option_and_errors(admin, core):
-    r = admin.post("/api/admin/exports", json={"kind": "qr"}, headers=ORIGIN)
-    assert r.status_code == 400 and r.json()["error"] == "base_url_required"
-    assert "VB_PUBLIC_BASE_URL" in r.json()["message"]
-    for bad in ("party.example.com", "ftp://x.example", "https://x.example/?a=1", "https://"):
-        r = admin.post(
-            "/api/admin/exports", json={"kind": "qr", "options": {"base_url": bad}}, headers=ORIGIN
-        )
-        assert r.status_code == 400 and r.json()["error"] == "invalid_base_url", bad
+def test_qr_kind_is_gone(admin, core):
+    for body in ({"kind": "qr"}, {"kind": "qr", "options": {"base_url": BASE}}):
+        r = admin.post("/api/admin/exports", json=body, headers=ORIGIN)
+        assert r.status_code == 422 and r.json()["error"] == "invalid_request"
     assert core.repos.exports.list() == []
-    done = run(admin, core, "qr", base_url=" https://other.example/ ")
-    assert done["status"] == "done"
-    assert done["options"] == {"base_url": "https://other.example", "code_id": 1}
+
+
+def test_old_qr_jobs_are_hidden(admin, core):
+    """Records of the old QR sheet stay in the table but never show up."""
+    idle(core)
+    core.repos.exports.insert(
+        "OldQrJob00000001", kind="qr", options={"base_url": BASE, "code_id": 1},  # type: ignore[arg-type]
+        created_at="2026-10-13T20:00:00.000+00:00", by="admin:test",
+    )  # fmt: skip
+    core.db.one(
+        "UPDATE export_jobs SET status='done', file_name='qr-codes-x.zip' WHERE id=? RETURNING id",
+        ("OldQrJob00000001",),
+    )
+    assert admin.get("/api/admin/exports").json()["jobs"] == []
+    r = admin.get("/api/admin/exports/OldQrJob00000001/download")
+    assert r.status_code == 404
+    r = admin.delete("/api/admin/exports/OldQrJob00000001", headers=ORIGIN)
+    assert r.status_code == 404
+    done = run(admin, core, "archive")
+    assert [j["id"] for j in jobs(admin)] == [done["id"]]
 
 
 def test_list_tells_the_form_its_defaults(admin, base_url, monkeypatch):
@@ -362,8 +361,8 @@ def test_timelapse_without_photos_fails_with_a_hint(admin, guest, core):
         {"kind": "timelapse", "options": {"fps": 31}},
         {"kind": "timelapse", "options": {"extension": "../beer"}},
         {"kind": "timelapse", "options": {"extension": "Beer"}},
-        {"kind": "qr", "options": {"base_url": "https://" + "x" * 300}},
-        {"kind": "qr", "options": {"include_db": True}},
+        {"kind": "qr"},
+        {"kind": "timelapse", "options": {"include_db": True}},
         ["archive"],
     ],
 )
@@ -388,7 +387,7 @@ def test_unknown_or_malformed_ids(admin):
 # ------------------------------------------------------- queue and lifecycle
 
 
-def test_one_job_per_kind_and_one_at_a_time(admin, core, gate, base_url):
+def test_one_job_per_kind_and_one_at_a_time(admin, core, gate, quick):
     first = start(admin, "archive")
     assert gate.started.wait(10)
     assert job(admin, first["id"])["status"] == "running"
@@ -400,8 +399,8 @@ def test_one_job_per_kind_and_one_at_a_time(admin, core, gate, base_url):
     assert r.status_code == 200 and r.json()["created"] is False
     assert r.json()["job"]["id"] == first["id"] and r.json()["job"]["status"] == "running"
     # another kind queues behind it: one job at a time
-    queued = start(admin, "qr")
-    assert start(admin, "qr", expect=200)["id"] == queued["id"]
+    queued = start(admin, "timelapse")
+    assert start(admin, "timelapse", expect=200)["id"] == queued["id"]
     assert job(admin, queued["id"])["status"] == "queued"
     assert [j["id"] for j in jobs(admin)] == [queued["id"], first["id"]]  # newest first
 
@@ -437,22 +436,22 @@ def test_running_job_cannot_be_deleted_or_downloaded(admin, core, gate):
     assert admin.get(done["download_url"]).status_code == 404
 
 
-def test_deleting_a_queued_job_cancels_it(admin, core, gate, base_url):
+def test_deleting_a_queued_job_cancels_it(admin, core, gate, quick):
     running = start(admin, "archive")
     assert gate.started.wait(10)
-    queued = start(admin, "qr")
+    queued = start(admin, "timelapse")
     r = admin.delete(f"/api/admin/exports/{queued['id']}", headers=ORIGIN)
     assert r.status_code == 200
     gate.release.set()
     idle(core)
     assert [j["id"] for j in jobs(admin)] == [running["id"]]
-    assert not list((core.settings.data_dir / "exports").glob("qr-*"))
+    assert not list((core.settings.data_dir / "exports").glob("zeitraffer-*"))
 
 
 def test_restart_marks_unfinished_jobs_failed(admin, core, extensions):
     idle(core)  # the worker waits; nothing below wakes it
     repos = core.repos.exports
-    for job_id, kind in (("JobRunning000001", "archive"), ("JobQueued0000002", "qr")):
+    for job_id, kind in (("JobRunning000001", "archive"), ("JobQueued0000002", "timelapse")):
         repos.insert(job_id, kind=kind, options={}, created_at="2026-10-13T20:00:00.000+00:00",
                      by="admin:test")  # fmt: skip
     # the worker (idle, nothing woke it) must not pick them up: claim one by hand
@@ -512,9 +511,9 @@ def test_crashing_runner_fails_with_a_generic_message(admin, core):
     assert list((core.settings.data_dir / "exports").iterdir()) == []
 
 
-def test_old_files_are_pruned(admin, core, base_url, monkeypatch, published):
+def test_old_files_are_pruned(admin, core, quick, monkeypatch, published):
     monkeypatch.setattr(exports_service, "KEEP_DONE", 2)
-    done = [run(admin, core, "qr") for _ in range(3)]
+    done = [run(admin, core, "timelapse") for _ in range(3)]
     listed = jobs(admin)
     assert [j["id"] for j in listed] == [done[2]["id"], done[1]["id"]]
     files = sorted(p.name for p in (core.settings.data_dir / "exports").iterdir())
@@ -525,8 +524,8 @@ def test_old_files_are_pruned(admin, core, base_url, monkeypatch, published):
 # ------------------------------------------------------------ events, audit
 
 
-def test_events_follow_the_job(admin, core, base_url, published):
-    created = start(admin, "qr")
+def test_events_follow_the_job(admin, core, published):
+    created = start(admin, "archive")
     idle(core)
     admin.delete(f"/api/admin/exports/{created['id']}", headers=ORIGIN)
     ours = [(t, d) for t, d in published if t.startswith("export.")]
@@ -557,8 +556,8 @@ def test_progress_events_are_throttled(admin, core, published):
     assert running == sorted(running)
 
 
-def test_create_and_delete_are_audited(admin, core, base_url):
-    created = start(admin, "qr", base_url="https://x.example")
+def test_create_and_delete_are_audited(admin, core):
+    created = start(admin, "archive", include_db=True)
     idle(core)
     admin.delete(f"/api/admin/exports/{created['id']}", headers=ORIGIN)
     entries = admin.get("/api/admin/audit").json()["entries"]
@@ -566,11 +565,11 @@ def test_create_and_delete_are_audited(admin, core, base_url):
     assert create["action"] == "export.create" and create["target"] == f"export:{created['id']}"
     assert create["actor"].startswith("admin:")
     assert create["details"] == {
-        "kind": "qr",
-        "options": {"base_url": "https://x.example", "code_id": 1},
+        "kind": "archive",
+        "options": {"include_hidden": False, "include_db": True},
     }
     assert delete["action"] == "export.delete" and delete["target"] == create["target"]
-    assert delete["details"]["kind"] == "qr" and delete["details"]["status"] == "done"
+    assert delete["details"]["kind"] == "archive" and delete["details"]["status"] == "done"
     # a refused delete (or a repeated create) leaves no entry
     assert admin.delete(f"/api/admin/exports/{created['id']}", headers=ORIGIN).status_code == 404
     assert [e["action"] for e in admin.get("/api/admin/audit").json()["entries"]] == [
@@ -578,13 +577,13 @@ def test_create_and_delete_are_audited(admin, core, base_url):
     ]  # fmt: skip
 
 
-def test_every_answer_carries_the_event_cursor(admin, core, base_url):
-    created = start(admin, "qr")
+def test_every_answer_carries_the_event_cursor(admin, core):
+    created = start(admin, "archive")
     idle(core)
     done = job(admin, created["id"])
     for r in (
         admin.get("/api/admin/exports"),
-        admin.post("/api/admin/exports", json={"kind": "qr"}, headers=ORIGIN),
+        admin.post("/api/admin/exports", json={"kind": "archive"}, headers=ORIGIN),
         admin.get(done["download_url"]),
         admin.delete(f"/api/admin/exports/{done['id']}", headers=ORIGIN),
     ):
@@ -593,8 +592,8 @@ def test_every_answer_carries_the_event_cursor(admin, core, base_url):
     idle(core)
 
 
-def test_download_never_leaves_the_exports_dir(admin, core, base_url):
-    done = run(admin, core, "qr")
+def test_download_never_leaves_the_exports_dir(admin, core):
+    done = run(admin, core, "archive")
     secret = core.settings.data_dir / "virtubooth.db"
     assert secret.is_file()
     for name in ("../virtubooth.db", "/etc/passwd", ".hidden", "sub/x.zip"):
@@ -637,7 +636,7 @@ def test_export_events_on_the_admin_stream(live_url, core):
         try:
             assert stream.wait_for(lambda line: line.startswith("retry:"))  # subscribed
             # (an https VB_PUBLIC_BASE_URL would make the cookies Secure: not over http)
-            body = {"kind": "qr", "options": {"base_url": BASE}}
+            body = {"kind": "archive"}
             r = admin.post("/api/admin/exports", json=body, headers=origin)
             assert r.status_code == 202
             job_id = r.json()["job"]["id"]

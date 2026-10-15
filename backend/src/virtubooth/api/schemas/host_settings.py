@@ -1,5 +1,5 @@
 """Request and response models of the admin settings (`/api/admin/settings...`):
-the event name and the admin password. Extensions keep their own settings
+the event name, the admin password and the public address. Extensions keep their own settings
 models (e.g. the Fotobox filters in `extensions/booth`)."""
 
 from __future__ import annotations
@@ -43,9 +43,48 @@ class PasswordState(BaseModel):
     changed_at: str | None = Field(description="When it was set; null for env.")
 
 
+CheckStatus = Literal["ok", "unreachable", "mismatch", "auto", "unchecked"]
+
+
+class AddressCheck(BaseModel):
+    """Whether the public address reaches THIS server: it fetched
+    `<address>/healthz?probe=<nonce>` and compared the answer's `probe_mac`."""
+
+    status: CheckStatus = Field(
+        description="ok: reaches this server; unreachable: no answer (DNS, refused, timeout, "
+        "TLS); mismatch: something else answers (another server, a redirect, an error page); "
+        "auto: no address set, the QR codes use the address the admin is open on; unchecked: "
+        "not checked since the address changed."
+    )
+    url: str | None = Field(description="The address that was checked.")
+    at: str | None = Field(description="When it was checked; null: never.")
+    message: str = Field(description="German detail for the admin, e.g. „Zeitüberschreitung“.")
+
+
+class PublicAddress(BaseModel):
+    """The address QR codes, posters and the Live-Wall's code point to."""
+
+    address: str | None = Field(description="Set in Allgemeines; null: not set.")
+    effective: str | None = Field(
+        description="What the codes use: `address`, else VB_PUBLIC_BASE_URL, else the "
+        "origin this request came in on."
+    )
+    source: Literal["setting", "env", "auto"]
+    check: AddressCheck
+
+
+class PublicAddressIn(BaseModel):
+    address: str | None = Field(
+        max_length=300,
+        description="http(s)://host[:port][/path], no query or fragment; null or blank: "
+        "back to VB_PUBLIC_BASE_URL / automatic.",
+    )
+
+
 class AdminSettingsOut(BaseModel):
     event: EventSettings
     password: PasswordState
+    public_address: PublicAddress
 
 
 class PasswordChangeIn(BaseModel):

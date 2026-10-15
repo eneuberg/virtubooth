@@ -9,7 +9,7 @@
  * are older than STALE_MS. A photo the guest just sent is added at once
  * (useMyPhotosSync), so Start never says "Noch keine Bilder" right after a shot.
  */
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query';
 import { useEffect } from 'react';
 import { api, unwrap } from '@/api/client';
 import type { GuestPhoto, MyPhotosResponse } from '@/api/types';
@@ -21,6 +21,14 @@ export const MY_PHOTOS_KEY = ['me', 'photos'] as const;
 const STALE_MS = 15_000;
 /** the server's page size */
 const MAX_PHOTOS = 60;
+
+/** DELETE /api/me/photos/{id}: the guest deletes one of their own photos for good. */
+export async function deleteMyPhoto(client: QueryClient, id: string): Promise<void> {
+  await unwrap(api.DELETE('/api/me/photos/{public_id}', { params: { path: { public_id: id } } }));
+  client.setQueryData<MyPhotosResponse>(MY_PHOTOS_KEY, (old) =>
+    old ? { ...old, photos: old.photos.filter((p) => p.id !== id) } : old,
+  );
+}
 
 export function useMyPhotos() {
   const ready = useSession().status === 'ready';
