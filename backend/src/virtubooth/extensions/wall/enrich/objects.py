@@ -101,8 +101,9 @@ def _box(o: DetectedObject) -> tuple[float | None, ...]:
 
 
 def append(
-    db: Database, photo_id: int, source: str, model: str, objs: Sequence[DetectedObject]
-) -> list[int]:
+    db: Database, photo_id: int, source: str, model: str, objs: Sequence[DetectedObject],
+    *, image: str | None = None,
+) -> list[int]:  # fmt: skip
     """Store `objs` (in this order) as the source's list, merge them into the
     photo's merged list and record the source's `done` run. Returns, per object,
     the merged idx it became or was linked to. FrozenError when the source ran."""
@@ -142,8 +143,8 @@ def append(
         )
         c.execute(
             "INSERT INTO photo_detection_runs (photo_id, source, state, model, error, objects, "
-            "created_at) VALUES (?, ?, 'done', ?, NULL, ?, ?)",
-            (photo_id, source, model, len(source_rows), at),
+            "created_at, image) VALUES (?, ?, 'done', ?, NULL, ?, ?, ?)",
+            (photo_id, source, model, len(source_rows), at, image),
         )
         _bump_rev(c, photo_id)
     return out
@@ -172,7 +173,7 @@ def _entries(c: sqlite3.Connection, photo_id: int) -> list[Entry]:
 
 def record_run(
     db: Database, photo_id: int, source: str, state: RunState, model: str | None,
-    error: str | None,
+    error: str | None, *, image: str | None = None,
 ) -> None:  # fmt: skip
     """Record a run without objects (`failed`, `skipped`; `done` with none).
     `append` records `done` itself. FrozenError when the source ran."""
@@ -182,8 +183,8 @@ def record_run(
         _check_new(c, photo_id, source)
         c.execute(
             "INSERT INTO photo_detection_runs (photo_id, source, state, model, error, objects, "
-            "created_at) VALUES (?, ?, ?, ?, ?, 0, ?)",
-            (photo_id, source, state, model, (error or None) and error[:200], now_iso()),
+            "created_at, image) VALUES (?, ?, ?, ?, ?, 0, ?, ?)",
+            (photo_id, source, state, model, (error or None) and error[:200], now_iso(), image),
         )
         _bump_rev(c, photo_id)
 
@@ -262,7 +263,7 @@ def source_objects_of(db: Database, photo_id: int) -> dict[str, list[SourceObjec
 
 
 def runs_of(db: Database, photo_id: int) -> list[dict[str, str | int | None]]:
-    """The photo's detection runs: {source, state, model, error, objects}."""
+    """The photo's detection runs: {source, state, model, error, objects, image}."""
     return [
         {
             "source": r["source"],
@@ -270,9 +271,10 @@ def runs_of(db: Database, photo_id: int) -> list[dict[str, str | int | None]]:
             "model": r["model"],
             "error": r["error"],
             "objects": int(r["objects"]),
+            "image": r["image"],
         }
         for r in db.all(
-            "SELECT source, state, model, error, objects FROM photo_detection_runs "
+            "SELECT source, state, model, error, objects, image FROM photo_detection_runs "
             "WHERE photo_id=? ORDER BY rowid",
             (photo_id,),
         )

@@ -191,6 +191,13 @@ function OptOutMarks({ optOut }: { optOut: PhotoAnalysis['opt_out'] }) {
   );
 }
 
+/** which image a run looked at („Erkennung auf“) */
+const RUN_IMAGE: Record<'original' | 'filtered' | 'photo', string> = {
+  original: 'auf Original',
+  filtered: 'auf gefiltertem Foto',
+  photo: 'auf dem Foto',
+};
+
 const RUN_STATE: Record<PhotoAnalysis['runs'][number]['state'], string> = {
   done: 'fertig',
   failed: 'fehlgeschlagen',
@@ -237,6 +244,7 @@ function Objects({ photoId, analysis }: { photoId: string; analysis: PhotoAnalys
             <li key={r.source}>
               Erkennung {sourceText(r.source)}: {RUN_STATE[r.state]}
               {r.model ? <span className="font-mono"> ({r.model})</span> : null}
+              {r.image ? <span data-testid="analysis-run-image"> · {RUN_IMAGE[r.image]}</span> : null}
               {r.error ? <span className="text-danger"> – {r.error}</span> : null}
             </li>
           ))}

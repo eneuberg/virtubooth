@@ -18,13 +18,19 @@ import { Switch } from '@/ui/Switch';
 import { TextField } from '@/ui/TextField';
 import { showToast } from '@/ui/Toast';
 import { errorText, showError } from '../common/usePhotoActions';
-import { setAnalyzer } from '../wall/api';
+import { setAnalysisImage, setAnalyzer } from '../wall/api';
 import { Card } from '../wall/fields';
 import { useAnalysisStatus } from '../wall/hooks';
 import { wk } from '../wall/keys';
 import { ANALYZER_KIND_LABELS, WORKER_LABELS } from '../wall/labels';
 import { countsText, lastBeatText, memoryText, processedText } from '../wall/text';
-import type { Analyzer, AnalysisStatus, WorkerState } from '../wall/types';
+import {
+  ANALYSIS_IMAGES,
+  type AnalysisImage,
+  type Analyzer,
+  type AnalysisStatus,
+  type WorkerState,
+} from '../wall/types';
 import { parseDecimal, numberText } from '../wall/categories/spec';
 import { setObjectDetection } from './api';
 import { ExternalAiHint } from './ExternalAiHint';
@@ -315,15 +321,58 @@ function AiDetectorRow({ llm }: { llm: LlmStatus }) {
   );
 }
 
+const IMAGE_LABELS: Record<AnalysisImage, string> = {
+  original: 'Original (ohne Filter)',
+  filtered: 'Gefiltertes Foto',
+};
+
+/** „Erkennung auf“: the unfiltered original or the filtered photo, for new photos. */
+function AnalysisImageChoice({ value }: { value: AnalysisImage }) {
+  const qc = useQueryClient();
+  const [pending, setPending] = useState(false);
+  const choose = async (next: AnalysisImage) => {
+    if (next === value) return;
+    setPending(true);
+    try {
+      qc.setQueryData<AnalysisStatus>(wk.analysis, await setAnalysisImage(next));
+    } catch (err) {
+      showError(err);
+    } finally {
+      setPending(false);
+    }
+  };
+  return (
+    <div className="grid gap-1.5" data-testid="ml-analysis-image-block">
+      <p className="font-semibold">Erkennung auf</p>
+      <SegmentedControl
+        label="Erkennung auf"
+        size="sm"
+        options={ANALYSIS_IMAGES.map((id) => ({ id, label: IMAGE_LABELS[id] }))}
+        value={value}
+        onChange={(m) => void choose(m)}
+        isDisabled={pending}
+        className="justify-self-start"
+        data-testid="ml-analysis-image"
+      />
+      <p className="text-xs text-ink-muted">
+        Für alle Analysen und die KI-Erkennung neuer Fotos. Fotos ohne eigenes Original (z. B. ohne Filter)
+        werden immer so analysiert, wie sie sind.
+      </p>
+    </div>
+  );
+}
+
 /** The either/or: one choice over the local detector's row and the AI's row. */
 function ObjectDetection({
   analyzer,
   llm,
+  image,
   busy,
   onToggle,
 }: {
   analyzer: Analyzer;
   llm: LlmStatus;
+  image: AnalysisImage;
   busy: boolean;
   onToggle: (on: boolean) => void;
 }) {
@@ -375,6 +424,7 @@ function ObjectDetection({
             „KI“ geht nicht: {provider.title} kann keine Fotos ansehen.
           </p>
         ) : null}
+        <AnalysisImageChoice value={image} />
       </div>
       <ul className="grid border-t border-line" aria-label="Objekterkennung">
         <AnalyzerRow
@@ -432,6 +482,7 @@ export function ModelsCard() {
                   key={a.name}
                   analyzer={a}
                   llm={llm.data}
+                  image={data.image}
                   busy={busy === a.name}
                   onToggle={(on) => void toggle(a, on)}
                 />

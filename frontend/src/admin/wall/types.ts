@@ -315,6 +315,8 @@ export interface AnalysisStatus {
   queue: { pending: number; running: number; oldest_pending_s: number | null };
   analyzers: Analyzer[];
   models: ModelsStatus;
+  /** „Erkennung auf“: the image every analyzer and the AI detection read for new photos */
+  image: AnalysisImage;
 }
 
 export const MODEL_DOWNLOAD_STATES = ['idle', 'running', 'done', 'failed'] as const;
@@ -440,4 +442,9 @@ export interface DetectionRun {
   state: 'done' | 'failed' | 'skipped';
   model: string | null;
   error: string | null;
+  /** the image it looked at; null: before the choice existed */
+  image?: 'original' | 'filtered' | 'photo' | null;
 }
+
+export const ANALYSIS_IMAGES = ['original', 'filtered'] as const;
+export type AnalysisImage = (typeof ANALYSIS_IMAGES)[number];

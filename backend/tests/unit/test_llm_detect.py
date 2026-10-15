@@ -211,3 +211,35 @@ def test_sends_the_unfiltered_original_when_there_is_one(core):
     assert DetectionRunner(svc).run_once() == "done"
     r, _, b = Image.open(io.BytesIO(fake.detected[0])).convert("RGB").getpixel((5, 5))
     assert b > 200 and r < 50  # the blue original, not the red photo
+    assert runs_image(core, pid) == "original"
+
+
+def runs_image(core, pid):
+    return core.db.one(
+        "SELECT image FROM photo_detection_runs WHERE photo_id=? AND source != 'local'", (pid,)
+    )["image"]
+
+
+def test_sends_the_filtered_photo_when_chosen(core):
+    """„Erkennung auf: Gefiltertes Foto“ applies to the AI's detection too."""
+    from virtubooth.extensions.wall.enrich import jobs
+
+    fake = FakeProvider()
+    svc = setup_llm(core, fake, detect=EXTERNAL)
+    jobs.save_analysis_image(core.repos.app_settings, "filtered", by="t")
+    pid, public_id = add_photo(core, add_guest(core), image=_solid((250, 10, 10)))
+    raw = core.repos.photos.path("demo", f"raw/{public_id}.jpg")
+    raw.parent.mkdir(parents=True, exist_ok=True)
+    raw.write_bytes(_solid((10, 10, 250)))
+    with core.db.tx() as c:
+        c.execute(
+            "UPDATE photos SET raw_filename=?, raw_thumb_filename=? WHERE id=?",
+            (f"raw/{public_id}.jpg", f"raw/{public_id}.jpg", pid),
+        )
+    plain, _ = add_photo(core, add_guest(core), image=_solid((250, 10, 10)), age_s=7200)
+    runner = DetectionRunner(svc)
+    assert runner.run_once() == "done" and runner.run_once() == "done"
+    for img in fake.detected:
+        r, _, b = Image.open(io.BytesIO(img)).convert("RGB").getpixel((5, 5))
+        assert r > 200 and b < 50  # the red photo as the guest saw it
+    assert runs_image(core, pid) == "filtered" and runs_image(core, plain) == "photo"

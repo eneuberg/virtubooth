@@ -127,6 +127,8 @@ class PhotoInfo:
     opt_out: bool = False
     # the source's names for the details; None: the raw ids
     source: SourceLabels | None = None
+    # which image `filename` is: original | filtered | photo (jobs.pick_image)
+    image: str | None = None
 
 
 @dataclass

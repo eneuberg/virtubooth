@@ -223,7 +223,7 @@ def test_the_verdict_reaches_the_screen(admin, guest, core):
         c.execute("INSERT INTO photo_objects VALUES (?, 0, 'hat', 'Hut', 0.9, NULL, NULL, NULL, "
                   "NULL, 'local', 'm@1', 'now')", (pid,))  # fmt: skip
         c.execute("INSERT INTO photo_detection_runs VALUES (?, 'local', 'done', 'm@1', NULL, 1, "
-                  "'now')", (pid,))  # fmt: skip
+                  "'now', NULL)", (pid,))  # fmt: skip
         c.execute("INSERT INTO llm_properties (id, name, prompt, created_at) "
                   "VALUES (1, 'coolness', 'p', 'now')")  # fmt: skip
         c.execute("INSERT INTO llm_polls (id, started_at, state) VALUES (1, 'now', 'done')")

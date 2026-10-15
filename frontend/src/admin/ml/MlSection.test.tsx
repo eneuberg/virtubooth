@@ -263,6 +263,26 @@ describe('ML-Pipeline section', () => {
     expect(objectFrames()[0]?.style.borderColor).toBe('#a855f7');
   });
 
+  it('„Erkennung auf“: original or filtered photo, next to the detection choice', async () => {
+    const { requests } = renderSection({
+      [`PUT ${A}/analysis/image`]: () => ({ ...analysisStatus, image: 'filtered' }),
+    });
+    const block = await screen.findByTestId('ml-analysis-image-block');
+    expect(screen.getByTestId('ml-object-detection-block').contains(block)).toBe(true);
+    const choice = within(block).getByTestId('ml-analysis-image');
+    expect(within(choice).getByRole('radio', { name: 'Original (ohne Filter)' })).toHaveProperty(
+      'checked',
+      true,
+    );
+    fireEvent.click(within(choice).getByRole('radio', { name: 'Gefiltertes Foto' }));
+    await waitFor(() =>
+      expect(within(choice).getByRole('radio', { name: 'Gefiltertes Foto' })).toHaveProperty('checked', true),
+    );
+    const put = must(requests.find((r) => r.method === 'PUT'));
+    expect(put.url).toContain('/analysis/image');
+    expect(await bodyField(put, 'use')).toBe('filtered');
+  });
+
   it('object detection is either/or: one choice over the local and the AI row', async () => {
     const key = { set: true, set_at: null, provider: 'anthropic', valid: true };
     let llm = llmStatus({ key });

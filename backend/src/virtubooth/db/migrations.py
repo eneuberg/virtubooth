@@ -402,9 +402,14 @@ BEGIN SELECT RAISE(ABORT, 'photo_objects are append-only'); END;
 # was the active one, so the external AI looks at it (once); 0 (every older row): never
 # sent, however the switches change later. No backfill sweep. `llm_usage.ms`: how long
 # the provider call took (the Modelle row's Ø/zuletzt), NULL for calls before v15.
+# `photo_detection_runs.image`: which image the run looked at — `original` (the
+# Fotobox's unfiltered original), `filtered` (the filtered photo although an original
+# exists: „Erkennung auf: Gefiltertes Foto“) or `photo` (there is no separate
+# original); NULL for runs before v15 (they used the original when there was one).
 SCHEMA_V15 = """
 ALTER TABLE wall_analysis ADD COLUMN ai_detect INTEGER NOT NULL DEFAULT 0;
 ALTER TABLE llm_usage ADD COLUMN ms INTEGER;
+ALTER TABLE photo_detection_runs ADD COLUMN image TEXT;
 """
 
 # (version, script): each step upgrades the database from the version before.

@@ -275,7 +275,7 @@ class EnrichmentService:
         return AnalysisStatus(
             worker=self.worker(), counts=AnalysisCounts(**counts),
             queue=AnalysisQueue(**jobs.queue(self.core.db)), analyzers=self.analyzers(),
-            models=self.models_status(),
+            models=self.models_status(), image=jobs.analysis_image(self.core.repos.app_settings),
         )  # fmt: skip
 
     # -------------------------------------------------------------- models
@@ -346,6 +346,12 @@ class EnrichmentService:
                 actor, "wall.analyzers", "", {"disabled": sorted(disabled)}, at=now_iso()
             )
         return disabled
+
+    def set_image(self, use: str, *, actor: str) -> None:
+        """„Erkennung auf: Original / Gefiltertes Foto“ for photos analysed from now on."""
+        with self.core.db.tx():
+            jobs.save_analysis_image(self.core.repos.app_settings, use, by=actor)
+            self.core.repos.audit.log(actor, "wall.image", "", {"use": use}, at=now_iso())
 
     def set_analyzer(
         self, name: str, *, enabled: bool, settings: Mapping[str, float] | None, actor: str

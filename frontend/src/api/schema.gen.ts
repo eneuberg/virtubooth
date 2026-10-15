@@ -1281,6 +1281,29 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/x/wall/admin/analysis/image": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Set Analysis Image
+         * @description „Erkennung auf“: `original` (the unfiltered original when there is one) or
+         *     `filtered` (the photo as the guest saw it), for every analyzer and the external
+         *     AI's detection. Applies to photos analysed from now on; photos without a
+         *     separate original always use the photo.
+         */
+        put: operations["set_analysis_image_api_x_wall_admin_analysis_image_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/x/wall/admin/analysis/models/download": {
         parameters: {
             query?: never;
@@ -2321,6 +2344,14 @@ export interface components {
             /** Total */
             total: number;
         };
+        /** AnalysisImageIn */
+        AnalysisImageIn: {
+            /**
+             * Use
+             * @enum {string}
+             */
+            use: "original" | "filtered";
+        };
         /** AnalysisQueue */
         AnalysisQueue: {
             /**
@@ -2341,6 +2372,12 @@ export interface components {
             /** Analyzers */
             analyzers: components["schemas"]["AnalyzerStatus"][];
             counts: components["schemas"]["AnalysisCounts"];
+            /**
+             * Image
+             * @description „Erkennung auf“: which image the analysis (every analyzer and the AI's detection) reads for new photos; photos without an original use the photo.
+             * @enum {string}
+             */
+            image: "original" | "filtered";
             models: components["schemas"]["ModelsStatus"];
             queue: components["schemas"]["AnalysisQueue"];
             worker: components["schemas"]["WorkerStatus"];
@@ -3198,6 +3235,11 @@ export interface components {
         DetectionRun: {
             /** Error */
             error: string | null;
+            /**
+             * Image
+             * @description The image it looked at: the unfiltered original, the filtered photo („Erkennung auf: Gefiltertes Foto“) or the photo (no separate original); null before v15.
+             */
+            image?: ("original" | "filtered" | "photo") | null;
             /** Model */
             model: string | null;
             /** Source */
@@ -13174,6 +13216,84 @@ export interface operations {
         requestBody: {
             content: {
                 "application/json": components["schemas"]["AnalyzerIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AnalysisStatus"];
+                };
+            };
+            /** @description Invalid input (see `error`) */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Needs consent or an admin session */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Forbidden: banned, paused, stopped, joining closed or a foreign Origin (CSRF) */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Not found, or no party access (`scan_qr`) */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Request validation failed (`invalid_request`) */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Rate limited (`Retry-After` header) */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    set_analysis_image_api_x_wall_admin_analysis_image_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AnalysisImageIn"];
             };
         };
         responses: {

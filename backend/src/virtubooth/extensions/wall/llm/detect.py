@@ -29,6 +29,7 @@ from typing import TYPE_CHECKING, Literal
 
 from PIL import Image, ImageOps
 
+from ..enrich import jobs
 from . import ports
 from .providers import BY_ID as PROVIDERS
 from .providers.base import ProviderError
@@ -51,6 +52,7 @@ class _Photo:
     public_id: str
     path_ext: str
     filename: str
+    image: str
 
 
 def downscale(raw: bytes, max_px: int) -> bytes:
@@ -114,9 +116,9 @@ class DetectionRunner:
     def _sendable(self, photo_id: int) -> _Photo | None:
         """The photo if it may leave the server right now (live flags)."""
         row = self.service.core.db.one(
-            # the unfiltered original when there is one (as the local analysis)
-            "SELECT p.id, p.public_id, p.extension, "
-            "COALESCE(p.raw_filename, p.filename) AS filename FROM photos p "
+            # „Erkennung auf“ (as the local analysis): the original when there is one,
+            # or the filtered photo
+            "SELECT p.id, p.public_id, p.extension, p.filename, p.raw_filename FROM photos p "
             "JOIN users u ON u.id = p.user_id WHERE p.id = ? AND p.deleted_at IS NULL "
             "AND p.hidden_at IS NULL AND u.ai_opt_out = 0 AND u.analysis_opt_out = 0 "
             "AND u.banned_at IS NULL",
@@ -124,7 +126,9 @@ class DetectionRunner:
         )
         if row is None:
             return None
-        return _Photo(row["id"], row["public_id"], row["extension"], row["filename"])
+        use = jobs.analysis_image(self.service.core.repos.app_settings)
+        filename, image = jobs.pick_image(use, row["filename"], row["raw_filename"])
+        return _Photo(row["id"], row["public_id"], row["extension"], filename, image)
 
     def run_once(self) -> str:
         """One photo: `idle` (nothing to do or switched off), `done` (one photo
@@ -155,7 +159,7 @@ class DetectionRunner:
             image = downscale(raw, cfg.image_max_px)
         except (OSError, ValueError, Image.DecompressionBombError) as exc:
             log.warning("llm detect: photo %s unreadable: %s", photo.public_id, exc)
-            self._record(photo.id, source, "failed", None, "Foto nicht lesbar.")
+            self._record(photo.id, source, "failed", None, "Foto nicht lesbar.", photo.image)
             return "done"
         self.running = True
         try:
@@ -173,21 +177,29 @@ class DetectionRunner:
                 self.last_error = exc.message
                 log.warning("llm detect: %s (retrying later)", exc.message)
                 return "backoff"
-            self._record(photo.id, source, "failed", cfg.model, exc.message[:200])
+            self._record(photo.id, source, "failed", cfg.model, exc.message[:200], photo.image)
             return "done"
         finally:
             self.running = False
         self.last_error = None
         try:
-            ports.append(db, photo.id, source, cfg.model, objs)
+            ports.append(db, photo.id, source, cfg.model, objs, image=photo.image)
         except ports.FrozenError:
             log.info("llm detect: %s already ran for %s", source, photo.public_id)
         return "done"
 
     def _record(
-        self, photo_id: int, source: str, state: ports.RunState, model: str | None, error: str
+        self,
+        photo_id: int,
+        source: str,
+        state: ports.RunState,
+        model: str | None,
+        error: str,
+        image: str | None = None,
     ) -> None:
         try:
-            ports.record_run(self.service.core.db, photo_id, source, state, model, error[:200])
+            ports.record_run(
+                self.service.core.db, photo_id, source, state, model, error[:200], image=image
+            )
         except ports.FrozenError:
             pass

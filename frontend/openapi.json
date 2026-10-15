@@ -961,6 +961,23 @@
         "title": "AnalysisCounts",
         "type": "object"
       },
+      "AnalysisImageIn": {
+        "properties": {
+          "use": {
+            "enum": [
+              "original",
+              "filtered"
+            ],
+            "title": "Use",
+            "type": "string"
+          }
+        },
+        "required": [
+          "use"
+        ],
+        "title": "AnalysisImageIn",
+        "type": "object"
+      },
       "AnalysisQueue": {
         "properties": {
           "oldest_pending_s": {
@@ -1005,6 +1022,15 @@
           "counts": {
             "$ref": "#/components/schemas/AnalysisCounts"
           },
+          "image": {
+            "description": "„Erkennung auf“: which image the analysis (every analyzer and the AI's detection) reads for new photos; photos without an original use the photo.",
+            "enum": [
+              "original",
+              "filtered"
+            ],
+            "title": "Image",
+            "type": "string"
+          },
           "models": {
             "$ref": "#/components/schemas/ModelsStatus"
           },
@@ -1020,7 +1046,8 @@
           "counts",
           "queue",
           "analyzers",
-          "models"
+          "models",
+          "image"
         ],
         "title": "AnalysisStatus",
         "type": "object"
@@ -2843,6 +2870,23 @@
               }
             ],
             "title": "Error"
+          },
+          "image": {
+            "anyOf": [
+              {
+                "enum": [
+                  "original",
+                  "filtered",
+                  "photo"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The image it looked at: the unfiltered original, the filtered photo („Erkennung auf: Gefiltertes Foto“) or the photo (no separate original); null before v15.",
+            "title": "Image"
           },
           "model": {
             "anyOf": [
@@ -18086,6 +18130,99 @@
           }
         },
         "summary": "Set Analyzer",
+        "tags": [
+          "extension:wall",
+          "wall"
+        ]
+      }
+    },
+    "/api/x/wall/admin/analysis/image": {
+      "put": {
+        "description": "„Erkennung auf“: `original` (the unfiltered original when there is one) or\n`filtered` (the photo as the guest saw it), for every analyzer and the external\nAI's detection. Applies to photos analysed from now on; photos without a\nseparate original always use the photo.",
+        "operationId": "set_analysis_image_api_x_wall_admin_analysis_image_put",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AnalysisImageIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AnalysisStatus"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Invalid input (see `error`)"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Needs consent or an admin session"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Forbidden: banned, paused, stopped, joining closed or a foreign Origin (CSRF)"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Not found, or no party access (`scan_qr`)"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Request validation failed (`invalid_request`)"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Rate limited (`Retry-After` header)"
+          }
+        },
+        "summary": "Set Analysis Image",
         "tags": [
           "extension:wall",
           "wall"

@@ -141,6 +141,7 @@ export const analysisStatus: AnalysisStatus = {
       finished_at: null,
     },
   },
+  image: 'original',
 };
 
 export function photoAnalysis(state: PhotoAnalysis['state'] = 'done'): PhotoAnalysis {

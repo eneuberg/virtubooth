@@ -234,7 +234,7 @@ class Worker:
             why = jobs.AI_ACTIVE
         jobs.finish(db, photo.id, facts=outcome.facts, data=data, versions=outcome.versions,
                     objects_found=outcome.objects, objects_model=model,
-                    objects_skipped=why, ai_detect=ai_detect)  # fmt: skip
+                    objects_skipped=why, ai_detect=ai_detect, image=photo.image)  # fmt: skip
         self._count(outcome)
         del frame
         release_memory()
@@ -392,7 +392,8 @@ class Worker:
                 self.beat(repos)
                 self.answer_tests(repos)
                 jobs.purge_deleted(db)
-                photo = jobs.claim(db) if jobs.has_work(db) else None
+                use = jobs.analysis_image(repos.app_settings)
+                photo = jobs.claim(db, use) if jobs.has_work(db) else None
                 if photo is None:
                     if once:
                         break
