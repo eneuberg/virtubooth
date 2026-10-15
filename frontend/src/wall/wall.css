@@ -464,7 +464,7 @@ body {
 .wall-cat-photo {
   position: relative;
   margin: 0;
-  animation: wall-drop-in 1000ms cubic-bezier(0.34, 1.56, 0.64, 1) both;
+  animation: wall-drop-in 700ms cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 
 .wall-cat-photo[data-index='1'] {
@@ -719,7 +719,7 @@ body {
 @keyframes wall-drop-in {
   from {
     opacity: 0;
-    transform: translateY(-14vh) rotate(-6deg) scale(0.85);
+    transform: translateY(-4vh) scale(0.96);
   }
 }
 
@@ -1015,7 +1015,7 @@ body {
 .wall-empty-icon {
   font-size: 18vmin;
   line-height: 1;
-  animation: wall-bounce 4s ease-in-out infinite;
+  animation: wall-float 4s ease-in-out infinite;
 }
 
 .wall-empty-title {
@@ -1026,7 +1026,7 @@ body {
   color: var(--wall-wordmark);
 }
 
-@keyframes wall-bounce {
+@keyframes wall-float {
   0%,
   100% {
     transform: translateY(0);
@@ -1038,6 +1038,9 @@ body {
 
 @media (prefers-reduced-motion: reduce) {
   .wall-cat-emoji,
+  .wall-cat-head,
+  .wall-cat-photo,
+  .wall-cat-verdict,
   .wall-empty-icon,
   .wall-spinner {
     animation-duration: 0s;
