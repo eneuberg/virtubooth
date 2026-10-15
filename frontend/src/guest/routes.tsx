@@ -8,7 +8,7 @@ import { CircleQuestionMark } from 'lucide-react';
 import { lazy, Suspense, useEffect, useRef } from 'react';
 import { Route, Switch, useLocation, useParams } from 'wouter';
 import { getExtension, listExtensions } from '@/extensions/registry';
-import { markReady } from '@/lib/boot';
+import { markReady, quietWhileLeaving } from '@/lib/boot';
 import { msg, t } from '@/lib/messages.de';
 import { useActivities } from '@/sdk/activities';
 import { canUpload, useSession } from '@/sdk/session';
@@ -25,7 +25,7 @@ import { Start } from './Start';
 /** one lazy page per activity, created once at module load (never during render) */
 const pages = new Map(
   listExtensions().map((ext) => {
-    const Page = lazy(ext.load);
+    const Page = lazy(quietWhileLeaving(ext.load));
     return [ext.id, (id: string) => <Page id={id} />] as const;
   }),
 );
