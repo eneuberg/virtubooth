@@ -130,7 +130,7 @@ function Tokens() {
       <Both>
         {() => (
           <div className="grid gap-2">
-            <p className="text-3xl font-bold">Eriks Geburtstag</p>
+            <p className="text-3xl font-bold">Lenas Geburtstag</p>
             <p className="text-2xl font-bold">Display 34</p>
             <p className="text-xl font-bold">Titel 27</p>
             <p className="text-lg font-semibold">Abschnitt 21</p>
@@ -256,7 +256,7 @@ function Status() {
 }
 
 function Forms() {
-  const [insta, setInsta] = useState('erik.n');
+  const [insta, setInsta] = useState('lena.k');
   const [bad, setBad] = useState('müller');
   const [ext, setExt] = useState<'all' | 'beer' | 'booth'>('all');
   const [vis, setVis] = useState<'all' | 'visible' | 'hidden'>('all');
@@ -410,7 +410,7 @@ function Navigation() {
                 currentId="fotos"
                 header={
                   <div className="grid gap-1">
-                    <p className="text-md font-bold">Eriks Geburtstag</p>
+                    <p className="text-md font-bold">Lenas Geburtstag</p>
                     <ConnectionIndicator status="live" />
                   </div>
                 }
@@ -703,7 +703,7 @@ function Overlays() {
         isOpen={join}
         onOpenChange={setJoin}
         isDismissable={false}
-        title="Willkommen bei Eriks Geburtstag"
+        title="Willkommen bei Lenas Geburtstag"
         titleSize="xl"
         data-testid="join"
         footer={
@@ -717,7 +717,7 @@ function Overlays() {
       >
         <div className="grid gap-4">
           <p className="text-md">
-            Deine Fotos sehen die Gastgeber, und sie dürfen sie auf <span translate="no">@eriks.party</span>{' '}
+            Deine Fotos sehen die Gastgeber, und sie dürfen sie auf <span translate="no">@lenas.party</span>{' '}
             posten. Wenn du das nicht willst, mach hier bitte keine Fotos.
           </p>
           <HelpDisclosure summary="Mehr dazu">

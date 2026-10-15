@@ -42,11 +42,11 @@ describe('GuestPass', () => {
   });
 
   it('shows the handle once there is one, and only the name when compact', () => {
-    given({ status: 'ready', user: user({ instagram: 'erik.n' }), uploadsStopped: false });
+    given({ status: 'ready', user: user({ instagram: 'lena.k' }), uploadsStopped: false });
     const { rerender } = render(<GuestPass />, { wrapper: UiProvider });
-    expect(screen.getByTestId('guest-pass').textContent).toContain('@erik.n');
+    expect(screen.getByTestId('guest-pass').textContent).toContain('@lena.k');
     rerender(<GuestPass compact />);
-    expect(screen.getByTestId('guest-pass').textContent).not.toContain('@erik.n');
+    expect(screen.getByTestId('guest-pass').textContent).not.toContain('@lena.k');
   });
 
   it('marks paused, stopped and banned in words, not colour alone', () => {
@@ -63,13 +63,13 @@ describe('GuestPass', () => {
   });
 
   it('opens the Du sheet: why the name is random, the Instagram name, the upload state', async () => {
-    given({ status: 'ready', user: user({ instagram: 'erik.n' }), uploadsStopped: false });
+    given({ status: 'ready', user: user({ instagram: 'lena.k' }), uploadsStopped: false });
     render(<GuestPass />, { wrapper: UiProvider });
     fireEvent.click(screen.getByTestId('guest-pass'));
     const sheet = await screen.findByRole('dialog', { name: 'Verrückte Ente #3' });
     expect(sheet.textContent).toContain('zufällig');
     const field = within(sheet).getByRole<HTMLInputElement>('textbox', { name: 'Instagram-Name' });
-    expect(field.value).toBe('erik.n');
+    expect(field.value).toBe('lena.k');
     expect(field.maxLength).toBe(30);
     expect(within(sheet).getByRole('button', { name: 'Speichern' })).toBeTruthy();
     expect(within(sheet).getByRole('button', { name: 'Entfernen' })).toBeTruthy();

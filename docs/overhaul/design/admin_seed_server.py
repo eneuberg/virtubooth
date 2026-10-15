@@ -111,7 +111,7 @@ def main() -> None:
         secret_key="seed-secret-key-0123456789abcdef0123456789",
         data_dir=data,
         web_dir=ROOT / "frontend/dist",
-        party_name="Eriks Geburtstag",
+        party_name="Lenas Geburtstag",
         public_base_url=f"http://127.0.0.1:{args.port}",
         uploads_per_user_per_min=1000,
     )

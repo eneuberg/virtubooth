@@ -69,14 +69,14 @@ describe('filter overlays', () => {
   });
 
   it('transliterate the party name for the pixel font', () => {
-    expect(pixelFontText('Eriks Geburtstag')).toBe('ERIKS GEBURTSTAG');
+    expect(pixelFontText('Lenas Geburtstag')).toBe('LENAS GEBURTSTAG');
     expect(pixelFontText('Ömers & Jürgens Gartenparty 🎉')).toBe('OEMERS & JUERGENS GARTENPARTY');
     expect(pixelFontText('Straße')).toBe('STRASSE');
     expect(pixelFontText('  🎉 ')).toBe('');
   });
 
   it('caption the party frame', () => {
-    expect(overlayInfo('Eriks Geburtstag', new Date(0)).title).toBe('Eriks Geburtstag 🎉');
+    expect(overlayInfo('Lenas Geburtstag', new Date(0)).title).toBe('Lenas Geburtstag 🎉');
     expect(overlayInfo('  ').partyName).toBe('Party');
     expect(overlayInfo(null).partyName).toBe('Party');
   });

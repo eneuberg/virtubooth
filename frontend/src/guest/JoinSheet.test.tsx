@@ -11,16 +11,16 @@ vi.mock('@/sdk/device', () => ({
 
 const join: ConsentInfo = {
   version: '1',
-  title: 'Willkommen bei Eriks Geburtstag! 🎉',
+  title: 'Willkommen bei Lenas Geburtstag! 🎉',
   paragraphs: [
-    "Kurz bevor's losgeht: Wenn du hier Fotos machst, speichern wir sie und dürfen sie auf Instagram (@eriks.party) posten.",
+    "Kurz bevor's losgeht: Wenn du hier Fotos machst, speichern wir sie und dürfen sie auf Instagram (@lenas.party) posten.",
     'Damit wir Missbrauch verhindern können, erkennt die Seite dein Gerät wieder.',
     'Wenn du das nicht möchtest, nutze die Fotobox bitte nicht.',
   ],
   instagram_prompt: 'Dein Instagram (freiwillig). Dann markieren wir dich!',
   accept_label: "Alles klar, los geht's! 🍻",
-  party_name: 'Eriks Geburtstag',
-  instagram_account: '@eriks.party',
+  party_name: 'Lenas Geburtstag',
+  instagram_account: '@lenas.party',
   analysis: false,
 };
 
@@ -49,7 +49,7 @@ describe('JoinSheet', () => {
   it('shows the server texts typeset: no emoji, lead up front, details behind "Mehr dazu"', () => {
     const dialog = renderSheet();
     expect(within(dialog).getByRole('heading', { level: 2 }).textContent).toBe(
-      'Willkommen bei Eriks Geburtstag!',
+      'Willkommen bei Lenas Geburtstag!',
     );
     expect(dialog.textContent).toContain('Kurz bevor’s losgeht');
     expect(dialog.textContent).toContain('nutze die Fotobox bitte nicht');

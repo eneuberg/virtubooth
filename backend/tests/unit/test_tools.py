@@ -632,7 +632,7 @@ def test_qr_urls():
 
 def test_qr_writes_codes_and_sheet(fake_exts, tmp_path, capsys):
     out = tmp_path / "qr"
-    assert qr_main(out, "--party-name", "Eriks Party") == 0
+    assert qr_main(out, "--party-name", "Lenas Party") == 0
     names = sorted(p.name for p in out.iterdir())
     assert names == [
         "qr-beer.png",
@@ -651,7 +651,7 @@ def test_qr_writes_codes_and_sheet(fake_exts, tmp_path, capsys):
         "Prost &amp; &lt;Zeitraffer&gt;",
         "📸",
         "Fotobox",
-        "Eriks Party",
+        "Lenas Party",
         "🎉",
         qr.INSTRUCTION,
         "@page",

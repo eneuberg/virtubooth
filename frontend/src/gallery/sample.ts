@@ -45,7 +45,7 @@ export interface SampleGuest {
 }
 
 export const GUESTS: ReadonlyArray<SampleGuest> = [
-  { id: 13, name: 'Verrückte Ente', instagram: 'erik.n', photos: 4, status: 'ok', seen: 'gerade eben' },
+  { id: 13, name: 'Verrückte Ente', instagram: 'lena.k', photos: 4, status: 'ok', seen: 'gerade eben' },
   {
     id: 12,
     name: 'Hüpfendes Alpaka #2',
