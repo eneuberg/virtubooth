@@ -721,21 +721,39 @@ Passwort und ohne weißen Kasten). Danach behoben:
 Bewusst so gelassen: Ein „@“ **mitten** im Anzeigenamen („anna@party“) ist erlaubt; nur
 am Anfang ist es verboten, damit niemand wie ein Instagram-Name aussieht.
 
-### Neues Aussehen (`night/identity`, nicht gemerged)
+### Neues Aussehen: drei Stile, „Party“ als Standard (gemerged)
 
-Draft-PR: https://github.com/eneuberg/virtubooth/pull/1. Themen-Farben im Admin
-(„Allgemeines → Erscheinungsbild“, Vorlagen „Neon Nacht“ und „Klassisch“, Kontrastprüfung
-im Server), wirken ohne Neustart auf Gäste-Seiten und Wall; der Admin bleibt wie er ist.
-Ruhigerer Stil: leichtere Schrift, weichere Ecken, gefüllte Pillen-Buttons, Glühen nur
-am Hauptknopf und Auslöser, kürzere Animationen, auf der Wall gerade dunkle
-Bildunterschriften statt schräger Papierschilder. Vorher/Nachher-Bilder und
-Geschmacksfragen: `.worktrees/_plans/night/id/` (`REVIEW.md`, `compare_*.png`).
+Drei Runden mit dem Host, alle in `main`:
 
-Offene Geschmacksfragen: schwarze Schrift auf dem violetten Knopf (weiß schafft nur
-4,2:1) oder ein helleres Violett; Filmstreifen-Motiv ganz weg oder als Signatur; dunkle
-Bildunterschriften oder die alten Papierschilder auf der Wall; Fläche `#252229` und
-gedämpfte Schrift `#bdb3c4` (nicht aus der Palette); violetter Schimmer oben oder flach;
-Limettengrün öfter als nur beim Blitz.
+1. **`night/identity`** (PR #1): Themen-Farben im Admin („Allgemeines → Erscheinungsbild“,
+   Kontrastprüfung im Server), wirken ohne Neustart auf Gäste-Seiten und Wall; der Admin
+   bleibt wie er ist. Vorlagen „Neon Nacht“ (Palette des Hosts) und „Klassisch“. Der erste
+   Wurf war dem Host **zu schlicht**; danach kamen zurück: langsam wandernde Farblichter
+   hinter der Startseite, ein Glanz über dem Partynamen, Emojis an den Aktivitätskarten
+   (🍺, 📸; aus dem Manifest der Erweiterung, Feld `emoji`), auf der Wall wieder größere,
+   sanft wackelnde Emojis und schräge Verlaufs-Badges.
+2. **`night/goofy`** (PR #2): absichtlich übertriebene Variante „Rummel“ (Jahrmarkt 1994,
+   Bungee-Schrift, Markise, Suchscheinwerfer). Durchgehender Gag: die Kamera hat
+   Kulleraugen (Federphysik, folgen Finger/Neigung, blinzeln, schielen beim Countdown,
+   kneifen beim Foto zu).
+3. **`night/combo`** (PR #3): der Stil **„Party“** = Neon Nacht plus die besten Gags:
+   Kulleraugen-Auslöser in Violett mit Lime-Lichtern, ein Gucker über der ersten Karte und
+   dem QR-Code der Wall, dezentes Wackelpudding-Drücken, Ticket-Lochung an Sheets und
+   Gästepass, der Partyname pendelt an seinem Haken ein, auf der Wall pendeln Fotos an
+   einer Nadel ein, Werte stehen auf Preisbändern, oben eine dezente Lichterkette.
+
+Im Admin: „Stil“ = **Ruhig · Party · Verspielt**; „Party“ ist Standard (auch für
+gespeicherte Themen ohne Stil, „Rummel“ bringt „Verspielt“). Alle Gags sind dekorativ
+(`aria-hidden`), bewegen nur `transform`/`opacity`, und „weniger Bewegung“ schaltet sie ab.
+Screenshots: `.worktrees/_plans/night/{id,goofy,combo}/`.
+
+Offene Geschmacksfragen: „Klassisch“ auch mit „Party“ oder „Ruhig“; Lichterring am
+Auslöser blinkend oder still; Gucker in Periwinkle oder Lime; Nadel an jedem
+Spotlight-Foto oder nur an Gewinnern; Lichterkette auf der Wall behalten.
+
+Dazu zwei CI-Fehler behoben: `docker-smoke` meldete ein fehlendes sauberes Herunterfahren,
+obwohl es im Log stand (`grep -q` mit `pipefail` → SIGPIPE), und ein Theme-e2e-Test nutzte
+`wait_for_function`, das die CSP blockiert.
 
 ### Offene Punkte
 
@@ -748,7 +766,7 @@ Limettengrün öfter als nur beim Blitz.
    Fotos weiter; ein Hinweis im Lösch-Dialog wäre die kleine Folgearbeit.
 6. **Urteile der KI** werden nicht moderiert; der Host kann nur die Kategorie
    ausschalten.
-7. **`night/identity`** zur Ansicht (siehe oben).
+7. **Aussehen:** die offenen Geschmacksfragen oben.
 8. **Docker lokal:** Die VPN-Firewall dieses Rechners (IVPN, „LAN erlauben“ aus) blockt
    Docker-Netzwerke; Docker-Smoke läuft darum nur in CI. Lösung beim Host:
    `ivpn firewall -lan_allow` oder eine Ausnahme für `172.16.0.0/12`.
