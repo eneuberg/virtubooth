@@ -96,12 +96,15 @@ def totals(db: Database, day: str | None = None) -> Totals:
 
 
 def by_kind(db: Database) -> list[KindTotals]:
+    """Per property / verdict category; detection and test images as one row
+    each (ref None), not one per photo."""
     return [
-        KindTotals(r["kind"], r["ref"], r["calls"], r["tokens"], r["cost"])
+        KindTotals(r["kind"], r["r"], r["calls"], r["tokens"], r["cost"])
         for r in db.all(
-            "SELECT kind, ref, COUNT(*) AS calls, SUM(input_tokens + output_tokens) AS tokens, "
-            "SUM(cost_micro_usd) AS cost FROM llm_usage GROUP BY kind, ref "
-            "ORDER BY cost DESC, calls DESC, kind, ref"
+            "SELECT kind, CASE WHEN kind IN ('detect', 'test') THEN NULL ELSE ref END AS r, "
+            "COUNT(*) AS calls, SUM(input_tokens + output_tokens) AS tokens, "
+            "SUM(cost_micro_usd) AS cost FROM llm_usage GROUP BY kind, r "
+            "ORDER BY cost DESC, calls DESC, kind, r"
         )
     ]
 

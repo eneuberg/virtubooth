@@ -146,3 +146,17 @@ def test_usage_route(admin, core, app):
         {"kind": "property", "ref": "coolness", "calls": 2, "tokens": 400_000, "cost_usd": 0.2}
     ]
     assert body["blocked"] is False and body["budget"]["party_usd"] == 5.0
+
+
+def test_detection_usage_is_one_row_not_one_per_photo(core):
+    for ref in ("photo1", "photo2", None):
+        budget.record(
+            core.db, kind="detect" if ref else "test", ref=ref, provider="anthropic",
+            model="claude-haiku-5-5", usage=TokenUsage(100, 10), ok=True, timezone=TZ,
+        )  # fmt: skip
+    budget.record(
+        core.db, kind="detect", ref="photo3", provider="anthropic",
+        model="claude-haiku-5-5", usage=TokenUsage(100, 10), ok=True, timezone=TZ,
+    )  # fmt: skip
+    rows = [(r.kind, r.ref, r.calls) for r in budget.by_kind(core.db)]
+    assert rows == [("detect", None, 3), ("test", None, 1)]
