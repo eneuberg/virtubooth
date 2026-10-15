@@ -209,9 +209,17 @@ class Worker:
             return "skipped"
         # either/or: while the external AI detects objects the local detector rests
         ai_detect = jobs.ai_detection_active(repos.app_settings)
+        # the AI cannot take it (no key, budget used up): the local detector does
+        fallback = jobs.ai_detection_blocked(db, repos.app_settings) if ai_detect else None
+        if fallback:
+            ai_detect = False
+            log.info("photo %s: local objects instead of the AI (%s)", photo.public_id, fallback)
         disabled = self._disabled(repos, opt_out=photo.opt_out)
         if ai_detect:
             disabled.add("objects")
+        elif fallback and not photo.opt_out:
+            # switched off for the AI (either/or): on for this one photo
+            disabled.discard("objects")
         source = jobs.source_labels(repos.app_settings).get(photo.extension)
         if source is not None:
             photo = dataclasses.replace(photo, source=source)
@@ -229,6 +237,8 @@ class Worker:
             log.exception("analysis of photo %s failed", photo.public_id)
             return jobs.fail(db, photo.id, f"Analyse fehlgeschlagen ({type(exc).__name__})")
         data = outcome.data() | {"opt_out": photo.opt_out}
+        if fallback:
+            data[jobs.AI_FALLBACK] = fallback
         model, why = self._objects_model(outcome)
         if ai_detect and model is None:
             why = jobs.AI_ACTIVE

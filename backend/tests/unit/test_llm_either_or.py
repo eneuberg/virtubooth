@@ -211,6 +211,27 @@ def test_only_photos_analysed_while_the_ai_is_active_are_sent(core):
     assert runner.run_once() == "idle" and len(fake.detected) == 1
 
 
+@pytest.mark.parametrize("cause", ["budget", "no_key"])
+def test_the_local_detector_takes_over_while_the_ai_cannot(core, cause):
+    """AI detection active, but the budget is used up or no key is stored: new
+    photos get the local list instead (marked), not an empty one."""
+    budget = {"party_calls": 0} if cause == "budget" else {}
+    svc = setup_llm(core, FakeProvider(objects=AI), budget=budget)
+    if cause == "no_key":
+        svc.keys.clear()
+    config.set_ai_detection(core.repos.app_settings, True, by="t")
+    ports.set_local_objects(core, False, by="t")
+    assert jobs.ai_detection_active(core.repos.app_settings)
+    pid = analyse(core, add_guest(core))
+    assert ai_flag(core, pid) == 0  # never queued for the AI
+    assert [o.source for o in ports.objects_of(core.db, [pid])[pid]] == ["local"]
+    data = jobs.get(core.db, pid).data
+    assert data[jobs.AI_FALLBACK] == (jobs.NO_KEY if cause == "no_key" else data[jobs.AI_FALLBACK])
+    assert data[jobs.AI_FALLBACK]
+    # the analyzer setting is untouched: the AI stays the chosen detector
+    assert not local_on(core)
+
+
 def test_master_switch_off_queues_nothing(core):
     setup_llm(core, FakeProvider(), enabled=False, detect={"external": True})
     ports.set_local_objects(core, False, by="t")

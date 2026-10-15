@@ -169,6 +169,26 @@ def ai_detection_active(app_settings: AppSettingsRepo) -> bool:
 
 
 AI_ACTIVE = "KI-Objekterkennung ist aktiv"
+# `wall_analysis.data` key: why the local detector took a photo meant for the AI
+AI_FALLBACK = "objects_fallback"
+NO_KEY = "Kein API-Schlüssel gesetzt."
+
+
+def ai_detection_blocked(db: Database, app_settings: AppSettingsRepo) -> str | None:
+    """Why the active AI detection cannot take a photo now (German), None while it
+    can: no key stored, or the budget is used up. The worker then runs the local
+    detector on that photo instead, so it still gets an object list (fallback)."""
+    import os
+
+    from ....core.clock import DEFAULT_TIMEZONE
+    from ..llm import budget
+    from ..llm.config import load_config
+    from ..llm.crypto import KEY_KEY
+
+    if not app_settings.get(KEY_KEY):
+        return NO_KEY
+    timezone = os.environ.get("VB_TIMEZONE") or DEFAULT_TIMEZONE
+    return budget.blocked(db, load_config(app_settings).budget, timezone)
 
 
 def finish(
