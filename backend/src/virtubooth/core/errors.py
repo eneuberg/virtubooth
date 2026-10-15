@@ -93,6 +93,11 @@ class ErrorBody(BaseModel):
 
     error: ErrorCode = Field(description="Machine-readable error code.")
     message: str = Field(description="German text for the guest or admin, shown as-is.")
+    field: str | None = Field(
+        default=None,
+        description="The form field a 400 is about, when the answer names one "
+        "(e.g. `invalid_category`: title, line, where, by, count, verdict, ...).",
+    )
 
 
 class ApiError(Exception):
@@ -103,15 +108,20 @@ class ApiError(Exception):
         message: str,
         *,
         headers: dict[str, str] | None = None,
+        field: str | None = None,
     ) -> None:
         super().__init__(message)
         self.status = status
         self.code: ErrorCode = code
         self.message = message
         self.headers = headers or {}
+        self.field = field
 
     def body(self) -> dict[str, str]:
-        return {"error": self.code, "message": self.message}
+        out = {"error": self.code, "message": self.message}
+        if self.field is not None:
+            out["field"] = self.field
+        return out
 
 
 # ------------------------------------------------------------ factories

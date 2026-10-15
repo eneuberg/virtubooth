@@ -98,8 +98,28 @@ _PUT_BODY = _body({"spec": _SPEC_REF, "enabled": {"type": "boolean"}}, ["spec", 
 _PREVIEW_BODY = _body({"spec": _SPEC_REF}, ["spec"])
 
 
+# the category editor's input for a field the engine names in German (the
+# others, e.g. "Beschriftung: Stil", have no input of their own: form error)
+_FORM_FIELDS = (
+    ("Kennung", "id"),
+    ("Emoji", "emoji"),
+    ("Untertitel", "line"),
+    ("Titel", "title"),
+    ("Bedingung", "where"),
+    ("Auswahl: danach", "then_by"),
+    ("Auswahl", "by"),
+    ("Anzahl", "count"),
+    ("Beschriftung: Wert", "label.value"),
+    ("Beschriftung: Einzahl", "one"),
+    ("Beschriftung: Mehrzahl", "many"),
+    ("Urteil", "verdict"),
+)
+
+
 def invalid_category(field: str) -> errors.ApiError:
-    return errors.bad_request(f"Ungültige Kategorie: {field}.", "invalid_category")
+    """400 naming the field in German, plus its form key in `field`."""
+    key = next((k for prefix, k in _FORM_FIELDS if field.startswith(prefix)), None)
+    return errors.ApiError(400, "invalid_category", f"Ungültige Kategorie: {field}.", field=key)
 
 
 def parse_spec(raw: Any) -> dict[str, Any]:

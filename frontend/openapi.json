@@ -2751,6 +2751,18 @@
             "title": "Error",
             "type": "string"
           },
+          "field": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The form field a 400 is about, when the answer names one (e.g. `invalid_category`: title, line, where, by, count, verdict, ...).",
+            "title": "Field"
+          },
           "message": {
             "description": "German text for the guest or admin, shown as-is.",
             "title": "Message",

@@ -136,24 +136,29 @@ def test_crud_order_restore_and_audit(admin, core):
 
 
 @pytest.mark.parametrize(
-    ("body", "message"),
+    ("body", "message", "field"),
     [
-        ({"id": "Bad Id", "spec": spec()}, "Ungültige Kategorie: Kennung."),
-        ({"id": "order", "spec": spec()}, "Ungültige Kategorie: Kennung."),
-        ({"id": "ok_id", "spec": spec(title="")}, "Ungültige Kategorie: Titel."),
+        ({"id": "Bad Id", "spec": spec()}, "Ungültige Kategorie: Kennung.", "id"),
+        ({"id": "order", "spec": spec()}, "Ungültige Kategorie: Kennung.", "id"),
+        ({"id": "ok_id", "spec": spec(title="")}, "Ungültige Kategorie: Titel.", "title"),
         ({"id": "ok_id", "spec": spec(where=[{"value": "people", "op": "gte",
                                               "operand": "x"}])},
-         "Ungültige Kategorie: Bedingung 1: Vergleichswert."),
+         "Ungültige Kategorie: Bedingung 1: Vergleichswert.", "where"),
         ({"id": "ok_id", "spec": spec(select={"by": "people", "count": 11})},
-         "Ungültige Kategorie: Anzahl."),
-        ({"id": "ok_id", "spec": "nope"}, "Ungültige Kategorie: Kategorie."),
-        ({"id": "ok_id", "spec": spec(), "enabled": "ja"}, "Ungültige Kategorie: Eingeschaltet."),
+         "Ungültige Kategorie: Anzahl.", "count"),
+        ({"id": "ok_id", "spec": "nope"}, "Ungültige Kategorie: Kategorie.", None),
+        ({"id": "ok_id", "spec": spec(), "enabled": "ja"}, "Ungültige Kategorie: Eingeschaltet.",
+         None),
     ],
 )  # fmt: skip
-def test_invalid_input_is_a_400_naming_the_field(admin, body, message):
+def test_invalid_input_is_a_400_naming_the_field(admin, body, message, field):
+    """The German name in the message, the editor's input in `field` (when it has one)."""
     r = admin.post(BASE, json=body, headers=ORIGIN)
     assert r.status_code == 400
-    assert r.json() == {"error": "invalid_category", "message": message}
+    want = {"error": "invalid_category", "message": message}
+    if field is not None:
+        want["field"] = field
+    assert r.json() == want
 
 
 def test_put_errors(admin):
