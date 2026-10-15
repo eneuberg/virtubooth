@@ -96,6 +96,7 @@ def test_status_shape(admin):
     assert body["detection"] == {
         "mode": "local", "state": "off", "pending": 0, "done": 0, "failed": 0,
         "last_run_at": None, "last_error": None, "cost_usd": 0.0,
+        "fallback": 0, "fallback_reason": None, "fallback_now": None,
         "stats": {"processed": 0, "errors": 0, "avg_ms": None, "last_ms": None},
     }  # fmt: skip
     assert body["config"]["poll"] is True and body["config"]["detect"]["external"] is False

@@ -153,12 +153,12 @@ def test_failure_is_recorded_and_not_retried(core):
 
 
 def test_provider_trouble_is_not_the_photos_fault(core):
-    fake = FakeProvider(fail=ProviderError("Der API-Schlüssel wurde abgelehnt.", kind="auth"))
+    fake = FakeProvider(fail=ProviderError("KI-Dienst nicht erreichbar.", kind="network"))
     svc = setup_llm(core, fake, detect=EXTERNAL)
     pid, _ = add_photo(core, add_guest(core))
     runner = DetectionRunner(svc)
     assert runner.run_once() == "backoff"
-    assert runs(core, pid) == [] and runner.last_error == "Der API-Schlüssel wurde abgelehnt."
+    assert runs(core, pid) == [] and runner.last_error == "KI-Dienst nicht erreichbar."
     fake.fail = None
     assert runner.run_once() == "done"
 

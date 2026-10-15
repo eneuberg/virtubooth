@@ -88,6 +88,10 @@ class MlFake(FakeWall):
                           "state": "idle" if self.mode() == "ai" else "off",
                           "pending": 0, "done": 4, "failed": 0, "last_run_at": None,
                           "last_error": None,
+                          # the local detector stands in while the budget is used up
+                          "fallback": 2 if self.blocked else 0,
+                          "fallback_reason": "Budget aufgebraucht" if self.blocked else None,
+                          "fallback_now": "Budget aufgebraucht" if self.blocked else None,
                           "stats": {"processed": 4, "errors": 0, "avg_ms": 2400, "last_ms": 1900},
                           "cost_usd": 0.4},
             "usage": {
@@ -342,6 +346,14 @@ def test_external_ai_detection_poll_properties_and_budget(
     goto(page, live, "/admin/manage?tab=ml")
     expect(page.get_by_test_id("ml-budget-blocked")).to_contain_text(
         "Budget erreicht – externe KI pausiert"
+    )
+    # meanwhile the local detector stands in for the AI: the AI row says so
+    ai_row = page.locator("[data-analyzer=objects-ai]")
+    expect(ai_row.get_by_test_id("ml-ai-detect-fallback-count")).to_have_text(
+        "2 Fotos lokal statt KI · zuletzt: Budget aufgebraucht"
+    )
+    expect(ai_row.get_by_test_id("ml-ai-detect-fallback-now")).to_contain_text(
+        "Gerade erkennt das lokale Modell statt der KI (Budget aufgebraucht)"
     )
     expect(page.get_by_test_id("ml-usage-table")).to_contain_text("Eigenschaft „coolness“")
     assert errors(page) == []

@@ -376,6 +376,8 @@ export interface PhotoAnalysis {
   /** the external AI's own list (Claude, Mistral) */
   objects_ai: SourceObject[];
   runs: DetectionRun[];
+  /** the local detector stood in for the external AI on this photo: why (German); null otherwise */
+  objects_fallback: string | null;
   /** the guest's LIVE opt-out flags */
   opt_out: { analysis: boolean; external_ai: boolean };
   /** the latest property scores, one per object (index = idx) */

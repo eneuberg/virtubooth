@@ -170,14 +170,21 @@ def ai_detection_active(app_settings: AppSettingsRepo) -> bool:
 
 AI_ACTIVE = "KI-Objekterkennung ist aktiv"
 # `wall_analysis.data` key: why the local detector took a photo meant for the AI
+# (its short German reason, shown in the admin); see `hand_to_local`
 AI_FALLBACK = "objects_fallback"
-NO_KEY = "Kein API-Schlüssel gesetzt."
+NO_KEY = "Kein API-Schlüssel"
+KEY_INVALID = "API-Schlüssel abgelehnt"
+BUDGET = "Budget aufgebraucht"
+UNREACHABLE = "Dienst nicht erreichbar"
+PHOTO_FAILED = "KI-Fehler bei diesem Foto"
 
 
 def ai_detection_blocked(db: Database, app_settings: AppSettingsRepo) -> str | None:
-    """Why the active AI detection cannot take a photo now (German), None while it
-    can: no key stored, or the budget is used up. The worker then runs the local
-    detector on that photo instead, so it still gets an object list (fallback)."""
+    """Why the active AI detection cannot take a photo now (a short German reason),
+    None while it can: no key stored, or the budget is used up. The worker then
+    runs the local detector on that photo instead, so it still gets an object list
+    (fallback). Trouble only a call shows (key rejected, provider down) is the
+    detection runner's: it hands queued photos back (`hand_to_local`)."""
     import os
 
     from ....core.clock import DEFAULT_TIMEZONE
@@ -188,7 +195,104 @@ def ai_detection_blocked(db: Database, app_settings: AppSettingsRepo) -> str | N
     if not app_settings.get(KEY_KEY):
         return NO_KEY
     timezone = os.environ.get("VB_TIMEZONE") or DEFAULT_TIMEZONE
-    return budget.blocked(db, load_config(app_settings).budget, timezone)
+    return BUDGET if budget.blocked(db, load_config(app_settings).budget, timezone) else None
+
+
+# A photo queued for the AI that the AI cannot deliver (`hand_to_local` marked it):
+# done, finished while the AI detector was active, its `local` run still open. The
+# worker runs ONLY the local detector on it (claim_fallback, finish_fallback).
+_FALLBACK_DUE = (
+    "a.state = 'done' AND a.ai_detect = 1 AND p.deleted_at IS NULL "
+    "AND NOT EXISTS (SELECT 1 FROM photo_detection_runs r "
+    "                WHERE r.photo_id = a.photo_id AND r.source = 'local') "
+    f"AND json_extract(a.data, '$.{AI_FALLBACK}') IS NOT NULL"
+)
+
+
+def hand_to_local(db: Database, photo_id: int, reason: str) -> bool:
+    """The AI cannot deliver this queued photo: mark it for the local detector
+    (`data.objects_fallback` = reason; facts and everything else stay). Call it
+    in the transaction that records the AI's `failed`/`skipped` run. False when
+    the photo is not a queued one (its local run is decided already)."""
+    with db.tx() as c:
+        row = c.execute(
+            "SELECT data FROM wall_analysis WHERE photo_id=? AND state='done' AND ai_detect=1",
+            (photo_id,),
+        ).fetchone()
+        if row is None or objects.has_run(db, photo_id, "local"):
+            return False
+        data = json.loads(row["data"] or "{}")
+        data[AI_FALLBACK] = reason
+        c.execute(
+            "UPDATE wall_analysis SET data=?, rev=? WHERE photo_id=?",
+            (json.dumps(data, ensure_ascii=False), _next_rev(c), photo_id),
+        )
+    return True
+
+
+def fallback_due(db: Database) -> bool:
+    return (
+        db.one(
+            "SELECT 1 FROM wall_analysis a JOIN photos p ON p.id = a.photo_id "
+            f"WHERE {_FALLBACK_DUE} LIMIT 1"
+        )
+        is not None
+    )
+
+
+def claim_fallback(db: Database, use: str = "original") -> PhotoInfo | None:
+    """The newest photo the AI handed back to the local detector (nothing is
+    marked: the local run it gets ends it). `opt_out` is the guest's live flag."""
+    row = db.one(
+        "SELECT p.id, p.public_id, p.extension, p.filename, p.raw_filename, p.created_at, "
+        "p.width, p.height, u.analysis_opt_out FROM wall_analysis a "
+        "JOIN photos p ON p.id = a.photo_id JOIN users u ON u.id = p.user_id "
+        f"WHERE {_FALLBACK_DUE} ORDER BY p.id DESC LIMIT 1"
+    )
+    if row is None:
+        return None
+    filename, image = pick_image(use, row["filename"], row["raw_filename"])
+    return PhotoInfo(
+        id=row["id"], public_id=row["public_id"], extension=row["extension"],
+        filename=filename, image=image, created_at=row["created_at"], width=row["width"],
+        height=row["height"], meta={}, user_name="",
+        opt_out=bool(row["analysis_opt_out"]),
+    )  # fmt: skip
+
+
+def finish_fallback(
+    db: Database, photo_id: int, *, objects_found: Sequence[DetectedObject] = (),
+    objects_model: str | None = None, state: objects.RunState = "skipped",
+    error: str | None = None, image: str | None = None,
+) -> bool:  # fmt: skip
+    """The local detector's list for a photo the AI handed back (`objects_model`
+    set: it ran), else its run as `state` with `error`. Only the `local` run and
+    its objects are written; facts and data stay frozen. False when it is decided
+    already."""
+    try:
+        if objects_model is not None:
+            objects.append(db, photo_id, "local", objects_model, objects_found, image=image)
+        else:
+            objects.record_run(db, photo_id, "local", state, None, error or "nicht gelaufen",
+                               image=image)  # fmt: skip
+    except objects.FrozenError:
+        return False
+    return True
+
+
+def fallback_counts(db: Database) -> tuple[int, str | None]:
+    """(photos whose objects come from the local detector in place of the AI,
+    the reason of the latest one)."""
+    row = db.one(
+        "SELECT COUNT(*) AS n FROM wall_analysis a JOIN photos p ON p.id = a.photo_id "
+        f"WHERE p.deleted_at IS NULL AND json_extract(a.data, '$.{AI_FALLBACK}') IS NOT NULL"
+    )
+    latest = db.one(
+        f"SELECT json_extract(a.data, '$.{AI_FALLBACK}') AS why FROM wall_analysis a "
+        "JOIN photos p ON p.id = a.photo_id WHERE p.deleted_at IS NULL "
+        f"AND json_extract(a.data, '$.{AI_FALLBACK}') IS NOT NULL ORDER BY a.rev DESC LIMIT 1"
+    )
+    return (int(row["n"]) if row else 0), (str(latest["why"]) if latest else None)
 
 
 def finish(
@@ -201,8 +305,10 @@ def finish(
     (`objects_model` set: the detector ran; else a `skipped` local run with the
     reason `objects_skipped`), all in one transaction. `ai_detect`: the AI
     detector is active, so the external AI looks at this photo next (only photos
-    finished while it is active ever go out). False (nothing written) when the
-    row is no longer `running` (purged meanwhile)."""
+    finished while it is active ever go out); its local run stays open until the
+    AI delivers (then `skipped`) or hands the photo back (`hand_to_local`, then
+    the local detector's list). False (nothing written) when the row is no
+    longer `running` (purged meanwhile)."""
     with db.tx() as c:
         row = c.execute("SELECT state FROM wall_analysis WHERE photo_id=?", (photo_id,)).fetchone()
         if row is None or row["state"] != "running":
@@ -216,7 +322,9 @@ def finish(
             versions=json.dumps(dict(versions)), finished_at=now_iso(),
             ai_detect=1 if ai_detect else 0,
         )  # fmt: skip
-        if not objects.has_run(db, photo_id, "local"):
+        if ai_detect and objects_model is None:
+            pass  # queued for the AI: the local run is decided later
+        elif not objects.has_run(db, photo_id, "local"):
             if objects_model is not None:
                 objects.append(db, photo_id, "local", objects_model, objects_found, image=image)
             else:

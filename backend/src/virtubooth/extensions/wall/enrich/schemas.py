@@ -222,6 +222,10 @@ class PhotoAnalysis(BaseModel):
         description="The external AI's own list (Claude, Mistral; source and model per object)."
     )
     runs: list[DetectionRun]
+    objects_fallback: str | None = Field(
+        description="The local detector stood in for the external AI on this photo: why "
+        "(German, e.g. „Budget aufgebraucht“); None otherwise."
+    )
     opt_out: OptOutState
     opt_out_at_analysis: bool = Field(
         description="The guest had the analysis opt-out on when the photo was analysed."

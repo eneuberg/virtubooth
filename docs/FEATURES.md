@@ -508,6 +508,12 @@ Was die externe KI tut, wenn sie an ist:
   nie beide. Sie läuft als Schritt der Pipeline nur für Fotos, die analysiert
   werden, während sie aktiv ist; ältere Fotos werden nie nachträglich geschickt.
   Zeile mit Stand, Ø/zuletzt ms, Fehlern und Kosten.
+- **Lokales Modell als Ersatz:** Kann die KI ein Foto nicht liefern (kein oder
+  abgelehnter Schlüssel, Budget aufgebraucht, Dienst über 5 Minuten nicht
+  erreichbar, Fehler bei diesem Foto), bekommt es die lokale Objektliste;
+  die übrigen Werte bleiben unverändert. Die Zeile zeigt „N Fotos lokal statt KI“
+  mit dem letzten Grund, die Analyse des Fotos „lokal (Ersatz für KI: …)“. Ist die
+  KI wieder da, gehen neue Fotos wieder an sie; ersetzte bleiben lokal.
 - **„Eigenschaften abfragen“** (nur Text, alle … Minuten, mit den Urteilen) steht
   in der Karte „Eigenschaften“.
 - **„Externe KI“**: Hauptschalter (aus: nichts verlässt den Server), Anbieter

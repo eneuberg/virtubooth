@@ -412,6 +412,21 @@ ALTER TABLE llm_usage ADD COLUMN ms INTEGER;
 ALTER TABLE photo_detection_runs ADD COLUMN image TEXT;
 """
 
+# v16: the local detector stands in when the external AI cannot deliver a photo it
+# was queued for (no key, key rejected, budget used up, provider down, an error about
+# the photo). A queued photo's `local` run is therefore no longer decided when the
+# pipeline finishes it, but when the AI delivers (`skipped`) or hands it back (the
+# local list). Photos still waiting for the AI got a `skipped` local run before:
+# that undecided placeholder (no objects) goes, so they can fall back too.
+SCHEMA_V16 = """
+DELETE FROM photo_detection_runs
+WHERE source = 'local' AND state = 'skipped' AND objects = 0
+  AND photo_id IN (SELECT a.photo_id FROM wall_analysis a
+                   WHERE a.state = 'done' AND a.ai_detect = 1)
+  AND NOT EXISTS (SELECT 1 FROM photo_detection_runs r
+                  WHERE r.photo_id = photo_detection_runs.photo_id AND r.source != 'local');
+"""
+
 # (version, script): each step upgrades the database from the version before.
 MIGRATIONS: tuple[tuple[int, str], ...] = (
     (1, SCHEMA),
@@ -427,6 +442,7 @@ MIGRATIONS: tuple[tuple[int, str], ...] = (
     (13, SCHEMA_V13),
     (14, SCHEMA_V14),
     (15, SCHEMA_V15),
+    (16, SCHEMA_V16),
 )
 SCHEMA_VERSION = MIGRATIONS[-1][0]
 

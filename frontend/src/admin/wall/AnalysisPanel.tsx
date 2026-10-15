@@ -217,7 +217,15 @@ function Objects({ photoId, analysis }: { photoId: string; analysis: PhotoAnalys
   const props = analysis.properties;
   return (
     <div className="grid gap-2" data-testid="analysis-objects">
-      <h4 className="text-sm font-bold">Objekte</h4>
+      <h4 className="flex flex-wrap items-baseline gap-x-2 text-sm font-bold">
+        Objekte
+        {analysis.objects_fallback ? (
+          // the external AI could not deliver this photo: the local detector's list
+          <span className="text-xs font-normal text-ink-muted" data-testid="analysis-fallback">
+            lokal (Ersatz für KI: {analysis.objects_fallback})
+          </span>
+        ) : null}
+      </h4>
       {analysis.objects.length === 0 ? (
         <p className="text-sm text-ink-muted">
           {analysis.runs.length === 0

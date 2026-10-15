@@ -84,6 +84,15 @@ class DetectionOut(BaseModel):
     failed: int
     last_run_at: str | None = Field(description="When the detector last finished a photo.")
     last_error: str | None = Field(description="The detection's last error (provider trouble).")
+    fallback: int = Field(
+        description="Photos whose objects come from the local detector in place of the AI "
+        "(it could not deliver them: no key, key rejected, budget, provider down, an error)."
+    )
+    fallback_reason: str | None = Field(description="Why, for the latest of them (German).")
+    fallback_now: str | None = Field(
+        description="While the AI is the detector but the local one stands in for new "
+        "photos: why (German); None while the AI takes them."
+    )
     stats: DetectStatsOut
     cost_usd: float = Field(description="What detection has cost so far (estimate).")
 

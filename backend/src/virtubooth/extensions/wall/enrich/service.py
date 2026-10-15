@@ -441,6 +441,7 @@ class EnrichmentService:
                 [o for src, found in by_source.items() if src != "local" for o in found]
             ),
             runs=[DetectionRun.model_validate(r) for r in objects.runs_of(db, photo.id)],
+            objects_fallback=str(data[jobs.AI_FALLBACK]) if data.get(jobs.AI_FALLBACK) else None,
             opt_out=OptOutState(
                 analysis=bool(flags and flags[0]), external_ai=bool(flags and flags[1])
             ),

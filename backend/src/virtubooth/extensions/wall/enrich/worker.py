@@ -14,6 +14,10 @@ analysis, runs the pipeline and stores the result. Idle: a DB scan every 2 s.
 - every photo is analysed ONCE (frozen, PLAN-NIGHT N3): no re-run when an
   analyzer version changes or an analyzer is switched on; only a crashed or
   failed attempt is retried (`jobs.MAX_ATTEMPTS`)
+- a photo queued for the external AI that the AI cannot deliver (no key, key
+  rejected, budget used up, provider down for minutes, an error about the photo)
+  comes back marked (`jobs.hand_to_local`): a second pass runs ONLY the local
+  detector on it and adds its object list; facts and data stay as they are
 - per analyzer the heartbeat carries {processed, errors, avg_ms, last_ms},
   carried over from the previous heartbeat when the process is recycled
 """
@@ -258,6 +262,41 @@ class Worker:
             )
         return "done"
 
+    def process_fallback(self, repos: Repositories, photo: PhotoInfo) -> str:
+        """The local detector on a photo the AI handed back: only its object list
+        is added (the `local` run), nothing else of the photo changes."""
+        db = repos.db
+        path = repos.photos.path(photo.extension, photo.filename)
+        if photo.opt_out:
+            jobs.finish_fallback(db, photo.id, error="Gast möchte keine Auswertung",
+                                 image=photo.image)  # fmt: skip
+            return "skipped"
+        if not path.is_file():
+            jobs.finish_fallback(db, photo.id, error="Fotodatei fehlt", image=photo.image)
+            return "skipped"
+        others = {a.info.name for a in self.pipeline.analyzers()} - {"objects"}
+        try:
+            frame = load_frame(path, photo)
+            frame.settings = jobs.analyzer_settings(repos.app_settings)
+            outcome = self.pipeline.run(frame, others)
+        except Exception as exc:
+            if isinstance(exc, AnalyzerFailed):
+                self._count_error(exc.name)
+            log.exception("local objects for photo %s failed", photo.public_id)
+            cause = exc.__cause__ if isinstance(exc, AnalyzerFailed) else exc
+            jobs.finish_fallback(db, photo.id, state="failed", image=photo.image,
+                                 error=f"Erkennung fehlgeschlagen ({type(cause).__name__})")  # fmt: skip
+            return "failed"
+        model, why = self._objects_model(outcome)
+        jobs.finish_fallback(db, photo.id, objects_found=outcome.objects, objects_model=model,
+                             error=why, image=photo.image)  # fmt: skip
+        self._count(outcome)
+        del frame
+        release_memory()
+        log.info("photo %s: local objects in place of the AI (%d)", photo.public_id,
+                 len(outcome.objects))  # fmt: skip
+        return "done"
+
     def _objects_model(self, outcome: Outcome) -> tuple[str | None, str | None]:
         """(`photo_objects.model` of the local detector when it ran, else None
         and why it did not)."""
@@ -404,12 +443,18 @@ class Worker:
                 jobs.purge_deleted(db)
                 use = jobs.analysis_image(repos.app_settings)
                 photo = jobs.claim(db, use) if jobs.has_work(db) else None
-                if photo is None:
+                handed_back = None
+                if photo is None and jobs.fallback_due(db):
+                    handed_back = jobs.claim_fallback(db, use)
+                if photo is None and handed_back is None:
                     if once:
                         break
                     self.stop.wait(self.idle_s)
                     continue
-                self.process(repos, photo, report)
+                if photo is not None:
+                    self.process(repos, photo, report)
+                elif handed_back is not None:
+                    self.process_fallback(repos, handed_back)
                 self.processed += 1
                 if once:
                     if limit is not None and self.processed >= limit:

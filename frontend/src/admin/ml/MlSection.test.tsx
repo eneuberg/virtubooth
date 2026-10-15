@@ -328,6 +328,51 @@ describe('ML-Pipeline section', () => {
     expect(requests.filter((r) => r.method === 'PUT')).toHaveLength(1);
   });
 
+  it('shows no fallback line while the AI delivered every photo', async () => {
+    const llm = llmStatus();
+    renderSection({}, llm);
+    const quiet = await analyzerRow('objects-ai');
+    expect(within(quiet).queryByTestId('ml-ai-detect-fallback')).toBeNull();
+  });
+
+  it('shows „N Fotos lokal statt KI“ with the latest reason and the live hint', async () => {
+    const llm = llmStatus();
+    llm.config = { ...llm.config, detect: { external: true } };
+    llm.detection = {
+      ...llm.detection,
+      mode: 'ai',
+      state: 'blocked',
+      fallback: 3,
+      fallback_reason: 'Budget aufgebraucht',
+      fallback_now: 'Budget aufgebraucht',
+    };
+    renderSection({}, llm);
+    const ai = await analyzerRow('objects-ai');
+    expect(within(ai).getByTestId('ml-ai-detect-fallback-count').textContent).toBe(
+      '3 Fotos lokal statt KI · zuletzt: Budget aufgebraucht',
+    );
+    expect(within(ai).getByTestId('ml-ai-detect-fallback-now').textContent).toContain(
+      'Gerade erkennt das lokale Modell statt der KI (Budget aufgebraucht)',
+    );
+  });
+
+  it('keeps the count but drops the live hint once the AI takes photos again (or is not the detector)', async () => {
+    const llm = llmStatus();
+    llm.detection = {
+      ...llm.detection,
+      fallback: 1,
+      fallback_reason: 'Kein API-Schlüssel',
+      fallback_now: 'x',
+    };
+    renderSection({}, llm);
+    const ai = await analyzerRow('objects-ai');
+    expect(within(ai).getByTestId('ml-ai-detect-fallback-count').textContent).toBe(
+      '1 Foto lokal statt KI · zuletzt: Kein API-Schlüssel',
+    );
+    // mode „local“: the AI is not the detector, nothing stands in for it now
+    expect(within(ai).queryByTestId('ml-ai-detect-fallback-now')).toBeNull();
+  });
+
   it('offers no „KI“ detection with a provider that cannot see photos', async () => {
     const llm = llmStatus();
     llm.config = { ...llm.config, provider: 'deutschlandgpt', model: 'claude-haiku-5.5' };
