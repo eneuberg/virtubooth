@@ -79,8 +79,8 @@ describe('ML-Pipeline section', () => {
     );
     await waitFor(() => expect(requests.some((r) => r.method === 'PUT')).toBe(true));
     const put = requests.find((r) => r.method === 'PUT');
-    expect(await bodyField(put as Request, 'settings')).toEqual({ score_min: 0.5, max_objects: 50 });
-    expect(await bodyField(put as Request, 'enabled')).toBe(true);
+    expect(await bodyField(must(put), 'settings')).toEqual({ score_min: 0.5, max_objects: 50 });
+    expect(await bodyField(must(put), 'enabled')).toBe(true);
   });
 
   it('stores a key, then shows only „gesetzt“ and never the key', async () => {
@@ -104,7 +104,7 @@ describe('ML-Pipeline section', () => {
     fireEvent.click(screen.getByTestId('ml-key-save'));
     await waitFor(() => expect(screen.getByTestId('ml-key-state').textContent).toBe('gesetzt'));
     const put = requests.find((r) => r.method === 'PUT' && r.url.endsWith('/llm/key'));
-    expect(await bodyField(put as Request, 'key')).toBe(SECRET);
+    expect(await bodyField(must(put), 'key')).toBe(SECRET);
     // the field is gone and nothing of the key is anywhere on the page
     expect(screen.queryByLabelText('API-Schlüssel')).toBeNull();
     expect(document.body.innerHTML).not.toContain(SECRET);
