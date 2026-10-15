@@ -111,7 +111,7 @@ Installation.
 - Die Aktivitäten als Filmstreifen, in der Reihenfolge aus `VB_EXTENSIONS`, je mit
   Titel, Untertitel und Live-Zeile:
   - Beer Cam: die Zahl der sichtbaren Biere „von 1 Mio. Bieren“, alle 30 s neu.
-  - Fotobox: fünf feste Beispielbilder und die Zahl der Filter („10 Filter“).
+  - Fotobox: fünf feste Beispielbilder und die Zahl der Filter („14 Filter“).
 - „Deine Bilder“ (nächster Abschnitt).
 - Fußzeile: „Was passiert mit meinen Fotos?“ (die Beitrittstexte zum Nachlesen) und,
   wenn gesetzt, „Die Gastgeber posten ausgewählte Fotos auf <Account>.“
@@ -165,9 +165,10 @@ Selfies mit Live-Filtern. Adresse: `/x/booth/`.
 
 - Frontkamera als Standard, gespiegelt wie ein Spiegel. „Kamera wechseln“ per Knopf
   oder Doppeltipp auf das Bild.
-- **10 Filter** in dieser Reihenfolge: „Normal“, „Schwarz-Weiß“, „Sepia“, „Color Pop“,
+- **14 Filter** in dieser Reihenfolge: „Normal“, „Schwarz-Weiß“, „Sepia“, „Color Pop“,
   „Party-Rahmen“ (mit dem Partynamen), „Emoji-Props“, „Neon“, „Vintage/VHS“,
-  „Retro-Pixel“, „Comic“.
+  „Retro-Pixel“, „Comic“, „Wärmebild“, „Disco“ (Farbversatz, Spots, Glitzer),
+  „Kaleidoskop“ (ein Ring aus Gesichtern), „Neonlinien“ (leuchtende Kanten).
   - Wählen per Filterleiste, Wischen über das Bild oder Pfeiltasten.
   - Die Filter sind WebGL-Shader. Ohne WebGL läuft eine Canvas2D-Variante; Filter, die
     dort nicht gehen, fehlen dann in der Leiste.
