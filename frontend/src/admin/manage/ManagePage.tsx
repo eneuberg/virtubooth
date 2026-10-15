@@ -19,14 +19,12 @@ import {
   Settings2,
   ShieldBan,
   Tv,
-  Upload,
   Users,
 } from 'lucide-react';
 import { useEffect, useRef, type ComponentType } from 'react';
 import { Link } from 'react-aria-components';
 import { useSearchParams } from 'wouter';
 import type { AdminStats } from '@/api/types';
-import { t } from '@/lib/messages.de';
 import { BottomBar, bottomBarInset } from '@/ui/BottomBar';
 import { Button, LinkButton } from '@/ui/Button';
 import { cx } from '@/ui/cx';
@@ -37,16 +35,12 @@ import { CodesSection } from '../codes/CodesSection';
 import { AdminFrame } from '../common/AdminFrame';
 import { ConnectionBadge } from '../common/ConnectionBadge';
 import { OverviewSection } from '../dashboard/OverviewSection';
-import { QuickControls } from '../dashboard/QuickControls';
-import { StatusStrip } from '../dashboard/StatusStrip';
 import { DESKTOP, useMediaQuery } from '../lib/browser';
 import { PosterSection } from '../poster/PosterSection';
 import { logout } from '../store/actions';
 import { useStats } from '../store/hooks';
-import { useDocumentSurface } from '../surface';
 import { SettingsSection } from '../settings/SettingsSection';
-import { openUploadSheet } from '../uploads/sheetStore';
-import { UploadStatusPill } from '../uploads/UploadStatusPill';
+import { PartyControls } from '../uploads/PartyControls';
 import { WallSection } from '../wall/WallSection';
 import { MlSection } from '../ml/MlSection';
 import { AuditSection } from './AuditSection';
@@ -99,7 +93,6 @@ const TOAST =
   'bottom-[calc(4.75rem+env(safe-area-inset-bottom))] lg:right-6 lg:bottom-6 lg:left-auto lg:mx-0';
 
 export function ManagePage() {
-  useDocumentSurface('light');
   return (
     <AdminFrame toastClassName={TOAST}>
       <ManageShell />
@@ -179,8 +172,7 @@ function ManageShell() {
           }
           footer={
             <>
-              <QuickControls className="mb-1 grid-flow-row" />
-              <UploadStatusPill long className="mb-2 w-full" />
+              <PartyControls layout="sidebar" className="mb-2" />
               <LinkButton href="/live" variant="quiet" size="xs" icon={Radio} className="justify-start">
                 Live öffnen
               </LinkButton>
@@ -198,22 +190,24 @@ function ManageShell() {
           }
         />
       ) : (
-        <header className="sticky top-0 z-(--z-sticky) bg-surface pt-[env(safe-area-inset-top)] landscape-phone:static">
-          <div className="flex items-center gap-2 py-2 pr-2 pl-4">
-            <div className="grid min-w-0">
-              <span className="truncate text-lg font-bold">Verwaltung</span>
-              <ConnectionBadge />
+        <>
+          {/* phones: the title and the three party switches scroll away, the sections stay */}
+          <header className="bg-surface pt-[env(safe-area-inset-top)]">
+            <div className="flex items-center gap-2 py-2 pr-2 pl-4">
+              <div className="mr-auto grid min-w-0">
+                <span className="truncate text-lg font-bold">Verwaltung</span>
+                <ConnectionBadge />
+              </div>
+              <IconButton label="Abmelden" icon={LogOut} onPress={() => void logout()} data-testid="logout" />
             </div>
-            <UploadStatusPill className="ml-auto" />
-            <IconButton label="Abmelden" icon={LogOut} onPress={() => void logout()} data-testid="logout" />
+            <PartyControls className="px-3 pb-3" />
+          </header>
+          <div className="sticky top-0 z-(--z-sticky) bg-surface landscape-phone:static">
+            <SectionStrip current={section} stats={stats} />
           </div>
-          <QuickControls className="px-3 pb-2" />
-          <StatusStrip />
-          <SectionStrip current={section} stats={stats} />
-        </header>
+        </>
       )}
       <main id="main" tabIndex={-1} className="min-w-0 flex-1 outline-none">
-        {desktop ? <StatusStrip className="sticky top-0 z-(--z-sticky)" /> : null}
         <View />
       </main>
       {desktop ? null : (
@@ -222,7 +216,6 @@ function ManageShell() {
           currentId="manage"
           items={[
             { id: 'live', label: 'Live', icon: Images, href: '/live' },
-            { id: 'upload', label: t.upload, icon: Upload, onPress: openUploadSheet },
             { id: 'manage', label: 'Verwaltung', icon: LayoutGrid, href: '/manage' },
           ]}
         />

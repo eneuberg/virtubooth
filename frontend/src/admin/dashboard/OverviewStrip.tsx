@@ -7,7 +7,8 @@ import { useOverview } from './data';
 import { freshness, liveStats } from './text';
 
 /**
- * The live overview at a glance (Live screen): six counters in Doto, refreshed every
+ * The live overview at a glance (Live screen): six counters, set like the Übersicht's
+ * numbers (bold, tabular), refreshed every
  * 10 s while visible and on the relevant events. "Alle Zahlen" opens the fuller
  * Übersicht in the manage area.
  */
@@ -32,7 +33,7 @@ export function OverviewStrip({ className }: { className?: string }) {
                 data-testid={`overview-${stat.id}`}
               >
                 <dt className="text-xs leading-tight text-ink-muted">{stat.label}</dt>
-                <dd className="dots text-dots-sm text-accent-ink">{formatNumber(stat.value)}</dd>
+                <dd className="text-lg leading-tight font-bold tabular">{formatNumber(stat.value)}</dd>
               </div>
             ))}
           </dl>

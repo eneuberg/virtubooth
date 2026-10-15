@@ -1,5 +1,6 @@
-"""Upload controls, one sheet from every header: "Hochladen für alle stoppen", the
-new-guest pause (switching it off asks: release or keep) and per-guest release."""
+"""The party switches, always in sight on every admin screen (the manage sidebar, the
+top of the manage area on phones, the Live header): "Hochladen für alle stoppen", the
+new-guest pause (switching it off asks: release or keep) and the way to paused guests."""
 
 from __future__ import annotations
 
@@ -10,25 +11,22 @@ import pytest
 from playwright.sync_api import Locator, Page, expect
 
 from ..conftest import LiveServer, track_errors
-from .conftest import Guest, errors, goto, wait_live
+from .conftest import Guest, errors, goto, toast, wait_live
 
 pytestmark = pytest.mark.e2e
 
-
-def open_sheet(page: Page) -> Locator:
-    page.get_by_test_id("uploads-chip").click()
-    sheet = page.get_by_role("dialog", name="Hochladen")
-    expect(sheet).to_be_visible()
-    return sheet
+STOP = re.compile("Hochladen für alle stoppen")
+PAUSE = re.compile("Neue Gäste pausieren")
 
 
-def close_sheet(page: Page) -> None:
-    page.get_by_role("dialog", name="Hochladen").get_by_role("button", name="Schließen").click()
-    expect(page.get_by_role("dialog", name="Hochladen")).to_have_count(0)
+def switch(page: Page, name: re.Pattern[str]) -> Locator:
+    """The switch itself (role="switch", checked state), by its label."""
+    return page.get_by_test_id("party-controls").get_by_role("switch", name=name)
 
 
-def pill(page: Page) -> Locator:
-    return page.get_by_test_id("uploads-chip")
+def row(page: Page, test_id: str) -> Locator:
+    """The switch's visible row: label, state line, track (what a tap hits)."""
+    return page.get_by_test_id("party-controls").get_by_test_id(test_id)
 
 
 def test_stop_all_uploads_and_back(
@@ -45,31 +43,30 @@ def test_stop_all_uploads_and_back(
     goto(second, live, "/admin/manage")
     for p in (admin_page, second):
         wait_live(p)
-        expect(pill(p)).to_have_attribute("data-state", "paused-new")
+        # all three switches in sight, no menu or sheet in between
+        for test_id in ("upload-stop-switch", "join-stop-switch", "upload-pause-switch"):
+            expect(row(p, test_id)).to_be_visible()
+        expect(switch(p, PAUSE)).to_be_checked()
+        expect(switch(p, STOP)).not_to_be_checked()
 
-    sheet = open_sheet(admin_page)
-    stop = sheet.get_by_role("switch", name=re.compile("Hochladen für alle stoppen"))
-    expect(stop).not_to_be_checked()
-    sheet.get_by_test_id("upload-stop-switch").click()
-    expect(stop).to_be_checked()
-    expect(sheet.get_by_test_id("upload-stop-switch")).to_contain_text(
+    row(admin_page, "upload-stop-switch").click()
+    expect(switch(admin_page, STOP)).to_be_checked()
+    expect(admin_page.get_by_role("dialog")).to_have_count(0)
+    expect(row(admin_page, "upload-stop-switch")).to_contain_text(
         re.compile(r"Gestoppt seit \d\d:\d\d")
     )
-    expect(sheet.get_by_test_id("uploads-result")).to_have_text("Hochladen für alle gestoppt.")
-    close_sheet(admin_page)
     # every admin screen shows it at once
     for p in (admin_page, second):
-        expect(pill(p)).to_have_attribute("data-state", "stopped")
+        expect(row(p, "upload-stop-switch")).to_have_attribute("data-state", "on")
+    expect(admin_page.get_by_test_id("party-badges")).to_contain_text("Hochladen gestoppt")
     r = known.upload_response()
     assert r.status_code == 403 and r.json()["error"] == "uploads_stopped"
 
-    sheet = open_sheet(admin_page)
-    sheet.get_by_test_id("upload-stop-switch").click()
-    expect(
-        sheet.get_by_role("switch", name=re.compile("Hochladen für alle stoppen"))
-    ).not_to_be_checked()
-    close_sheet(admin_page)
-    expect(pill(second)).to_have_attribute("data-state", "paused-new")
+    # the same switch, on the other screen, resumes
+    row(second, "upload-stop-switch").click()
+    for p in (admin_page, second):
+        expect(switch(p, STOP)).not_to_be_checked()
+        expect(switch(p, PAUSE)).to_be_checked()
     # back to exactly as before: the paused guest and the new-guest pause are untouched
     assert known.upload_response().status_code == 201
     assert live.core.services.upload_controls.pause_state() == lock
@@ -83,18 +80,14 @@ def test_pause_new_guests_then_restore(
     known = guests()
     goto(admin_page, live, "/admin/live")
     wait_live(admin_page)
-    expect(pill(admin_page)).to_have_attribute("data-state", "on")
-    expect(pill(admin_page)).to_have_text("Hochladen an")
+    expect(switch(admin_page, PAUSE)).not_to_be_checked()
+    expect(admin_page.get_by_test_id("uploads-paused-list")).to_have_count(0)
 
-    sheet = open_sheet(admin_page)
-    switch = sheet.get_by_role("switch", name=re.compile("Neue Gäste pausieren"))
-    sheet.get_by_test_id("upload-pause-switch").click()
-    expect(switch).to_be_checked()
-    expect(sheet.get_by_test_id("upload-pause-switch")).to_contain_text(
+    row(admin_page, "upload-pause-switch").click()
+    expect(switch(admin_page, PAUSE)).to_be_checked()
+    expect(row(admin_page, "upload-pause-switch")).to_contain_text(
         re.compile(r"Seit \d\d:\d\d, noch niemand betroffen\.")
     )
-    close_sheet(admin_page)
-    expect(pill(admin_page)).to_have_text("Neue pausiert")
 
     newcomer = guests()
     assert newcomer.paused
@@ -102,22 +95,21 @@ def test_pause_new_guests_then_restore(
     assert r.status_code == 403 and r.json()["error"] == "uploads_paused"
     assert known.upload_response().status_code == 201  # guests from before keep uploading
 
-    sheet = open_sheet(admin_page)
-    expect(sheet.get_by_test_id("upload-pause-switch")).to_contain_text("1\u00a0Gast betroffen")
-    expect(sheet.get_by_test_id("paused-guests")).to_contain_text(newcomer.name)
-    expect(sheet.get_by_test_id("paused-guests")).to_contain_text("automatisch")
-    sheet.get_by_test_id("upload-pause-switch").click()
-    expect(sheet.get_by_test_id("pause-end-text")).to_contain_text(
+    expect(row(admin_page, "upload-pause-switch")).to_contain_text("1\u00a0Gast betroffen")
+    expect(admin_page.get_by_test_id("uploads-paused-list")).to_have_text("1\u00a0Gast pausiert")
+    row(admin_page, "upload-pause-switch").click()
+    dialog = admin_page.get_by_role("dialog", name="Pause für neue Gäste beenden")
+    expect(dialog.get_by_test_id("pause-end-text")).to_contain_text(
         "1 Gast ist während der Pause beigetreten"
     )
-    expect(sheet.get_by_test_id("pause-end-keep")).to_have_text("Pausiert lassen")
-    sheet.get_by_test_id("pause-end-restore").click()
-    expect(sheet.get_by_test_id("uploads-result")).to_have_text(
-        "1\u00a0Gast wieder freigeschaltet."
-    )
-    expect(sheet.get_by_role("switch", name=re.compile("Neue Gäste pausieren"))).not_to_be_checked()
-    close_sheet(admin_page)
-    expect(pill(admin_page)).to_have_attribute("data-state", "on")
+    # still on until the host decides
+    expect(switch(admin_page, PAUSE)).to_be_checked()
+    expect(dialog.get_by_test_id("pause-end-keep")).to_have_text("Pausiert lassen")
+    dialog.get_by_test_id("pause-end-restore").click()
+    expect(dialog).to_have_count(0)
+    expect(toast(admin_page)).to_contain_text("1\u00a0Gast wieder freigeschaltet.")
+    expect(switch(admin_page, PAUSE)).not_to_be_checked()
+    expect(admin_page.get_by_test_id("uploads-paused-list")).to_have_count(0)
     assert newcomer.upload_response().status_code == 201
     assert errors(admin_page) == []
 
@@ -128,28 +120,26 @@ def test_pause_new_guests_then_keep(
     page = desktop_page
     goto(page, live, "/admin/manage?tab=gaeste")
     wait_live(page)
-    sheet = open_sheet(page)
-    sheet.get_by_test_id("upload-pause-switch").click()
-    expect(sheet.get_by_role("switch", name=re.compile("Neue Gäste pausieren"))).to_be_checked()
-    close_sheet(page)
+    # the sidebar holds the switches on desktop
+    expect(page.get_by_role("complementary").get_by_test_id("party-controls")).to_be_visible()
+    row(page, "upload-pause-switch").click()
+    expect(switch(page, PAUSE)).to_be_checked()
 
     newcomer = guests()
     # the guest list follows live: the new row carries the paused badge
-    row = page.locator('table[aria-label="Gäste"] tbody tr').filter(has_text=newcomer.name)
-    expect(row.get_by_test_id("paused-badge")).to_have_text("Hochladen pausiert")
+    table_row = page.locator('table[aria-label="Gäste"] tbody tr').filter(has_text=newcomer.name)
+    expect(table_row.get_by_test_id("paused-badge")).to_have_text("Hochladen pausiert")
 
-    sheet = open_sheet(page)
-    sheet.get_by_test_id("upload-pause-switch").click()
-    sheet.get_by_test_id("pause-end-keep").click()
-    expect(sheet.get_by_test_id("uploads-result")).to_have_text(
-        "Neue Gäste können wieder hochladen. 1\u00a0Gast bleibt pausiert."
-    )
+    row(page, "upload-pause-switch").click()
+    page.get_by_test_id("pause-end-keep").click()
+    expect(page.get_by_test_id("pause-end-text")).to_have_count(0)
+    expect(switch(page, PAUSE)).not_to_be_checked()
     assert newcomer.upload_response().json()["error"] == "uploads_paused"
     later = guests()
     assert not later.paused and later.upload_response().status_code == 201
 
-    # "In der Gästeliste ansehen": the list filtered to paused guests
-    sheet.get_by_test_id("uploads-paused-list").click()
+    # "1 Gast pausiert": the list filtered to paused guests (release them there)
+    page.get_by_test_id("uploads-paused-list").click()
     page.wait_for_url(re.compile(r"/admin/manage\?tab=gaeste&show=paused"))
     rows = page.locator('table[aria-label="Gäste"] tbody tr:has([role=gridcell])')
     expect(rows).to_have_count(1)
@@ -157,24 +147,15 @@ def test_pause_new_guests_then_keep(
     assert errors(page) == []
 
 
-def test_release_one_guest_from_the_sheet(
-    admin_page: Page, live: LiveServer, guests: Callable[..., Guest]
-) -> None:
-    g = guests()
-    live.core.services.upload_controls.set_user_paused(g.id, True, actor="pytest")
-    goto(admin_page, live, "/admin/live")
-    wait_live(admin_page)
-    # the bottom bar's "Hochladen" opens the same sheet
-    admin_page.get_by_role("navigation", name="Bereiche").get_by_role(
-        "button", name="Hochladen"
-    ).click()
-    sheet = admin_page.get_by_role("dialog", name="Hochladen")
-    expect(sheet.get_by_test_id("paused-guests")).to_contain_text("von Hand")
-    sheet.get_by_role("button", name=f"Hochladen für {g.name} erlauben").click()
-    expect(sheet.get_by_test_id("uploads-result")).to_have_text(f"{g.name} darf wieder hochladen.")
-    expect(sheet.get_by_text("Niemand ist pausiert.")).to_be_visible()
-    assert g.upload_response().status_code == 201
-    # Escape closes it, the focus goes back to where it was
-    admin_page.keyboard.press("Escape")
-    expect(sheet).to_have_count(0)
-    assert errors(admin_page) == []
+def test_the_switches_are_keyboard_switches(desktop_page: Page, live: LiveServer) -> None:
+    page = desktop_page
+    goto(page, live, "/admin/live")
+    wait_live(page)
+    join_switch = switch(page, re.compile("Anmeldung stoppen"))
+    join_switch.focus()
+    page.keyboard.press("Space")
+    expect(join_switch).to_be_checked()
+    assert live.core.repos.app_settings.join_stop().enabled
+    page.keyboard.press("Space")
+    expect(join_switch).not_to_be_checked()
+    assert errors(page) == []

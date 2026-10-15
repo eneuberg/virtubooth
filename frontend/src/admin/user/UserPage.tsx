@@ -42,8 +42,7 @@ import { copyText, focusLater } from '../lib/browser';
 import { autoBanSource, clock, guestState, photoCount, photoLabel } from '../lib/labels';
 import { setUserPaused } from '../store/actions';
 import { useExtensionMap, useUploadPause, useUploadStop, useUserDetail } from '../store/hooks';
-import { useDocumentSurface } from '../surface';
-import { UploadStatusPill } from '../uploads/UploadStatusPill';
+import { PartyStateBadges } from '../uploads/PartyControls';
 import { pauseSource } from '../uploads/uploadState';
 import { resetDisplayName } from './api';
 import { BanSheet } from './BanSheet';
@@ -56,7 +55,6 @@ const LINK =
   'font-semibold text-ink underline decoration-line-strong underline-offset-3 outline-none hover:decoration-ink focus-visible:outline-2 focus-visible:outline-focus';
 
 export function UserPage() {
-  useDocumentSurface('light');
   return (
     <AdminFrame toastClassName="lg:right-6 lg:bottom-6 lg:left-auto lg:mx-0">
       <UserScreen />
@@ -77,8 +75,10 @@ function TopBar() {
       >
         Gäste
       </LinkButton>
-      <ConnectionBadge className="ml-auto max-sm:hidden" />
-      <UploadStatusPill className="max-sm:ml-auto" />
+      <div className="ml-auto flex items-center gap-3">
+        <PartyStateBadges className="justify-end max-sm:hidden" />
+        <ConnectionBadge />
+      </div>
     </div>
   );
 }

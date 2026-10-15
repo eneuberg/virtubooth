@@ -327,6 +327,17 @@ class WallHub:
             rev = new
         return rev
 
+    def _announce_analyzed(self, ids: list[int]) -> None:
+        """Tell the admin screens (Live) which photos have a new analysis."""
+        try:
+            marks = ", ".join("?" for _ in ids)
+            rows = self.core.db.all(
+                f"SELECT public_id FROM photos WHERE id IN ({marks}) AND deleted_at IS NULL", ids
+            )
+            self.core.services.events.photo_analyzed([r["public_id"] for r in rows])
+        except Exception:
+            log.exception("wall: announcing analysed photos failed")
+
     def _poll_once(self) -> bool:
         db = self.core.db
         self._has_categories = engine.has_enabled(db)
@@ -337,6 +348,7 @@ class WallHub:
         self.rev = new
         if not ids:
             return new_poll
+        self._announce_analyzed(ids)
         config = load_config(self.core.repos.app_settings)
         photos = visible_by_ids(self.core, config, ids)
         for photo in wall_photos(self.core, config, self.enrichment, list(photos.values())):

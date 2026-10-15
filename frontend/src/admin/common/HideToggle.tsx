@@ -31,16 +31,16 @@ export function HideToggle({
       data-testid="toggle"
       data-action={photo.hidden ? 'unhide' : 'hide'}
       className={cx(
-        'grid size-11 cursor-pointer place-items-center rounded-full bg-black/60 text-white ring-1 ring-white/30 ring-inset',
-        'transition-[background-color,transform] duration-(--duration-quick) outline-none hover:bg-black/75 pressed:scale-95',
-        'focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-safelight',
+        'grid size-11 cursor-pointer place-items-center rounded-full bg-white/92 text-negativ ring-1 ring-negativ/12 ring-inset',
+        'transition-[background-color,transform] duration-(--duration-quick) outline-none hover:bg-white pressed:scale-95',
+        'focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-focus',
         className,
       )}
     >
       {isPending ? (
         <Spinner />
       ) : photo.hidden ? (
-        <GreaseX className="size-6 text-fettstift-hell" />
+        <GreaseX className="size-6 text-fettstift" />
       ) : (
         <Eye aria-hidden="true" className="size-6" strokeWidth={2} />
       )}

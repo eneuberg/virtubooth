@@ -6,8 +6,8 @@ export type SurfaceTone = 'dark' | 'light';
 const SurfaceContext = createContext<SurfaceTone | undefined>(undefined);
 
 /**
- * The surface an area sits on: "dark" (Rotlicht: guest pages, admin live) or "light"
- * (Leuchttisch: admin manage). Pages normally set it once on <html data-surface>;
+ * The surface an area sits on: "dark" (Rotlicht: guest pages) or "light" (Leuchttisch:
+ * the admin). Pages normally set it once on <html data-surface>;
  * use this for nested areas (the UI gallery shows both side by side).
  * Overlays (Sheet, Select, Tooltip) read it so their portals match the area.
  */

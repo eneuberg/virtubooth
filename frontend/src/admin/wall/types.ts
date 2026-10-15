@@ -377,6 +377,18 @@ export interface PhotoAnalysis {
   durations_ms: Record<string, number>;
 }
 
+/** GET /admin/photos/analysis?ids=…: what the Live screen shows under a tile. */
+export interface PhotoAnalysisSummary {
+  photo_id: string;
+  state: AnalysisState;
+  /** only the key values: people, faces, smiles, happy_max, hands, thumbs_up, peace, rock, glasses, hats, age_groups */
+  facts: Record<string, number>;
+  objects: Array<{ label_de: string; source: ObjectSource }>;
+  opt_out: { analysis: boolean; external_ai: boolean };
+  /** the categories this photo currently wins (or the external AI's verdict names) */
+  wins: Array<{ id: string; emoji: string; title: string; verdict: boolean }>;
+}
+
 export type ObjectSource = 'local' | 'claude' | 'mistral' | (string & {});
 
 export interface PhotoObject {

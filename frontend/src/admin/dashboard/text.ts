@@ -1,44 +1,10 @@
 /**
  * Dashboard words and numbers (pure; text.test.ts). Glossary: "Hochladen" as in the
- * upload sheet ("Hochladen für alle stoppen"), "Anmeldung" for joining the party.
+ * party switches ("Hochladen für alle stoppen"), "Anmeldung" for joining the party.
  */
-import type { Overview, StopState } from '@/api/types';
+import type { Overview } from '@/api/types';
 import { NBSP } from '@/lib/format';
 import { clock } from '../lib/labels';
-import type { QuickSwitch } from './data';
-
-export interface SwitchCopy {
-  /** the stop button's label (shown only while the stop is off) */
-  toggle: string;
-  /** the status strip while it is on: title, since when, and (wider screens) the effect */
-  title: string;
-  detail: string;
-  effect: string;
-  /** the strip's resume button: short text, full accessible name */
-  resume: string;
-  resumeLabel: string;
-}
-
-export function switchCopy(which: QuickSwitch, state: StopState | undefined, now?: Date): SwitchCopy {
-  const at = clock(state?.enabled ? state.since : null, now);
-  return which === 'uploads'
-    ? {
-        toggle: 'Hochladen stoppen',
-        title: 'Hochladen gestoppt',
-        detail: `Für alle, seit ${at}.`,
-        effect: 'Niemand kann hochladen, auch bekannte Gäste nicht.',
-        resume: 'Fortsetzen',
-        resumeLabel: 'Hochladen fortsetzen',
-      }
-    : {
-        toggle: 'Anmeldung stoppen',
-        title: 'Anmeldung gestoppt',
-        detail: `Seit ${at}.`,
-        effect: 'Niemand Neues kann beitreten. Wer dabei ist, macht weiter.',
-        resume: 'Wieder öffnen',
-        resumeLabel: 'Anmeldung wieder öffnen',
-      };
-}
 
 /** "5 min" with the NBSP the copy rules want. */
 export function minutes(n: number): string {

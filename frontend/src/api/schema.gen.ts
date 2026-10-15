@@ -1653,6 +1653,27 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/x/wall/admin/photos/analysis": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Photo Analysis Summaries
+         * @description The Live screen's analysis chips for a batch of photos: state, key
+         *     facts, object labels, the guest's opt-outs and current category wins.
+         */
+        get: operations["photo_analysis_summaries_api_x_wall_admin_photos_analysis_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/x/wall/admin/photos/{public_id}/analysis": {
         parameters: {
             query?: never;
@@ -1971,7 +1992,7 @@ export interface components {
          * AdminEvent
          * @description One message of the admin event stream, discriminated by `type`.
          */
-        AdminEvent: components["schemas"]["PhotoCreatedEvent"] | components["schemas"]["PhotoHiddenEvent"] | components["schemas"]["PhotoUnhiddenEvent"] | components["schemas"]["PhotoDeletedEvent"] | components["schemas"]["UserCreatedEvent"] | components["schemas"]["UserBannedEvent"] | components["schemas"]["UserUnbannedEvent"] | components["schemas"]["FingerprintBannedEvent"] | components["schemas"]["FingerprintUnbannedEvent"] | components["schemas"]["UploadsChangedEvent"] | components["schemas"]["UploadStopEvent"] | components["schemas"]["UploadPauseEvent"] | components["schemas"]["JoinStopEvent"] | components["schemas"]["SettingsEventEvent"] | components["schemas"]["ExtensionSettingsEvent"] | components["schemas"]["ExportUpdatedEvent"] | components["schemas"]["ExportDeletedEvent"] | components["schemas"]["InstagramDoneEvent"] | components["schemas"]["CodeChangedEvent"] | components["schemas"]["StreamResyncEvent"];
+        AdminEvent: components["schemas"]["PhotoCreatedEvent"] | components["schemas"]["PhotoHiddenEvent"] | components["schemas"]["PhotoUnhiddenEvent"] | components["schemas"]["PhotoDeletedEvent"] | components["schemas"]["PhotoAnalyzedEvent"] | components["schemas"]["UserCreatedEvent"] | components["schemas"]["UserBannedEvent"] | components["schemas"]["UserUnbannedEvent"] | components["schemas"]["FingerprintBannedEvent"] | components["schemas"]["FingerprintUnbannedEvent"] | components["schemas"]["UploadsChangedEvent"] | components["schemas"]["UploadStopEvent"] | components["schemas"]["UploadPauseEvent"] | components["schemas"]["JoinStopEvent"] | components["schemas"]["SettingsEventEvent"] | components["schemas"]["ExtensionSettingsEvent"] | components["schemas"]["ExportUpdatedEvent"] | components["schemas"]["ExportDeletedEvent"] | components["schemas"]["InstagramDoneEvent"] | components["schemas"]["CodeChangedEvent"] | components["schemas"]["StreamResyncEvent"];
         /** AdminExtension */
         AdminExtension: {
             /** Emoji */
@@ -2256,6 +2277,14 @@ export interface components {
             models: components["schemas"]["ModelsStatus"];
             queue: components["schemas"]["AnalysisQueue"];
             worker: components["schemas"]["WorkerStatus"];
+        };
+        /** AnalysisSummariesOut */
+        AnalysisSummariesOut: {
+            /**
+             * Items
+             * @description In request order; unknown or deleted photos are left out.
+             */
+            items: components["schemas"]["PhotoAnalysisSummary"][];
         };
         /** AnalyzerIn */
         AnalyzerIn: {
@@ -2772,6 +2801,23 @@ export interface components {
              * @description 1–1000 chars: the LLM verdict prompt (each poll).
              */
             prompt: string;
+        };
+        /** CategoryWin */
+        CategoryWin: {
+            /** Emoji */
+            emoji: string;
+            /**
+             * Id
+             * @description The category's id.
+             */
+            id: string;
+            /** Title */
+            title: string;
+            /**
+             * Verdict
+             * @description Named by the external AI's verdict, not by a ranking.
+             */
+            verdict: boolean;
         };
         /** CategoryWinnerOut */
         CategoryWinnerOut: {
@@ -4311,6 +4357,60 @@ export interface components {
                 [key: string]: string;
             };
         };
+        /**
+         * PhotoAnalysisSummary
+         * @description What the Live screen shows under a photo tile: the state, the key facts,
+         *     the object labels, the guest's opt-outs and the categories it currently wins.
+         *     The full analysis (boxes, details, scores) is `/admin/photos/{id}/analysis`.
+         */
+        PhotoAnalysisSummary: {
+            /**
+             * Facts
+             * @description Only the key values: people, faces, smiles, happy_max, hands, thumbs_up, peace, rock, glasses, hats, age_groups (those measured).
+             */
+            facts: {
+                [key: string]: number;
+            };
+            /** Objects */
+            objects: components["schemas"]["SummaryObject"][];
+            opt_out: components["schemas"]["OptOutState"];
+            /** Photo Id */
+            photo_id: string;
+            /**
+             * State
+             * @enum {string}
+             */
+            state: "pending" | "running" | "done" | "failed" | "skipped";
+            /** Wins */
+            wins: components["schemas"]["CategoryWin"][];
+        };
+        /** PhotoAnalyzedData */
+        PhotoAnalyzedData: {
+            /**
+             * Ids
+             * @description Public ids of the photos whose analysis changed.
+             */
+            ids: string[];
+        };
+        /**
+         * PhotoAnalyzedEvent
+         * @description The Live Wall's analysis of these photos changed (finished, failed, or an
+         *     external AI added objects): refetch their analysis. Only with the wall
+         *     extension loaded; batched (the wall polls the analysis every 2 s).
+         */
+        PhotoAnalyzedEvent: {
+            data: components["schemas"]["PhotoAnalyzedData"];
+            /**
+             * Id
+             * @description `<epoch>-<n>`: the SSE `id:` line.
+             */
+            id: string;
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            type: "photo.analyzed";
+        };
         /** PhotoChangeOut */
         PhotoChangeOut: {
             /** Changed */
@@ -4832,6 +4932,16 @@ export interface components {
              * @enum {string}
              */
             type: "stream.resync";
+        };
+        /** SummaryObject */
+        SummaryObject: {
+            /** Label De */
+            label_de: string;
+            /**
+             * Source
+             * @description local | claude | mistral
+             */
+            source: string;
         };
         /** TestImageOut */
         TestImageOut: {
@@ -14538,6 +14648,83 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["WallPasswordState"];
+                };
+            };
+            /** @description Invalid input (see `error`) */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Needs consent or an admin session */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Forbidden: banned, paused, stopped, joining closed or a foreign Origin (CSRF) */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Not found, or no party access (`scan_qr`) */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Request validation failed (`invalid_request`) */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Rate limited (`Retry-After` header) */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    photo_analysis_summaries_api_x_wall_admin_photos_analysis_get: {
+        parameters: {
+            query: {
+                /** @description Photo public ids (repeat the parameter), at most 100. */
+                ids: string[];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AnalysisSummariesOut"];
                 };
             };
             /** @description Invalid input (see `error`) */

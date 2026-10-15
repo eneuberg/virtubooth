@@ -29,6 +29,7 @@ import {
 } from './cache';
 import { qk } from './keys';
 import { extensionSettingsKey, settingsKey } from '../settings/keys';
+import { wk } from '../wall/keys';
 import { ALL_PHOTOS } from './types';
 
 /**
@@ -122,6 +123,13 @@ export function applyAdminEvent(event: AdminEvent, { qc, invalidate }: EventCont
     case 'photo.deleted':
       dropPhoto(qc, event.data.id, event.data.photo ?? null);
       invalidate([qk.stats, qk.instagram, qk.userLists, qk.userOptions, qk.audit]);
+      return;
+    case 'photo.analyzed':
+      // exactly these photos: their tile chips and (if open) their full analysis
+      for (const id of event.data.ids) {
+        void qc.invalidateQueries({ queryKey: wk.photoSummary(id) });
+        void qc.invalidateQueries({ queryKey: wk.photoAnalysis(id) });
+      }
       return;
     case 'user.created':
       invalidate([qk.userLists, qk.stats, qk.audit, qk.uploadPause, qk.pausedUsers]);

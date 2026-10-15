@@ -159,7 +159,7 @@ def test_viewer_focus_and_keys(
     assert errors(page) == []
 
 
-def test_live_grid_arrows_and_upload_sheet_focus(
+def test_live_grid_arrows_and_party_switches_by_keyboard(
     admin_page: Page, live: LiveServer, guests: Callable[..., Guest]
 ) -> None:
     g = guests()
@@ -170,17 +170,20 @@ def test_live_grid_arrows_and_upload_sheet_focus(
     assert focused_photo(admin_page) == ids[2]
     admin_page.keyboard.press("ArrowDown")  # two columns on a phone
     assert focused_photo(admin_page) == ids[0]
-    pill = admin_page.get_by_test_id("uploads-chip")
-    pill.focus()
-    admin_page.keyboard.press("Enter")
-    sheet = admin_page.get_by_role("dialog", name="Hochladen")
-    expect(sheet).to_be_visible()
-    for _ in range(5):
-        admin_page.keyboard.press("Tab")
-        assert focus_inside(admin_page, "[data-testid=uploads-sheet]")
-    admin_page.keyboard.press("Escape")
-    expect(sheet).to_have_count(0)
-    expect(pill).to_be_focused()
+    # the party switches: real switches in the tab order, Space flips one
+    stop = admin_page.get_by_test_id("party-controls").get_by_role(
+        "switch", name=re.compile("Hochladen für alle stoppen")
+    )
+    stop.focus()
+    admin_page.keyboard.press("Tab")
+    expect(admin_page.get_by_role("switch", name=re.compile("Anmeldung stoppen"))).to_be_focused()
+    admin_page.keyboard.press("Shift+Tab")
+    expect(stop).to_be_focused()
+    admin_page.keyboard.press("Space")
+    expect(stop).to_be_checked()
+    expect(stop).to_be_focused()  # the switch stays where it was: no focus jump
+    admin_page.keyboard.press("Space")
+    expect(stop).not_to_be_checked()
     assert errors(admin_page) == []
 
 

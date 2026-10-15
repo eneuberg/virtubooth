@@ -632,9 +632,10 @@ What every activity page builds on:
 ### The design system (`src/ui/`, `src/styles/app.css`)
 
 "Kontaktbogen" ([overhaul/design/DESIGN.md](overhaul/design/DESIGN.md)):
-every photo is a frame on the party's film roll. Guests and the live screen
-work in a darkroom (Rotlicht `#2b0f0c` with the Safelight amber `#ffa630`).
-Verwaltung and the guest page are a light table (Leuchttisch) with grease-pencil
+every photo is a frame on the party's film roll. Guests work in a darkroom
+(Rotlicht `#2b0f0c` with the Safelight amber `#ffa630`). The whole admin
+(login, Live, Verwaltung, the guest page) is a neutral white light table
+(Leuchttisch, `admin.html` carries `data-surface="light"`) with grease-pencil
 marks: X = hidden, circle = selected. The signature element is the film edge
 (`FilmEdge`), whose sprocket holes double as the upload progress bar. Fonts
 are Bricolage Grotesque and Doto (numerals only).

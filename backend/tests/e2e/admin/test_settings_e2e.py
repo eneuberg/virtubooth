@@ -139,12 +139,12 @@ def test_phones_reach_it_from_the_section_strip(admin_page: Page, live: LiveServ
         expect(page.get_by_test_id(block)).to_be_visible()
     assert no_horizontal_scroll(page)
     shot(page, "admin-settings-phone")
-    # a small phone: the header's title gives way instead of running under the upload pill
+    # a small phone: the header's title gives way instead of running under Abmelden
     page.set_viewport_size({"width": 360, "height": 780})
     title = page.get_by_text("Verwaltung", exact=True).first.bounding_box()
-    pill = page.get_by_test_id("uploads-chip").first.bounding_box()
-    assert title is not None and pill is not None
-    assert title["x"] + title["width"] <= pill["x"]
+    logout = page.get_by_test_id("logout").first.bounding_box()
+    assert title is not None and logout is not None
+    assert title["x"] + title["width"] <= logout["x"]
     assert no_horizontal_scroll(page)
     assert errors(page) == []
 

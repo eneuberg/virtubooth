@@ -14,6 +14,7 @@ import type {
   CategorySpec,
   PasswordState,
   PhotoAnalysis,
+  PhotoAnalysisSummary,
   ValuesOut,
   WallAdminOut,
   WallConfig,
@@ -127,4 +128,10 @@ export function downloadModels(): Promise<AnalysisStatus> {
 
 export function fetchPhotoAnalysis(publicId: string): Promise<PhotoAnalysis> {
   return wallFetch(`/photos/${encodeURIComponent(publicId)}/analysis`);
+}
+
+/** Up to 100 tiles' analysis summaries in one request (unknown photos are left out). */
+export async function fetchAnalysisSummaries(ids: readonly string[]): Promise<PhotoAnalysisSummary[]> {
+  const query = ids.map((id) => `ids=${encodeURIComponent(id)}`).join('&');
+  return (await wallFetch<{ items: PhotoAnalysisSummary[] }>(`/photos/analysis?${query}`)).items;
 }

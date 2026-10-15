@@ -12,7 +12,7 @@ import re
 from collections.abc import Collection
 from typing import Annotated, Any
 
-from fastapi import APIRouter, Depends, Request
+from fastapi import APIRouter, Depends, Query, Request
 
 from ...api.deps import AdminDep, CoreDep, require_admin
 from ...core import errors
@@ -29,18 +29,23 @@ from .config import (
     parse_settings,
     store_config,
 )
-from .enrich import engine, presets, values
+from .enrich import engine, objects, presets, values
 from .enrich.engine import InvalidCategory, PhotoFilter, Winner
 from .enrich.schemas import (
+    AnalysisSummariesOut,
     CategoriesOut,
     CategoryItem,
     CategoryOrderIn,
     CategoryPreviewOut,
     CategorySpec,
     CategoryVerdictOut,
+    CategoryWin,
     CategoryWinnerOut,
     OkOut,
+    OptOutState,
+    PhotoAnalysisSummary,
     RestoreOut,
+    SummaryObject,
 )
 from .enrich.values import ValuesOut
 from .enrichment import BoardEntry, board
@@ -193,6 +198,75 @@ def _item(core: Core, config: WallConfig, e: BoardEntry, photos: dict[int, Any])
         spec=CategorySpec.model_validate(cat.spec), available=e.reason is None, reason=e.reason,
         verdict=verdict, winners=winners_out(core, config, e.winners, photos),
     )  # fmt: skip
+
+
+# the key values the Live screen shows as chips (the rest is in the full analysis)
+SUMMARY_FACTS = frozenset({
+    "people", "faces", "smiles", "happy_max", "hands", "thumbs_up", "peace", "rock",
+    "glasses", "hats", "age_groups",
+})  # fmt: skip
+MAX_SUMMARIES = 100
+
+
+def analysis_summaries(core: Core, hub: WallHub, public_ids: list[str]) -> AnalysisSummariesOut:
+    """State, key facts, object labels, opt-outs and category wins of up to
+    MAX_SUMMARIES photos (the Live screen asks for its tiles in batches)."""
+    ids = list(dict.fromkeys(public_ids))[:MAX_SUMMARIES]
+    if not ids:
+        return AnalysisSummariesOut(items=[])
+    db = core.db
+    marks = ", ".join("?" for _ in ids)
+    rows = db.all(
+        f"SELECT p.id, p.public_id, u.analysis_opt_out, u.ai_opt_out FROM photos p "
+        f"JOIN users u ON u.id = p.user_id WHERE p.public_id IN ({marks}) "
+        "AND p.deleted_at IS NULL",
+        ids,
+    )
+    by_public = {r["public_id"]: r for r in rows}
+    internal = [int(r["id"]) for r in rows]
+    states = hub.enrichment.summaries(internal)
+    found = objects.objects_of(db, internal)
+    wins: dict[int, list[CategoryWin]] = {}
+    wanted = set(internal)
+    config = load_config(core.repos.app_settings)
+    entries = board(core, hub.enrichment.active_analyzers(), photo_filter(core, config),
+                    enabled_only=True)  # fmt: skip
+    for e in entries:
+        spec = e.category.spec
+        win = CategoryWin(id=e.category.id, emoji=spec["emoji"], title=spec["title"], verdict=False)
+        for w in e.winners:
+            if w.photo_id in wanted:
+                wins.setdefault(w.photo_id, []).append(win)
+        if e.verdict and e.verdict.photo_id in wanted:
+            pid = e.verdict.photo_id
+            if not any(x.id == win.id for x in wins.get(pid, [])):
+                wins.setdefault(pid, []).append(win.model_copy(update={"verdict": True}))
+    items: list[PhotoAnalysisSummary] = []
+    for public_id in ids:
+        r = by_public.get(public_id)
+        if r is None:
+            continue
+        pid = int(r["id"])
+        summary = states.get(pid)
+        items.append(
+            PhotoAnalysisSummary(
+                photo_id=public_id,
+                state=summary.state if summary else "pending",  # type: ignore[arg-type]
+                facts={
+                    k: v
+                    for k, v in (summary.facts if summary else {}).items()
+                    if k in SUMMARY_FACTS
+                },
+                objects=[
+                    SummaryObject(label_de=o.label_de, source=o.source) for o in found.get(pid, [])
+                ],
+                opt_out=OptOutState(
+                    analysis=bool(r["analysis_opt_out"]), external_ai=bool(r["ai_opt_out"])
+                ),
+                wins=wins.get(pid, []),
+            )
+        )
+    return AnalysisSummariesOut(items=items)
 
 
 def admin_out(core: Core, hub: WallHub, config: WallConfig) -> WallAdminOut:
@@ -353,6 +427,23 @@ def build_router(wall: Wall) -> APIRouter:
         if not items:
             raise errors.not_found("Kategorie nicht gefunden.")
         return items[0]
+
+    @router.get("/photos/analysis")
+    def photo_analysis_summaries(
+        core: CoreDep,
+        hub: HubDep,
+        ids: Annotated[
+            list[str],
+            Query(description=f"Photo public ids (repeat the parameter), at most {MAX_SUMMARIES}."),
+        ],
+    ) -> AnalysisSummariesOut:
+        """The Live screen's analysis chips for a batch of photos: state, key
+        facts, object labels, the guest's opt-outs and current category wins."""
+        if len(ids) > MAX_SUMMARIES:
+            raise errors.bad_request(
+                f"Höchstens {MAX_SUMMARIES} Fotos auf einmal.", "invalid_filter"
+            )
+        return analysis_summaries(core, hub, ids)
 
     @router.get("/values")
     def analysis_values(core: CoreDep, hub: HubDep) -> ValuesOut:

@@ -81,12 +81,8 @@ def test_admin_screens(
         page.keyboard.press("Escape")
         expect(page.get_by_test_id("lightbox")).to_have_count(0)
 
-        page.get_by_test_id("uploads-chip").click()
-        expect(page.get_by_role("dialog", name="Hochladen")).to_be_visible()
-        settle_dialogs(page)
-        assert_survives_blockers(page, f"{kind} upload controls")
-        page.keyboard.press("Escape")
-        expect(page.get_by_role("dialog", name="Hochladen")).to_have_count(0)
+        expect(page.get_by_test_id("party-controls")).to_be_visible()
+        assert_survives_blockers(page, f"{kind} party switches")
 
         goto(page, live, "/admin/manage")
         expect(card(page, ids[1])).to_be_visible()
