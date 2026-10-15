@@ -1,9 +1,32 @@
 /**
- * ML-Pipeline admin types for the external AI (PLAN-NIGHT §3 `x.llm.config`, §4.4),
- * written by hand until INT2 switches to the generated schema. JSON is snake_case.
+ * ML-Pipeline admin types for the external AI (PLAN-NIGHT §3 `x.llm.config`, §4.4).
+ * The generated schema's types where they are exact (api/types.ts); by hand where the
+ * generated ones mark server-defaulted fields optional (config, budget) or are loose
+ * (the test run's boxes), checked against the schema in ./contract.ts.
  * The analyzers themselves (GET /analysis) are typed in ../wall/types.ts.
  */
+import type {
+  LlmDetection,
+  LlmKeyState,
+  LlmModel,
+  LlmPoller,
+  LlmProvider,
+  LlmUsageRow,
+  LlmUsageTotals,
+  TestObject,
+} from '@/api/types';
 import type { AnalysisBox } from '../wall/types';
+
+export type {
+  LlmKeyState,
+  LlmModel,
+  LlmPollResponse,
+  LlmProperty,
+  LlmProvider,
+  TestObject,
+  LlmUsageRow as UsageRow,
+  LlmUsageTotals as UsageTotals,
+} from '@/api/types';
 
 export interface LlmBudget {
   party_usd: number | null;
@@ -28,58 +51,17 @@ export interface LlmConfig {
   by: string | null;
 }
 
-/** The key's state: never the key itself (N11). */
-export interface LlmKeyState {
-  set: boolean;
-  set_at: string | null;
-  provider: string | null;
-  /** false: it no longer decrypts (VB_SECRET_KEY changed); null = not checked / not set */
-  valid: boolean | null;
-}
-
-export interface LlmProvider {
-  id: string;
-  title: string;
-  /** hosted in the EU */
-  eu: boolean;
-  available: boolean;
-  reason: string | null;
-}
-
-export interface LlmModel {
-  id: string;
-  title: string;
-  /** USD per million input / output tokens */
-  usd_in_mtok: number;
-  usd_out_mtok: number;
-}
-
 export const POLLER_STATES = ['off', 'idle', 'running', 'blocked'] as const;
 export type PollerState = (typeof POLLER_STATES)[number];
 
-export interface UsageTotals {
-  calls: number;
-  input_tokens: number;
-  output_tokens: number;
-  cost_usd: number;
-}
-
+/** UsageRow.kind; its ref is the property name or category id, null = all of that kind */
 export const USAGE_KINDS = ['detect', 'property', 'verdict', 'test'] as const;
 export type UsageKind = (typeof USAGE_KINDS)[number];
 
-export interface UsageRow {
-  kind: UsageKind | (string & {});
-  /** property name, category id or photo id; null = all of that kind */
-  ref: string | null;
-  calls: number;
-  tokens: number;
-  cost_usd: number;
-}
-
 export interface Usage {
-  party: UsageTotals;
-  today: UsageTotals;
-  by_kind: UsageRow[];
+  party: LlmUsageTotals;
+  today: LlmUsageTotals;
+  by_kind: LlmUsageRow[];
   budget: LlmBudget;
   /** a limit is reached: every external call stops */
   blocked: boolean;
@@ -91,37 +73,12 @@ export interface LlmStatus {
   key: LlmKeyState;
   providers: LlmProvider[];
   models: LlmModel[];
-  poller: {
-    state: PollerState;
-    last_poll_at: string | null;
-    next_poll_at: string | null;
-    last_error: string | null;
-  };
-  detection: { pending: number; done: number; failed: number };
+  poller: LlmPoller;
+  detection: LlmDetection;
   usage: Usage;
 }
 
-export interface LlmProperty {
-  id: number;
-  name: string;
-  prompt: string;
-  created_at: string;
-  archived_at: string | null;
-  scored_photos: number;
-  last_scored_at: string | null;
-}
-
-/**
- * One object of a test run. D1's `DetectedObject` (label, label_de, score, box); the
- * box may come as [x, y, w, h] (a Python tuple) or {x, y, w, h}: {@link boxOf}.
- */
-export interface TestObject {
-  label: string;
-  label_de: string;
-  score: number;
-  box: [number, number, number, number] | { x: number; y: number; w: number; h: number } | null;
-}
-
+/** The local pipeline's answer on a test image (D1's TestRun). */
 export interface TestRun {
   width: number;
   height: number;
@@ -131,6 +88,8 @@ export interface TestRun {
   objects: TestObject[];
   durations_ms: Record<string, number>;
   error: string | null;
+  /** analyzer → why it did not run (switched off, model missing) */
+  skipped: Record<string, string>;
 }
 
 export interface TestImageResult {
@@ -139,7 +98,7 @@ export interface TestImageResult {
   local: TestRun | null;
   external: {
     objects: TestObject[];
-    usage: { input_tokens: number; output_tokens: number; cost_usd: number } | null;
+    usage: LlmUsageTotals | null;
     error: string | null;
   } | null;
 }

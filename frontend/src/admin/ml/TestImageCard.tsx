@@ -54,6 +54,7 @@ function Result({
     ...objectBoxes(objects),
   ];
   const facts = Object.entries(local?.facts ?? {});
+  const skipped = Object.entries(local?.skipped ?? {});
   const durations = local ? durationsText(local.durations_ms, titles) : '';
   return (
     <div className="grid gap-4" data-testid="ml-test-result">
@@ -67,7 +68,12 @@ function Result({
         </div>
       ) : null}
       {local?.error ? <p className="text-sm text-danger">{local.error}</p> : null}
-      {external?.error ? <p className="text-sm text-danger">Claude: {external.error}</p> : null}
+      {external?.error ? <p className="text-sm text-danger">KI-Dienst: {external.error}</p> : null}
+      {skipped.length > 0 ? (
+        <p className="text-sm text-ink-muted" data-testid="ml-test-skipped">
+          Nicht gelaufen: {skipped.map(([name, why]) => `${titles.get(name) ?? name} (${why})`).join(', ')}
+        </p>
+      ) : null}
       <div className="grid gap-1.5">
         <h3 className="text-sm font-bold">Objekte</h3>
         {objects.length === 0 ? (
@@ -120,7 +126,7 @@ function Result({
       ) : null}
       {external?.usage ? (
         <p className="text-xs text-ink-muted tabular">
-          Claude: {external.usage.input_tokens + external.usage.output_tokens} Tokens ·{' '}
+          KI-Dienst: {external.usage.input_tokens + external.usage.output_tokens} Tokens ·{' '}
           {usdText(external.usage.cost_usd)}
         </p>
       ) : null}

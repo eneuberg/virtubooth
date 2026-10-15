@@ -25,7 +25,7 @@ export function parseMinutes(text: string): number | null {
 /** „gesetzt“ / „nicht gesetzt“; never anything of the key itself. */
 export function keyStatusText(key: LlmKeyState): string {
   if (!key.set) return 'nicht gesetzt';
-  if (key.valid === false) return 'Schlüssel ungültig, bitte neu eingeben';
+  if (!key.valid) return 'Schlüssel ungültig, bitte neu eingeben';
   return 'gesetzt';
 }
 
@@ -39,7 +39,7 @@ export function testErrorText(err: unknown): string {
 export function externalBlocked(llm: LlmStatus | undefined): string | null {
   if (!llm) return 'Der KI-Dienst ist nicht eingerichtet.';
   if (!llm.key.set) return 'Erst einen API-Schlüssel setzen.';
-  if (llm.key.valid === false) return 'Der API-Schlüssel ist ungültig.';
+  if (!llm.key.valid) return 'Der API-Schlüssel ist ungültig.';
   if (llm.usage.blocked) return 'Budget erreicht – externe KI pausiert.';
   return null;
 }

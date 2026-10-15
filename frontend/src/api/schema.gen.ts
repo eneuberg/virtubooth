@@ -2464,7 +2464,10 @@ export interface components {
              * Operand
              * @description number (gt…ne), [a, b] (between), label (contains, not_contains), [labels] (contains_any), null (exists, not_exists).
              */
-            operand?: number | string | number[] | string[] | null;
+            operand?: number | string | [
+                number,
+                number
+            ] | string[] | null;
             /**
              * Value
              * @description A value key (GET /admin/values), e.g. `people`, `objects.count:hat`, `prop.coolness.max`.

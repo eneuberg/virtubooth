@@ -139,3 +139,23 @@ export type PosterOut = S['PosterOut'];
 export type PosterTemplate = S['PosterTemplate'];
 /** PUT /api/admin/poster/layout */
 export type PosterLayoutIn = S['PosterLayoutIn'];
+
+// ---------------- Live-Wall analysis, categories and ML-Pipeline (PLAN-NIGHT §4.3, §4.4)
+// Only the answers whose generated type has no defaulted (optional) fields; the
+// others are written by hand in admin/wall/types.ts and admin/ml/types.ts and
+// checked against these schemas there (contract.ts).
+
+/** the external-AI key's state, never the key itself (N11) */
+export type LlmKeyState = S['KeyOut'];
+export type LlmKeyTest = S['KeyTestOut'];
+export type LlmProvider = S['ProviderOut'];
+export type LlmModel = S['ModelOut'];
+export type LlmPoller = S['PollerOut'];
+export type LlmDetection = S['DetectionOut'];
+export type LlmUsageTotals = S['UsageTotals'];
+export type LlmUsageRow = S['UsageByKind'];
+export type LlmProperty = S['PropertyOut'];
+/** POST /api/x/wall/admin/llm/poll */
+export type LlmPollResponse = S['PollOut'];
+/** one object of a test-image run (box 0..1 of the image) */
+export type TestObject = S['ObjectOut'];

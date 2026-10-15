@@ -32,9 +32,9 @@ describe('ML-Pipeline lines', () => {
   it('formats money, models and usage kinds', () => {
     expect(usdText(1.25)).toBe('1,25 $');
     expect(usdText(0.0022)).toBe('0,0022 $');
-    expect(modelText({ id: 'm', title: 'Haiku', usd_in_mtok: 1, usd_out_mtok: 5 })).toBe(
-      'Haiku · 1 $ / 5 $ pro Mio. Tokens',
-    );
+    expect(
+      modelText({ id: 'm', provider: 'anthropic', title: 'Haiku', usd_in_mtok: 1, usd_out_mtok: 5 }),
+    ).toBe('Haiku · 1 $ / 5 $ pro Mio. Tokens');
     expect(usageKindText({ kind: 'detect', ref: null })).toBe('Erkennung');
     expect(usageKindText({ kind: 'property', ref: 'coolness' })).toBe('Eigenschaft „coolness“');
     expect(usageKindText({ kind: 'verdict', ref: 'coolstes_objekt' })).toBe('Urteil „coolstes_objekt“');
@@ -71,7 +71,7 @@ describe('ML-Pipeline forms', () => {
   });
 
   it('says what the key is, never more', () => {
-    expect(keyStatusText({ set: false, set_at: null, provider: null, valid: null })).toBe('nicht gesetzt');
+    expect(keyStatusText({ set: false, set_at: null, provider: null, valid: false })).toBe('nicht gesetzt');
     expect(keyStatusText({ set: true, set_at: null, provider: 'anthropic', valid: true })).toBe('gesetzt');
     expect(keyStatusText({ set: true, set_at: null, provider: 'anthropic', valid: false })).toBe(
       'Schlüssel ungültig, bitte neu eingeben',

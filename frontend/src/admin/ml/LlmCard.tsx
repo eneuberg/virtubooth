@@ -109,7 +109,7 @@ function KeyBlock({ status }: { status: LlmStatus }) {
     <div className="grid gap-2 border-t border-line pt-3" data-testid="ml-key">
       <p className="flex flex-wrap items-center gap-2 text-sm">
         <span className="font-semibold">API-Schlüssel</span>
-        <Badge tone={key.set && key.valid !== false ? 'ok' : 'mark'} icon={key.set ? ShieldCheck : undefined}>
+        <Badge tone={key.set && key.valid ? 'ok' : 'mark'} icon={key.set ? ShieldCheck : undefined}>
           <span data-testid="ml-key-state">{keyStatusText(key)}</span>
         </Badge>
         {key.set && key.set_at ? (
@@ -319,6 +319,15 @@ export function LlmCard({ status }: { status: LlmStatus }) {
   };
 
   const provider = status.providers.find((p) => p.id === f.provider);
+  // each provider has its own models (the server refuses a model of another one)
+  const models = status.models.filter((m) => m.provider === f.provider);
+  const pickProvider = (id: string) => {
+    const keep = status.models.some((m) => m.provider === id && m.id === f.model);
+    set({
+      provider: id,
+      model: keep ? f.model : (status.models.find((m) => m.provider === id)?.id ?? f.model),
+    });
+  };
   return (
     <Card
       id="claude"
@@ -335,13 +344,13 @@ export function LlmCard({ status }: { status: LlmStatus }) {
           size="sm"
           options={status.providers.map((p) => ({ id: p.id, label: p.eu ? `${p.title} (EU)` : p.title }))}
           value={f.provider}
-          onChange={(id) => set({ provider: id })}
+          onChange={pickProvider}
           data-testid="ml-llm-provider"
         />
         <Select
           label="Modell"
           size="sm"
-          options={status.models.map((m) => ({ id: m.id, label: modelText(m) }))}
+          options={models.map((m) => ({ id: m.id, label: modelText(m) }))}
           value={f.model}
           onChange={(model) => set({ model })}
           data-testid="ml-llm-model"

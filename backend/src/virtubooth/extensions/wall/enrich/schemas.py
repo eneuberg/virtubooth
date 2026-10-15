@@ -177,7 +177,7 @@ class CategoryCondition(BaseModel):
     value: str = Field(description="A value key (GET /admin/values), e.g. `people`, "
                        "`objects.count:hat`, `prop.coolness.max`.")  # fmt: skip
     op: CategoryOp
-    operand: float | str | list[float] | list[str] | None = Field(
+    operand: float | str | tuple[float, float] | list[str] | None = Field(
         None,
         description="number (gt…ne), [a, b] (between), label (contains, not_contains), "
         "[labels] (contains_any), null (exists, not_exists).",
