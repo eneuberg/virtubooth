@@ -36,6 +36,8 @@ function photo(over: Partial<AdminPhoto> = {}): AdminPhoto {
     deleted: false,
     url: `/media/${id}`,
     thumb_url: `/media/${id}?thumb=1`,
+    raw_url: null,
+    raw_thumb_url: null,
     user: {
       id: 1,
       name: 'Ente',
@@ -286,7 +288,7 @@ describe('applyAdminEvent', () => {
       file_name: null,
       bytes: null,
       download_url: null,
-      options: { include_hidden: false, include_db: false },
+      options: { include_hidden: false, include_db: false, filters: 'baked' },
     };
     const list: ExportsResponse = { jobs: [], public_base_url: null, ffmpeg: true };
     qc.setQueryData(qk.exports, list);

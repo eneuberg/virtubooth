@@ -22,6 +22,8 @@ import { AdminFrame } from '../common/AdminFrame';
 import { ConnectionBadge } from '../common/ConnectionBadge';
 import { AT_TOP, tileButton, useAtTop, useGridKeys, useLoadMore } from '../common/grid';
 import { HideToggle } from '../common/HideToggle';
+import { photoSrc, useAdminShowFilter } from '@/lib/photoFilter';
+import { FilterToggle } from '../common/FilterToggle';
 import { PhotoViewer } from '../common/PhotoViewer';
 import { usePhotoParam } from '../common/usePhotoParam';
 import { useHideToggle } from '../common/usePhotoActions';
@@ -89,6 +91,7 @@ function LiveHeader({ desktop }: { desktop: boolean }) {
           )}
         </p>
       </div>
+      {desktop ? <FilterToggle className="shrink-0" /> : null}
       <div className="grid shrink-0 justify-items-end gap-0.5">
         <AnalysisToggle />
         <AnalysisLegend />
@@ -113,6 +116,7 @@ function LiveScreen() {
   const desktop = useMediaQuery(DESKTOP);
   const analysis = useLiveAnalysis();
   const [showBoxes, setShowBoxes] = useState(true);
+  const showFilter = useAdminShowFilter((s) => s.show);
   useAutoMerge('live', ALL_PHOTOS, isAtTop);
 
   const photos = listedPhotos(list.data);
@@ -165,6 +169,8 @@ function LiveScreen() {
       {desktop ? null : <PartyControls className="border-b border-line px-3 py-2.5" />}
       <OverviewStrip />
       <main id="live-photos" tabIndex={-1} className="px-2 pt-2 pb-6 outline-none">
+        {/* phones: the header has no room for a second switch */}
+        {desktop ? null : <FilterToggle className="mb-1 px-2" />}
         {list.isPending ? (
           <SkeletonGrid
             count={6}
@@ -201,7 +207,7 @@ function LiveScreen() {
             {photos.map((photo, i) => (
               <li key={photo.id} data-photo-id={photo.id} data-testid="photo-card">
                 <PhotoTile
-                  src={photo.thumb_url}
+                  src={photoSrc(photo, showFilter, true)}
                   alt={photoLabel(photo)}
                   label={photoLabel(photo)}
                   sublabel={guestName(photo.user)}

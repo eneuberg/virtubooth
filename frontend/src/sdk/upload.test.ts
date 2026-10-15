@@ -5,6 +5,7 @@ import {
   decodeMeta,
   encodeMeta,
   isPermanentUploadError,
+  RAW_HEADER,
   retryAfterSeconds,
   subscribeUploadAnswers,
   uploadPhoto,
@@ -66,6 +67,28 @@ describe('uploadPhoto', () => {
     req.respond(201, { photo: PHOTO, beer_number: 4, total: 3 });
     await expect(done).resolves.toEqual({ photo: PHOTO, beer_number: 4, total: 3 });
     expect(progress).toEqual([0.5, 1]);
+  });
+
+  it('appends the unfiltered original and says how long it is (X-VB-Raw-Bytes)', async () => {
+    const raw = new Blob([new Uint8Array([0xff, 0xd8, 0xff, 0xe1, 7, 7])], { type: 'image/jpeg' });
+    const done = uploadPhoto('booth', blob, { meta: { filter: 'thermal', facing: 'user' }, raw });
+    const req = xhr();
+    expect(req.headers[RAW_HEADER]).toBe('6');
+    expect(req.headers['Content-Type']).toBe('image/jpeg');
+    if (!(req.body instanceof Blob)) throw new Error('the body is not a Blob');
+    const body = new Uint8Array(await req.body.arrayBuffer());
+    // the photo first, the original at the end
+    expect([...body]).toEqual([0xff, 0xd8, 0xff, 0xe0, 0xff, 0xd8, 0xff, 0xe1, 7, 7]);
+    req.respond(201, { photo: PHOTO, booth_number: 1 });
+    await done;
+  });
+
+  it('sends just the photo without an original', async () => {
+    const done = uploadPhoto('booth', blob, { raw: null });
+    expect(xhr().headers[RAW_HEADER]).toBeUndefined();
+    expect(xhr().body).toBe(blob);
+    xhr().respond(201, { photo: PHOTO, booth_number: 1 });
+    await done;
   });
 
   it('sends no meta header without meta', async () => {

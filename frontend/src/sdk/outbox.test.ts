@@ -102,6 +102,19 @@ describe('records (compatible with the pre-overhaul vb-booth DB)', () => {
     expect(item?.blob.type).toBe('image/jpeg');
   });
 
+  it('keeps the unfiltered original next to the photo (Blob or WebKit bytes)', () => {
+    const blob = jpeg(1);
+    const raw = jpeg(2);
+    const record = toRecord({ id: 'r', ext: 'booth', meta: {}, at: 1, blob, raw });
+    expect(record.raw).toBe(raw);
+    expect(fromRecord(record)?.raw).toBe(raw);
+    const bytes = fromRecord({ ...record, raw: new ArrayBuffer(4) });
+    expect(bytes?.raw).toBeInstanceOf(Blob);
+    // records of before have none
+    expect(fromRecord({ ...record, raw: undefined })?.raw).toBeNull();
+    expect('raw' in toRecord({ id: 'n', ext: 'booth', meta: {}, at: 1, blob })).toBe(false);
+  });
+
   it('skips broken records', () => {
     expect(fromRecord(null)).toBeNull();
     expect(fromRecord({ id: '', meta: {}, data: jpeg() })).toBeNull();
@@ -122,6 +135,37 @@ describe('a shot', () => {
     expect(getOutbox().items).toHaveLength(0);
     await tick();
     expect(store.records.size).toBe(0);
+    expect(events.map((e) => e.type)).toEqual(['sent']);
+  });
+
+  it('sends the original with the photo, also on a later retry', async () => {
+    const raw = jpeg(9);
+    const meta = { filter: 'thermal', facing: 'user' };
+    await addToOutbox({ id: 'r1', ext: 'booth', meta, blob: jpeg(), raw });
+    expect(store.records.get('r1')?.raw).toBe(raw);
+    const first = settle(sendFromOutbox('r1'));
+    const req = await FakeXhr.next();
+    expect(req.headers['X-VB-Raw-Bytes']).toBe(String(raw.size));
+    req.fail();
+    await tick();
+    await first;
+    const again = sendFromOutbox('r1');
+    const retry = await FakeXhr.next();
+    expect(retry.headers['X-VB-Raw-Bytes']).toBe(String(raw.size));
+    retry.respond(201, { photo: PHOTO, booth_number: 1 });
+    await expect(again).resolves.toMatchObject({ booth_number: 1 });
+  });
+
+  it('a refused original never costs the photo: it goes again without it', async () => {
+    await addToOutbox({ id: 'r2', ext: 'booth', meta: {}, blob: jpeg(), raw: jpeg(3) });
+    const sent = sendFromOutbox('r2');
+    const first = await FakeXhr.next();
+    expect(first.headers['X-VB-Raw-Bytes']).toBeDefined();
+    first.respond(400, { error: 'invalid_raw', message: 'Das Original ohne Filter ist unlesbar.' });
+    const second = await FakeXhr.next();
+    expect(second.headers['X-VB-Raw-Bytes']).toBeUndefined();
+    second.respond(201, { photo: PHOTO, booth_number: 2 });
+    await expect(sent).resolves.toMatchObject({ booth_number: 2 });
     expect(events.map((e) => e.type)).toEqual(['sent']);
   });
 

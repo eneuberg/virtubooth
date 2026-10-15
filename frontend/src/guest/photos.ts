@@ -80,6 +80,6 @@ export function useMyPhotosSync(): void {
 }
 
 /** "beer-00012.jpg", like the server's download name */
-export function photoFileName(photo: GuestPhoto): string {
-  return `${photo.extension}-${formatFrame(photo.seq, 5)}.jpg`;
+export function photoFileName(photo: GuestPhoto, original = false): string {
+  return `${photo.extension}-${formatFrame(photo.seq, 5)}${original ? '-original' : ''}.jpg`;
 }

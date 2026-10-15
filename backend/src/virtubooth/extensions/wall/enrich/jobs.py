@@ -12,6 +12,11 @@ facts (`wall_facts`) and its local object list (`photo_objects`, with the
 those tables. There is no re-run: a new analyzer version, an analyzer switched
 on or a guest's opt-out change only affect photos analysed afterwards. Rows
 go only when their photo is deleted (`purge_deleted`).
+
+Which file: a Fotobox photo's unfiltered original when one is stored
+(`photos.raw_filename`, migration v13), else the photo. Photos taken before
+originals were kept were analysed on the filtered image; being frozen, they
+stay so.
 """
 
 from __future__ import annotations
@@ -94,7 +99,10 @@ def claim(db: Database) -> PhotoInfo | None:
     """Take the newest photo that needs analysis: `running`, attempts + 1."""
     with db.tx() as c:
         row = c.execute(
-            "SELECT p.id, p.public_id, p.extension, p.filename, p.created_at, p.width, "
+            # the unfiltered original when there is one (Fotobox, v13): the analysis
+            # sees the guests, not the filter; same size and crop, so the boxes fit both
+            "SELECT p.id, p.public_id, p.extension, "
+            "COALESCE(p.raw_filename, p.filename) AS filename, p.created_at, p.width, "
             "p.height, p.meta, u.name AS user_name, u.analysis_opt_out, "
             "c.id AS code_id, c.animal AS code_animal, COALESCE(a.attempts, 0) AS attempts "
             "FROM photos p JOIN users u ON u.id = p.user_id "

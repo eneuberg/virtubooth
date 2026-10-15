@@ -4,7 +4,19 @@ from __future__ import annotations
 
 from ..conftest import JPEG, ORIGIN, jpeg, scan
 
-KEYS = {"id", "extension", "seq", "created_at", "width", "height", "url", "thumb_url"}
+KEYS = {
+    "id",
+    "extension",
+    "seq",
+    "created_at",
+    "width",
+    "height",
+    "url",
+    "thumb_url",
+    "raw_url",
+    "raw_thumb_url",
+    "meta",
+}
 
 
 def upload(client) -> dict:

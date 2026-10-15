@@ -83,7 +83,9 @@ class DetectionRunner:
     def _sendable(self, photo_id: int) -> _Photo | None:
         """The photo if it may leave the server right now (live flags)."""
         row = self.service.core.db.one(
-            "SELECT p.id, p.public_id, p.extension, p.filename FROM photos p "
+            # the unfiltered original when there is one (as the local analysis)
+            "SELECT p.id, p.public_id, p.extension, "
+            "COALESCE(p.raw_filename, p.filename) AS filename FROM photos p "
             "JOIN users u ON u.id = p.user_id WHERE p.id = ? AND p.deleted_at IS NULL "
             "AND p.hidden_at IS NULL AND u.ai_opt_out = 0 AND u.analysis_opt_out = 0 "
             "AND u.banned_at IS NULL",

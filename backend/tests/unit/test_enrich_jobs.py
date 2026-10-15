@@ -207,3 +207,17 @@ def test_queue(party):
     jobs.claim(party.db)
     q = jobs.queue(party.db)
     assert (q["pending"], q["running"]) == (1, 1) and q["oldest_pending_s"] >= 0
+
+
+def test_claim_hands_out_the_unfiltered_original(party):
+    """The analysis reads a Fotobox photo's original when one is stored (same size
+    and crop as the photo, so the boxes fit both); else the photo."""
+    plain = party.photo()
+    filtered = party.photo()
+    with party.db.tx() as c:
+        c.execute(
+            "UPDATE photos SET raw_filename=?, raw_thumb_filename=? WHERE id=?",
+            ("raw/x.jpg", "raw/thumbs/x.jpg", filtered.id),
+        )
+    assert jobs.claim(party.db).filename == "raw/x.jpg"
+    assert jobs.claim(party.db).filename == plain.filename

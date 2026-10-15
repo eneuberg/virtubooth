@@ -18,7 +18,7 @@ USER_COLS = (
 PHOTO_COLS = (
     "p.id, p.public_id, p.extension, p.user_id, p.seq, p.filename, p.thumb_filename, "
     "p.created_at, p.width, p.height, p.bytes, p.meta, p.hidden_at, p.hidden_reason, "
-    "p.deleted_at, u.name AS user_name, u.instagram AS user_instagram, "
+    "p.deleted_at, p.raw_filename, p.raw_thumb_filename, u.name AS user_name, u.instagram AS user_instagram, "
     "u.banned_at IS NOT NULL AS user_banned, "
     "u.uploads_paused_at IS NOT NULL AS user_uploads_paused, "
     "u.ban_reason AS user_ban_reason, u.display_name AS user_display_name, "

@@ -23,6 +23,8 @@ const photo = (id: string, seq: number): GuestPhoto => ({
   height: 1440,
   url: `/media/${id}`,
   thumb_url: `/media/${id}?thumb=1`,
+  raw_url: null,
+  raw_thumb_url: null,
 });
 
 function sent(p: GuestPhoto): void {
@@ -34,6 +36,7 @@ function sent(p: GuestPhoto): void {
       meta: {},
       at: 0,
       blob: new Blob(),
+      raw: null,
       state: 'new',
       stored: true,
       resumed: false,

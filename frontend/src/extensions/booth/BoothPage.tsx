@@ -4,7 +4,9 @@
  *
  * The preview is the WebGL shader output (Canvas2D without WebGL), mirrored for the
  * front camera like a mirror; the capture renders the frozen frame again at 1080×1440
- * through the same shader and overlay, so the photo is exactly what was on screen.
+ * through the same shader and overlay, so the photo is exactly what was on screen. With
+ * a filter, the same frame goes along without shader and overlay (the unfiltered
+ * original: the analysis runs on it, the admin and the guest can switch to it).
  * Filters: the carousel, swipes on the preview, the arrow keys; a double tap flips the
  * camera. The result is a print that develops; its headline is the upload state
  * („Wird hochgeladen…“ → „Hochgeladen“, UploadState), the film edge shows the frame and
@@ -244,10 +246,12 @@ function Fotobox({
       // freeze: the frame on screen now is the photo
       flash();
       vibrate(40);
-      const blob = await camera.capture();
+      // the photo as shown, plus the same frame without the filter (the analysis and
+      // „Filter zeigen“ use it; none for „Normal“, which is its own original)
+      const { photo, raw } = await camera.captureShot();
       setSaved(false);
       setBusy(false);
-      const result = await take(blob, { filter: filter.id, facing: cam.facing });
+      const result = await take(photo, { filter: filter.id, facing: cam.facing }, raw);
       if (result) setLastNumber(result.booth_number ?? result.photo.seq);
     } catch {
       showToast({ message: 'Das Foto hat nicht geklappt. Versuch es nochmal.', tone: 'error' });

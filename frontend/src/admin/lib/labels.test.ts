@@ -146,9 +146,27 @@ describe('admin labels', () => {
     expect(exportJobTitle(timelapse)).toMatch(/^Zeitraffer \(beer\) vom /); // catalogue not loaded yet
     expect(
       exportJobTitle(
-        { kind: 'archive', created_at: at, options: { include_db: false, include_hidden: false } },
+        {
+          kind: 'archive',
+          created_at: at,
+          options: { include_db: false, include_hidden: false, filters: 'baked' },
+        },
         extensions,
       ),
     ).toMatch(/^Archiv vom /);
+    expect(
+      exportJobTitle({
+        kind: 'archive',
+        created_at: at,
+        options: { include_db: false, include_hidden: false, filters: 'raw' },
+      }),
+    ).toMatch(/^Archiv \(ohne Filter \(Originale\)\) vom /);
+    expect(
+      exportJobTitle({
+        kind: 'archive',
+        created_at: at,
+        options: { include_db: false, include_hidden: false, filters: 'both' },
+      }),
+    ).toMatch(/^Archiv \(mit und ohne Filter\) vom /);
   });
 });

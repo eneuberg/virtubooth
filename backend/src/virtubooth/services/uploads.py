@@ -4,6 +4,12 @@ POST /api/x/<id>/upload   (403 uploads_paused / uploads_stopped while uploads ar
   body:     the JPEG bytes (Content-Type: image/jpeg)
   X-VB-Meta (optional): encodeURIComponent(JSON.stringify({...})), keys from
             UploadPolicy.meta_keys
+  X-VB-Raw-Bytes (optional, UploadPolicy.accepts_raw): the body is the photo
+            followed by its unfiltered original, a second JPEG of this many bytes
+            at the end. Both parts pass the same checks (each at most the size
+            limit, exact size, re-encoded); the original is dropped when the meta
+            says the photo has no filter (UploadPolicy.raw_differs) or both are
+            the same bytes. Old clients send just the photo.
   → 201 {"photo": {...}, ...whatever extension.on_upload returned}
 
 Checks run in this order (architecture.md §2.5): extension, pause, stop,
@@ -73,6 +79,35 @@ async def read_limited(stream: AsyncIterator[bytes], limit: int) -> bytes:
     return b"".join(chunks)
 
 
+def invalid_raw(message: str = "Das Original ohne Filter ist unlesbar.") -> errors.ApiError:
+    return errors.bad_request(message, "invalid_raw")
+
+
+def parse_raw_bytes(header: str | None, policy: UploadPolicy) -> int | None:
+    """The length of the appended original (X-VB-Raw-Bytes), None: no original."""
+    if header is None or header == "":
+        return None
+    if not policy.accepts_raw:
+        raise errors.bad_request(
+            "Diese Aktivität speichert kein Original ohne Filter.", "raw_not_allowed"
+        )
+    if not header.isdigit() or len(header) > 12 or int(header) <= 0:
+        raise invalid_raw()
+    return int(header)
+
+
+def split_raw(body: bytes, raw_len: int | None, max_bytes: int) -> tuple[bytes, bytes | None]:
+    """(photo, original) of a body; each part at most `max_bytes` (413)."""
+    if raw_len is None:
+        return body, None
+    if raw_len >= len(body):
+        raise invalid_raw()
+    photo, raw = body[:-raw_len], body[-raw_len:]
+    if len(photo) > max_bytes or len(raw) > max_bytes:
+        raise too_large()
+    return photo, raw
+
+
 def parse_meta(header: str | None, policy: UploadPolicy) -> dict[str, Any]:
     meta: dict[str, Any]
     if not header:
@@ -117,6 +152,8 @@ class UploadRequest:
     meta_header: str | None
     ip: str
     body: AsyncIterator[bytes]
+    # X-VB-Raw-Bytes: the appended unfiltered original's length
+    raw_header: str | None = None
 
 
 @dataclass(frozen=True)
@@ -194,25 +231,48 @@ class UploadService:
             raise errors.photo_limit()
 
         max_bytes = policy.max_bytes or core.settings.max_upload_bytes
-        if req.content_length.isdigit() and int(req.content_length) > max_bytes:
+        raw_len = parse_raw_bytes(req.raw_header, policy)
+        # with an original the body holds two JPEGs, each up to the limit
+        body_limit = max_bytes * 2 if raw_len is not None else max_bytes
+        if req.content_length.isdigit() and int(req.content_length) > body_limit:
             raise too_large()
         meta = parse_meta(req.meta_header, policy)
-        raw = await read_limited(req.body, max_bytes)
+        body = await read_limited(req.body, body_limit)
+        photo_bytes, raw_bytes = split_raw(body, raw_len, max_bytes)
+        del body
+        if raw_bytes is not None and (
+            raw_bytes == photo_bytes
+            or (policy.raw_differs is not None and not policy.raw_differs(meta))
+        ):
+            raw_bytes = None  # the photo is its own original: stored once
 
-        image = await to_thread.run_sync(
-            lambda: process_jpeg(
-                raw,
+        def process(data: bytes) -> ProcessedImage:
+            return process_jpeg(
+                data,
                 max_side=policy.max_side,
                 min_side=policy.min_side,
                 quality=policy.quality,
                 thumb_side=policy.thumb_side,
                 exact_size=policy.exact_size,
             )
-        )
+
+        image = await to_thread.run_sync(lambda: process(photo_bytes))
+        raw_image: ProcessedImage | None = None
+        if raw_bytes is not None:
+            original = raw_bytes
+            try:
+                raw_image = await to_thread.run_sync(lambda: process(original))
+            except errors.ApiError as exc:
+                # the photo is fine, its original is not: say which one
+                raise errors.ApiError(
+                    exc.status, "invalid_raw", f"Original ohne Filter: {exc.message}"
+                ) from exc
+            if (raw_image.width, raw_image.height) != (image.width, image.height):
+                raise invalid_raw("Das Original muss so groß sein wie das Foto.")
         for limiter, key in shared:
             if not limiter.hit(key):
                 raise errors.rate_limited(limiter.retry_after(key))
-        photo = await to_thread.run_sync(lambda: self.store(ext, user, image, meta))
+        photo = await to_thread.run_sync(lambda: self.store(ext, user, image, meta, raw_image))
 
         extra: dict[str, Any] = {}
         if ext.on_upload is not None:
@@ -223,20 +283,36 @@ class UploadService:
         return UploadResult(photo, extra)
 
     def store(
-        self, ext: Extension, user: User, image: ProcessedImage, meta: dict[str, Any]
+        self,
+        ext: Extension,
+        user: User,
+        image: ProcessedImage,
+        meta: dict[str, Any],
+        raw: ProcessedImage | None = None,
     ) -> Photo:
-        """Write the photo and its thumbnail atomically, then record them."""
+        """Write the photo and its thumbnail atomically (and the unfiltered original
+        with its thumbnail below raw/), then record them."""
         now = local_now(self.core.settings.timezone)
         stem = f"{now:%Y%m%d-%H%M%S}-{now.microsecond // 1000:03d}_{secrets.token_hex(3)}"
         filename, thumb_filename = f"{stem}.jpg", f"thumbs/{stem}.jpg"
+        raw_filename = raw_thumb_filename = None
         photos = self.repos.photos
         path = photos.path(ext.id, filename)
         thumb_path = photos.path(ext.id, thumb_filename)
+        written = [path, thumb_path]
         thumb_path.parent.mkdir(parents=True, exist_ok=True)
-        _write_atomic(path, image.data)
-        _write_atomic(thumb_path, image.thumb)
         public_id = new_public_id()
         try:
+            _write_atomic(path, image.data)
+            _write_atomic(thumb_path, image.thumb)
+            if raw is not None:
+                raw_filename, raw_thumb_filename = f"raw/{stem}.jpg", f"raw/thumbs/{stem}.jpg"
+                raw_path = photos.path(ext.id, raw_filename)
+                raw_thumb_path = photos.path(ext.id, raw_thumb_filename)
+                written += [raw_path, raw_thumb_path]
+                raw_thumb_path.parent.mkdir(parents=True, exist_ok=True)
+                _write_atomic(raw_path, raw.data)
+                _write_atomic(raw_thumb_path, raw.thumb)
             photos.insert(
                 public_id=public_id,
                 extension=ext.id,
@@ -248,10 +324,12 @@ class UploadService:
                 size=len(image.data),
                 meta=meta,
                 created_at=now_iso(),
+                raw_filename=raw_filename,
+                raw_thumb_filename=raw_thumb_filename,
             )
         except BaseException:
-            path.unlink(missing_ok=True)
-            thumb_path.unlink(missing_ok=True)
+            for written_path in written:
+                written_path.unlink(missing_ok=True)
             raise
         photo = photos.get(public_id)
         assert photo is not None

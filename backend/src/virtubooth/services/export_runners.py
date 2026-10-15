@@ -17,7 +17,7 @@ import tempfile
 import zipfile
 from collections.abc import Callable, Iterator, Sequence
 from contextlib import contextmanager
-from dataclasses import dataclass, replace
+from dataclasses import dataclass
 from pathlib import Path
 
 from ..api.schemas.exports import ArchiveOptions, TimelapseOptions
@@ -94,21 +94,25 @@ def run_archive(ctx: JobContext) -> None:
     opts = ArchiveOptions.model_validate(ctx.job.options)
     root = ctx.root
     with ctx.scratch() as tmp:
-        snapshot = export_tool.take_snapshot(ctx.data_dir, tmp, include_hidden=opts.include_hidden)
+        snapshot = export_tool.take_snapshot(
+            ctx.data_dir, tmp, include_hidden=opts.include_hidden, filters=opts.filters
+        )
         ctx.progress(0.05)
-        files = [(e, export_tool.file_size(e.source)) for e in snapshot.files]
+        files = [(f, export_tool.file_size(f.source)) for f in snapshot.files]
         total = sum(size for _, size in files)
         check_free_space(ctx.exports_dir, total)
         entries = list(snapshot.entries)
         packed = 0
         with zipfile.ZipFile(ctx.part, "w", compression=zipfile.ZIP_DEFLATED) as zf:
-            for entry, size in files:
+            for packed_file, size in files:
                 try:
                     # JPEGs don't shrink: stored, not deflated
-                    zf.write(entry.source, f"{root}/{entry.arcname}", zipfile.ZIP_STORED)
+                    zf.write(
+                        packed_file.source, f"{root}/{packed_file.arcname}", zipfile.ZIP_STORED
+                    )
                 except FileNotFoundError:
                     # deleted by the admin while we pack: listed without a file
-                    entries = [replace(x, arcname="") if x is entry else x for x in entries]
+                    entries = export_tool.without_file(entries, packed_file)
                 packed += size
                 ctx.progress(0.05 + 0.9 * packed / max(1, total))
             zf.writestr(f"{root}/photos.csv", export_tool.photos_csv(entries))
@@ -132,6 +136,7 @@ def run_archive(ctx: JobContext) -> None:
                     include_hidden=opts.include_hidden,
                     include_db=opts.include_db,
                     cli=False,
+                    filters=opts.filters,
                 ),
             )
 
@@ -146,7 +151,9 @@ def archive_manifest(
         "party_name": event_name(ctx.settings, ctx.repos),
         "include_hidden": opts.include_hidden,
         "include_db": opts.include_db,
+        "filters": opts.filters,
         "photos": len(packed),
+        "originals": sum(1 for e in entries if e.raw_arcname),
         "hidden": sum(1 for e in packed if e.photo.hidden),
         "missing_files": len(entries) - len(packed),
         "guests": guests,
@@ -164,6 +171,8 @@ def archive_manifest(
                 "height": e.photo.height,
                 "meta": e.photo.meta,
                 "file": e.arcname or None,
+                "has_original": e.photo.has_raw,
+                "original_file": e.raw_arcname or None,
             }
             for e in entries
         ],

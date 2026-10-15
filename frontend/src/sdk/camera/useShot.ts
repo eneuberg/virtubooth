@@ -90,8 +90,15 @@ export function useShot(ext: string) {
     }
   };
 
-  /** Shows the photo as the result and sends it. Resolves the server's answer (null: not sent). */
-  const take = async (blob: Blob, meta: UploadMeta): Promise<UploadResult | null> => {
+  /**
+   * Shows the photo as the result and sends it (with `raw`, its unfiltered original, in
+   * the same request). Resolves the server's answer (null: not sent).
+   */
+  const take = async (
+    blob: Blob,
+    meta: UploadMeta,
+    raw: Blob | null = null,
+  ): Promise<UploadResult | null> => {
     const id = newShotId();
     const url = URL.createObjectURL(blob);
     setShot({
@@ -107,7 +114,7 @@ export function useShot(ext: string) {
       stored: false,
       waitUntil: 0,
     });
-    const stored = await addToOutbox({ id, ext, meta, blob });
+    const stored = await addToOutbox({ id, ext, meta, blob, raw });
     patch(id, { stored });
     return send(id);
   };

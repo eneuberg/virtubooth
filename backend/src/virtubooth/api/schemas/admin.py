@@ -67,6 +67,11 @@ class AdminPhoto(BaseModel):
     deleted: bool
     url: str
     thumb_url: str
+    raw_url: str | None = Field(
+        description="The unfiltered original (Fotobox); null: the photo is the only file "
+        "(no filter, Beer Cam, or taken before originals were kept)."
+    )
+    raw_thumb_url: str | None
     user: PhotoUser
 
     @classmethod
@@ -86,6 +91,8 @@ class AdminPhoto(BaseModel):
             deleted=p.deleted,
             url=p.url,
             thumb_url=p.thumb_url,
+            raw_url=p.raw_url,
+            raw_thumb_url=p.raw_thumb_url,
             user=PhotoUser(
                 id=p.user_id,
                 name=p.user_name,

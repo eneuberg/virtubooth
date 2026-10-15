@@ -44,6 +44,9 @@ Contents:
   the image elsewhere and push it to a registry (`VB_IMAGE`).
 - Disk: the image is about 900 MB (236 MB to download). Photos take up to
   about 0.5 MB each with their thumbnail, so 1 GB holds at least 2000 of them.
+  A Fotobox photo with a filter also keeps its unfiltered original, about as large
+  as the photo (measured: 0.13 to 0.4 MB each), so such shots take up to about
+  1 MB and their upload is twice as big; Beer Cam and „Normal“ photos are unchanged.
   Export files come on top.
 - A domain (e.g. `party.example.com`) with an A/AAAA record pointing at the
   server, and ports 80 and 443 open for the proxy's certificates.
