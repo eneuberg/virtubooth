@@ -125,15 +125,32 @@ def claim(db: Database) -> PhotoInfo | None:
     )  # fmt: skip
 
 
+def ai_detection_active(app_settings: AppSettingsRepo) -> bool:
+    """The external AI is the active object detector (`x.llm.config`: master switch
+    and „Objekte mit KI“ on, a provider that can see photos). Then the local
+    `objects` analyzer does not run and the finished photo is queued for the AI."""
+    from ..llm.config import load_config
+    from ..llm.providers import BY_ID
+
+    cfg = load_config(app_settings)
+    return cfg.ai_detection and BY_ID[cfg.provider].vision
+
+
+AI_ACTIVE = "KI-Objekterkennung ist aktiv"
+
+
 def finish(
     db: Database, photo_id: int, *, facts: Mapping[str, float], data: Mapping[str, Any],
     versions: Mapping[str, str], objects_found: Sequence[DetectedObject] = (),
     objects_model: str | None = None, objects_skipped: str | None = None,
+    ai_detect: bool = False,
 ) -> bool:  # fmt: skip
     """Store a finished analysis, once: facts, data, and the local object list
     (`objects_model` set: the detector ran; else a `skipped` local run with the
-    reason `objects_skipped`), all in one transaction. False (nothing written)
-    when the row is no longer `running` (purged meanwhile)."""
+    reason `objects_skipped`), all in one transaction. `ai_detect`: the AI
+    detector is active, so the external AI looks at this photo next (only photos
+    finished while it is active ever go out). False (nothing written) when the
+    row is no longer `running` (purged meanwhile)."""
     with db.tx() as c:
         row = c.execute("SELECT state FROM wall_analysis WHERE photo_id=?", (photo_id,)).fetchone()
         if row is None or row["state"] != "running":
@@ -145,6 +162,7 @@ def finish(
         _upsert(
             c, photo_id, state="done", error=None, data=json.dumps(data, ensure_ascii=False),
             versions=json.dumps(dict(versions)), finished_at=now_iso(),
+            ai_detect=1 if ai_detect else 0,
         )  # fmt: skip
         if not objects.has_run(db, photo_id, "local"):
             if objects_model is not None:

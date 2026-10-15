@@ -1,5 +1,7 @@
-"""External object detection at upload (PLAN-NIGHT N9): after the local list,
-once per photo, never for an opted-out guest."""
+"""External object detection (PLAN-NIGHT N9): only for photos the pipeline
+finished while it was the active detector (v15), once per photo, never for an
+opted-out guest. (Photos here may also carry local objects: legacy rows from
+before the either/or, where the AI's list is merged after the local one.)"""
 
 from __future__ import annotations
 
@@ -11,9 +13,15 @@ from virtubooth.extensions.wall.llm import ports
 from virtubooth.extensions.wall.llm.detect import DetectionRunner, downscale
 from virtubooth.extensions.wall.llm.providers.base import ProviderError, TokenUsage
 
-from ..llm_fakes import FakeProvider, add_guest, add_photo, jpeg_bytes, set_flags, setup_llm
+from ..llm_fakes import FakeProvider, add_guest, jpeg_bytes, set_flags, setup_llm
+from ..llm_fakes import add_photo as add_any_photo
 
-EXTERNAL = {"local": True, "external": True}
+EXTERNAL = {"external": True}
+
+
+def add_photo(core, uid, **kw):
+    """A photo the pipeline finished while the AI detector was active (v15)."""
+    return add_any_photo(core, uid, **{"ai_detect": True, **kw})
 
 
 def runs(core, pid):
@@ -83,6 +91,10 @@ def test_waits_for_the_local_pipeline(core):
     assert DetectionRunner(svc).run_once() == "idle"
     with core.db.tx() as c:
         c.execute("UPDATE wall_analysis SET state='failed' WHERE photo_id=?", (pid,))
+    # a failed analysis never queued the photo for the AI
+    assert DetectionRunner(svc).run_once() == "idle"
+    with core.db.tx() as c:
+        c.execute("UPDATE wall_analysis SET state='done' WHERE photo_id=?", (pid,))
     assert DetectionRunner(svc).run_once() == "done"
 
 

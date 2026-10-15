@@ -58,18 +58,27 @@ class VerdictOut:
 
 
 class Provider(Protocol):
+    """`effort`: config.effort („Denkaufwand“); providers without thinking ignore it.
+    Thinking tokens are billed as output tokens and counted in `output_tokens`."""
+
     id: str
 
     def detect(
-        self, image_jpeg: bytes, *, model: str
+        self, image_jpeg: bytes, *, model: str, effort: str = "low"
     ) -> tuple[list[DetectedObject], TokenUsage]: ...
 
     def score(
-        self, prompt: str, lines: Sequence[PhotoLine], *, model: str, relative: bool = False
+        self,
+        prompt: str,
+        lines: Sequence[PhotoLine],
+        *,
+        model: str,
+        relative: bool = False,
+        effort: str = "low",
     ) -> tuple[dict[str, list[float | None]], TokenUsage]: ...
 
     def verdict(
-        self, prompt: str, lines: Sequence[PhotoLine], *, model: str
+        self, prompt: str, lines: Sequence[PhotoLine], *, model: str, effort: str = "low"
     ) -> tuple[VerdictOut, TokenUsage]: ...
 
     def ping(self, model: str) -> TokenUsage: ...

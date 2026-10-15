@@ -340,6 +340,8 @@ class EnrichmentService:
         disabled = set(names) - ALWAYS_ON
         with self.core.db.tx():
             jobs.save_disabled(self.core.repos.app_settings, disabled, by=actor)
+            if "objects" not in disabled:
+                _local_detector_on(self.core, actor)
             self.core.repos.audit.log(
                 actor, "wall.analyzers", "", {"disabled": sorted(disabled)}, at=now_iso()
             )
@@ -373,6 +375,8 @@ class EnrichmentService:
             if clean:
                 all_settings[name] = all_settings.get(name, {}) | clean
             jobs.save_disabled(repo, disabled, by=actor, settings=all_settings)
+            if name == "objects" and enabled:
+                _local_detector_on(self.core, actor)
             self.core.repos.audit.log(
                 actor, "wall.analyzers", name,
                 {"enabled": enabled, "settings": clean} if clean else {"enabled": enabled},
@@ -468,3 +472,10 @@ def _scores(raw: str) -> list[float | None]:
     return [
         float(v) if isinstance(v, int | float) and not isinstance(v, bool) else None for v in values
     ]
+
+
+def _local_detector_on(core: Core, actor: str) -> None:
+    """Either/or: the local detector switched on switches the AI detector off."""
+    from ..llm.config import set_ai_detection
+
+    set_ai_detection(core.repos.app_settings, False, by=actor)

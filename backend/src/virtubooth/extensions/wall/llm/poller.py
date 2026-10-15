@@ -218,7 +218,7 @@ def poll_once(svc: LlmService, *, force: bool = False) -> PollResult | None:
                 result, _ = svc.call(
                     "property",
                     prop.name,
-                    _score_call(prop.prompt, lines, relative=len(parts) > 1),
+                    _score_call(prop.prompt, lines, relative=len(parts) > 1, effort=cfg.effort),
                     config=cfg,
                 )
             except Unavailable as exc:
@@ -253,10 +253,10 @@ def poll_once(svc: LlmService, *, force: bool = False) -> PollResult | None:
 
 
 def _score_call(
-    prompt: str, lines: list[PhotoLine], *, relative: bool
+    prompt: str, lines: list[PhotoLine], *, relative: bool, effort: str = "low"
 ) -> Callable[[Provider, str], tuple[dict[str, list[float | None]], TokenUsage]]:
     def run(provider: Provider, model: str) -> tuple[dict[str, list[float | None]], TokenUsage]:
-        return provider.score(prompt, lines, model=model, relative=relative)
+        return provider.score(prompt, lines, model=model, relative=relative, effort=effort)
 
     return run
 

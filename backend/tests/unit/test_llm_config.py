@@ -27,7 +27,8 @@ def test_defaults(core):
         "model": "claude-haiku-5-5",
         "poll": True,
         "poll_interval_s": 180,
-        "detect": {"local": True, "external": False},
+        "detect": {"external": False},
+        "effort": "low",
         "image_max_px": 1024,
         "budget": {"party_usd": 5.0, "party_calls": None, "daily_usd": 2.0, "daily_calls": None},
         "rev": 0,
@@ -81,14 +82,18 @@ def test_put_config(admin, core):
     assert r.status_code == 422
 
 
-def test_local_detection_switch_disables_the_objects_analyzer(admin, core):
+def test_ai_detection_on_switches_the_local_detector_off(admin, core):
+    # an older client still sends `local`: ignored, the either/or decides
     r = admin.put(
-        f"{BASE}/config", json={"detect": {"local": False, "external": True}}, headers=ORIGIN
+        f"{BASE}/config", json={"detect": {"local": True, "external": True}}, headers=ORIGIN
     )
     assert r.status_code == 200, r.text
     assert "objects" in jobs.disabled_analyzers(core.repos.app_settings)
-    admin.put(f"{BASE}/config", json={"detect": {"local": True, "external": True}}, headers=ORIGIN)
-    assert "objects" not in jobs.disabled_analyzers(core.repos.app_settings)
+    assert r.json()["detection"]["mode"] == "ai"
+    # switching it off again does not switch the local one back on by itself
+    r = admin.put(f"{BASE}/config", json={"detect": {"external": False}}, headers=ORIGIN)
+    assert r.json()["detection"]["mode"] == "off"
+    assert "objects" in jobs.disabled_analyzers(core.repos.app_settings)
 
 
 def test_external_ai_active(core):

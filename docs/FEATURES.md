@@ -500,21 +500,28 @@ Was die externe KI tut, wenn sie an ist:
   Gästen sowie ausgeblendete und gelöschte Fotos, geprüft direkt vor jedem
   Aufruf. Gastnamen sind für die KI als Daten markiert, nie als Anweisung.
 
-### Externe KI: zwei Teile, drei Objektlisten
+### Externe KI: Objekterkennung entweder–oder, Eigenschaften
 
-- Unter „Externe KI verwenden“ zwei eigene Schalter, jeder mit Stand, letztem
-  Fehler und Kosten: **„Objekterkennung mit KI (beim Hochladen)“** (verkleinertes
-  Foto, Objekte mit Rahmen) und **„Eigenschaften abfragen“** (nur Text, alle …
-  Minuten, mit den Urteilen). Ein Teil aus: er schickt nichts. Der Hauptschalter
-  aus: nichts verlässt den Server.
-- Pro Foto drei eingefrorene Listen: lokales Modell, KI (mit Anbieter und Modell)
-  und die **zusammengeführte Liste**, mit der Abfrage, Kategorien und Wall
-  arbeiten. Ein Objekt, das beide gefunden haben (gleiche Klasse, auch über
-  Synonyme, Rahmen-Überlappung IoU ≥ 0,5), wird verknüpft, der Rest angehängt.
-  Kein Eintrag rückt nach, die Werte der Eigenschaften bleiben gültig.
-- Im Foto-Inspektor und beim Testbild als Reiter „Lokales Modell“, „KI (Claude)“
-  und „Zusammengeführt“, je mit eigenen Rahmen; Live zeigt die zusammengeführte
-  Liste.
+- **Objekterkennung: Lokal / KI / Aus** unter „Modelle“: entweder das lokale
+  Modell oder die KI („Objekte mit KI“, verkleinertes Foto, Objekte mit Rahmen),
+  nie beide. Sie läuft als Schritt der Pipeline nur für Fotos, die analysiert
+  werden, während sie aktiv ist; ältere Fotos werden nie nachträglich geschickt.
+  Zeile mit Stand, Ø/zuletzt ms, Fehlern und Kosten.
+- **„Eigenschaften abfragen“** (nur Text, alle … Minuten, mit den Urteilen) steht
+  in der Karte „Eigenschaften“.
+- **„Externe KI“**: Hauptschalter (aus: nichts verlässt den Server), Anbieter
+  (Anthropic USA, Mistral EU, DeutschlandGPT DE), Modell, „Denkaufwand“
+  (gering/mittel/hoch; Nachdenken kostet Ausgabe-Tokens) und API-Schlüssel.
+  DeutschlandGPT bekommt keine Fotos (Bilder über den Endpunkt nicht geprüft),
+  nur die Eigenschaften; es rechnet in Euro ab, Meter und Budget rechnen mit
+  1 € = 1,10 $ um. Ist die externe KI aus oder fehlt der Schlüssel, zeigt jede
+  KI-Funktion einen kleinen roten Hinweis.
+- Pro Foto bleiben die Listen getrennt (lokal, KI) plus die **zusammengeführte
+  Liste**, mit der Abfrage, Kategorien und Wall arbeiten; bei neuen Fotos enthält
+  sie nur die eine aktive Quelle. Ältere Fotos mit beiden Listen bleiben, wie sie
+  sind (verknüpft über Klasse und Rahmen-Überlappung); kein Eintrag rückt nach.
+- Im Foto-Inspektor und beim Testbild als Reiter „Lokales Modell“, „KI“ und
+  „Zusammengeführt“; Live zeigt die zusammengeführte Liste.
 
 ## Was über Gäste gespeichert wird
 
@@ -529,7 +536,7 @@ Was die externe KI tut, wenn sie an ist:
 | Fotos (neu kodiert, ohne EXIF/GPS) mit Vorschaubild, Aktivität, Nummer, Zeit, Filter bzw. Gefäß | die Party |
 | Anonyme Besucher-ID mit erstem und letztem Besuch, welcher QR-Code wie oft geöffnet wurde; keine IP | „Gescannt“, Zahlen pro Code |
 | Mit Live-Wall: Analysewerte, Objektliste und Rahmen pro Foto; die Wünsche des Gasts | Kategorien |
-| Mit externer KI: Werte der Eigenschaften, Urteile, Verbrauch. Beim Anbieter landen das verkleinerte Foto und Objekt- und Anzeigenamen | Kategorien |
+| Mit externer KI: Werte der Eigenschaften, Urteile, Verbrauch. Beim Anbieter landen das verkleinerte Foto (nur bei „Objekte mit KI“) und Objekt- und Anzeigenamen | Kategorien |
 
 Auf dem Gerät liegen die Cookies, in localStorage eine Kopie der Gast-ID und
 die Wahl von Gefäß und Countdown, in IndexedDB die Outbox. Ausgeblendete Fotos

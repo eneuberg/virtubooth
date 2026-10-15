@@ -43,10 +43,13 @@ WALL_ANALYSIS_TEXT = (
 
 
 # always in „Mehr dazu“, also while the host has no external AI switched on; it
-# names the configured provider („Anthropic, USA“ or „Mistral AI, EU“)
-def external_ai_text(provider: str = "Anthropic, USA") -> str:
+# names the configured provider („Anthropic, USA“, „Mistral AI, EU“ or
+# „DeutschlandGPT, Deutschland“); `photos=False` for a provider that only ever gets
+# the recognised things as text (DeutschlandGPT: no photos)
+def external_ai_text(provider: str = "Anthropic, USA", *, photos: bool = True) -> str:
+    what = "Fotos und erkannte Dinge" if photos else "erkannte Dinge"
     return (
-        "Wenn der Gastgeber es einschaltet, können Fotos und erkannte Dinge (z. B. „Glas“, "
+        f"Wenn der Gastgeber es einschaltet, können {what} (z. B. „Glas“, "
         f"„Hut“) zusätzlich von einem externen KI-Dienst ({provider}) ausgewertet werden – "
         "für lustige Kategorien auf der Live-Wall. Mit „Keine Weitergabe an externe KI“ "
         "schließt du deine Fotos davon aus; das kannst du jederzeit unter „Du“ ändern."
@@ -230,7 +233,7 @@ class IdentityService:
                 "gemacht hast, wie lange die Seite bei dir offen war und über welchen QR-Code "
                 "du gekommen bist.",
                 *([WALL_ANALYSIS_TEXT] if analysis else []),
-                external_ai_text(self.external_ai_provider()),
+                external_ai_text(self.external_ai_provider(), photos=self.external_ai_photos()),
                 "Wenn du das nicht möchtest, mach hier bitte keine Fotos.",
             ],
             instagram_prompt="Instagram-Name (freiwillig). Dann können wir dich markieren.",
@@ -428,6 +431,12 @@ class IdentityService:
         from ..extensions.wall.llm.flags import external_ai_provider
 
         return external_ai_provider(self.repos)
+
+    def external_ai_photos(self) -> bool:
+        """Whether the configured provider gets photos at all (not DeutschlandGPT)."""
+        from ..extensions.wall.llm.flags import external_ai_photos
+
+        return external_ai_photos(self.repos)
 
     # ------------------------------------------------------- display names
 

@@ -76,14 +76,28 @@ def anthropic_api(core):
 def test_status_shape(admin):
     body = admin.get(BASE).json()
     assert body["key"] == {"set": False, "set_at": None, "provider": None, "valid": False}
-    assert [p["id"] for p in body["providers"]] == ["anthropic", "mistral"]
-    assert [p["eu"] for p in body["providers"]] == [False, True]
+    assert [p["id"] for p in body["providers"]] == ["anthropic", "mistral", "deutschlandgpt"]
+    assert [p["eu"] for p in body["providers"]] == [False, True, True]
+    assert [p["vision"] for p in body["providers"]] == [True, True, False]
+    assert [p["thinking"] for p in body["providers"]] == [True, False, True]
+    assert [p["currency"] for p in body["providers"]] == ["USD", "USD", "EUR"]
     models = {m["id"]: m for m in body["models"]}
     assert models["claude-haiku-5-5"]["usd_in_mtok"] == 0.1
+    # DeutschlandGPT: its EUR price, and that in USD at the fixed 1.10
+    dgpt = models["claude-haiku-5.5"]
+    assert (dgpt["provider"], dgpt["currency"], dgpt["price_in_mtok"]) == (
+        "deutschlandgpt",
+        "EUR",
+        0.83,
+    )
+    assert dgpt["usd_in_mtok"] == pytest.approx(0.913)
     assert {"claude-haiku-5-5", "claude-sonnet-5-5", "claude-opus-5-5"} <= set(models)
     assert body["poller"]["state"] == "off"
-    assert body["detection"] == {"state": "off", "pending": 0, "done": 0, "failed": 0,
-                                 "last_run_at": None, "last_error": None}  # fmt: skip
+    assert body["detection"] == {
+        "mode": "local", "state": "off", "pending": 0, "done": 0, "failed": 0,
+        "last_run_at": None, "last_error": None, "cost_usd": 0.0,
+        "stats": {"processed": 0, "errors": 0, "avg_ms": None, "last_ms": None},
+    }  # fmt: skip
     assert body["config"]["poll"] is True and body["config"]["detect"]["external"] is False
     assert body["usage"]["party"]["calls"] == 0 and body["usage"]["blocked"] is False
 

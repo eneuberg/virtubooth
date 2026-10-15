@@ -1,4 +1,10 @@
-"""A photo's object lists (migrations 11, 14): frozen, append-only.
+"""A photo's object lists (migrations 11, 14, 15): frozen, append-only.
+
+Since v15 object detection is either/or: a new photo gets the local detector's
+list OR the external AI's (whichever was active when the pipeline finished it),
+so its merged list is exactly that one source's list (the merge has nothing to
+link). Photos from before that may have both lists, merged as below; they stay
+as they are, and so do their idx and the property scores that index them.
 
 Each source keeps its own list as it found it (`photo_source_objects`: the
 local model's, the external AI's), and the photo has ONE merged list
@@ -32,7 +38,7 @@ if TYPE_CHECKING:
     from .merge import Entry
 
 RunState = Literal["done", "failed", "skipped"]
-SOURCES = ("local", "claude", "mistral")
+SOURCES = ("local", "claude", "mistral", "deutschlandgpt")
 _CHUNK = 500
 
 
@@ -273,26 +279,29 @@ def runs_of(db: Database, photo_id: int) -> list[dict[str, str | int | None]]:
     ]
 
 
-# Photos an external source may still see (also counted for the admin): the
-# local pipeline finished them, `source` has no run for them, they are visible
-# and their guest is not banned and has neither opt-out on (live flags).
+# Photos the external AI may still see (also counted for the admin): the pipeline
+# finished them WHILE the AI detector was active (`ai_detect`, v15: no backfill of
+# older photos), no external source has run for them yet (one AI list per photo,
+# also after a provider change), they are visible and their guest is not banned
+# and has neither opt-out on (live flags). The `source` parameter is kept for the
+# callers; any non-local run counts.
 _ELIGIBLE_SQL = (
     "FROM photos p JOIN users u ON u.id = p.user_id "
     "JOIN wall_analysis a ON a.photo_id = p.id "
-    "WHERE a.state IN ('done', 'failed', 'skipped') "
+    "WHERE a.state = 'done' AND a.ai_detect = 1 AND ? IS NOT NULL "
     "AND p.hidden_at IS NULL AND p.deleted_at IS NULL "
     "AND u.analysis_opt_out = 0 AND u.ai_opt_out = 0 AND u.banned_at IS NULL "
     "AND NOT EXISTS (SELECT 1 FROM photo_detection_runs r "
-    "                WHERE r.photo_id = p.id AND r.source = ?) "
+    "                WHERE r.photo_id = p.id AND r.source != 'local') "
 )
 
 
 def eligible_for_external(db: Database, source: str, limit: int) -> list[int]:
-    """Photo ids an external source may still analyse, newest first: the local
-    pipeline finished them (`done`/`failed`/`skipped`), `source` has no run
-    for them, they are visible (not hidden, not deleted) and their guest is not
-    banned and has neither the analysis opt-out nor the external-AI opt-out on
-    (live flags)."""
+    """Photo ids the external AI may still analyse, newest first: the pipeline
+    finished them while the AI detector was active (`wall_analysis.ai_detect`),
+    no external source ran for them, they are visible (not hidden, not deleted)
+    and their guest is not banned and has neither the analysis opt-out nor the
+    external-AI opt-out on (live flags)."""
     rows = db.all(
         f"SELECT p.id {_ELIGIBLE_SQL} ORDER BY p.id DESC LIMIT ?", (source, max(0, int(limit)))
     )

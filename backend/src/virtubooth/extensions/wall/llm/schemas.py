@@ -34,14 +34,20 @@ class ProviderOut(BaseModel):
     eu: bool = Field(description="Hosted in the EU.")
     available: bool
     reason: str | None
+    vision: bool = Field(description="Can look at photos (object detection, test image).")
+    thinking: bool = Field(description="Takes a „Denkaufwand“ (config.effort).")
+    currency: str = Field(description="What it bills in: USD | EUR.")
 
 
 class ModelOut(BaseModel):
     id: str
     provider: str
     title: str
-    usd_in_mtok: float
+    usd_in_mtok: float = Field(description="Per million input tokens, converted to USD.")
     usd_out_mtok: float
+    currency: str = Field(description="The provider's currency (USD | EUR).")
+    price_in_mtok: float = Field(description="Per million input tokens in `currency`.")
+    price_out_mtok: float
 
 
 class PollerOut(BaseModel):
@@ -53,17 +59,37 @@ class PollerOut(BaseModel):
     last_error: str | None = Field(description="The poll's last error (not the detection's).")
 
 
-class DetectionOut(BaseModel):
-    """„Objekterkennung mit KI“ (at upload): its own state and error."""
+class DetectStatsOut(BaseModel):
+    """Every detection call so far (like an analyzer's stats, but from `llm_usage`)."""
 
+    processed: int
+    errors: int
+    avg_ms: float | None
+    last_ms: float | None
+
+
+class DetectionOut(BaseModel):
+    """„Objekte mit KI“ (a step of the pipeline while it is the active detector)."""
+
+    mode: Literal["local", "ai", "off"] = Field(
+        description="The object detection: the local detector, the external AI or none "
+        "(either/or; `ai` also while the master switch is off, then nothing runs)."
+    )
     state: Literal["off", "idle", "running", "blocked"] = Field(
-        description="off: switched off (or external AI off, no key); running: a photo is out."
+        description="off: not the active detector (or external AI off, no key); running: a "
+        "photo is out."
     )
     pending: int = Field(description="Photos the external detector will still look at.")
     done: int
     failed: int
     last_run_at: str | None = Field(description="When the detector last finished a photo.")
     last_error: str | None = Field(description="The detection's last error (provider trouble).")
+    stats: DetectStatsOut
+    cost_usd: float = Field(description="What detection has cost so far (estimate).")
+
+
+class ObjectDetectionIn(BaseModel):
+    mode: Literal["local", "ai", "off"]
 
 
 class UsageTotals(BaseModel):

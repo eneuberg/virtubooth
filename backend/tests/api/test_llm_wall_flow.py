@@ -78,7 +78,7 @@ def _outbound(fake: FakeProvider) -> str:
 def test_poll_verdict_reaches_the_wall_and_opted_out_guests_never_leave(live):
     core = live.core
     fake = FakeProvider(objects=[ports.DetectedObject("bow tie", "Fliege", 0.8, None)])
-    svc = setup_llm(core, fake, detect={"local": True, "external": True})
+    svc = setup_llm(core, fake, detect={"external": True})
     admin = live_admin(live)
     admin.put("/api/x/wall/admin/password", json={"password": "geheim-123456"}, headers=live.origin)
     config = admin.get("/api/x/wall/admin/config").json()["config"]
@@ -89,11 +89,11 @@ def test_poll_verdict_reaches_the_wall_and_opted_out_guests_never_leave(live):
     ai_out = add_guest(core, name="Stiller Otter", display_name="Geheimotter", ai_opt_out=True)
     ana_out = add_guest(core, name="Leiser Luchs", display_name="Nichtzeigen")
     banned = add_guest(core, name="Böser Bär", display_name="Bannbär")
-    cool_pid, cool_photo = add_photo(core, ok, labels=("person", "sunglasses"))
-    add_photo(core, ai_out, labels=("person", "hat"))
-    add_photo(core, ana_out, labels=("dog",))
-    _, hidden_photo = add_photo(core, ok, labels=("cake",), hidden=True)
-    add_photo(core, banned, labels=("knife",))
+    cool_pid, cool_photo = add_photo(core, ok, labels=("person", "sunglasses"), ai_detect=True)
+    add_photo(core, ai_out, labels=("person", "hat"), ai_detect=True)
+    add_photo(core, ana_out, labels=("dog",), ai_detect=True)
+    _, hidden_photo = add_photo(core, ok, labels=("cake",), hidden=True, ai_detect=True)
+    add_photo(core, banned, labels=("knife",), ai_detect=True)
     set_flags(core, ana_out, analysis=True)
     with core.db.tx() as c:
         c.execute("UPDATE users SET banned_at='2026-10-15T20:00:00Z' WHERE id=?", (banned,))
@@ -182,9 +182,10 @@ def test_poll_verdict_reaches_the_wall_and_opted_out_guests_never_leave(live):
     admin.close()
 
 
-def test_local_detection_off_switches_the_objects_analyzer(settings, demo_extension):
-    """`detect.local=false` (PLAN-NIGHT N9) is D1's `objects` analyzer off;
-    `people` then comes from the faces."""
+def test_object_detection_is_either_or(settings, demo_extension):
+    """„Objekterkennung: Lokal / KI / Aus“ through the real app: `ai` switches D1's
+    `objects` analyzer off (`people` then comes from the faces), the Models
+    card's switch for `objects` switches the AI detector off again."""
     from fastapi.testclient import TestClient
 
     from virtubooth.app import create_app
@@ -199,25 +200,34 @@ def test_local_detection_off_switches_the_objects_analyzer(settings, demo_extens
             status = admin.get("/api/x/wall/admin/analysis").json()
             return next(a for a in status["analyzers"] if a["name"] == "objects")["enabled"]
 
-        assert objects_on()
-        r = admin.put(f"{LLM}/config", json={"detect": {"local": False, "external": False}},
-                      headers=ORIGIN)  # fmt: skip
+        def mode() -> str:
+            return admin.get(LLM).json()["detection"]["mode"]
+
+        assert objects_on() and mode() == "local"
+        r = admin.put(f"{LLM}/object-detection", json={"mode": "ai"}, headers=ORIGIN)
         assert r.status_code == 200, r.text
-        assert r.json()["config"]["detect"]["local"] is False
+        assert r.json()["config"]["detect"]["external"] is True
+        assert r.json()["detection"]["mode"] == "ai"
         assert not objects_on()
         people = next(
             v for v in admin.get("/api/x/wall/admin/values").json()["values"]
             if v["key"] == "people"
         )  # fmt: skip
         assert "faces" in people["needs"]
-        # the Models card's switch is the same one
+        # the Models card's switch for the local detector: the AI one goes off
         r = admin.put("/api/x/wall/admin/analysis/analyzers/objects", json={"enabled": True},
                       headers=ORIGIN)  # fmt: skip
         assert r.status_code == 200, r.text
-        assert admin.get(LLM).json()["config"]["detect"]["local"] is True
-        admin.put(f"{LLM}/config", json={"detect": {"local": False, "external": False}},
-                  headers=ORIGIN)  # fmt: skip
-        assert not objects_on()
-        r = admin.put(f"{LLM}/config", json={"detect": {"local": True, "external": False}},
-                      headers=ORIGIN)  # fmt: skip
-        assert objects_on()
+        assert mode() == "local" and admin.get(LLM).json()["config"]["detect"]["external"] is False
+        r = admin.put(f"{LLM}/object-detection", json={"mode": "off"}, headers=ORIGIN)
+        assert r.json()["detection"]["mode"] == "off" and not objects_on()
+        r = admin.put(f"{LLM}/object-detection", json={"mode": "local"}, headers=ORIGIN)
+        assert r.json()["detection"]["mode"] == "local" and objects_on()
+        # a provider that can't look at photos can't be the detector
+        admin.put(f"{LLM}/config", json={"provider": "deutschlandgpt"}, headers=ORIGIN)
+        r = admin.put(f"{LLM}/object-detection", json={"mode": "ai"}, headers=ORIGIN)
+        assert r.status_code == 400 and r.json()["error"] == "invalid_llm_config"
+        assert "keine Fotos" in r.json()["message"]
+        assert objects_on() and mode() == "local"
+        audit = [e.action for e in app.state.core.repos.audit.list(20)]
+        assert "llm.detection" in audit

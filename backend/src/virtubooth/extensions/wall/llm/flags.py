@@ -16,7 +16,9 @@ def external_ai_active(repos: Repositories) -> bool:
     config = load_config(repos.app_settings)
     if not config.enabled:
         return False
-    if config.detect.external:
+    from .providers import BY_ID
+
+    if config.detect.external and BY_ID[config.provider].vision:
         return True
     if not config.poll:
         return False
@@ -38,3 +40,11 @@ def external_ai_provider(repos: Repositories) -> str:
     from .providers import BY_ID
 
     return BY_ID[load_config(repos.app_settings).provider].privacy
+
+
+def external_ai_photos(repos: Repositories) -> bool:
+    """Whether the configured provider can be sent photos (object detection);
+    DeutschlandGPT only ever gets text (the object lists)."""
+    from .providers import BY_ID
+
+    return BY_ID[load_config(repos.app_settings).provider].vision

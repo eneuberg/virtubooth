@@ -1,13 +1,17 @@
-"""Object detection by the external AI (PLAN-NIGHT N9), „Objekterkennung mit KI“.
+"""Object detection by the external AI (PLAN-NIGHT N9), „Objekte mit KI“ in the
+Modelle card: the pipeline's step for photos while it is the active detector.
 
-Independent of the poll (poller.py): its own switch (`detect.external`, under
-the master switch `enabled`), its own state for the admin, its own usage kind
-(`detect`). The AI's objects are stored as its own list and merged into the
-photo's object list (enrich/merge.py), which the poll then rates.
+Either/or with the local detector (config.DetectConfig): while `detect.external`
+(and the master switch `enabled`) is on, the worker skips the local `objects`
+analyzer and marks each photo it finishes (`wall_analysis.ai_detect`); this
+runner sends exactly those photos. Photos finished before (or while the local
+detector was active) are never sent: there is no backfill sweep. Its own usage
+kind (`detect`); the AI's list is the photo's object list (the merged list holds
+just that one source for new photos), which the poll then rates.
 
-A thread in the main process, one photo at a time, while `enabled` and
-`detect.external` are on and a key is stored: the newest photo the local
-pipeline has finished and this source has not seen yet → the guest's flags
+A thread in the main process, one photo at a time, while the AI detector is
+active and a key is stored: the newest photo the pipeline marked and no AI has
+seen yet → the guest's flags
 are read again right before sending → the photo goes out downscaled (long
 edge ≤ `image_max_px`, JPEG q80, no metadata) → its objects are appended
 after the local ones (idx continues). Each source runs once per photo: a
@@ -30,6 +34,7 @@ from .providers import BY_ID as PROVIDERS
 from .providers.base import ProviderError
 
 if TYPE_CHECKING:
+    from .config import LlmConfig
     from .service import LlmService
 
 log = logging.getLogger("virtubooth.llm")
@@ -77,13 +82,17 @@ class DetectionRunner:
         blocked (budget) or idle."""
         svc = self.service
         cfg = svc.config()
-        if not (cfg.enabled and cfg.detect.external) or svc.keys.load(cfg.provider) is None:
+        if not self.active(cfg) or svc.keys.load(cfg.provider) is None:
             return "off"
         if self.running:
             return "running"
         if self.blocked or svc.blocked_reason(cfg):
             return "blocked"
         return "idle"
+
+    @staticmethod
+    def active(cfg: LlmConfig) -> bool:
+        return cfg.ai_detection and PROVIDERS[cfg.provider].vision
 
     def start(self) -> None:
         self._ticker.start()
@@ -124,7 +133,7 @@ class DetectionRunner:
 
         svc = self.service
         cfg = svc.config()
-        if not (cfg.enabled and cfg.detect.external):
+        if not self.active(cfg):
             self.blocked = None
             return "idle"
         if svc.keys.load(cfg.provider) is None:
@@ -151,7 +160,10 @@ class DetectionRunner:
         self.running = True
         try:
             objs, _ = svc.call(
-                "detect", photo.public_id, lambda p, m: p.detect(image, model=m), config=cfg
+                "detect",
+                photo.public_id,
+                lambda p, m: p.detect(image, model=m, effort=cfg.effort),
+                config=cfg,
             )
         except Unavailable as exc:
             self.blocked = exc.message if exc.code == "llm_budget_exhausted" else None

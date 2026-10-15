@@ -230,7 +230,7 @@ def test_v14_splits_existing_objects_by_source_and_keeps_the_idx(tmp_path, monke
     monkeypatch.undo()
 
     party.db = Database(path)
-    assert party.db.one("PRAGMA user_version")[0] == dbmod.SCHEMA_VERSION == 14
+    assert party.db.one("PRAGMA user_version")[0] == dbmod.SCHEMA_VERSION == 15
     # the merged list is the old list, untouched
     assert (
         party.db.all("SELECT * FROM photo_objects ORDER BY photo_id, idx")
