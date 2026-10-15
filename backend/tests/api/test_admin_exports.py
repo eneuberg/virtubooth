@@ -171,7 +171,7 @@ def test_archive_job_end_to_end(admin, guest, core):
 
     created = start(admin, "archive")
     assert created["status"] == "queued" and created["progress"] is None
-    assert created["options"] == {"include_hidden": False, "include_db": False}
+    assert created["options"] == {"include_hidden": False, "filters": "baked", "include_db": False}
     assert created["file_name"] is None and created["download_url"] is None
     idle(core)
 
@@ -216,7 +216,7 @@ def test_archive_with_hidden_photos_and_database(admin, guest, core):
     a, b = upload(g), upload(g)
     core.services.moderation.hide_photo(b, actor="pytest")
     done = run(admin, core, "archive", include_hidden=True, include_db=True)
-    assert done["options"] == {"include_hidden": True, "include_db": True}
+    assert done["options"] == {"include_hidden": True, "filters": "baked", "include_db": True}
     files = strip_root(unzip(download(admin, done).content), done["file_name"][:-4])
     assert any(n.startswith("photos/demo/hidden/0002_") for n in files)
     assert json.loads(files["manifest.json"])["hidden"] == 1
@@ -574,7 +574,7 @@ def test_create_and_delete_are_audited(admin, core):
     assert create["actor"].startswith("admin:")
     assert create["details"] == {
         "kind": "archive",
-        "options": {"include_hidden": False, "include_db": True},
+        "options": {"include_hidden": False, "filters": "baked", "include_db": True},
     }
     assert delete["action"] == "export.delete" and delete["target"] == create["target"]
     assert delete["details"]["kind"] == "archive" and delete["details"]["status"] == "done"

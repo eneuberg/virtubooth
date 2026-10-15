@@ -55,7 +55,19 @@ def build_router(extensions: Sequence[Extension]) -> APIRouter:
                     "description": "encodeURIComponent(JSON.stringify(meta)), at most 2048 chars; "
                     "keys per extension (beer: vessel, facing; booth: filter, facing).",
                     "schema": {"type": "string", "maxLength": 2048},
-                }
+                },
+                {
+                    "name": "X-VB-Raw-Bytes",
+                    "in": "header",
+                    "required": False,
+                    "description": "Only for activities that keep originals (booth): the body "
+                    "is the filtered photo followed by its unfiltered original (same size), a "
+                    "second JPEG of this many bytes. Each part may be up to the size limit. "
+                    "Dropped when the photo has no filter (booth: `normal`). Other "
+                    "activities: 400 `raw_not_allowed`; a bad value or original: 400 "
+                    "`invalid_raw`.",
+                    "schema": {"type": "string", "pattern": "^[0-9]{1,12}$"},
+                },
             ],
         },
     )
@@ -70,6 +82,7 @@ def build_router(extensions: Sequence[Extension]) -> APIRouter:
                 content_type=request.headers.get("content-type", ""),
                 content_length=request.headers.get("content-length", ""),
                 meta_header=request.headers.get("x-vb-meta"),
+                raw_header=request.headers.get("x-vb-raw-bytes"),
                 ip=client_ip(request),
                 body=request.stream(),
             ),

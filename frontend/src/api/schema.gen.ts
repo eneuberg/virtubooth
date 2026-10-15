@@ -1911,7 +1911,9 @@ export interface paths {
         /**
          * Media
          * @description A photo for the admin, or for the guest who took it (also when hidden).
-         *     Everyone else gets 404, without learning whether it exists.
+         *     Everyone else gets 404, without learning whether it exists. `variant=raw`:
+         *     the unfiltered original (the photo itself when there is none); downloads
+         *     are named `<activity>-<seq>-original.jpg`.
          */
         get: operations["media_media__public_id__get"];
         put?: never;
@@ -2078,6 +2080,13 @@ export interface components {
             meta: {
                 [key: string]: string | number | boolean | null;
             };
+            /** Raw Thumb Url */
+            raw_thumb_url: string | null;
+            /**
+             * Raw Url
+             * @description The unfiltered original (Fotobox); null: the photo is the only file (no filter, Beer Cam, or taken before originals were kept).
+             */
+            raw_url: string | null;
             /**
              * Seq
              * @description Per-extension number, never reused.
@@ -2438,6 +2447,13 @@ export interface components {
          * @description A zip of the photos, CSV lists, manifest.json and README.txt.
          */
         ArchiveOptions: {
+            /**
+             * Filters
+             * @description Fotobox filters: `baked` the photos as the guests saw them (filter baked in), `raw` the unfiltered originals instead (photos without one as they are), `both` the photos plus the originals under photos/<activity>/raw/.
+             * @default baked
+             * @enum {string}
+             */
+            filters: "baked" | "raw" | "both";
             /**
              * Include Db
              * @description Add a consistent copy of the database: guests (IP addresses, fingerprints, bans), photo rows, device bans, the audit log and the upload settings. Admin sessions and export jobs are removed and the file is vacuumed.
@@ -3175,7 +3191,7 @@ export interface components {
              * @description Machine-readable error code.
              * @enum {string}
              */
-            error: "scan_qr" | "needs_consent" | "banned" | "consent_outdated" | "invalid_instagram" | "join_closed" | "invalid_display_name" | "display_name_taken" | "wall_login_required" | "wall_no_password" | "wall_password_too_short" | "invalid_wall_config" | "invalid_category" | "category_exists" | "invalid_analyzer_settings" | "worker_off" | "ml_missing" | "uploads_paused" | "uploads_stopped" | "unsupported_type" | "too_large" | "invalid_meta" | "empty_upload" | "invalid_image" | "photo_limit" | "storage_full" | "invalid_pdf" | "invalid_layout" | "no_template" | "admin_required" | "wrong_password" | "login_locked" | "invalid_filter" | "unknown_analyzer" | "invalid_cursor" | "no_fingerprint" | "restore_required" | "host_guest" | "invalid_event_name" | "invalid_public_address" | "invalid_theme" | "password_too_short" | "password_unchanged" | "no_filter_enabled" | "unknown_filter" | "export_not_ready" | "export_running" | "invalid_token" | "token_taken" | "code_revoked" | "invalid_target" | "invalid_note" | "invalid_llm_config" | "llm_not_configured" | "llm_key_invalid" | "llm_budget_exhausted" | "invalid_property" | "property_exists" | "bad_origin" | "length_required" | "rate_limited" | "invalid_request" | "not_found" | "http_404" | "http_405";
+            error: "scan_qr" | "needs_consent" | "banned" | "consent_outdated" | "invalid_instagram" | "join_closed" | "invalid_display_name" | "display_name_taken" | "wall_login_required" | "wall_no_password" | "wall_password_too_short" | "invalid_wall_config" | "invalid_category" | "category_exists" | "invalid_analyzer_settings" | "worker_off" | "ml_missing" | "uploads_paused" | "uploads_stopped" | "unsupported_type" | "too_large" | "invalid_meta" | "empty_upload" | "invalid_image" | "invalid_raw" | "raw_not_allowed" | "photo_limit" | "storage_full" | "invalid_pdf" | "invalid_layout" | "no_template" | "admin_required" | "wrong_password" | "login_locked" | "invalid_filter" | "unknown_analyzer" | "invalid_cursor" | "no_fingerprint" | "restore_required" | "host_guest" | "invalid_event_name" | "invalid_public_address" | "invalid_theme" | "password_too_short" | "password_unchanged" | "no_filter_enabled" | "unknown_filter" | "export_not_ready" | "export_running" | "invalid_token" | "token_taken" | "code_revoked" | "invalid_target" | "invalid_note" | "invalid_llm_config" | "llm_not_configured" | "llm_key_invalid" | "llm_budget_exhausted" | "invalid_property" | "property_exists" | "bad_origin" | "length_required" | "rate_limited" | "invalid_request" | "not_found" | "http_404" | "http_405";
             /**
              * Field
              * @description The form field a 400 is about, when the answer names one (e.g. `invalid_category`: title, line, where, by, count, verdict, ...).
@@ -3521,7 +3537,9 @@ export interface components {
         };
         /**
          * GuestPhoto
-         * @description One of the guest's own photos. The image is at `url` (`thumb_url`: 400 px).
+         * @description One of the guest's own photos. The image is at `url` (`thumb_url`: 400 px);
+         *     `raw_url` / `raw_thumb_url`: the same photo without the filter (null: no
+         *     separate original, the photo is the only file).
          */
         GuestPhoto: {
             /** Created At */
@@ -3532,6 +3550,17 @@ export interface components {
             height: number;
             /** Id */
             id: string;
+            /**
+             * Meta
+             * @description What the activity recorded (booth: filter, facing).
+             */
+            meta?: {
+                [key: string]: string | number | boolean | null;
+            };
+            /** Raw Thumb Url */
+            raw_thumb_url: string | null;
+            /** Raw Url */
+            raw_url: string | null;
             /** Seq */
             seq: number;
             /** Thumb Url */
@@ -15338,6 +15367,8 @@ export interface operations {
             header?: {
                 /** @description encodeURIComponent(JSON.stringify(meta)), at most 2048 chars; keys per extension (beer: vessel, facing; booth: filter, facing). */
                 "X-VB-Meta"?: string;
+                /** @description Only for activities that keep originals (booth): the body is the filtered photo followed by its unfiltered original (same size), a second JPEG of this many bytes. Each part may be up to the size limit. Dropped when the photo has no filter (booth: `normal`). Other activities: 400 `raw_not_allowed`; a bad value or original: 400 `invalid_raw`. */
+                "X-VB-Raw-Bytes"?: string;
             };
             path: {
                 ext_id: string;
@@ -15753,6 +15784,7 @@ export interface operations {
             query?: {
                 thumb?: boolean;
                 download?: boolean;
+                variant?: "filtered" | "raw";
             };
             header?: never;
             path: {
@@ -15762,7 +15794,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description The JPEG (`thumb`: 400 px). Cache-Control: private, max-age=86400. */
+            /** @description The JPEG (`thumb`: 400 px; `variant=raw`: without the filter). Cache-Control: private, max-age=86400. */
             200: {
                 headers: {
                     [name: string]: unknown;

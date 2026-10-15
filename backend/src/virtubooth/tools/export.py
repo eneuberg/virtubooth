@@ -8,6 +8,8 @@ Archive layout (everything inside one folder named like the archive):
       README.txt                         what is what
       photos/<ext>/<seq>_<file>.jpg      visible photos, per activity in upload order
       photos/<ext>/hidden/<seq>_<file>   photos the admin hid (not with --no-hidden)
+      photos/<ext>/[hidden/]raw/<seq>_<file>
+                                         --filters both: the unfiltered originals
       photos.csv                         one row per exported photo
       users.csv                          one row per guest
       instagram.csv                      Instagram handle -> photos to tag
@@ -17,6 +19,11 @@ Archive layout (everything inside one folder named like the archive):
 
 Everything comes from one database snapshot, so the CSVs, the photo files and
 the database copy agree even while the app keeps running.
+
+Fotobox filters (--filters): `baked` (default) packs the photos as the guests
+saw them, filter and overlays baked in; `raw` the unfiltered originals instead
+(a photo without one, e.g. the Beer Cam's or one taken before originals were
+kept, comes as it is); `both` the photos plus the originals under raw/.
 """
 
 from __future__ import annotations
@@ -32,6 +39,7 @@ import time
 from collections import defaultdict
 from dataclasses import dataclass, field, replace
 from pathlib import Path
+from typing import Literal, get_args
 
 from ..core.clock import local_now
 from ..db.database import Database
@@ -55,7 +63,7 @@ from ._common import (
 PROG = "python -m virtubooth.tools.export"
 PHOTO_COLUMNS = [
     "id", "extension", "seq", "created_at", "user", "display_name", "instagram", "hidden",
-    "hidden_reason", "width", "height", "meta", "file",
+    "hidden_reason", "width", "height", "meta", "file", "has_original", "original_file",
 ]  # fmt: skip
 USER_COLUMNS = [
     "user", "display_name", "instagram", "consent_at", "photo_count", "banned", "ban_reason",
@@ -64,12 +72,39 @@ USER_COLUMNS = [
 INSTAGRAM_COLUMNS = ["instagram", "user", "photo_count", "files"]
 USERS_PAGE = 500  # UsersRepo.list caps a page at 500
 
+# baked: the photos as shown (filters baked in); raw: the unfiltered originals
+# instead (where kept); both: the photos plus the originals under raw/
+FilterMode = Literal["baked", "raw", "both"]
+FILTER_MODES: tuple[str, ...] = get_args(FilterMode)
+
 
 @dataclass(frozen=True)
 class Entry:
     photo: Photo
     source: Path
     arcname: str  # relative to the archive root, "" if the file is missing
+    # `both`: the unfiltered original packed next to the photo ("" none)
+    raw_source: Path | None = None
+    raw_arcname: str = ""
+
+
+@dataclass(frozen=True)
+class PackFile:
+    """One file to pack: an entry's photo, or (`raw`) its original."""
+
+    entry: Entry
+    source: Path
+    arcname: str
+    raw: bool = False
+
+
+def without_file(entries: list[Entry], f: PackFile) -> list[Entry]:
+    """`entries` with the file `f` gone (deleted while packing): listed without it."""
+
+    def drop(x: Entry) -> Entry:
+        return replace(x, raw_arcname="") if f.raw else replace(x, arcname="")
+
+    return [drop(x) if x is f.entry else x for x in entries]
 
 
 @dataclass(frozen=True)
@@ -82,8 +117,14 @@ class Snapshot:
     code_names: dict[int, str] = field(default_factory=dict)  # QR code number -> name
 
     @property
-    def files(self) -> list[Entry]:
-        return [e for e in self.entries if e.arcname]
+    def files(self) -> list[PackFile]:
+        out: list[PackFile] = []
+        for e in self.entries:
+            if e.arcname:
+                out.append(PackFile(e, e.source, e.arcname))
+            if e.raw_arcname and e.raw_source is not None:
+                out.append(PackFile(e, e.raw_source, e.raw_arcname, raw=True))
+        return out
 
 
 # Emptied in every database copy that goes into an archive: admin sessions
@@ -148,7 +189,9 @@ def all_users(repos: Repositories) -> list[User]:
             return sorted(users, key=lambda u: u.id)
 
 
-def take_snapshot(data_dir: Path, tmp: Path, *, include_hidden: bool) -> Snapshot:
+def take_snapshot(
+    data_dir: Path, tmp: Path, *, include_hidden: bool, filters: FilterMode = "baked"
+) -> Snapshot:
     """Copy the live database into `tmp` (backup API) and plan the export from
     the copy; the photo files come from `data_dir`. The copy is scrubbed
     (`scrub_snapshot`) before anything packs it."""
@@ -157,7 +200,7 @@ def take_snapshot(data_dir: Path, tmp: Path, *, include_hidden: bool) -> Snapsho
     db = Database(snap)  # reads the snapshot, photo files from data_dir
     try:
         repos = Repositories.create(db, data_dir)
-        entries = plan_entries(repos, include_hidden=include_hidden)
+        entries = plan_entries(repos, include_hidden=include_hidden, filters=filters)
         users = all_users(repos)
         code_names = {c.id: c.name for c in repos.codes.list()}
     finally:
@@ -167,22 +210,40 @@ def take_snapshot(data_dir: Path, tmp: Path, *, include_hidden: bool) -> Snapsho
     return Snapshot(snap, entries, users, code_names)
 
 
-def plan_entries(repos: Repositories, *, include_hidden: bool) -> list[Entry]:
+def _packable(repos: Repositories, photo: Photo, name: str) -> Path | None:
+    """The file `name` of `photo`, if it exists below <data_dir>/<extension>/
+    (checked lexically: the folder may be a symlink)."""
+    rel = Path(name)
+    if rel.is_absolute() or ".." in rel.parts or "/" in photo.extension:
+        return None
+    source = repos.photos.path(photo.extension, name)
+    return source if source.is_file() else None
+
+
+def plan_entries(
+    repos: Repositories, *, include_hidden: bool, filters: FilterMode = "baked"
+) -> list[Entry]:
     photos = list(iter_photos(repos, hidden=None if include_hidden else False))
     width: dict[str, int] = {}
     for p in photos:
         width[p.extension] = max(width.get(p.extension, 4), len(str(p.seq)))
     entries = []
     for p in photos:
-        source = repos.photos.path(p.extension, p.filename)
-        rel = Path(p.filename)
-        # only files below <data_dir>/<extension>/ (lexically: the folder may be a symlink)
-        inside = not rel.is_absolute() and ".." not in rel.parts and "/" not in p.extension
-        arcname = ""
-        if inside and source.is_file():
-            folder = f"photos/{p.extension}/" + ("hidden/" if p.hidden else "")
-            arcname = f"{folder}{p.seq:0{width[p.extension]}d}_{Path(p.filename).name}"
-        entries.append(Entry(p, source, arcname))
+        folder = f"photos/{p.extension}/" + ("hidden/" if p.hidden else "")
+        name = f"{p.seq:0{width[p.extension]}d}_{Path(p.filename).name}"
+        # `raw`: the original stands in for the photo (the same file name); the
+        # photo when there is none (or its file is gone)
+        found = None
+        if filters == "raw" and p.raw_filename:
+            found = _packable(repos, p, p.raw_filename)
+        found = found or _packable(repos, p, p.filename)
+        source = found or repos.photos.path(p.extension, p.filename)
+        arcname = f"{folder}{name}" if found else ""
+        raw_source, raw_arcname = None, ""
+        if filters == "both" and p.raw_filename:
+            raw_source = _packable(repos, p, p.raw_filename)
+            raw_arcname = f"{folder}raw/{name}" if raw_source else ""
+        entries.append(Entry(p, source, arcname, raw_source, raw_arcname))
     return entries
 
 
@@ -218,6 +279,8 @@ def photos_csv(entries: list[Entry]) -> bytes:
             e.photo.height,
             json.dumps(e.photo.meta, ensure_ascii=False, sort_keys=True),
             e.arcname,
+            int(e.photo.has_raw),
+            e.raw_arcname,
         ]
         for e in entries
     ]
@@ -269,7 +332,7 @@ def instagram_csv(entries: list[Entry]) -> bytes:
 
 def readme(
     *, data_dir: Path, entries: list[Entry], users: list[User], timezone: str,
-    include_hidden: bool, include_db: bool, cli: bool = True,
+    include_hidden: bool, include_db: bool, cli: bool = True, filters: FilterMode = "baked",
 ) -> bytes:  # fmt: skip
     """README.txt. `cli` False: made by the admin UI (a zip with manifest.json).
     `timezone`: the "Created" line's zone (VB_TIMEZONE)."""
@@ -298,6 +361,7 @@ def readme(
         "photos/<activity>/<seq>_<original file>.jpg",
         "    Visible photos. <seq> is the photo number within the activity",
         "    (Beer #127 = photos/beer/0127_...), so sorting by name = upload order.",
+        *FILTER_README[filters],
     ]
     if include_hidden:
         lines += [
@@ -312,7 +376,8 @@ def readme(
         "    One row per exported photo: id, extension, seq, created_at (UTC),",
         "    user (pseudonym), instagram, hidden (1/0), hidden_reason (admin|ban),",
         '    width, height, meta (JSON, e.g. {"vessel": "cup"}),',
-        "    file (path inside this folder).",
+        "    file (path inside this folder), has_original (1: an unfiltered",
+        "    original is kept), original_file (its path, only with both versions).",
         "users.csv",
         "    One row per guest: user (pseudonym), instagram, consent_at (UTC),",
         "    photo_count (photos not deleted, hidden included), banned (1/0), ban_reason,",
@@ -352,6 +417,24 @@ def readme(
         "",
     ]
     return "\n".join(lines).encode("utf-8")
+
+
+FILTER_README: dict[str, list[str]] = {
+    "baked": [
+        "    Fotobox photos as the guests saw them: the filter is baked in.",
+    ],
+    "raw": [
+        "    Fotobox photos without their filter (the unfiltered originals). Photos",
+        "    taken before originals were kept come with their filter (has_original 0",
+        "    in photos.csv); photos without a filter are the same either way.",
+    ],
+    "both": [
+        "    Fotobox photos as the guests saw them: the filter is baked in.",
+        "photos/<activity>/[hidden/]raw/<seq>_<original file>.jpg",
+        "    The same photos without their filter (the unfiltered originals), where",
+        "    one was kept (Fotobox photos with a filter).",
+    ],
+}
 
 
 def file_size(path: Path) -> int:
@@ -411,6 +494,13 @@ def build_parser() -> argparse.ArgumentParser:
         help="leave out photos the admin hid (default: include them under photos/<ext>/hidden/)",
     )
     p.add_argument(
+        "--filters",
+        choices=FILTER_MODES,
+        default="baked",
+        help="Fotobox filters: baked = the photos as shown (default), raw = the unfiltered "
+        "originals instead, both = the photos plus the originals under raw/",
+    )
+    p.add_argument(
         "--no-db",
         action="store_true",
         help="leave out the database copy (it holds IP addresses and browser fingerprints)",
@@ -440,15 +530,17 @@ def _main(args: argparse.Namespace) -> int:
         prefix=".vb-export-", dir=scratch_parent(data_dir, out)
     ) as tmp:
         print(f"Snapshotting {db_path} ...", flush=True)
-        snapshot = take_snapshot(data_dir, Path(tmp), include_hidden=include_hidden)
+        snapshot = take_snapshot(
+            data_dir, Path(tmp), include_hidden=include_hidden, filters=args.filters
+        )
         snap, entries, users = snapshot.db_file, snapshot.entries, snapshot.users
 
         files = snapshot.files
-        missing = len(entries) - len(files)
+        missing = sum(1 for e in entries if not e.arcname)
         total = sum(file_size(e.source) for e in files)
         out.parent.mkdir(parents=True, exist_ok=True)
         check_free_space(out.parent, total)
-        print(f"Packing {len(files)} photos ({human_size(total)}) into {out} ...", flush=True)
+        print(f"Packing {len(files)} files ({human_size(total)}) into {out} ...", flush=True)
         if missing:
             print(f"  warning: {missing} photo(s) have no file on disk, listed without one")
 
@@ -456,16 +548,16 @@ def _main(args: argparse.Namespace) -> int:
         try:
             with tarfile.open(part, "w:gz", compresslevel=6, dereference=True) as tar:
                 step = max(100, len(files) // 10)
-                for i, e in enumerate(files, 1):
+                for i, f in enumerate(files, 1):
                     try:
-                        tar.add(e.source, arcname=f"{root}/{e.arcname}", recursive=False,
+                        tar.add(f.source, arcname=f"{root}/{f.arcname}", recursive=False,
                                 filter=_normalize)  # fmt: skip
                     except FileNotFoundError:
                         # deleted by the admin while we pack: list it without a file
-                        print(f"  warning: {e.source} vanished during the export")
-                        entries = [replace(x, arcname="") if x is e else x for x in entries]
+                        print(f"  warning: {f.source} vanished during the export")
+                        entries = without_file(entries, f)
                     if i % step == 0 or i == len(files):
-                        print(f"  {i}/{len(files)} photos", flush=True)
+                        print(f"  {i}/{len(files)} files", flush=True)
                 _add_bytes(tar, f"{root}/photos.csv", photos_csv(entries))
                 _add_bytes(tar, f"{root}/users.csv", users_csv(users, snapshot.code_names))
                 _add_bytes(tar, f"{root}/instagram.csv", instagram_csv(entries))
@@ -481,6 +573,7 @@ def _main(args: argparse.Namespace) -> int:
                         timezone=tool_timezone(),
                         include_hidden=include_hidden,
                         include_db=not args.no_db,
+                        filters=args.filters,
                     ),
                 )
             part.replace(out)

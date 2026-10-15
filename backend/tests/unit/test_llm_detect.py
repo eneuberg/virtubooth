@@ -175,3 +175,27 @@ def test_sent_image_is_small_and_without_metadata(core):
 def test_downscale_keeps_small_images():
     img = Image.open(io.BytesIO(downscale(jpeg_bytes(640, 480), 1024)))
     assert img.size == (640, 480)
+
+
+def _solid(color: tuple[int, int, int]) -> bytes:
+    buf = io.BytesIO()
+    Image.new("RGB", (160, 120), color).save(buf, "JPEG")
+    return buf.getvalue()
+
+
+def test_sends_the_unfiltered_original_when_there_is_one(core):
+    """A Fotobox photo with an original: Claude sees the guests, not the filter."""
+    fake = FakeProvider()
+    svc = setup_llm(core, fake, detect=EXTERNAL)
+    pid, public_id = add_photo(core, add_guest(core), image=_solid((250, 10, 10)))
+    raw = core.repos.photos.path("demo", f"raw/{public_id}.jpg")
+    raw.parent.mkdir(parents=True, exist_ok=True)
+    raw.write_bytes(_solid((10, 10, 250)))
+    with core.db.tx() as c:
+        c.execute(
+            "UPDATE photos SET raw_filename=?, raw_thumb_filename=? WHERE id=?",
+            (f"raw/{public_id}.jpg", f"raw/{public_id}.jpg", pid),
+        )
+    assert DetectionRunner(svc).run_once() == "done"
+    r, _, b = Image.open(io.BytesIO(fake.detected[0])).convert("RGB").getpixel((5, 5))
+    assert b > 200 and r < 50  # the blue original, not the red photo

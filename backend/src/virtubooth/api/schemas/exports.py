@@ -24,6 +24,14 @@ class ArchiveOptions(BaseModel):
     include_hidden: bool = Field(
         default=False, description="Also hidden photos (in photos/<activity>/hidden/)."
     )
+    filters: Literal["baked", "raw", "both"] = Field(
+        default="baked",
+        description=(
+            "Fotobox filters: `baked` the photos as the guests saw them (filter baked in),"
+            " `raw` the unfiltered originals instead (photos without one as they are),"
+            " `both` the photos plus the originals under photos/<activity>/raw/."
+        ),
+    )
     include_db: bool = Field(
         default=False,
         description=(

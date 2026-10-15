@@ -350,6 +350,16 @@ ALTER TABLE users ADD COLUMN is_host INTEGER NOT NULL DEFAULT 0;
 CREATE UNIQUE INDEX users_one_host ON users(is_host) WHERE is_host = 1;
 """
 
+# v13: the Fotobox's unfiltered originals. `filename` stays the photo as the guest saw
+# it (filter and overlays baked in); `raw_filename` / `raw_thumb_filename` are the same
+# frame without the filter (same crop, size and mirroring), below <ext>/raw/. NULL: no
+# separate original (Beer Cam, the „Normal“ filter, photos taken before v13): the photo
+# itself stands in for it everywhere.
+SCHEMA_V13 = """
+ALTER TABLE photos ADD COLUMN raw_filename TEXT;
+ALTER TABLE photos ADD COLUMN raw_thumb_filename TEXT;
+"""
+
 # (version, script): each step upgrades the database from the version before.
 MIGRATIONS: tuple[tuple[int, str], ...] = (
     (1, SCHEMA),
@@ -362,6 +372,7 @@ MIGRATIONS: tuple[tuple[int, str], ...] = (
     (10, SCHEMA_V10),
     (11, SCHEMA_V11),
     (12, SCHEMA_V12),
+    (13, SCHEMA_V13),
 )
 SCHEMA_VERSION = MIGRATIONS[-1][0]
 

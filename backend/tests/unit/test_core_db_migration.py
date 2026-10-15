@@ -30,6 +30,8 @@ def open_services(db: Database, data_dir: Path) -> tuple[Repositories, UploadCon
 
 # columns added after v1 (the upgrade test compares the v1 columns only)
 LATER_USER_COLS = ("code_id", "analysis_opt_out", "display_name", "ai_opt_out", "is_host")
+# v13: the Fotobox's unfiltered originals
+LATER_PHOTO_COLS = ("raw_filename", "raw_thumb_filename")
 TABLES = ["users", "user_fingerprints", "fingerprint_bans", "photos", "admin_sessions", "audit_log"]
 
 
@@ -78,7 +80,9 @@ def dump(path: Path) -> dict[str, list[tuple]]:
             v1_cols = [
                 c
                 for c in cols
-                if not c.startswith(("uploads_", "online_")) and c not in LATER_USER_COLS
+                if not c.startswith(("uploads_", "online_"))
+                and c not in LATER_USER_COLS
+                and c not in LATER_PHOTO_COLS
             ]
             out[table] = conn.execute(
                 f"SELECT {', '.join(v1_cols)} FROM {table} ORDER BY rowid"
@@ -91,7 +95,7 @@ def dump(path: Path) -> dict[str, list[tuple]]:
 def test_fresh_database_is_current(tmp_path):
     db = Database(tmp_path / "new.db")
     try:
-        assert db.one("PRAGMA user_version")[0] == SCHEMA_VERSION == 12
+        assert db.one("PRAGMA user_version")[0] == SCHEMA_VERSION == 13
         cols = {r[1] for r in db.all("PRAGMA table_info(users)")}
         assert {"uploads_paused_at", "uploads_paused_source", "uploads_lock_period"} <= cols
         assert db.one("SELECT COUNT(*) FROM settings")[0] == 0
@@ -126,6 +130,10 @@ def test_v1_database_upgrades_in_place_without_data_loss(tmp_path):
         # v12: nobody is the admin guest after the upgrade
         assert not anna.is_host and not ben.is_host and repos.users.host() is None
         assert repos.photos.get("photo-aaaaaaaa1").meta == {"vessel": "cup"}
+        # v13: no photo of before has an unfiltered original; the photo stands in for it
+        old = repos.photos.get("photo-aaaaaaaa1")
+        assert old.raw_filename is None and old.raw_thumb_filename is None
+        assert not old.has_raw and old.raw_url is None
         assert repos.photos.get("photo-bbbbbbbb2").hidden_reason == "ban"
         assert repos.bans.is_banned("bb" * 32)
         assert repos.admin_sessions.get("ff" * 32, now=now_iso()).user_agent == "Firefox"
@@ -211,5 +219,36 @@ def test_v12_allows_one_admin_guest_only(tmp_path):
         with pytest.raises(sqlite3.IntegrityError):
             repos.users.create(public_id="host-0000003", is_host=True, **args)
         assert [u.id for u in repos.users.list() if u.is_host] == [uid]
+    finally:
+        db.close()
+
+
+def test_v13_adds_the_original_columns_to_v12_photos(tmp_path, monkeypatch):
+    """A v12 database (before originals) gets the two NULL columns; a photo stored
+    afterwards can have an original, and deleting it lists the original's files."""
+    path = tmp_path / "virtubooth.db"
+    make_v1_db(path)
+    monkeypatch.setattr(dbmod, "MIGRATIONS", dbmod.MIGRATIONS[:-1])
+    monkeypatch.setattr(dbmod, "SCHEMA_VERSION", 12)
+    Database(path).close()
+    monkeypatch.undo()
+    db = Database(path)
+    try:
+        assert db.one("PRAGMA user_version")[0] == 13
+        cols = {r[1] for r in db.all("PRAGMA table_info(photos)")}
+        assert {"raw_filename", "raw_thumb_filename"} <= cols
+        assert db.one("SELECT COUNT(*) FROM photos WHERE raw_filename IS NOT NULL")[0] == 0
+        repos, _ = open_services(db, tmp_path)
+        repos.photos.insert(
+            public_id="photo-dddddddd4", extension="booth", user_id=1, filename="b.jpg",
+            thumb_filename="thumbs/b.jpg", width=1080, height=1440, size=1, meta={},
+            created_at=now_iso(), raw_filename="raw/b.jpg", raw_thumb_filename="raw/thumbs/b.jpg",
+        )  # fmt: skip
+        photo = repos.photos.get("photo-dddddddd4")
+        assert photo.has_raw and photo.raw_url == "/media/photo-dddddddd4?variant=raw"
+        files = repos.photos.mark_deleted("photo-dddddddd4", at=now_iso())
+        assert [f.relative_to(tmp_path).as_posix() for f in files] == [
+            "booth/b.jpg", "booth/thumbs/b.jpg", "booth/raw/b.jpg", "booth/raw/thumbs/b.jpg",
+        ]  # fmt: skip
     finally:
         db.close()
