@@ -311,10 +311,11 @@ steps above.
    for the frontend build), and the status turns healthy about 15 s after the
    start. Then:
    - Admin: `https://party.example.com/admin`
+   - Admin → Verwaltung → Allgemeines: set „Öffentliche Adresse“ to the domain
+     and check that it says „Erreichbar ✓“.
    - QR codes: admin → Verwaltung → QR-Codes (a code's sheet has "QR als
-     PNG", "QR groß (PDF)" and "Plakat (PDF)"), or Export → "QR-Bogen
-     erstellen" (the address is prefilled from the domain), or Coolify's
-     Terminal for service `app`: `python -m virtubooth.tools.qr`.
+     PNG", "QR groß (PDF)" and "Plakat (PDF)"), or Coolify's Terminal for
+     service `app`: `python -m virtubooth.tools.qr`.
 
 The compose file trusts all private ranges for `X-Forwarded-For` by default.
 To narrow it, set `VB_FORWARDED_ALLOW_IPS` to Coolify's proxy network:
@@ -346,11 +347,11 @@ naming the variable when one is missing or invalid.
 | `VB_PARTY_TOKEN` | empty | Optional, read only on the first start: it becomes QR code 1's token (16–128 chars of `A-Za-z0-9_-`; empty: a generated one). After that, manage QR codes in Admin → QR-Codes; changing the variable only logs a warning. |
 | `VB_ADMIN_PASSWORD` | *required* | The first admin password: at least 12 characters; use 16+ random ones (the log warns at startup otherwise; `gen-env` makes one). Once changed in the admin, the one set there applies (reset: `virtubooth reset-admin-password --from-env`). While none is set there, changing the variable ends every admin session. |
 | `VB_SECRET_KEY` | *required* | Signs cookies, at least 32 characters. Changing it forgets every guest's device (new join, new pseudonym). |
-| `VB_PARTY_NAME` | `Party` | The default event name; the admin can override it (Einstellungen → „Eventname“). Shown on Start, in the join sheet ("Willkommen bei …!"), on the QR sheet and the posters. |
+| `VB_PARTY_NAME` | `Party` | The default event name; the admin can override it (Allgemeines → „Eventname“). Shown on Start, in the join sheet ("Willkommen bei …!") and on the posters. |
 | `VB_INSTAGRAM_ACCOUNT` | empty | The account you may post photos to, named in the join sheet. |
-| `VB_PUBLIC_BASE_URL` | empty | Public URL without a trailing slash, e.g. `https://party.example.com`: the QR codes, the admin's QR form, and Secure cookies with `auto`. |
+| `VB_PUBLIC_BASE_URL` | empty | Public URL without a trailing slash, e.g. `https://party.example.com`: the QR codes and posters (unless Allgemeines → „Öffentliche Adresse“ is set, which wins), the CSRF origin and Secure cookies with `auto` (the admin setting never changes those). |
 | `VB_TIMEZONE` | `Europe/Berlin` | The time in photo and export file names (admin UI and CLI tools). |
-| `VB_CONSENT_VERSION` | `1` | Stored with each join. Bump it when the join sheet's promise changes (for example to record the sentence about the per-guest statistics, or the Live-Wall's photo analysis paragraph, as a new text version); devices that already joined are not asked again. |
+| `VB_CONSENT_VERSION` | `1` | Stored with each join. Bump it when the join sheet's promise changes (for example to record the sentence about the per-guest statistics, the Live-Wall's photo analysis paragraph, or the external-AI paragraph, as a new text version); devices that already joined are not asked again. **The 15/16 October update changed the join texts** (external AI, the analysis paragraph): bump it when you deploy that update. |
 | `VB_EXTENSIONS` | all | Comma-separated extension ids to enable, in this order, e.g. `beer,booth`. `wall` is the Live-Wall: when you set the variable, list it too, or `/livewall` is gone. |
 | `VB_COOKIE_SECURE` | `auto` | `auto` (Secure when the request came over https), `true` or `false`. `true` behind a TLS proxy. |
 | `VB_FORWARDED_ALLOW_IPS` | `127.0.0.1` | Proxies (IPs or CIDR ranges, comma-separated) whose `X-Forwarded-For`/`-Proto` are trusted. `*` is refused at startup. |
@@ -415,13 +416,34 @@ FairFace age (Apache-2.0, data CC BY 4.0).
 
 - **Raspberry Pi 5:** 0.4 to 2 s per photo; the worker holds about 500 MB. On a
   4 GB Pi raise `VB_MEM_LIMIT` (e.g. `2g`). If the booth lags, lower
-  `VB_WALL_THREADS` or switch analyzers off in the admin's „Analyse“ card.
+  `VB_WALL_THREADS` or switch analyzers off in Admin → ML-Pipeline → „Modelle“.
 - `python -m virtubooth.extensions.wall.enrich status` shows the worker's
   heartbeat and the counts; `run-once` works off what is pending by hand.
 - **Join texts:** while the wall is loaded, the join sheet's „Mehr dazu“ names
-  the analysis and offers „Meine Fotos nicht automatisch auswerten“. To record
-  that paragraph as part of what guests accepted, bump `VB_CONSENT_VERSION`
-  (e.g. to `2`); devices that joined already are not asked again.
+  the analysis and offers „Meine Fotos nicht automatisch auswerten“. It always
+  says that photos may go to an external AI service if the host switches it on
+  (naming the configured provider). To record these paragraphs as part of what
+  guests accepted, bump `VB_CONSENT_VERSION` (e.g. to `2`); devices that joined
+  already are not asked again.
+- **Analyses are frozen:** each photo is analysed once; switching analyzers or
+  their settings affects only later photos. There is no re-analysis.
+
+### External AI (optional)
+
+Off by default. In Admin → ML-Pipeline → „Claude (KI-Dienst)“ the host pastes an
+API key (Anthropic, or Mistral AI for an EU-hosted service), switches „Externe KI
+verwenden“ on and picks what it does: object detection at upload, properties
+(„Eigenschaften“) scored every few minutes, and category verdicts on the wall.
+
+- The server needs outbound HTTPS to `api.anthropic.com` (or `api.mistral.ai`).
+- The key is stored encrypted with a key derived from `VB_SECRET_KEY` and is
+  never shown again, exported or logged. Changing `VB_SECRET_KEY` makes it
+  unreadable: the admin shows „Schlüssel ungültig, bitte neu eingeben“.
+- Set a budget („Budget“: party and daily limits in USD and/or calls). At the
+  limit every external call stops. Prices are estimates from a table in the
+  code (Mistral's are unconfirmed).
+- Guests who chose „Keine Weitergabe an externe KI“ (or switched the analysis
+  off) never have photos, objects or names sent.
 - Local development: `make models` (installs the extra, fetches into
   `<data>/wall/models`), then `make dev` starts the app with the worker.
 
@@ -432,21 +454,23 @@ FairFace age (Apache-2.0, data CC BY 4.0).
   block the camera; the page tells guests to scan the code with the camera
   app instead).
 - The admin live screen shows the test uploads and says "verbunden".
-- The event name is set (Admin → Einstellungen → „Eventname“, or
+- The event name is set (Admin → Allgemeines → „Eventname“, or
   `VB_PARTY_NAME`).
 - QR codes checked in Admin → QR-Codes: only the codes you mean to hang up
   are active, each with the right „Ziel“ and „Notiz“; codes you no longer
   want are deleted.
+- Admin → Allgemeines → „Öffentliche Adresse“ says „Erreichbar ✓“ (the QR-Codes
+  tab warns otherwise).
 - Posters printed from the deployed config: the template and its QR field in
-  „Plakat“, then „Plakat (PDF)“ (or „QR groß (PDF)“) in each code's sheet, or
-  Export → "QR-Bogen erstellen". One printed code scanned before the guests
-  arrive.
-- Your own admin password set in Admin → Einstellungen → „Admin-Passwort“
+  „Plakat“, then „Plakat (PDF)“ (or „QR groß (PDF)“) in each code's sheet. One
+  printed code scanned before the guests arrive.
+- Your own admin password set in Admin → Allgemeines → „Admin-Passwort“
   (not the generated one from `.env` or Coolify).
 - Admin logged in on a laptop or tablet; the password is on no printout.
   Sessions last `VB_ADMIN_SESSION_HOURS` (12 h): log in shortly before.
-- Live-Wall: password set, `/livewall` open on the TV in full screen, the
-  analysis card says the worker runs (ML image only).
+- Live-Wall: password set, `/livewall` open on the TV in full screen,
+  ML-Pipeline → „Modelle“ says the worker runs (ML image only).
+- External AI (if used): key „gesetzt“, a budget set, a test image run.
 - Enough disk space: `df -h /var/lib/docker`.
 - No updates or rebuilds on party night.
 
@@ -459,7 +483,7 @@ file, and both write to `/data/exports/`:
 |---|---|---|
 | **Photos + lists** | "Archiv erstellen": a ZIP with `photos/<activity>/` (hidden ones under `hidden/` with "Ausgeblendete Fotos mitnehmen"), `photos.csv`, `users.csv`, `instagram.csv`, `manifest.json`, `README.txt`, and with "Datenbank mitnehmen (für ein Backup)" a consistent copy of the database (guests with IPs, fingerprints and bans, all photo rows, the audit log; without admin sessions and export jobs, vacuumed so nothing deleted earlier can be recovered) | `python -m virtubooth.tools.export`: the same content as a `.tar.gz` (`--no-hidden`, `--no-db`, `--out FILE`) |
 | **Timelapse** | "Zeitraffer erstellen": activity, "Fotos pro Sekunde" (6, 8, 12, 15, 24 or 30), "Weich überblenden", "Ausgeblendete Fotos mitnehmen". H.264 MP4, 1080×1440, the last photo held 2 s | `python -m virtubooth.tools.timelapse`: plus `--fade`, `--out-fps`, `--size`, `--hold-last`, `--crf`, `--preset`, `--limit N` (quick preview), `--dry-run` |
-| **QR codes** | "QR-Bogen erstellen" with „QR-Code“ (default: the active code with the lowest number) and "Adresse der Party": a ZIP with `qr-sheet.html` (one A4 page for Start and one per activity, all with that code's token; print from the browser) and SVG/PNG per page. Single codes and posters: Verwaltung → QR-Codes, a code's sheet („QR als PNG“, „QR groß (PDF)“, „Plakat (PDF)“), made in the browser right away | `python -m virtubooth.tools.qr`: plus `--code N`, `--extensions`, `--token` (codes for a token not deployed yet), `--party-name` (default: the event name from the database), `--no-home`, `--out DIR` |
+| **QR codes** | Single codes and posters: Verwaltung → QR-Codes, a code's sheet („QR als PNG“, „QR groß (PDF)“, „Plakat (PDF)“), made in the browser right away. The QR sheet for all activities is CLI-only now | `python -m virtubooth.tools.qr`: plus `--code N`, `--extensions`, `--token` (codes for a token not deployed yet), `--party-name` (default: the event name from the database), `--no-home`, `--out DIR` |
 
 - The admin's exports run as **background jobs**, one at a time, with progress
   and a download link. Starting a kind that is already waiting or running
@@ -540,7 +564,11 @@ The data volume is untouched by updates, and database migrations run by
 themselves on start. Migration 5 brings the QR codes: on the first start
 after it, `VB_PARTY_TOKEN` becomes QR code 1, so printed codes keep working,
 guests stay joined, and every earlier guest and scan counts for code 1.
-Migration 6 adds the guests' online time. To pick up security fixes of the base images and
+Migration 6 adds the guests' online time. Migration 11 (October 15/16) adds
+the frozen object list, rule-based wall categories (seeded once from the old
+19, keeping the ones you had switched off), the external-AI tables, display
+names and the external-AI opt-out; bump `VB_CONSENT_VERSION` with it (see
+[Settings](#settings)). To pick up security fixes of the base images and
 ffmpeg, rebuild with `docker compose build --pull`, then `docker compose up
 -d`. The Node, pnpm, Python and uv versions are pinned at the top of the
 `Dockerfile`. In Coolify, press Redeploy (or let the GitHub App redeploy on
@@ -554,8 +582,7 @@ working at once, no restart. Browsers that scanned it but never joined must
 scan a valid code; guests who already joined through it stay (ban them one by
 one if needed, or stop new joins with „Anmeldung stoppen“). Print the new
 code afterwards: „QR als PNG“, „QR groß (PDF)“ or „Plakat (PDF)“ in the code's
-sheet, the export „QR-Bogen“ with that code chosen, or
-`docker compose exec app python -m virtubooth.tools.qr --code <Nr.>`.
+sheet, or `docker compose exec app python -m virtubooth.tools.qr --code <Nr.>`.
 
 `VB_PARTY_TOKEN` is only read on the first start with QR codes (a new
 database, or the first start after the update that brought them): it becomes
@@ -571,7 +598,7 @@ wipe the volume (see [Teardown](#teardown)).
 
 The other secrets:
 
-- **Admin password:** change it in the admin (Einstellungen →
+- **Admin password:** change it in the admin (Allgemeines →
   „Admin-Passwort“): every other admin session ends at once, no restart.
   `VB_ADMIN_PASSWORD` only matters while no password is stored there (then
   changing it in `.env` ends all admin sessions). Forgotten:
@@ -582,7 +609,8 @@ The other secrets:
   `docker compose up -d` (`docker compose restart` does **not** re-read
   `.env`; in Coolify, edit the variable and redeploy). It forgets every guest
   device and access cookie (everyone scans and joins again with a new
-  pseudonym; existing photos stay but are no longer linked to a device).
+  pseudonym; existing photos stay but are no longer linked to a device), and
+  makes a stored external-AI key unreadable (enter it again in ML-Pipeline).
   Change it only if it leaked.
 
 ## Locked out of the admin login
@@ -617,7 +645,7 @@ nothing.
 
 ### Changing or resetting the admin password
 
-The host can change the password in the admin: Verwaltung → „Einstellungen“
+The host can change the password in the admin: Verwaltung → „Allgemeines“
 (the gear) → „Admin-Passwort“, with the current one. The new password is stored
 as a scrypt hash in the database, and from then on it is the only valid one:
 `VB_ADMIN_PASSWORD` no longer logs in. It stays required in the configuration,
