@@ -224,14 +224,20 @@ def test_the_theme_reaches_the_guests_but_not_the_admin(
     open_settings(admin, live)
     card = admin.get_by_test_id("settings-theme")
     expect(card.get_by_role("heading", name="Erscheinungsbild")).to_be_visible()
+    # the default: Neon Nacht in the style „Verspielt“
     expect(card.get_by_role("radio", name="Neon Nacht")).to_be_checked()
+    expect(card.get_by_role("radio", name="Verspielt")).to_be_checked()
+    expect(card.get_by_test_id("theme-default")).to_have_text(
+        "Standard: „Neon Nacht“ im Stil „Verspielt“."
+    )
     admin_bg = admin.evaluate("getComputedStyle(document.body).backgroundColor")
 
     ctx = new_context(browser)
     guest = track_errors(ctx.new_page())
     join_via_api(guest, live)
-    # Neon Nacht from /api/theme.css, before any script ran
+    # Neon Nacht from /api/theme.css, before any script ran, with the goofy layer
     assert css_var(guest, "--t-background") == "#1b1b1a"
+    expect(guest.locator("html")).to_have_attribute("data-vb-style", "goofy")
 
     card.get_by_text("Klassisch", exact=True).click()
     expect(admin.get_by_test_id("theme-preview")).to_have_attribute(
@@ -257,12 +263,16 @@ def test_the_theme_reaches_the_guests_but_not_the_admin(
         what="the guest page's new theme",
     )
     assert guest.evaluate("getComputedStyle(document.body).backgroundColor") != "rgb(27, 27, 26)"
+    # Klassisch brings its own style, the calmer party layer
+    expect(guest.locator("html")).to_have_attribute("data-vb-style", "party")
     shot(guest, "guest-start-klassisch")
 
     card.get_by_test_id("theme-reset").click()
     expect(toast(admin)).to_have_text("Erscheinungsbild zurückgesetzt.")
     guest.reload()
     assert css_var(guest, "--t-background") == "#1b1b1a"
+    expect(guest.locator("html")).to_have_attribute("data-vb-style", "goofy")
+    shot(guest, "guest-start-default")
     assert guest.js_errors == []  # type: ignore[attr-defined]
     ctx.close()
     assert errors(admin) == []

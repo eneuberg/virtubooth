@@ -28,7 +28,7 @@ function out(
   preset: 'neon_nacht' | 'klassisch' | 'rummel' | 'custom',
   colors: ThemeColors,
   custom = false,
-  style: 'elegant' | 'party' | 'goofy' = 'party',
+  style: 'elegant' | 'party' | 'goofy' = 'goofy',
 ): AdminThemeOut {
   return {
     theme: {
@@ -44,7 +44,7 @@ function out(
       by: custom ? 'admin:1' : null,
     },
     presets: [
-      { id: 'neon_nacht', label: 'Neon Nacht', colors: NEON_NACHT, style: 'party' },
+      { id: 'neon_nacht', label: 'Neon Nacht', colors: NEON_NACHT, style: 'goofy' },
       { id: 'klassisch', label: 'Klassisch', colors: KLASSISCH, style: 'party' },
       { id: 'rummel', label: 'Rummel', colors: RUMMEL, style: 'goofy' },
     ],
@@ -100,10 +100,12 @@ describe('ThemeCard (Erscheinungsbild)', () => {
     await screen.findByText('Erscheinungsbild gespeichert.');
   });
 
-  it('„Rummel“ brings the goofy style; the style can be switched on its own', async () => {
+  it('„Klassisch“ brings the party style, „Rummel“ the goofy one', async () => {
     const { requests } = renderCard({
       'PUT /api/admin/theme': () => out('rummel', RUMMEL, true, 'goofy'),
     });
+    expect(styleRadio('Verspielt')).toHaveProperty('checked', true);
+    fireEvent.click(within(screen.getByTestId('theme-preset')).getByText('Klassisch'));
     expect(styleRadio('Party')).toHaveProperty('checked', true);
     fireEvent.click(within(screen.getByTestId('theme-preset')).getByText('Rummel'));
     expect(styleRadio('Verspielt')).toHaveProperty('checked', true);
@@ -113,17 +115,30 @@ describe('ThemeCard (Erscheinungsbild)', () => {
     expect(await bodyField(requests[0]!, 'style')).toBe('goofy');
   });
 
-  it('offers three styles, „Party“ is the default and back to Neon Nacht brings it again', () => {
+  it('offers three styles; the default is Neon Nacht in „Verspielt“, and back to Neon Nacht brings it again', () => {
     renderCard();
     const names = within(screen.getByTestId('theme-style'))
       .getAllByRole('radio')
       .map((r) => r.closest('label')?.textContent);
     expect(names).toEqual(['Ruhig', 'Party', 'Verspielt']);
-    expect(styleRadio('Party')).toHaveProperty('checked', true);
-    fireEvent.click(within(screen.getByTestId('theme-preset')).getByText('Rummel'));
+    expect(
+      within(screen.getByTestId('theme-preset')).getByRole('radio', { name: 'Neon Nacht' }),
+    ).toHaveProperty('checked', true);
     expect(styleRadio('Verspielt')).toHaveProperty('checked', true);
-    fireEvent.click(within(screen.getByTestId('theme-preset')).getByText('Neon Nacht'));
+    expect(screen.getByTestId('theme-default').textContent).toBe(
+      'Standard: „Neon Nacht“ im Stil „Verspielt“.',
+    );
+    fireEvent.click(within(screen.getByTestId('theme-preset')).getByText('Klassisch'));
     expect(styleRadio('Party')).toHaveProperty('checked', true);
+    fireEvent.click(within(screen.getByTestId('theme-preset')).getByText('Neon Nacht'));
+    expect(styleRadio('Verspielt')).toHaveProperty('checked', true);
+  });
+
+  it('a saved theme without a style shows the default style', () => {
+    const data = out('neon_nacht', NEON_NACHT);
+    delete (data.theme as { style?: string }).style;
+    renderCard({}, data);
+    expect(styleRadio('Verspielt')).toHaveProperty('checked', true);
   });
 
   it('the calm style is saved on its own', async () => {
@@ -139,7 +154,7 @@ describe('ThemeCard (Erscheinungsbild)', () => {
 
   it('only the style changed: still something to save', () => {
     renderCard();
-    fireEvent.click(within(screen.getByTestId('theme-style')).getByText('Verspielt'));
+    fireEvent.click(within(screen.getByTestId('theme-style')).getByText('Party'));
     expect(save().getAttribute('data-disabled')).toBeNull();
   });
 

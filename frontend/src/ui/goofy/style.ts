@@ -1,7 +1,7 @@
 /**
  * The theme's style layer (`<html data-vb-style="elegant|party|goofy">`, see
- * styles/theme.ts). The playful pieces (googly eyes, jelly presses) run in „party“ (the
- * default, styles/party.css) and „goofy“ (Rummel, styles/goofy.css); the calm look pays
+ * styles/theme.ts). The playful pieces (googly eyes, jelly presses) run in „party“
+ * (styles/party.css) and „goofy“ (the default, styles/goofy.css); the calm look pays
  * nothing for them.
  */
 import { useSyncExternalStore } from 'react';

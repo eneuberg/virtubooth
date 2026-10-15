@@ -32,7 +32,7 @@ export async function saveTheme(
   return res;
 }
 
-/** Back to the default preset („Neon Nacht“). */
+/** Back to the default („Neon Nacht“, style „Verspielt“). */
 export async function resetTheme(qc: QueryClient): Promise<AdminThemeOut> {
   const res = await call(api.DELETE('/api/admin/theme'));
   qc.setQueryData(themeKey, res);

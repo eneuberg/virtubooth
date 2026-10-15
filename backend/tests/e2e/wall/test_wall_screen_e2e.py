@@ -211,11 +211,14 @@ def test_caption_stays_clear_of_the_corner(tv_page: Page, wall_fake: WallFake, a
     assert js_errors(tv_page) == []
 
 
+@pytest.mark.parametrize("style", [None, "goofy"], ids=["plain", "goofy"])
 @pytest.mark.parametrize("count", [1, 3])
 def test_categories_stay_clear_of_the_corner(
-    tv_page: Page, wall_fake: WallFake, count: int
+    tv_page: Page, wall_fake: WallFake, count: int, style: str | None
 ) -> None:
-    """The winners (photo, badge, name) and the title never sit under the QR corner."""
+    """The winners (photo, badge, name) and the title never sit under the QR corner,
+    on the plain page and in the default look (goofy: crooked frames, ribbons)."""
+    wall_fake.style = style
     wall_fake.session = "ok"
     wall_fake.event_name = "Sommerfest der Abteilung 2026"
     wall_fake.qr = {"url": "/?t=abc", "name": "Eingang"}
@@ -261,6 +264,8 @@ def test_categories_stay_clear_of_the_corner(
             part = parts.nth(i).bounding_box()
             assert part and part["height"] > 10
             assert not _boxes_overlap(part, box), f"{name}: part {i} under the corner"
+        if name == "bottom-right":
+            shot(tv_page, f"wall-categories-{style or 'plain'}-{count}", 0)
     assert js_errors(tv_page) == []
 
 

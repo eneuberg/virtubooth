@@ -1,5 +1,6 @@
 /*
- * The party layer: the default style of „Neon Nacht“ (<html data-vb-style="party">).
+ * The party layer: the style of „Klassisch“, selectable for any colours
+ * (<html data-vb-style="party">; the default is goofy).
  * The calm look (app.css: ambient lights, the wordmark's sheen, the dancing emoji)
  * plus a handful of deliberate gags from the „Rummel“ layer (styles/goofy.css),
  * toned down and painted in the theme's colours. No Bungee, no awning, no searchlights.

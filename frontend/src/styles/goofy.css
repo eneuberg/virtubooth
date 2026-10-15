@@ -1,5 +1,6 @@
 /*
- * The goofy layer: „Rummel“, a fairground at night around 1994 (see the preset in
+ * The goofy layer („Verspielt“, the default style, with „Neon Nacht“'s colours; also
+ * the „Rummel“ preset's): a fairground at night around 1994 (see the presets in
  * backend/src/virtubooth/services/theme.py). Everything here hangs off
  * <html data-vb-style="goofy">, so the calm look is untouched and each block can be
  * lifted out on its own. Colours only from the theme (--t-*).
