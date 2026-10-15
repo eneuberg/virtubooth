@@ -60,7 +60,7 @@ function WorkerStatus({ status }: { status: AnalysisStatus }) {
         </dd>
         {typeof worker.processed === 'number' ? (
           <>
-            <dt className="text-ink-muted">Verarbeitet</dt>
+            <dt className="text-ink-muted">Seit Serverstart verarbeitet</dt>
             <dd className="tabular" data-testid="wall-worker-processed">
               {processedText(worker.processed)}
             </dd>
@@ -227,7 +227,11 @@ function AnalyzerRow({
       {a.reason || a.kind === 'basic' ? (
         <p className="text-xs text-ink-muted">{a.reason ?? 'Läuft immer.'}</p>
       ) : null}
-      <p className="text-xs text-ink-muted tabular" data-testid="ml-analyzer-stats">
+      <p
+        className="text-xs text-ink-muted tabular"
+        data-testid="ml-analyzer-stats"
+        title="Seit dem Start des Servers"
+      >
         {statsText(a.stats)}
       </p>
       {a.settings_schema.length > 0 && a.settings ? <AnalyzerSettings analyzer={a} /> : null}

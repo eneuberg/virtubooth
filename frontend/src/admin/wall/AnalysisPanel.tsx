@@ -184,7 +184,11 @@ function Objects({ photoId, analysis }: { photoId: string; analysis: PhotoAnalys
     <div className="grid gap-2" data-testid="analysis-objects">
       <h4 className="text-sm font-bold">Objekte</h4>
       {analysis.objects.length === 0 ? (
-        <p className="text-sm text-ink-muted">Keine Objekte erkannt.</p>
+        <p className="text-sm text-ink-muted">
+          {analysis.runs.length === 0
+            ? 'Keine Objektliste: das Foto wurde ohne Objekterkennung ausgewertet (z. B. vor dem Update).'
+            : 'Keine Objekte erkannt.'}
+        </p>
       ) : (
         <ol className="grid border-t border-line text-sm" aria-label="Erkannte Objekte">
           {analysis.objects.map((o) => (

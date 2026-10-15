@@ -1,5 +1,5 @@
 import { QueryClientProvider } from '@tanstack/react-query';
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { useState } from 'react';
 import { describe, expect, it } from 'vitest';
 import type { AdminExtension, AdminPhoto } from '@/api/types';
@@ -130,6 +130,15 @@ describe('AnalysisPanel', () => {
     await waitFor(() => expect(frames[2]?.dataset.lit).toBe('true'));
     fireEvent.pointerLeave(must(objects[0]));
     await waitFor(() => expect(screen.getAllByTestId('analysis-box')[2]?.dataset.lit).toBeUndefined());
+  });
+
+  it('tells a photo without an object list from one where nothing was found', async () => {
+    renderPanel({ [PATH]: () => ({ ...photoAnalysis(), objects: [], runs: [] }) });
+    expect(await screen.findByText(/Keine Objektliste: das Foto wurde ohne Objekterkennung/)).toBeTruthy();
+    cleanup();
+    const runs = photoAnalysis().runs;
+    renderPanel({ [PATH]: () => ({ ...photoAnalysis(), objects: [], runs }) });
+    expect(await screen.findByText('Keine Objekte erkannt.')).toBeTruthy();
   });
 
   it("marks the guest's opt-outs", async () => {
