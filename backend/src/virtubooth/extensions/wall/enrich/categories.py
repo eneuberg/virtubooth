@@ -17,6 +17,7 @@ from typing import Any, Literal
 from ....db.database import Database
 from . import clock
 from .analyzers import BY_NAME
+from .engine import PhotoFilter
 
 LabelStyle = Literal["count", "percent", "number", "time", "fixed"]
 
@@ -24,12 +25,6 @@ LabelStyle = Literal["count", "percent", "number", "time", "fixed"]
 # sharp photos are in the hundreds), and not nearly black or white
 BLUR_MAX = 80.0
 ACTION_BRIGHTNESS = (0.1, 0.92)
-
-
-@dataclass(frozen=True)
-class PhotoFilter:
-    sources: tuple[str, ...] | None  # extension ids; None or empty = all
-    not_after: str  # ISO created_at bound (now − delay)
 
 
 @dataclass(frozen=True)
