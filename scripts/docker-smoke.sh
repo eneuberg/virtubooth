@@ -40,7 +40,7 @@ echo "== image $IMAGE: $((size / 1000000)) MB (compressed)"
 # the image itself: unprivileged, no dev mode baked in (security review SEC-08)
 [ "$(docker image inspect -f '{{.Config.User}}' "$IMAGE")" = 10001:10001 ] \
   || { echo "FAIL  the image must run as USER 10001:10001" >&2; exit 1; }
-if docker image inspect -f '{{range .Config.Env}}{{println .}}{{end}}' "$IMAGE" | grep -q '^VB_DEV='; then
+if grep -q '^VB_DEV=' <<<"$(docker image inspect -f '{{range .Config.Env}}{{println .}}{{end}}' "$IMAGE")"; then
   echo "FAIL  the image sets VB_DEV" >&2
   exit 1
 fi
@@ -145,7 +145,10 @@ if { [ "$code" != 0 ] && [ "$code" != 143 ]; } || [ "$took" -ge 15 ]; then
   echo "FAIL  stop: exit code $code after ${took}s" >&2
   exit 1
 fi
-docker logs "$NAME" 2>&1 | grep -q "Application shutdown complete" \
-  || { docker logs --tail 40 "$NAME" >&2; echo "FAIL  no clean shutdown in the log" >&2; exit 1; }
+# read the log first: `grep -q` stops at the first match, and with pipefail the
+# SIGPIPE that `docker logs` gets then fails the pipe although the line is there
+logs=$(docker logs "$NAME" 2>&1)
+grep -q "Application shutdown complete" <<<"$logs" \
+  || { tail -n 40 <<<"$logs" >&2; echo "FAIL  no clean shutdown in the log" >&2; exit 1; }
 echo "  ok  stopped cleanly in ${took}s (exit code $code, application shutdown complete)"
 echo "docker-smoke: all checks passed"
