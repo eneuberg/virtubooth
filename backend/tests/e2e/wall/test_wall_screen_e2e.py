@@ -264,6 +264,79 @@ def test_categories_stay_clear_of_the_corner(
     assert js_errors(tv_page) == []
 
 
+VERDICT_TEXT = "Der Hut von Funky Flamingo ist einfach unschlagbar, und das Weinglas daneben auch."
+
+
+@pytest.mark.parametrize("count", [1, 3, 7, 10])
+def test_category_verdict_under_the_winner(tv_page: Page, wall_fake: WallFake, count: int) -> None:
+    """The AI's verdict (+ emoji) under the photo it names; 1–10 winners in order, TV-safe."""
+    wall_fake.session = "ok"
+    wall_fake.hold_stream = True
+    wall_fake.config["playlist"] = [
+        {"mode": m, "enabled": m == "categories", "duration_s": 600}
+        for m in ("spotlight", "gallery", "categories")
+    ]
+    wall_fake.config["categories"] = {"per_category_s": 600, "disabled": []}
+    for n in range(1, 12):
+        wall_fake.add(wall_photo(n, ["Lena", "Max", "Funky Flamingo"][n % 3]))
+    winners = wall_fake.photos[:count]
+    target = winners[1 if count > 1 else 0]["id"]
+    wall_fake.categories = [
+        {
+            "id": "coolstes_objekt",
+            "emoji": "🏆",
+            "title": "Das coolste Objekt",
+            "line": "Was die KI am coolsten findet",
+            "winners": [
+                {"photo": p, "value": 1 - k / 20, "label": f"Hut {k + 1}"}
+                for k, p in enumerate(winners)
+            ],
+            "verdict": {"text": VERDICT_TEXT, "emoji": "🎩", "photo_id": target},
+        }
+    ]
+    open_wall(tv_page, wall_fake)
+    verdict = tv_page.get_by_test_id("wall-verdict")
+    expect(verdict).to_have_text("🎩" + VERDICT_TEXT)
+    expect(verdict).to_have_css("opacity", "1", timeout=5000)
+    pics = tv_page.locator(".wall-cat-pic")
+    expect(pics).to_have_count(count)
+    # in the server's order
+    labels = tv_page.locator(".wall-cat-value")
+    expect(labels).to_have_text([f"Hut {k + 1}" for k in range(count)])
+    tv_page.wait_for_timeout(1400)  # the drop-in animations
+    view = {"x": 0, "y": 0, "width": 1920, "height": 1080}
+    boxes = [pics.nth(i).bounding_box() for i in range(count)]
+    for box in boxes:
+        assert box and _boxes_overlap(box, view)
+        assert box["x"] >= 0 and box["y"] >= 0
+        assert box["x"] + box["width"] <= 1920 and box["y"] + box["height"] <= 1080
+        # TV-safe: no stamp-sized photos
+        assert box["height"] >= (200 if count > 3 else 300), box
+    for i, a in enumerate(boxes):
+        for b in boxes[i + 1 :]:
+            assert a and b and not _boxes_overlap(a, b)
+    v = verdict.bounding_box()
+    assert v and v["y"] + v["height"] <= 1080
+    # two lines at most
+    line = float(verdict.evaluate("(el) => parseFloat(getComputedStyle(el).lineHeight)"))
+    assert v["height"] <= 2 * line + 2
+    if count <= 3:
+        # under its own photo
+        figure = tv_page.locator(".wall-cat-photo[data-verdict]")
+        expect(figure).to_have_attribute("data-index", "1" if count > 1 else "0")
+        pic = figure.locator(".wall-cat-pic").bounding_box()
+        assert pic and v["y"] >= pic["y"] + pic["height"]
+    else:
+        # under the compact grid; its photo is ringed
+        expect(tv_page.locator(".wall-cat-winners[data-compact]")).to_have_count(1)
+        expect(tv_page.locator(".wall-cat-photo[data-verdict]")).to_have_attribute(
+            "data-index", "1"
+        )
+        assert all(b and v["y"] >= b["y"] + b["height"] for b in boxes)
+    shot(tv_page, f"ui1_wall_verdict_{count}", 200)
+    assert js_errors(tv_page) == []
+
+
 # ------------------------------------------------------------------ screenshots
 
 CATEGORY_NAMES = [

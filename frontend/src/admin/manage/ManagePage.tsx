@@ -7,6 +7,7 @@ import {
   Archive,
   AtSign,
   Camera,
+  Cpu,
   Gauge,
   Images,
   LayoutGrid,
@@ -47,6 +48,7 @@ import { SettingsSection } from '../settings/SettingsSection';
 import { openUploadSheet } from '../uploads/sheetStore';
 import { UploadStatusPill } from '../uploads/UploadStatusPill';
 import { WallSection } from '../wall/WallSection';
+import { MlSection } from '../ml/MlSection';
 import { AuditSection } from './AuditSection';
 import { BansSection } from './BansSection';
 import { ExportSection } from './ExportSection';
@@ -61,6 +63,7 @@ const SECTION_VIEW: Record<Section, ComponentType> = {
   instagram: InstagramSection,
   fotobox: FotoboxSection,
   livewall: WallSection,
+  ml: MlSection,
   sperren: BansSection,
   protokoll: AuditSection,
   qr: CodesSection,
@@ -83,6 +86,7 @@ function navItems(stats: AdminStats | undefined) {
     navItem('instagram', 'Instagram', AtSign, stats?.instagram_handles),
     navItem('fotobox', 'Fotobox', Camera),
     navItem('livewall', 'Live-Wall', Tv),
+    navItem('ml', 'ML-Pipeline', Cpu),
     navItem('sperren', 'Sperren', ShieldBan, stats ? stats.banned + stats.fingerprint_bans : undefined),
     navItem('protokoll', 'Protokoll', ScrollText),
     navItem('qr', 'QR-Codes', QrCode),

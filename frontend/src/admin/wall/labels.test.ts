@@ -4,7 +4,6 @@ import {
   ANALYSIS_STATE_LABELS,
   BOX_KIND_COLORS,
   BOX_KIND_LABELS,
-  CATEGORY_LABELS,
   CORNER_LABELS,
   MODE_LABELS,
   PRESET_LABELS,
@@ -25,27 +24,6 @@ import {
 } from './types';
 
 // PLAN-WALL §5
-const CATEGORY_IDS = [
-  'volles_haus',
-  'haende_hoch',
-  'grinsekatzen',
-  'herzschmerz',
-  'ach_du_schreck',
-  'brillenbande',
-  'generationen',
-  'dream_team',
-  'solo_star',
-  'peace',
-  'rock',
-  'daumen_hoch',
-  'prost',
-  'hutparade',
-  'gesangseinlage',
-  'farbexplosion',
-  'action_shot',
-  'eroeffnung',
-  'dauerausloeser',
-];
 
 describe('labels', () => {
   it.each([
@@ -64,13 +42,5 @@ describe('labels', () => {
     expect(Object.keys(map).toSorted()).toEqual([...ids].toSorted());
     for (const id of ids) expect(map[id]?.trim()).toBeTruthy();
     expect(new Set(Object.values(map)).size).toBe(ids.length);
-  });
-
-  it('knows every category', () => {
-    expect(Object.keys(CATEGORY_LABELS).toSorted()).toEqual(CATEGORY_IDS.toSorted());
-    for (const id of CATEGORY_IDS) {
-      expect(CATEGORY_LABELS[id]?.title).toBeTruthy();
-      expect(CATEGORY_LABELS[id]?.emoji).toBeTruthy();
-    }
   });
 });

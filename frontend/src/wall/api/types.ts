@@ -125,16 +125,31 @@ export interface WallFeed {
 
 export interface CategoryWinner {
   photo: WallPhoto;
-  value: number;
+  value: number | null;
   label: string;
+  /** the object (idx in the photo's object list) the value came from, if any */
+  object_idx?: number | null;
 }
+
+/** The external AI's latest word on a category (PLAN-NIGHT §4.3), shown under the winner. */
+export interface WallCategoryVerdict {
+  text: string;
+  emoji: string | null;
+  /** public id of the photo it is about; null = the first winner */
+  photo_id: string | null;
+}
+
+/** The most winners a category shows (`select.count` is 1–10). */
+export const MAX_WINNERS = 10;
 
 export interface WallCategory {
   id: string;
   emoji: string;
   title: string;
   line: string;
+  /** 1–10, in the server's order (best first) */
   winners: CategoryWinner[];
+  verdict: WallCategoryVerdict | null;
 }
 
 export interface WallSession {
