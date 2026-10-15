@@ -32,7 +32,7 @@ from starlette.requests import Request
 from starlette.responses import Response
 
 from ..core.clock import now_iso
-from ..core.security import GUEST_COOKIE_MAX_AGE, UID_COOKIE, VISITOR_COOKIE, set_cookie
+from ..core.security import GUEST_COOKIE_MAX_AGE, VISITOR_COOKIE, set_cookie, uid_cookie
 from ..domain.models import User
 from ..repositories.container import Repositories
 
@@ -100,7 +100,7 @@ class PresenceService:
         """A guest API request: refresh the device's last-seen time (throttled)."""
         if request.url.path == "/api/here":
             return  # the heartbeat writes it itself, in its one UPDATE: here()
-        public_id = self.core.signer.unsign("uid", request.cookies.get(UID_COOKIE))
+        public_id = self.core.signer.unsign("uid", uid_cookie(request, self.core.settings))
         if public_id:
             if self._due(f"u:{public_id}"):
                 self.repos.presence.touch_user(public_id, at=now_iso())
@@ -137,7 +137,7 @@ class PresenceService:
         last written one; then `note()` leaves the device alone for
         THROTTLE_SECONDS.
         Not joined yet: the visitor's last seen, throttled like `note()`."""
-        public_id = self.core.signer.unsign("uid", request.cookies.get(UID_COOKIE))
+        public_id = self.core.signer.unsign("uid", uid_cookie(request, self.core.settings))
         if public_id:
             now = self.now()
             if visible and not self._beat_due(public_id, now):

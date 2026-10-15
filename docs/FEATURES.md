@@ -991,12 +991,16 @@ Jede Schicht im Detail: [ARCHITECTURE.md → Security model](ARCHITECTURE.md#sec
 | Cookie | Inhalt | Dauer | Eigenschaften |
 |---|---|---|---|
 | `vb_access` | signierte Code-Nummer mit der Token-Generation des gescannten QR-Codes | 30 Tage | HttpOnly, SameSite=Lax |
-| `vb_uid` | signierte Gast-ID | 30 Tage | HttpOnly, SameSite=Lax |
+| `vb_uid` (mit Secure: `__Host-vb_uid`) | signierte Gast-ID | 30 Tage | HttpOnly, SameSite=Lax |
 | `vb_vid` | zufällige Besucher-ID, signiert | 30 Tage | HttpOnly, SameSite=Lax |
 | `vb_admin` | zufälliges Sitzungstoken, in der DB nur als SHA-256 | `VB_ADMIN_SESSION_HOURS` (12 h) | HttpOnly, SameSite=Strict |
 
 Secure setzt `VB_COOKIE_SECURE`. Bei `auto`: wenn die Anfrage über HTTPS kam oder
 `VB_PUBLIC_BASE_URL` mit `https://` beginnt.
+Mit Secure heißt das Gast-ID-Cookie `__Host-vb_uid`: Der Browser nimmt es nur von
+dieser Domain über HTTPS an. Ein `vb_uid`, das eine Nachbar-Subdomain oder ein Angreifer im
+Party-WLAN über eine HTTP-Antwort setzt, wird dann nicht gelesen. Ein Gast mit dem
+alten Namen bleibt derselbe Gast: Die Seite schickt die Kopie aus dem localStorage mit.
 
 ### CSRF und Header
 

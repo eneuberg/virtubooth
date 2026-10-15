@@ -16,6 +16,13 @@ from ..settings import Settings
 
 ACCESS_COOKIE = "vb_access"
 UID_COOKIE = "vb_uid"
+# the guest id cookie's name when cookies are Secure (`uid_cookie_name`). The
+# __Host- prefix makes browsers refuse it unless it was set Secure, Path=/,
+# without Domain, by this very host over TLS: neither a sibling subdomain nor an
+# attacker answering a plain-http request on the venue Wi-Fi can plant their
+# own signed id in a guest's browser (that guest's photos would then upload
+# into the attacker's identity, whose owner sees them all). Review 3, COOKIE-01.
+SECURE_UID_COOKIE = "__Host-vb_uid"
 ADMIN_COOKIE = "vb_admin"
 # a random id per browser that opened a valid QR link (the dashboard's "Gescannt")
 VISITOR_COOKIE = "vb_vid"
@@ -109,6 +116,20 @@ def set_cookie(
         secure=cookie_secure(settings, request),
         samesite=samesite,
     )
+
+
+def uid_cookie_name(settings: Settings, request: Request) -> str:
+    """`__Host-vb_uid` where cookies are Secure, else `vb_uid` (plain http on a
+    LAN: browsers ignore Secure cookies there). On https the plain name is never
+    read, so a planted `vb_uid` counts for nothing; a guest who still has one
+    from before is recognised by the localStorage copy (`/api/identify` `uid`)
+    and gets the prefixed cookie."""
+    return SECURE_UID_COOKIE if cookie_secure(settings, request) else UID_COOKIE
+
+
+def uid_cookie(request: Request, settings: Settings) -> str | None:
+    """The raw (signed) guest id cookie of this request, under `uid_cookie_name`."""
+    return request.cookies.get(uid_cookie_name(settings, request))
 
 
 def client_ip(request: Request) -> str:

@@ -17,7 +17,7 @@ from typing import Annotated, cast
 from fastapi import Depends, Request, Response
 
 from ..core import errors
-from ..core.security import ADMIN_COOKIE, UID_COOKIE
+from ..core.security import ADMIN_COOKIE, uid_cookie
 from ..domain.models import User
 from ..runtime import Core
 from ..services.admin_auth import Admin
@@ -45,7 +45,7 @@ def has_access(request: Request, core: Core) -> bool:
 
 
 def guest_from_cookie(request: Request, core: Core) -> User | None:
-    public_id = core.signer.unsign("uid", request.cookies.get(UID_COOKIE))
+    public_id = core.signer.unsign("uid", uid_cookie(request, core.settings))
     return core.repos.users.get_by_public_id(public_id) if public_id else None
 
 
