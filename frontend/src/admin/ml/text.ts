@@ -98,6 +98,7 @@ export function sourceText(source: string): string {
   if (source === 'claude') return 'Claude';
   if (source === 'mistral') return 'Mistral';
   if (source === 'deutschlandgpt') return 'DeutschlandGPT';
+  if (source === 'scaleway') return 'Scaleway';
   return source;
 }
 

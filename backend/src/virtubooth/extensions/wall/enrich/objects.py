@@ -38,7 +38,7 @@ if TYPE_CHECKING:
     from .merge import Entry
 
 RunState = Literal["done", "failed", "skipped"]
-SOURCES = ("local", "claude", "mistral", "deutschlandgpt")
+SOURCES = ("local", "claude", "mistral", "deutschlandgpt", "scaleway")
 _CHUNK = 500
 
 

@@ -4003,7 +4003,7 @@ export interface components {
              * Provider
              * @enum {string}
              */
-            provider: "anthropic" | "mistral" | "deutschlandgpt";
+            provider: "anthropic" | "mistral" | "deutschlandgpt" | "scaleway";
         };
         /**
          * KeyOut
@@ -4087,7 +4087,7 @@ export interface components {
              * @default anthropic
              * @enum {string}
              */
-            provider: "anthropic" | "mistral" | "deutschlandgpt";
+            provider: "anthropic" | "mistral" | "deutschlandgpt" | "scaleway";
             /**
              * Rev
              * @default 0
@@ -4120,7 +4120,7 @@ export interface components {
             /** Poll Interval S */
             poll_interval_s?: number | null;
             /** Provider */
-            provider?: ("anthropic" | "mistral" | "deutschlandgpt") | null;
+            provider?: ("anthropic" | "mistral" | "deutschlandgpt" | "scaleway") | null;
         };
         /** LlmStatus */
         LlmStatus: {

@@ -127,7 +127,7 @@ export interface TestImageResult {
   height: number;
   local: TestRun | null;
   external: {
-    /** claude | mistral | deutschlandgpt */
+    /** claude | mistral | deutschlandgpt | scaleway */
     source: string;
     model: string;
     objects: TestObject[];

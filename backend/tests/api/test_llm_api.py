@@ -76,11 +76,16 @@ def anthropic_api(core):
 def test_status_shape(admin):
     body = admin.get(BASE).json()
     assert body["key"] == {"set": False, "set_at": None, "provider": None, "valid": False}
-    assert [p["id"] for p in body["providers"]] == ["anthropic", "mistral", "deutschlandgpt"]
-    assert [p["eu"] for p in body["providers"]] == [False, True, True]
-    assert [p["vision"] for p in body["providers"]] == [True, True, False]
-    assert [p["thinking"] for p in body["providers"]] == [True, False, True]
-    assert [p["currency"] for p in body["providers"]] == ["USD", "USD", "EUR"]
+    assert [p["id"] for p in body["providers"]] == [
+        "anthropic",
+        "mistral",
+        "deutschlandgpt",
+        "scaleway",
+    ]
+    assert [p["eu"] for p in body["providers"]] == [False, True, True, True]
+    assert [p["vision"] for p in body["providers"]] == [True, True, False, True]
+    assert [p["thinking"] for p in body["providers"]] == [True, False, True, False]
+    assert [p["currency"] for p in body["providers"]] == ["USD", "USD", "EUR", "EUR"]
     models = {m["id"]: m for m in body["models"]}
     assert models["claude-haiku-5-5"]["usd_in_mtok"] == 0.1
     # DeutschlandGPT: its EUR price, and that in USD at the fixed 1.10

@@ -16,7 +16,7 @@ from . import pricing
 from .providers import BY_ID as PROVIDERS
 
 CONFIG_KEY: Final = "x.llm.config"
-ProviderId = Literal["anthropic", "mistral", "deutschlandgpt"]
+ProviderId = Literal["anthropic", "mistral", "deutschlandgpt", "scaleway"]
 Effort = Literal["low", "medium", "high"]
 
 

@@ -50,6 +50,16 @@ PROVIDERS: tuple[ProviderInfo, ...] = (
         thinking=True,
         currency="EUR",
     ),
+    # DeepSeek V4.1 Flash on Scaleway (Paris), thinking off; boxes as 0–1000
+    # coordinates, tested by the host (about 1 s and 0.09 ct per photo)
+    ProviderInfo(
+        "scaleway",
+        "Scaleway (DeepSeek, EU)",
+        eu=True,
+        source="scaleway",
+        privacy="Scaleway, Frankreich (EU)",
+        currency="EUR",
+    ),
 )
 BY_ID = {p.id: p for p in PROVIDERS}
 
@@ -67,6 +77,10 @@ def make_provider(provider_id: str, api_key: str) -> Provider:
         from .deutschlandgpt import DeutschlandGptProvider
 
         return DeutschlandGptProvider(api_key)
+    if provider_id == "scaleway":
+        from .scaleway import ScalewayProvider
+
+        return ScalewayProvider(api_key)
     raise ProviderError(f"unknown provider {provider_id!r}", kind="other")
 
 

@@ -4600,7 +4600,8 @@
             "enum": [
               "anthropic",
               "mistral",
-              "deutschlandgpt"
+              "deutschlandgpt",
+              "scaleway"
             ],
             "title": "Provider",
             "type": "string"
@@ -4767,7 +4768,8 @@
             "enum": [
               "anthropic",
               "mistral",
-              "deutschlandgpt"
+              "deutschlandgpt",
+              "scaleway"
             ],
             "title": "Provider",
             "type": "string"
@@ -4907,7 +4909,8 @@
                 "enum": [
                   "anthropic",
                   "mistral",
-                  "deutschlandgpt"
+                  "deutschlandgpt",
+                  "scaleway"
                 ],
                 "type": "string"
               },

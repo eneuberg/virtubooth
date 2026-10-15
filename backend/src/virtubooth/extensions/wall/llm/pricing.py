@@ -85,6 +85,14 @@ MODELS: tuple[ModelInfo, ...] = (
         33.00,
         currency="EUR",
     ),
+    ModelInfo(
+        "deepseek-v4.1-flash",
+        "scaleway",
+        "DeepSeek V4.1 Flash (EU, schnell)",
+        0.60,
+        1.80,
+        currency="EUR",
+    ),
 )
 
 BY_ID = {m.id: m for m in MODELS}
@@ -92,6 +100,7 @@ DEFAULT_BY_PROVIDER = {
     "anthropic": DEFAULT_MODEL,
     "mistral": "mistral-small-2506",
     "deutschlandgpt": "claude-haiku-5.5",
+    "scaleway": "deepseek-v4.1-flash",
 }
 
 
