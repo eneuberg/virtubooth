@@ -163,3 +163,98 @@ def test_with_the_real_analysis(settings, demo_extension):
 
 def test_fake_analysis_runs_with_the_app(fake, client):
     assert fake.started == 1 and fake.stopped == 0
+
+
+def test_the_ml_pipeline_status_and_analyzer_settings(settings, demo_extension):
+    """GET /analysis: queue, per-analyzer description, size, stats, settings;
+    PUT /analysis/analyzers/{name}: on/off plus settings, audited."""
+    app = create_app(settings, extensions=[demo_extension, make_extension()])
+    try:
+        with TestClient(app, base_url=BASE_URL, follow_redirects=False) as admin:
+            core = app.state.core
+            admin.post("/api/admin/login", json={"password": ADMIN_PASSWORD}, headers=ORIGIN)
+            core.repos.app_settings.put("x.wall.worker", {"stats": {"basic": {
+                "processed": 4, "errors": 1, "avg_ms": 12.5, "last_ms": 10}}}, at="now")  # fmt: skip
+            scan(admin)
+            accept_consent(admin)
+            upload(admin)
+            status = admin.get("/api/x/wall/admin/analysis").json()
+            assert status["queue"]["pending"] == 1 and status["queue"]["running"] == 0
+            assert status["queue"]["oldest_pending_s"] >= 0
+            by = {a["name"]: a for a in status["analyzers"]}
+            assert by["basic"]["stats"] == {"processed": 4, "errors": 1, "avg_ms": 12.5,
+                                            "last_ms": 10.0}  # fmt: skip
+            assert by["faces"]["stats"]["processed"] == 0 and by["faces"]["size_mb"] == 4.0
+            assert by["objects"]["description"] and by["objects"]["size_mb"] == 7.5
+            assert by["objects"]["settings"] == {"score_min": 0.35, "max_objects": 50}
+            assert [s["key"] for s in by["objects"]["settings_schema"]] == [
+                "score_min", "max_objects",
+            ]  # fmt: skip
+            assert by["basic"]["settings"] is None and by["basic"]["settings_schema"] == []
+
+            url = "/api/x/wall/admin/analysis/analyzers"
+            r = admin.put(f"{url}/objects", json={"enabled": False,
+                          "settings": {"score_min": 0.5}}, headers=ORIGIN)  # fmt: skip
+            assert r.status_code == 200, r.text
+            by = {a["name"]: a for a in r.json()["analyzers"]}
+            assert by["objects"]["enabled"] is False
+            assert by["objects"]["settings"] == {"score_min": 0.5, "max_objects": 50}
+            for body, error in [
+                ({"enabled": True, "settings": {"score_min": 2}}, "invalid_analyzer_settings"),
+                ({"enabled": True, "settings": {"nope": 1}}, "invalid_analyzer_settings"),
+                ({"enabled": True, "settings": {"max_objects": 2.5}}, "invalid_analyzer_settings"),
+            ]:
+                r = admin.put(f"{url}/objects", json=body, headers=ORIGIN)
+                assert r.status_code == 400 and r.json()["error"] == error, body
+            r = admin.put(f"{url}/basic", json={"enabled": False}, headers=ORIGIN)
+            assert r.json()["error"] == "invalid_analyzer_settings"
+            r = admin.put(f"{url}/gibts", json={"enabled": True}, headers=ORIGIN)
+            assert r.status_code == 400 and r.json()["error"] == "unknown_analyzer"
+            action, target, details = audit_actions(core)[0]
+            assert (action, target) == ("wall.analyzers", "objects")
+            assert details == {"enabled": False, "settings": {"score_min": 0.5}}
+    finally:
+        app.state.core.db.close()
+
+
+def test_photo_analysis_shows_objects_runs_and_opt_outs(settings, demo_extension):
+    app = create_app(settings, extensions=[demo_extension, make_extension()])
+    try:
+        with TestClient(app, base_url=BASE_URL, follow_redirects=False) as admin:
+            core = app.state.core
+            admin.post("/api/admin/login", json={"password": ADMIN_PASSWORD}, headers=ORIGIN)
+            scan(admin)
+            accept_consent(admin)
+            pub = upload(admin)
+            pid = internal_id(core, pub)
+            from virtubooth.extensions.wall.enrich import jobs, objects
+            from virtubooth.extensions.wall.enrich.objects import DetectedObject
+
+            jobs.claim(core.db)
+            jobs.finish(core.db, pid, facts={"people": 1}, versions={"objects": "2"},
+                        data={"boxes": [], "details": [], "durations_ms": {"objects": 81},
+                              "opt_out": False},
+                        objects_found=[DetectedObject("hat", "Hut", 0.9, (0.1, 0.2, 0.3, 0.4))],
+                        objects_model="efficientdet_lite2@2")  # fmt: skip
+            objects.record_run(core.db, pid, "claude", "failed", "claude-haiku-5-5", "timeout")
+            with core.db.tx() as c:
+                c.execute("INSERT INTO llm_properties (id, name, prompt, created_at) "
+                          "VALUES (1, 'coolness', 'p', 'now')")  # fmt: skip
+                c.execute("INSERT INTO property_scores VALUES (1, ?, '[0.7]', 1, 'now')", (pid,))
+                c.execute("UPDATE users SET ai_opt_out=1")
+            body = admin.get(f"/api/x/wall/admin/photos/{pub}/analysis").json()
+            assert body["objects"] == [{
+                "idx": 0, "label": "hat", "label_de": "Hut", "score": 0.9,
+                "box": {"x": 0.1, "y": 0.2, "w": 0.3, "h": 0.4}, "source": "local",
+                "model": "efficientdet_lite2@2"}]  # fmt: skip
+            assert body["runs"] == [
+                {"source": "local", "state": "done", "model": "efficientdet_lite2@2", "error": None},
+                {"source": "claude", "state": "failed", "model": "claude-haiku-5-5",
+                 "error": "timeout"},
+            ]  # fmt: skip
+            assert body["opt_out"] == {"analysis": False, "external_ai": True}
+            assert body["opt_out_at_analysis"] is False
+            assert body["properties"] == [{"name": "coolness", "archived": False, "scores": [0.7]}]
+            assert body["durations_ms"] == {"objects": 81}
+    finally:
+        app.state.core.db.close()
