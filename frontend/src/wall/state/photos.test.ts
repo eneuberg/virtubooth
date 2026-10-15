@@ -99,6 +99,7 @@ const cat = (id: string, ...ids: string[]) => ({
   title: id,
   line: '',
   winners: ids.map((pid, i) => ({ photo: photo(Number(pid.slice(1))), value: i, label: `${i}` })),
+  verdict: null,
 });
 
 describe('visibleCategories', () => {

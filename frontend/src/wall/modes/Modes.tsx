@@ -3,7 +3,8 @@
  * plain markup (categories).
  */
 import { useEffect, useRef, useState, type CSSProperties } from 'react';
-import type { GallerySpeed, WallCategory, WallPhoto } from '../api/types';
+import type { GallerySpeed, WallCategory, WallCategoryVerdict, WallPhoto } from '../api/types';
+import { compactColumns, verdictIndex } from './categories';
 import { GalleryEngine } from './galleryEngine';
 import { aspectOf } from './slide';
 import { SpotlightEngine, type SpotlightInput } from './spotlightEngine';
@@ -60,15 +61,41 @@ export function Gallery({
   return <div ref={stageRef} className="wall-gallery" data-testid="wall-gallery" />;
 }
 
-function WinnerPhoto({ winner, index }: { winner: WallCategory['winners'][number]; index: number }) {
+function Verdict({ verdict }: { verdict: WallCategoryVerdict }) {
+  return (
+    <p className="wall-cat-verdict" data-testid="wall-verdict">
+      {verdict.emoji ? (
+        <span className="wall-cat-verdict-emoji" aria-hidden="true">
+          {verdict.emoji}
+        </span>
+      ) : null}
+      {verdict.text}
+    </p>
+  );
+}
+
+function WinnerPhoto({
+  winner,
+  index,
+  compact,
+  verdict,
+}: {
+  winner: WallCategory['winners'][number];
+  index: number;
+  /** more than 3 winners: uniform cells, the place number on the photo */
+  compact: boolean;
+  /** this photo is the one the AI's verdict is about */
+  verdict: WallCategoryVerdict | null;
+}) {
   const [loaded, setLoaded] = useState(false);
   const { photo } = winner;
+  const aspect = String(aspectOf(photo));
   return (
-    <figure className="wall-cat-photo" data-index={index}>
+    <figure className="wall-cat-photo" data-index={index} data-verdict={verdict ? '' : undefined}>
       <div
         className="wall-cat-pic"
         // --a: the aspect for wall.css, which fits the pictures into the row's width
-        style={{ aspectRatio: String(aspectOf(photo)), '--a': String(aspectOf(photo)) } as CSSProperties}
+        style={(compact ? {} : { aspectRatio: aspect, '--a': aspect }) as CSSProperties}
       >
         <img
           src={photo.urls.m}
@@ -78,14 +105,24 @@ function WinnerPhoto({ winner, index }: { winner: WallCategory['winners'][number
           data-loaded={loaded ? '' : undefined}
           onLoad={() => setLoaded(true)}
         />
+        {compact ? (
+          <span className="wall-cat-rank" aria-hidden="true">
+            {index + 1}
+          </span>
+        ) : null}
       </div>
       <span className="wall-cat-value">{winner.label}</span>
       <figcaption className="wall-cat-by">von {photo.author}</figcaption>
+      {verdict && !compact ? <Verdict verdict={verdict} /> : null}
     </figure>
   );
 }
 
 function CategoryCard({ category }: { category: WallCategory }) {
+  const count = category.winners.length;
+  const compact = count > 3;
+  const verdict = category.verdict;
+  const verdictAt = verdict ? verdictIndex(category) : -1;
   return (
     <div className="wall-cat" data-testid="wall-category" data-category={category.id}>
       <div className="wall-cat-head">
@@ -95,10 +132,27 @@ function CategoryCard({ category }: { category: WallCategory }) {
         <h2 className="wall-cat-title">{category.title}</h2>
         <p className="wall-cat-line">{category.line}</p>
       </div>
-      <div className="wall-cat-winners" data-count={category.winners.length}>
-        {category.winners.map((w, i) => (
-          <WinnerPhoto key={w.photo.id} winner={w} index={i} />
-        ))}
+      <div className="wall-cat-side" data-verdict={verdict ? '' : undefined}>
+        <div
+          className="wall-cat-winners"
+          data-count={count}
+          data-compact={compact ? '' : undefined}
+          data-verdict={verdict && !compact ? '' : undefined}
+          style={compact ? ({ '--cols': String(compactColumns(count)) } as CSSProperties) : undefined}
+        >
+          {category.winners.map((w, i) => (
+            <WinnerPhoto
+              key={w.photo.id}
+              winner={w}
+              index={i}
+              compact={compact}
+              verdict={i === verdictAt ? verdict : null}
+            />
+          ))}
+        </div>
+        {/* the compact grid has no room under a cell: the verdict goes under the grid,
+            its photo is ringed */}
+        {verdict && compact ? <Verdict verdict={verdict} /> : null}
       </div>
     </div>
   );
