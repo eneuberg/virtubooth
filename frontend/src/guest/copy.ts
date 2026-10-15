@@ -106,6 +106,6 @@ export function activityList(titles: ReadonlyArray<string>): string {
 export function firstPhotoText(titles: ReadonlyArray<string>): string {
   const names = activityList(titles);
   return names
-    ? `Noch keine Bilder von dir. Probier ${names} aus: Dein erstes Bild landet dann hier, und du kannst es speichern.`
-    : 'Noch keine Bilder von dir. Sobald du eins machst, landet es hier, und du kannst es speichern.';
+    ? `Noch keine Bilder von dir. Probier ${names} aus: Dein erstes Bild landet dann hier, und du kannst es herunterladen.`
+    : 'Noch keine Bilder von dir. Sobald du eins machst, landet es hier, und du kannst es herunterladen.';
 }

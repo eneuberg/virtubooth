@@ -16,13 +16,14 @@ import { useEffect, useRef, useState } from 'react';
 import { formatCount, formatNumber, formatPercent } from '@/lib/format';
 import { t } from '@/lib/messages.de';
 import { CameraStatus, FilmRetry } from '@/sdk/camera/CameraHints';
+import { UploadState } from '@/sdk/camera/UploadState';
 import { CameraErrorScreen } from '@/sdk/camera/CameraScreens';
 import { CameraStage, PREVIEW_CANVAS_CLASS } from '@/sdk/camera/CameraStage';
 import { STREAM_SIZE } from '@/sdk/camera/capture';
 import { useCameraKeys, useLeaveGuard } from '@/sdk/camera/keys';
 import { isVessel, VESSEL_SHAPES, VESSELS, shadePath, type Vessel } from '@/sdk/camera/overlays';
 import { useCameraSession } from '@/sdk/camera/useCameraSession';
-import { shotErrorText, useNow, useOutboxToasts, useShot, type Shot } from '@/sdk/camera/useShot';
+import { useNow, useOutboxToasts, useShot, type Shot } from '@/sdk/camera/useShot';
 import { ActivityMenu } from '@/sdk/components/ActivityMenu';
 import { ActivityShell } from '@/sdk/components/ActivityShell';
 import { GuestPass } from '@/sdk/components/GuestPass';
@@ -266,9 +267,7 @@ export default function BeerPage({ id }: ExtensionPageProps) {
             : 'waiting';
     const end =
       shot.status === 'uploading' ? (
-        <span className="tabular">
-          {t.uploading} {formatPercent(shot.progress)}
-        </span>
+        <span className="tabular">{formatPercent(shot.progress)}</span>
       ) : shot.status === 'done' ? (
         <span className="font-semibold text-ok">Gezählt</span>
       ) : shot.status === 'waiting' ? (
@@ -297,42 +296,28 @@ export default function BeerPage({ id }: ExtensionPageProps) {
   // ------------------------------------------------------------ hint
   let hint;
   if (shot) {
-    const message = shotErrorText(shot.error, waitSeconds);
     hint = (
-      <div aria-live="polite" data-testid="result-text" className="grid gap-1">
-        {shot.status === 'done' && number !== null ? (
-          <>
-            <h2 className="text-lg font-bold" data-testid="success-title">
-              Bier Nr.&nbsp;{formatNumber(number)} gezählt
-            </h2>
-            <p className="text-sm text-papier-muted">
+      <UploadState
+        shot={shot}
+        waitSeconds={waitSeconds}
+        verb="gezählt"
+        done={
+          number === null ? null : (
+            <>
+              <span data-testid="success-title" className="font-semibold text-papier">
+                Bier Nr.&nbsp;{formatNumber(number)} gezählt
+              </span>
+              {'. '}
               {togo === null
                 ? ''
                 : togo > 0
                   ? `Noch ${formatNumber(togo)} bis zur Million. `
                   : 'Die Million ist voll! '}
               {number % 100 === 0 ? 'Jubiläumsbier!' : cheer}
-            </p>
-          </>
-        ) : shot.status === 'uploading' ? (
-          <h2 className="text-lg font-bold">Wird gezählt…</h2>
-        ) : shot.status === 'failed' ? (
-          <>
-            <h2 className="text-lg font-bold">Das Bier lässt sich nicht hochladen</h2>
-            <p className="text-sm text-papier-muted">{message}</p>
-          </>
-        ) : (
-          <>
-            <h2 className="text-lg font-bold">Dein Bier wartet</h2>
-            <p className="text-sm text-papier-muted">
-              {message}{' '}
-              {shot.status === 'held'
-                ? 'Es wird gezählt, sobald du wieder hochladen kannst.'
-                : 'Es wird gezählt, sobald es geht.'}
-            </p>
-          </>
-        )}
-      </div>
+            </>
+          )
+        }
+      />
     );
   } else if (status.kind !== 'ok') {
     hint = <CameraStatus onSend={() => void sendOutbox()} sending={sendingOutbox} />;

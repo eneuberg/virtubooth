@@ -54,7 +54,9 @@ export const t = {
   toStart: 'Zum Start',
   backToStart: 'Zurück zum Start',
   reloadPage: 'Seite neu laden',
+  /** forms (name, settings); never the guest's own photo: that is „Herunterladen“ */
   save: 'Speichern',
+  /** a photo onto the phone (iOS: the share sheet's „Bild sichern“): optional, not a confirmation */
   download: 'Herunterladen',
   cancel: 'Abbrechen',
   close: 'Schließen',
@@ -117,7 +119,8 @@ export const msg = {
   notFoundText: 'Diese Seite gibt es nicht.',
 
   // misc
-  saved: 'Gespeichert',
+  /** the photo is on the phone („Herunterladen“ done) */
+  downloaded: 'Heruntergeladen',
   goalShort: `1${NBSP}Mio.`,
 } as const;
 

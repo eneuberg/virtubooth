@@ -71,18 +71,19 @@ def test_deine_bilder_shows_only_own_visible_photos(guest_page: Page, live: Live
     )
     expect(page.get_by_test_id("my-photos-empty")).to_have_count(0)
 
-    # the viewer: large, Speichern downloads the JPEG under the server's name
+    # the viewer: large, „Herunterladen“ downloads the JPEG under the server's name
     page.get_by_test_id(f"photo-{c['id']}").get_by_role("button").click()
     viewer = page.get_by_test_id("photo-viewer")
     expect(viewer.get_by_role("dialog")).to_be_visible()
     expect(viewer).to_contain_text("Bier")
     save = page.get_by_test_id("photo-save")
     expect(save).to_be_enabled()
+    expect(save).to_have_text("Herunterladen")
     with page.expect_download() as info:
         save.click()
     assert info.value.suggested_filename == f"beer-{c['seq']:05d}.jpg"
-    expect(page.get_by_text("Gespeichert")).to_be_visible()
-    # the toast moves above the sheet: Speichern and the arrows take the next tap at once
+    expect(page.get_by_text("Heruntergeladen")).to_be_visible()
+    # the toast moves above the sheet: „Herunterladen“ and the arrows take the next tap at once
     assert covered_by_toast(page) == []
     with page.expect_download():
         save.tap(timeout=QUICK_TAP_MS)

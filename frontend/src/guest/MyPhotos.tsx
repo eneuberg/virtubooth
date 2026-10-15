@@ -1,7 +1,7 @@
 /**
  * "Deine Bilder": the guest's own photos that are up (GET /api/me/photos: not hidden,
  * not deleted, newest first, at most 60) as a small contact sheet. Two rows show,
- * the rest behind "Alle … zeigen". A tap opens the viewer (Speichern / Teilen, Foto
+ * the rest behind "Alle … zeigen". A tap opens the viewer (Herunterladen / Teilen, Foto
  * löschen).
  * Empty: blank frames and an invitation.
  */

@@ -47,7 +47,7 @@ describe('ActivityShell', () => {
         controlsLayout="actions"
         controls={
           <>
-            <button type="button">Speichern</button>
+            <button type="button">Herunterladen</button>
             <button type="button">Neues Foto</button>
           </>
         }

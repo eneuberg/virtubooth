@@ -76,6 +76,8 @@ def test_bottle_then_cup_upload_flow(guest: Page, live: LiveServer):
     expect(page.get_by_test_id("result-photo")).to_be_visible(timeout=READY)
     expect_uploaded(page)
     expect_counted(page, 1)
+    expect(page.get_by_test_id("upload-title")).to_have_text("Hochgeladen")
+    expect(page.get_by_role("status").filter(has_text="Hochgeladen")).to_be_visible()
     expect(page.get_by_test_id("result-text")).to_contain_text(
         re.compile(r"Noch 999\.999 bis zur Million\.")
     )
@@ -337,7 +339,7 @@ def test_paused_between_check_and_upload_keeps_the_beer(
     page.get_by_test_id("shutter").click()
     status = page.get_by_test_id("upload-status")
     expect(status).to_have_attribute("data-state", "held", timeout=READY)
-    expect(page.get_by_test_id("result-text")).to_contain_text("Dein Bier wartet")
+    expect(page.get_by_test_id("upload-title")).to_have_text("Noch nicht hochgeladen")
     expect(page.get_by_test_id("result-text")).to_contain_text("sobald du wieder hochladen kannst")
     expect(page.get_by_test_id("retry")).to_have_count(0)  # no retry that can't work
     assert [k["ext"] for k in wait_kept(page, 1)] == ["beer"]

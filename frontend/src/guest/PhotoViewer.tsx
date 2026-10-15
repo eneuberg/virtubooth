@@ -1,7 +1,7 @@
 /**
- * One of the guest's own photos, large, with "Speichern" (and "Teilen" where the
- * browser has a share sheet and it is not iOS, where Speichern already is the share
- * sheet). The JPEG is fetched when the viewer opens, so the tap can hand it to the
+ * One of the guest's own photos, large, with „Herunterladen“ (and „Teilen“ where the
+ * browser has a share sheet and it is not iOS, where „Herunterladen“ already is the share
+ * sheet: „Bild sichern“). The JPEG is fetched when the viewer opens, so the tap can hand it to the
  * share sheet right away (Web Share needs the user activation).
  * Previous / next: the buttons, or the arrow keys (round the ends). „Foto löschen“
  * (with `onDelete`) asks first, then deletes the photo for good.
@@ -39,7 +39,7 @@ async function fetchBlob(url: string): Promise<Blob> {
 }
 
 function report(result: SaveResult): void {
-  if (result === 'downloaded') showToast({ tone: 'success', message: msg.saved });
+  if (result === 'downloaded') showToast({ tone: 'success', message: msg.downloaded });
 }
 
 export function PhotoViewer({ photos, index, onIndexChange, onDelete }: PhotoViewerProps) {
@@ -102,7 +102,7 @@ export function PhotoViewer({ photos, index, onIndexChange, onDelete }: PhotoVie
             onPress={() => save(false)}
             data-testid="photo-save"
           >
-            {t.save}
+            {t.download}
           </Button>
           {shareable ? (
             <Button
