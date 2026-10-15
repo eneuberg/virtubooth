@@ -98,7 +98,10 @@ SCRUBBED_TABLES = ("admin_sessions", "export_jobs", "visitors", "code_visitors")
 # in the admin, `admin.password`, and an extension's, e.g. the Live-Wall's
 # `x.wall.password`). An archive must not hand out something to crack offline;
 # restoring the copy falls back to VB_ADMIN_PASSWORD and a wall without one.
-SCRUBBED_SETTINGS_SQL = "key = 'admin.password' OR key LIKE 'x.%.password'"
+# Also every key ending in `.secret`: the naming rule for anything secret stored
+# in `settings`, encrypted or not (e.g. a future `ai.anthropic.secret`; see
+# SECURITY_REVIEW.md, review 3, "Storing an API key").
+SCRUBBED_SETTINGS_SQL = "key = 'admin.password' OR key LIKE 'x.%.password' OR key LIKE '%.secret'"
 
 
 def scrub_snapshot(path: Path) -> None:
@@ -324,9 +327,10 @@ def readme(
             "    handles, IP addresses, browsers, device fingerprints, bans), all photo",
             "    rows (hidden and deleted ones included), device bans, the admin audit",
             "    log (with the addresses admins logged in from), the upload settings and",
-            "    the QR codes with their tokens. Admin sessions, export jobs and password",
-            "    hashes are removed; nothing deleted earlier can be recovered from the",
-            "    file. Open with `sqlite3 virtubooth.db` or DB Browser for SQLite.",
+            "    the QR codes with their tokens. Admin sessions, export jobs, password",
+            "    hashes and stored secrets (API keys) are removed; nothing deleted",
+            "    earlier can be recovered from the file. Open with",
+            "    `sqlite3 virtubooth.db` or DB Browser for SQLite.",
         ]
     lines += [
         "",

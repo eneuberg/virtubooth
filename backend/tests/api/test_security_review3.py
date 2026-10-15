@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import sqlite3
 from collections.abc import Iterator
 
 import pytest
@@ -10,6 +11,9 @@ from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
 from virtubooth.core.security import SECURE_UID_COOKIE, UID_COOKIE
+from virtubooth.db.database import Database
+from virtubooth.extensions.wall.enrich.supervisor import Supervisor
+from virtubooth.tools.export import take_snapshot
 
 from ..conftest import JPEG, PARTY_TOKEN, fp, jpeg
 
@@ -88,3 +92,57 @@ def test_plain_http_keeps_the_plain_name(guest):
     c = guest()
     assert c.cookies.get(UID_COOKIE) is not None
     assert c.cookies.get(SECURE_UID_COOKIE) is None
+
+
+# ================================== ENV-01 the analysis worker's environment
+
+
+def test_the_worker_inherits_no_secrets(tmp_path):
+    env = {
+        "PATH": "/usr/bin",
+        "VB_DATA_DIR": "/data",
+        "VB_TIMEZONE": "Europe/Berlin",
+        "VB_SECRET_KEY": "s" * 40,
+        "VB_ADMIN_PASSWORD": "p" * 20,
+        "VB_PARTY_TOKEN": "t" * 20,
+        "ANTHROPIC_API_KEY": "sk-ant-x",
+        "VB_AI_SECRET": "x",
+    }
+    child = Supervisor(tmp_path, env=env)._child_env()
+    assert {"PATH", "VB_DATA_DIR", "VB_TIMEZONE"} <= child.keys()
+    assert not child.keys() & {
+        "VB_SECRET_KEY",
+        "VB_ADMIN_PASSWORD",
+        "VB_PARTY_TOKEN",
+        "ANTHROPIC_API_KEY",
+        "VB_AI_SECRET",
+    }
+
+
+# ======================== ARCH-02 secrets in `settings` stay out of archives
+
+
+def test_snapshot_drops_every_secret_setting(tmp_path):
+    """The naming rule for secrets in `settings` (`*.secret`, e.g. a stored
+    API key, encrypted or not): never in the archive's database copy."""
+    data = tmp_path / "data"
+    db = Database(data / "virtubooth.db")
+    with db.tx() as c:
+        for key, marker in (
+            ("ai.anthropic.secret", "APIKEY-MARKER"),
+            ("x.wall.secret", "EXTSECRET-MARKER"),
+            ("x.wall.config", "CONFIG-MARKER"),
+        ):
+            c.execute("INSERT INTO settings VALUES (?, ?, '2026')", (key, f'{{"v": "{marker}"}}'))
+    scratch = tmp_path / "scratch"
+    scratch.mkdir()
+    snap = take_snapshot(data, scratch, include_hidden=True)
+    db.close()
+    content = snap.db_file.read_bytes()
+    assert b"APIKEY-MARKER" not in content and b"EXTSECRET-MARKER" not in content
+    conn = sqlite3.connect(snap.db_file)
+    try:
+        keys = {r[0] for r in conn.execute("SELECT key FROM settings")}
+    finally:
+        conn.close()
+    assert "x.wall.config" in keys
