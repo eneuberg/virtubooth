@@ -124,7 +124,7 @@ def image_frame(image: Image.Image, photo: PhotoInfo) -> Frame:
     return Frame(image=rgb, width=size[0], height=size[1], photo=photo)
 
 
-# what a test image's frame says about its "photo"
+# what a test image's frame says about its "photo" (taken now, see run_test)
 TEST_PHOTO = PhotoInfo(
     id=0, public_id="testbild", extension="test", filename="testbild.jpg",
     created_at="1970-01-01T00:00:00.000+00:00", width=0, height=0, meta={},
@@ -280,7 +280,7 @@ class Worker:
         enabled = names - jobs.disabled_analyzers(repos.app_settings)
         needs = {a.info.name: a.info.needs for a in self.pipeline.analyzers()}
         wanted = testjobs.wanted_analyzers(requested, enabled, needs) | set(ALWAYS_ON)
-        frame = image_frame(image, TEST_PHOTO)
+        frame = image_frame(image, dataclasses.replace(TEST_PHOTO, created_at=now_iso()))
         frame.settings = jobs.analyzer_settings(repos.app_settings)
         try:
             return self.pipeline.run(frame, names - wanted), None

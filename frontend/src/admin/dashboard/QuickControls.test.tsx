@@ -73,6 +73,9 @@ describe('QuickControls and StatusStrip', () => {
     await waitFor(() => expect(screen.queryByTestId('status-strip-uploads')).toBeNull());
     expect(screen.getByTestId('quick-upload-stop')).toBeTruthy();
     expect(await posted(requests, '/api/admin/upload-stop')).toEqual([true, false]);
+    // the focus goes back to the stop button (handFocus, after a short delay: the test
+    // waits for it, or the delayed hand-off would run after the test environment is gone)
+    await waitFor(() => expect(document.activeElement).toBe(screen.getByTestId('quick-upload-stop')));
   });
 
   it('stops joining next to it, independently', async () => {
@@ -89,6 +92,7 @@ describe('QuickControls and StatusStrip', () => {
     expect(screen.getByTestId('quick-join-stop')).toBeTruthy();
     expect(await posted(requests, '/api/admin/join-stop')).toEqual([true, false]);
     expect(await posted(requests, '/api/admin/upload-stop')).toEqual([]);
+    await waitFor(() => expect(document.activeElement).toBe(screen.getByTestId('quick-join-stop')));
   });
 
   it('follows the event stream: another admin switched both on, so the row goes away', async () => {

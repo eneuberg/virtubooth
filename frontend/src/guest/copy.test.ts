@@ -7,6 +7,7 @@ describe('the join texts before the server sent them', () => {
     expect(texts.at(-3)).toBe(WALL_ANALYSIS_TEXT);
     expect(texts.at(-2)).toBe(EXTERNAL_AI_TEXT);
     expect(EXTERNAL_AI_TEXT).toContain('Anthropic');
+    expect(EXTERNAL_AI_TEXT).toContain('Mistral AI');
     expect(texts.join(' ')).not.toContain('verlässt den Server');
     expect(texts.at(-1)).toBe('Wenn du das nicht möchtest, mach hier bitte keine Fotos.');
   });
