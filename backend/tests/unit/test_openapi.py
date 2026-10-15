@@ -86,6 +86,10 @@ def test_every_route_has_a_response_schema(exported):
                 )
 
 
+# public, no access check, no input: the theme answers 200 or 304, never an error
+CANNOT_FAIL = {("get", "/api/theme")}
+
+
 def test_errors_use_error_body(exported):
     _, schema = exported
     for path, operations in schema["paths"].items():
@@ -93,6 +97,9 @@ def test_errors_use_error_body(exported):
             continue
         for method, op in operations.items():
             errors = {code: r for code, r in op["responses"].items() if code[0] in "45"}
+            if (method, path) in CANNOT_FAIL:
+                assert not errors, (method, path)
+                continue
             assert errors, f"{method} {path} declares no errors"
             for code, response in errors.items():
                 ref = response["content"]["application/json"]["schema"]["$ref"]
