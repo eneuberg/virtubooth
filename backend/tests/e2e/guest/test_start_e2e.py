@@ -336,6 +336,7 @@ def test_footer_reopens_the_join_text(guest_page: Page, live: LiveServer):
     help_sheet = page.get_by_role("dialog", name="Hilfe")
     help_sheet.get_by_role("button", name="Die Kamera startet nicht").click()
     expect(help_sheet).to_contain_text("Danach die Seite neu laden")
+    expect(help_sheet).to_contain_text("Klappt’s nicht? Probier einen anderen Browser")
     assert page.js_errors == []  # type: ignore[attr-defined]
 
 

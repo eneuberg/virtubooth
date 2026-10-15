@@ -418,6 +418,8 @@ def test_camera_errors_say_what_to_do(guest: Page, live: LiveServer, error: str,
     expect(screen).to_be_visible(timeout=READY)
     expect(screen).to_contain_text("Die Kamera geht nicht")
     expect(screen).to_contain_text(text)
+    # the fallback after the first advice: another browser (the QR code again for access)
+    expect(screen).to_contain_text("Klappt’s nicht? Probier einen anderen Browser")
     expect(screen.get_by_role("button", name="Seite neu laden")).to_be_visible()
     expect(screen.get_by_role("link", name="Zum Start")).to_be_visible()
     expect(page.get_by_test_id("shutter")).to_be_disabled()

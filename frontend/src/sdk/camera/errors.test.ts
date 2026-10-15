@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
+  BROWSER_HINT,
   CAMERA_TEXT,
   CameraError,
   cameraErrorCode,
@@ -70,6 +71,33 @@ describe('cameraErrorMessage', () => {
     device(ANDROID, 5);
     secure(false);
     expect(cameraErrorMessage(named('NotAllowedError'))).toBe(CAMERA_TEXT.insecure);
+  });
+
+  it('suggests another browser after the first fix, except where no browser helps', () => {
+    expect(BROWSER_HINT).toBe(
+      'Klappt’s nicht? Probier einen anderen Browser, z.\u00a0B. Safari oder Chrome, und scanne den QR-Code dafür nochmal.',
+    );
+    for (const key of [
+      'deniedIOS',
+      'deniedTouch',
+      'deniedDesktop',
+      'notFound',
+      'busy',
+      'timeout',
+      'unknown',
+    ] as const) {
+      // the „Kamera erlauben“ steps (or what else to do) first, the browser as the fallback
+      expect(CAMERA_TEXT[key].endsWith(` ${BROWSER_HINT}`)).toBe(true);
+      expect(CAMERA_TEXT[key].indexOf(BROWSER_HINT)).toBeGreaterThan(0);
+    }
+    // a browser without a camera and the in-app browsers: another browser is the advice
+    expect(CAMERA_TEXT.unsupported).toMatch(
+      /^Dieser Browser kann die Kamera nicht nutzen\. Probier einen anderen/,
+    );
+    expect(IN_APP_HINT).toContain('Öffne die Seite in einem anderen Browser, z.\u00a0B. Safari oder Chrome');
+    expect(IN_APP_HINT).toContain('Scanne den QR-Code dafür mit der Kamera-App');
+    // plain http: the host's setup, no browser fixes it
+    expect(CAMERA_TEXT.insecure).not.toContain('Browser');
   });
 
   it('keeps a CameraError as it is', () => {

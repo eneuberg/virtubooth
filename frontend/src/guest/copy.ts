@@ -87,7 +87,7 @@ export function inAppAdvice(app: string | null): { title: string; text: string }
   const camera = isIOS() ? 'die Kamera-App' : 'die Kamera-App (oder Google Lens)';
   return {
     title: 'Hier geht die Kamera oft nicht',
-    text: `Du bist gerade ${where}. Öffne ${camera} deines Handys und scanne den QR-Code damit: Dann öffnet sich die Seite im richtigen Browser.`,
+    text: `Du bist gerade ${where}. Öffne die Seite lieber in einem anderen Browser, z.\u00a0B. Safari oder Chrome: Scanne den QR-Code dafür mit ${camera} deines Handys.`,
   };
 }
 

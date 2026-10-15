@@ -495,6 +495,7 @@ def test_camera_denied(guest: Page, live: LiveServer):
     screen = guest.get_by_test_id("camera-error")
     expect(screen).to_contain_text("Die Kamera geht nicht", timeout=READY)
     expect(screen).to_contain_text("Kamera-Zugriff wurde verweigert")
+    expect(screen).to_contain_text("Probier einen anderen Browser, z.\u00a0B. Safari oder Chrome")
     expect(screen.get_by_role("button", name="Seite neu laden")).to_be_visible()
     expect(guest.get_by_test_id("shutter")).to_be_disabled()
     assert guest.js_errors == []
