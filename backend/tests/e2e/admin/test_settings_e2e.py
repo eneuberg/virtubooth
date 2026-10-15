@@ -21,6 +21,7 @@ from .conftest import (
     no_horizontal_scroll,
     toast,
     wait_live,
+    wait_until,
 )
 
 pytestmark = pytest.mark.e2e
@@ -246,9 +247,14 @@ def test_the_theme_reaches_the_guests_but_not_the_admin(
 
     # the guest page follows when it comes back to the foreground (no reload)
     guest.evaluate("document.dispatchEvent(new Event('visibilitychange'))")
-    guest.wait_for_function(
-        "getComputedStyle(document.documentElement).getPropertyValue('--t-background').trim()"
-        " === '#2b0f0c'"
+    wait_until(
+        lambda: (
+            guest.evaluate(
+                "getComputedStyle(document.documentElement).getPropertyValue('--t-background').trim()"
+            )
+            == "#2b0f0c"
+        ),
+        what="the guest page's new theme",
     )
     assert guest.evaluate("getComputedStyle(document.body).backgroundColor") != "rgb(27, 27, 26)"
     shot(guest, "guest-start-klassisch")
