@@ -1708,3 +1708,26 @@ already enforced by this review's changes.
       archive DB copy (the marker test pattern of ARCH-02), the log output (caplog), or a
       422 answer.
     - After a secret-key change, the state is "unreadable", not a 500.
+
+## Review 3, pass 2: the external-AI key and LLM path (2026-10-15)
+
+Second, short pass at the end of the night batch (INT2) over the new key/LLM path,
+the public-address probe and prompt injection. Full notes:
+`.worktrees/_plans/night/int2/SECURITY-2.md`. No open High or Medium finding.
+
+| ID | Severity | Finding | Status |
+|---|---|---|---|
+| LLM-01 | Medium | A verdict naming a guest stayed on the wall after the guest opted out of external AI (or was banned) | fixed: the screen drops it at once |
+| LLM-02 | Medium | Polls named guests by „@handle“ even while the wall hides handles; the verdict text lands on the wall | fixed: the wall's naming rule |
+| LLM-03 | Low | Key redaction only on loggers that existed at start | fixed: also on the root and uvicorn handlers |
+| ADDR-01 | Low | The public-address probe echoed a redirect's full `Location` (path/query of any, maybe internal, server) | fixed: origin only |
+| ADDR-02 | Low | The probe lets an admin tell reachable from unreachable hosts (no body is shown) | accepted (admin-only) |
+
+Checked and fine: the key is in no response schema, log, audit entry, stored error or
+archive (the scrub drops `x.llm.key` and every `*.secret` key); AES-256-GCM with a fresh
+96-bit nonce per write and HKDF per PLAN-NIGHT N11; every `/llm/*` and `/test-image`
+mutation is admin-only and Origin-checked; `/test-image` is size-capped, JPEG-only and
+6/min; guest text reaches a provider only JSON-quoted inside a data block, answers are
+validated and length-capped, verdict photo refs must be ones that were sent; a test
+records every provider call over detection, poll and verdict with mixed guests and finds
+nothing of opted-out or banned guests or hidden photos.
