@@ -302,6 +302,118 @@ vec3 effect(vec2 uv) {
   return mix(c, vec3(0.06, 0.02, 0.1), edge);
 }`,
   },
+
+  {
+    id: 'thermal',
+    glsl: `
+vec3 heat(float t) {
+  // cold → hot: night blue, violet, magenta, red, orange, yellow, white
+  float s = clamp(t, 0.0, 1.0) * 5.0;
+  vec3 c = mix(vec3(0.02, 0.0, 0.12), vec3(0.2, 0.0, 0.6), clamp(s, 0.0, 1.0));
+  c = mix(c, vec3(0.78, 0.0, 0.55), clamp(s - 1.0, 0.0, 1.0));
+  c = mix(c, vec3(1.0, 0.18, 0.08), clamp(s - 2.0, 0.0, 1.0));
+  c = mix(c, vec3(1.0, 0.72, 0.0), clamp(s - 3.0, 0.0, 1.0));
+  return mix(c, vec3(1.0, 1.0, 0.86), clamp(s - 4.0, 0.0, 1.0));
+}
+vec3 effect(vec2 uv) {
+  vec2 o = u_px * 2.0;   // a little soft, like a thermal sensor
+  vec3 c = video(uv) * 0.4 + (video(uv + vec2(o.x, 0.0)) + video(uv - vec2(o.x, 0.0)) +
+                              video(uv + vec2(0.0, o.y)) + video(uv - vec2(0.0, o.y))) * 0.15;
+  float warm = clamp(c.r - c.b, 0.0, 0.25);   // skin and lips glow hotter
+  return heat(luma(c) * 0.7 + warm + 0.04);
+}`,
+    cpu: (() => {
+      const stops = [
+        [0.02, 0, 0.12],
+        [0.2, 0, 0.6],
+        [0.78, 0, 0.55],
+        [1, 0.18, 0.08],
+        [1, 0.72, 0],
+        [1, 1, 0.86],
+      ];
+      return pixelOp((d, i) => {
+        const r = at(d, i) / 255;
+        const b = at(d, i + 2) / 255;
+        const warm = Math.min(0.25, Math.max(0, r - b));
+        const s = Math.min(1, Math.max(0, (lum(d, i) / 255) * 0.7 + warm + 0.04)) * 5;
+        const k = Math.min(4, Math.floor(s));
+        const a = stops[k] ?? [0, 0, 0];
+        const z = stops[k + 1] ?? a;
+        const t = s - k;
+        for (let c = 0; c < 3; c++) d[i + c] = 255 * ((a[c] ?? 0) + ((z[c] ?? 0) - (a[c] ?? 0)) * t);
+      });
+    })(),
+  },
+
+  {
+    id: 'disco',
+    glsl: `
+float spot(vec2 p, vec2 at, float size) {
+  vec2 d = p - at;
+  return exp(-dot(d, d) / (size * size));
+}
+vec3 effect(vec2 uv) {
+  float t = u_time;
+  vec2 p = (uv - 0.5) * vec2(0.75, 1.0);   // aspect-true, centred
+  // chroma split: the colour channels drift apart, more towards the edges
+  vec2 split = vec2(cos(t * 1.7), sin(t * 1.3)) * 0.006 + p * 0.03;
+  vec3 c = vec3(video(uv + split).r, video(uv).g, video(uv - split).b);
+  c = contrast(saturation(c, 1.4), 1.12);
+  // three coloured spotlights sweeping over the dance floor
+  vec3 light = vec3(1.0, 0.15, 0.6) * spot(p, vec2(sin(t * 0.7), cos(t * 0.5)) * 0.32, 0.26)
+             + vec3(0.1, 0.75, 1.0) * spot(p, vec2(cos(t * 0.6 + 2.0), sin(t * 0.8)) * 0.34, 0.24)
+             + vec3(1.0, 0.85, 0.1) * spot(p, vec2(sin(t * 0.9 + 4.0), sin(t * 0.4 + 1.0)) * 0.3, 0.22);
+  c = c * (0.62 + light * 0.75) + light * 0.06;
+  // mirror-ball sparkles: a star in some cells of a 54 px grid (output space), twinkling
+  vec2 g = uv * OUT / 54.0;
+  vec2 cell = floor(g);
+  float h = hash(cell);
+  vec2 q = abs(fract(g) - 0.5 - (vec2(hash(cell + 7.0), hash(cell + 13.0)) - 0.5) * 0.5);
+  float star = max(0.0, 1.0 - length(q) * 7.0) + max(0.0, 1.0 - q.x * 40.0) * max(0.0, 1.0 - q.y * 4.0)
+             + max(0.0, 1.0 - q.y * 40.0) * max(0.0, 1.0 - q.x * 4.0);
+  float twinkle = step(0.93, h) * max(0.0, sin(t * 3.0 + h * 60.0));
+  return c + vec3(star * twinkle);
+}`,
+  },
+
+  {
+    id: 'kaleido',
+    glsl: `
+// six copies of the face in a ring, every other one mirrored (seamless edges)
+const float SEG = 3.14159265 / 3.0;
+vec3 effect(vec2 uv) {
+  vec2 p = (uv - 0.5) * OUT;
+  float a = atan(p.y, p.x) + u_time * 0.1;           // the ring turns slowly
+  a = abs(mod(a, 2.0 * SEG) - SEG) - SEG * 0.5;      // fold into one 60° wedge
+  a -= 1.5707963;                                     // which points up
+  vec2 local = vec2(cos(a), sin(a)) * length(p) + vec2(0.0, 330.0);
+  // the wedge holds the camera's middle, where the face is: chins meet in the centre
+  vec2 src = (vec2(0.5, 0.42) * OUT + local * 1.3) / OUT;
+  src = 1.0 - abs(1.0 - mod(src, 2.0));               // mirrored at the picture's edges
+  return saturation(video(src), 1.2) * vignette(uv, 0.35);
+}`,
+  },
+
+  {
+    id: 'glow',
+    glsl: `
+float edges(vec2 uv, vec2 o) {
+  float tl = luma(video(uv + vec2(-o.x, -o.y))), t = luma(video(uv + vec2(0.0, -o.y)));
+  float tr = luma(video(uv + vec2(o.x, -o.y))), l = luma(video(uv + vec2(-o.x, 0.0)));
+  float r = luma(video(uv + vec2(o.x, 0.0))), bl = luma(video(uv + vec2(-o.x, o.y)));
+  float b = luma(video(uv + vec2(0.0, o.y))), br = luma(video(uv + vec2(o.x, o.y)));
+  return length(vec2(tr + 2.0 * r + br - tl - 2.0 * l - bl, bl + 2.0 * b + br - tl - 2.0 * t - tr));
+}
+vec3 effect(vec2 uv) {
+  float line = smoothstep(0.22, 0.6, edges(uv, u_px * 1.5));   // the tube
+  float halo = smoothstep(0.2, 1.0, edges(uv, u_px * 5.0)) * 0.5;   // its glow
+  // a rainbow running diagonally over the picture, slowly cycling
+  float hue = fract(uv.y * 0.7 + uv.x * 0.3 - u_time * 0.08);
+  vec3 tube = hsv2rgb(vec3(hue, 0.8, 1.0));
+  vec3 room = video(uv) * 0.16 + vec3(0.02, 0.0, 0.05);   // the dark room behind
+  return room + tube * (line + halo) + vec3(line * line * 0.3);   // white-hot core
+}`,
+  },
 ];
 
 /** Every implementation by id. */

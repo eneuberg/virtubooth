@@ -81,10 +81,11 @@ Million") and "Noch ein Bier". It uses the rear camera, at `/x/beer/`.
 
 ### Fotobox
 
-Selfies with the front camera, 10 live filters and an optional 3-second
+Selfies with the front camera, 14 live filters and an optional 3-second
 countdown. The filters are WebGL shaders: Normal, Schwarz-Weiß, Sepia,
 Color Pop, Party-Rahmen (with the party's name), Emoji-Props, Neon,
-Vintage/VHS, Retro-Pixel and Comic. The saved photo is exactly what the
+Vintage/VHS, Retro-Pixel, Comic, Wärmebild, Disco, Kaleidoskop and
+Neonlinien. The saved photo is exactly what the
 preview showed. The result comes as a print with "Speichern" and
 "Neues Foto". It lives at `/x/booth/`.
 

@@ -98,6 +98,10 @@ const VALUE_LABELS: Record<string, Record<string, string>> = {
     vhs: 'Vintage/VHS',
     retro: 'Retro-Pixel',
     comic: 'Comic',
+    thermal: 'Wärmebild',
+    disco: 'Disco',
+    kaleido: 'Kaleidoskop',
+    glow: 'Neonlinien',
   },
 };
 

@@ -331,12 +331,14 @@ def test_party_frame_differs_at_the_border(guest: Page, live: LiveServer):
 
 
 @pytest.mark.skipif(BROWSER_NAME == "webkit", reason="WebKit discards a paused WebGL canvas")
-def test_photo_is_exactly_the_preview(guest: Page, live: LiveServer):
+@pytest.mark.parametrize("filter_id", ["party", "thermal", "disco", "kaleido", "glow"])
+def test_photo_is_exactly_the_preview(guest: Page, live: LiveServer, filter_id: str):
     """The capture renders the frozen frame again at 1080×1440: same video frame, same
-    mirroring, same overlay. Compare the frozen preview with the stored photo."""
+    mirroring, same overlay, same time (animated filters). Compare the frozen preview
+    with the stored photo."""
     page = guest
     open_booth(page, live)
-    select_filter(page, "party")
+    select_filter(page, filter_id)
     page.wait_for_timeout(500)
     shoot(page)
     # the capture flash (a white layer over everything, gone after ~180 ms) is not part
@@ -355,7 +357,11 @@ def test_photo_is_exactly_the_preview(guest: Page, live: LiveServer):
     same = diff(preview, photo)
     mirrored = diff(preview, photo.transpose(Image.Transpose.FLIP_LEFT_RIGHT))
     assert same < 8, same
-    assert mirrored > same * 2, (same, mirrored)
+    # the mirroring is the renderer's: not where the picture is (nearly) symmetric, the
+    # kaleidoscope's ring of mirrored copies, or flat, the fake camera's green test card
+    # in the heat palette
+    if filter_id not in ("kaleido", "thermal"):
+        assert mirrored > same * 2, (same, mirrored)
     assert page.js_errors == []
 
 
@@ -726,6 +732,7 @@ def test_canvas2d_fallback(guest: Page, live: LiveServer):
         "party",
         "emoji",
         "neon",
+        "thermal",
     ]  # no GPU-only filters
     select_filter(page, "bw")
     shoot(page)

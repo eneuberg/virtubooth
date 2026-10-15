@@ -18,6 +18,7 @@ from pathlib import Path
 import pytest
 from playwright.sync_api import Browser, BrowserContext, Page, Route, expect
 
+from virtubooth.extensions.booth import FILTERS
 from virtubooth.settings import REPO_ROOT
 
 from ..conftest import BROWSER_NAME, MOBILE, LiveServer, join_via_api, track_errors
@@ -203,6 +204,18 @@ def test_fotobox(device, live: LiveServer, view: str):  # type: ignore[no-untype
     )
     if view in ("phone", "desktop"):
         snap(page, f"booth-result-{view}", 1000)
+    assert page.js_errors == []
+
+
+@pytest.mark.parametrize("filter_id", list(FILTERS))
+def test_fotobox_filter(device, live: LiveServer, filter_id: str):  # type: ignore[no-untyped-def]
+    """Every filter on a phone, its swatch centred in the strip."""
+    page = device("phone", "booth-1.jpg")
+    open_booth(page, live)
+    expect(page.get_by_test_id(f"filter-{filter_id}").locator("img")).to_be_visible(timeout=READY)
+    select_filter(page, filter_id)
+    centred(page, filter_id)
+    snap(page, f"booth-filter-{filter_id}", 900)
     assert page.js_errors == []
 
 
