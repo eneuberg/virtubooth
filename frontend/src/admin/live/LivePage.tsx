@@ -5,7 +5,7 @@
  * (BRIEF invariant; live.test.ts checks this folder for any delete path). With the Live
  * Wall's analysis on, each tile carries the frames of its objects, faces and hands and
  * its chips, and the viewer the full analysis with frames („Analyse zeigen“ in the
- * header, with the frames' legend, turns it off).
+ * header turns it off; each kind of thing has its own frame colour, no legend).
  */
 import { ArrowUp, Eye, EyeOff, Images, LayoutGrid, RotateCw } from 'lucide-react';
 import { useState } from 'react';
@@ -43,13 +43,7 @@ import {
 import { ALL_PHOTOS } from '../store/types';
 import { PartyControls, PartyStateBadges } from '../uploads/PartyControls';
 import { AnalysisBoxes, AnalysisPanel } from '../wall/AnalysisPanel';
-import {
-  AnalysisChips,
-  AnalysisLegend,
-  AnalysisTileFrames,
-  AnalysisToggle,
-  AnalysisWins,
-} from '../wall/LiveAnalysis';
+import { AnalysisChips, AnalysisTileFrames, AnalysisToggle, AnalysisWins } from '../wall/LiveAnalysis';
 import { useLiveAnalysis } from '../wall/liveAnalysisState';
 import { guestName } from '../hostGuest/marks';
 
@@ -92,10 +86,7 @@ function LiveHeader({ desktop }: { desktop: boolean }) {
         </p>
       </div>
       {desktop ? <FilterToggle className="shrink-0" /> : null}
-      <div className="grid shrink-0 justify-items-end gap-0.5">
-        <AnalysisToggle />
-        <AnalysisLegend />
-      </div>
+      <AnalysisToggle className="shrink-0" />
       {desktop ? (
         <LinkButton href="/manage" variant="secondary" size="sm" icon={LayoutGrid}>
           Verwaltung

@@ -343,9 +343,9 @@ def test_photo_analysis_summaries_for_the_live_screen(settings, demo_extension):
             assert items[1]["facts"] == {"people": 3.0, "smiles": 2.0}
             # objects with score and frame (3 places), faces and hands as frames
             assert items[1]["objects"] == [
-                {"label_de": "Flasche", "source": "local", "sources": ["local"], "score": 0.91,
+                {"label": "bottle", "label_de": "Flasche", "source": "local", "sources": ["local"], "score": 0.91,
                  "box": {"x": 0.1, "y": 0.2, "w": 0.3, "h": 0.4}},
-                {"label_de": "Kuchen", "source": "local", "sources": ["local"], "score": 0.5,
+                {"label": "cake", "label_de": "Kuchen", "source": "local", "sources": ["local"], "score": 0.5,
                  "box": None},
             ]  # fmt: skip
             assert items[1]["boxes"] == [

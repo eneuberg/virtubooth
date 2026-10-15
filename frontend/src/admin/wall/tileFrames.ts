@@ -41,6 +41,8 @@ export function coverRect(imageAspect: number, boxAspect: number): Rect {
 
 export interface TileFrame extends Rect {
   kind: BoxKind;
+  /** what it is (the English label, „face“, „hand“): the frame's colour, labelColors.ts */
+  key: string;
   /** the object's name when the frame is big enough for it */
   label: string | null;
 }
@@ -67,11 +69,11 @@ export function tileFrames(
   const out: TileFrame[] = [];
   for (const o of summary.objects) {
     const r = o.box && mapBox(o.box, picture);
-    if (r) out.push({ kind: 'object', ...r, label: o.label_de });
+    if (r) out.push({ kind: 'object', key: o.label, ...r, label: o.label_de });
   }
   for (const b of summary.boxes ?? []) {
     const r = mapBox(b, picture);
-    if (r) out.push({ kind: b.kind, ...r, label: null });
+    if (r) out.push({ kind: b.kind, key: b.kind, ...r, label: null });
   }
   const kept = out.toSorted((a, b) => b.w * b.h - a.w * a.h).slice(0, MAX_TILE_FRAMES);
   for (const f of kept) if (f.w < LABEL_MIN_W || f.h < LABEL_MIN_H) f.label = null;
