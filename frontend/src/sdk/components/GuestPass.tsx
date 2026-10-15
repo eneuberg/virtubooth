@@ -1,16 +1,16 @@
 /**
- * The guest pass: one 44px pill with the pseudonym's monogram, the short pseudonym
- * and the @handle (or "Instagram hinzufügen"), top left on every guest screen. A dot
+ * The guest pass: one 44px pill with a monogram, the name others see (display name,
+ * else @handle, else the short pseudonym) and the @handle (or "Instagram hinzufügen"),
+ * top left on every guest screen. A dot
  * on the monogram marks paused / stopped (amber) and banned (red); the words are in
  * the label. Tap opens the "Du" sheet. Test id `guest-pass` (was user-chip).
  * Names and handles get translate="no".
  */
 import { useState } from 'react';
 import { Button as AriaButton } from 'react-aria-components';
-import { monogram } from '@/lib/format';
 import { t } from '@/lib/messages.de';
 import { cx } from '@/ui/cx';
-import { shortName } from '../identity';
+import { initials, passName } from '../identity';
 import { useSession } from '../session';
 import { useGuestStatus } from '../status';
 import { GuestSheet } from './GuestSheet';
@@ -43,6 +43,9 @@ export function GuestPass({ compact = false, className }: GuestPassProps) {
 
   const flagged = status.kind === 'paused' || status.kind === 'stopped' || status.kind === 'banned';
   const handle = user.instagram ? `@${user.instagram}` : null;
+  const name = passName(user);
+  // second line: the handle (unless it is the name already), else the invitation
+  const second = handle && handle !== name ? handle : handle ? 'Name wählen' : t.addInstagram;
   return (
     <>
       <AriaButton
@@ -60,7 +63,7 @@ export function GuestPass({ compact = false, className }: GuestPassProps) {
           aria-hidden="true"
           className="relative grid size-8 shrink-0 place-items-center rounded-small bg-surface-sunk text-xs font-bold text-accent-ink"
         >
-          {monogram(user.name)}
+          {initials(name)}
           {flagged ? (
             <StatusDot
               tone={status.tone}
@@ -69,15 +72,15 @@ export function GuestPass({ compact = false, className }: GuestPassProps) {
           ) : null}
         </span>
         <span className="grid min-w-0 leading-tight">
-          <span translate="no" className="truncate text-sm font-semibold" title={user.name}>
-            {shortName(user.name)}
+          <span translate="no" className="truncate text-sm font-semibold" title={user.shown_name}>
+            {name}
           </span>
           {compact ? null : (
             <span
-              translate={handle ? 'no' : undefined}
-              className={cx('truncate text-xs', handle ? 'text-ink-muted' : 'text-accent-ink')}
+              translate={second === handle ? 'no' : undefined}
+              className={cx('truncate text-xs', second === handle ? 'text-ink-muted' : 'text-accent-ink')}
             >
-              {handle ?? t.addInstagram}
+              {second}
             </span>
           )}
         </span>

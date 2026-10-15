@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, within } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import type { ConsentInfo } from '@/api/types';
 import { UiProvider } from '@/ui/UiProvider';
@@ -11,17 +11,18 @@ vi.mock('@/sdk/device', () => ({
 
 const join: ConsentInfo = {
   version: '1',
-  title: 'Willkommen bei Eriks Geburtstag! 🎉',
+  title: 'Willkommen bei Lenas Geburtstag! 🎉',
   paragraphs: [
-    "Kurz bevor's losgeht: Wenn du hier Fotos machst, speichern wir sie und dürfen sie auf Instagram (@eriks.party) posten.",
+    "Kurz bevor's losgeht: Wenn du hier Fotos machst, speichern wir sie und dürfen sie auf Instagram (@lenas.party) posten.",
     'Damit wir Missbrauch verhindern können, erkennt die Seite dein Gerät wieder.',
     'Wenn du das nicht möchtest, nutze die Fotobox bitte nicht.',
   ],
   instagram_prompt: 'Dein Instagram (freiwillig). Dann markieren wir dich!',
   accept_label: "Alles klar, los geht's! 🍻",
-  party_name: 'Eriks Geburtstag',
-  instagram_account: '@eriks.party',
+  party_name: 'Lenas Geburtstag',
+  instagram_account: '@lenas.party',
   analysis: false,
+  external_ai: false,
 };
 
 function renderSheet(destination: string | null = 'Beer Cam', texts: ConsentInfo = join) {
@@ -49,7 +50,7 @@ describe('JoinSheet', () => {
   it('shows the server texts typeset: no emoji, lead up front, details behind "Mehr dazu"', () => {
     const dialog = renderSheet();
     expect(within(dialog).getByRole('heading', { level: 2 }).textContent).toBe(
-      'Willkommen bei Eriks Geburtstag!',
+      'Willkommen bei Lenas Geburtstag!',
     );
     expect(dialog.textContent).toContain('Kurz bevor’s losgeht');
     expect(dialog.textContent).toContain('nutze die Fotobox bitte nicht');
@@ -72,6 +73,15 @@ describe('JoinSheet', () => {
     const dialog = renderSheet(null);
     fireEvent.click(within(dialog).getByRole('button', { name: 'Mehr dazu' }));
     expect(within(dialog).queryByRole('switch')).toBeNull();
+  });
+
+  it('offers „Keine Weitergabe an externe KI“ in plain sight while the host has it on', () => {
+    expect(within(renderSheet(null)).queryByRole('switch', { name: /externe KI/ })).toBeNull();
+    cleanup();
+    const dialog = renderSheet(null, { ...join, external_ai: true });
+    const optOut = within(dialog).getByRole('switch', { name: /Keine Weitergabe an externe KI/ });
+    expect(optOut).toHaveProperty('checked', false);
+    expect(dialog.textContent).toContain('Die Auswertung hier auf dem Server läuft trotzdem.');
   });
 
   it('labels the field with the prompt and keeps the rest as help', () => {

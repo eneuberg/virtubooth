@@ -328,6 +328,9 @@ def test_snapshot_drops_password_hashes(tmp_path):
         for key, marker in (
             ("admin.password", "ADMINHASH-MARKER"),
             ("x.wall.password", "WALLHASH-MARKER"),
+            ("x.llm.key", "LLMKEY-MARKER"),
+            ("ai.other.secret", "SECRET-MARKER"),
+            ("x.llm.config", "LLMCONFIG-MARKER"),
             ("x.wall.config", "CONFIG-MARKER"),
             ("event", "EVENT-MARKER"),
         ):
@@ -337,14 +340,15 @@ def test_snapshot_drops_password_hashes(tmp_path):
     snap = take_snapshot(data, scratch, include_hidden=True)
     db.close()
     content = snap.db_file.read_bytes()
-    assert b"ADMINHASH-MARKER" not in content and b"WALLHASH-MARKER" not in content
+    for marker in (b"ADMINHASH-MARKER", b"WALLHASH-MARKER", b"LLMKEY-MARKER", b"SECRET-MARKER"):
+        assert marker not in content, marker
     conn = sqlite3.connect(snap.db_file)
     try:
         keys = {r[0] for r in conn.execute("SELECT key FROM settings")}
     finally:
         conn.close()
-    assert {"x.wall.config", "event"} <= keys
-    assert not keys & {"admin.password", "x.wall.password"}
+    assert {"x.wall.config", "event", "x.llm.config"} <= keys
+    assert not keys & {"admin.password", "x.wall.password", "x.llm.key", "ai.other.secret"}
 
 
 # ============================================================ SEC-04 CSRF

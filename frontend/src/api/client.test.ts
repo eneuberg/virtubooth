@@ -51,10 +51,10 @@ describe('api client', () => {
     fetchMock.mockResolvedValue(
       json(200, { user: { name: 'x', instagram: null, banned: false, uploads_paused: false } }),
     );
-    await unwrap(api.PATCH('/api/me', { body: { instagram: 'erik.n' } }));
+    await unwrap(api.PATCH('/api/me', { body: { instagram: 'lena.k' } }));
     const request = fetchMock.mock.calls[0]![0];
     expect(request.method).toBe('PATCH');
-    expect(await request.json()).toEqual({ instagram: 'erik.n' });
+    expect(await request.json()).toEqual({ instagram: 'lena.k' });
   });
 
   it('turns a network failure into code network', async () => {

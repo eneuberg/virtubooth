@@ -3,17 +3,20 @@
  * browser has a share sheet and it is not iOS, where Speichern already is the share
  * sheet). The JPEG is fetched when the viewer opens, so the tap can hand it to the
  * share sheet right away (Web Share needs the user activation).
- * Previous / next: the buttons, or the arrow keys (round the ends).
+ * Previous / next: the buttons, or the arrow keys (round the ends). „Foto löschen“
+ * (with `onDelete`) asks first, then deletes the photo for good.
  */
 import { useQuery } from '@tanstack/react-query';
-import { ChevronLeft, ChevronRight, Download, Share2 } from 'lucide-react';
-import { useEffect } from 'react';
+import { ChevronLeft, ChevronRight, Download, Share2, Trash2 } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { isApiError } from '@/api/errors';
 import type { GuestPhoto } from '@/api/types';
 import { formatTime, frameLabel } from '@/lib/format';
 import { msg, t } from '@/lib/messages.de';
 import { isIOS } from '@/sdk/platform';
 import { canShareFiles, saveImage, shareImage, type SaveResult } from '@/sdk/share';
 import { Button } from '@/ui/Button';
+import { ConfirmDialog } from '@/ui/ConfirmDialog';
 import { FilmEdge } from '@/ui/FilmEdge';
 import { IconButton } from '@/ui/IconButton';
 import { Sheet } from '@/ui/Sheet';
@@ -25,6 +28,8 @@ export interface PhotoViewerProps {
   /** index into photos, or null when closed */
   index: number | null;
   onIndexChange: (index: number | null) => void;
+  /** deletes the photo for good (after the confirmation); rejects with the ApiError */
+  onDelete?: (photo: GuestPhoto) => Promise<void>;
 }
 
 async function fetchBlob(url: string): Promise<Blob> {
@@ -37,8 +42,10 @@ function report(result: SaveResult): void {
   if (result === 'downloaded') showToast({ tone: 'success', message: msg.saved });
 }
 
-export function PhotoViewer({ photos, index, onIndexChange }: PhotoViewerProps) {
+export function PhotoViewer({ photos, index, onIndexChange, onDelete }: PhotoViewerProps) {
   const photo = index === null ? undefined : photos[index];
+  const [confirming, setConfirming] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
   const blob = useQuery({
     queryKey: ['photo-file', photo?.id],
     queryFn: () => fetchBlob(photo?.url ?? ''),
@@ -142,7 +149,43 @@ export function PhotoViewer({ photos, index, onIndexChange }: PhotoViewerProps) 
             />
           </figure>
           {many ? <IconButton label="Nächstes Bild" icon={ChevronRight} onPress={() => step(1)} /> : <span />}
+          {onDelete ? (
+            <Button
+              variant="quiet"
+              size="sm"
+              icon={Trash2}
+              className="col-start-2 justify-self-center"
+              onPress={() => {
+                setDeleteError(null);
+                setConfirming(true);
+              }}
+              data-testid="photo-delete"
+            >
+              Foto löschen
+            </Button>
+          ) : null}
         </div>
+      ) : null}
+      {onDelete && photo ? (
+        <ConfirmDialog
+          isOpen={confirming}
+          onOpenChange={setConfirming}
+          title="Dieses Foto löschen?"
+          confirmLabel="Foto löschen"
+          error={deleteError}
+          data-testid="photo-delete-confirm"
+          onConfirm={async () => {
+            try {
+              await onDelete(photo);
+              setConfirming(false);
+            } catch (err) {
+              setDeleteError(isApiError(err) ? err.message : msg.generic);
+              throw err;
+            }
+          }}
+        >
+          <p>Es verschwindet für alle, auch von der Live-Wall. Das lässt sich nicht rückgängig machen.</p>
+        </ConfirmDialog>
       ) : null}
     </Sheet>
   );

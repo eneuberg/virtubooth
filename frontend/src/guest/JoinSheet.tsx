@@ -15,7 +15,7 @@ import { useId, useRef, useState, type FormEvent } from 'react';
 import { isApiError } from '@/api/errors';
 import { msg, quoted } from '@/lib/messages.de';
 import { HandleField } from '@/sdk/components/HandleField';
-import { ANALYSIS_OPT_OUT, shortName } from '@/sdk/identity';
+import { ANALYSIS_OPT_OUT, EXTERNAL_AI_OPT_OUT, shortName } from '@/sdk/identity';
 import { joinParty, refreshSession, sessionStore, useJoinClosed, type JoinInfo } from '@/sdk/session';
 import { Button } from '@/ui/Button';
 import { HelpDisclosure } from '@/ui/HelpDisclosure';
@@ -54,6 +54,7 @@ export function JoinSheet({ join, destination }: JoinSheetProps) {
   const formId = useId();
   const [instagram, setInstagram] = useState('');
   const [analysisOptOut, setAnalysisOptOut] = useState(false);
+  const [aiOptOut, setAiOptOut] = useState(false);
   const [fieldError, setFieldError] = useState<string | null>(null);
   const [formError, setFormError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
@@ -70,7 +71,11 @@ export function JoinSheet({ join, destination }: JoinSheetProps) {
     setFieldError(null);
     setFormError(null);
     try {
-      await joinParty({ instagram: instagram || null, analysisOptOut: join.analysis && analysisOptOut });
+      await joinParty({
+        instagram: instagram || null,
+        analysisOptOut: join.analysis && analysisOptOut,
+        aiOptOut: join.external_ai && aiOptOut,
+      });
       welcomeBack();
     } catch (err) {
       if (isApiError(err) && err.code === 'invalid_instagram') {
@@ -149,6 +154,16 @@ export function JoinSheet({ join, destination }: JoinSheetProps) {
           inputRef={inputRef}
           className="mt-1"
         />
+        {join.external_ai ? (
+          <Switch
+            isSelected={aiOptOut}
+            onChange={setAiOptOut}
+            description={EXTERNAL_AI_OPT_OUT.help}
+            data-testid="ai-opt-out"
+          >
+            {EXTERNAL_AI_OPT_OUT.label}
+          </Switch>
+        ) : null}
       </form>
     </Sheet>
   );

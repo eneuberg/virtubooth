@@ -2,7 +2,7 @@
  * Status lines of the Live Wall admin (text.test.ts).
  */
 import { formatDateTime, formatNumber, formatRelative, NBSP } from '@/lib/format';
-import type { AnalysisBox, AnalysisStatus, PasswordState } from './types';
+import type { AnalysisBox, AnalysisStatus, PasswordState, PhotoAnalysis } from './types';
 
 /** "1 Wand offen", "3 Wände offen" */
 export function openWallsText(n: number): string {
@@ -64,4 +64,48 @@ export function processedText(n: number): string {
 /** "412 MB" */
 export function memoryText(mb: number): string {
   return `${formatNumber(Math.round(mb))}${NBSP}MB`;
+}
+
+type Box = { x: number; y: number; w: number; h: number };
+
+/** An object's box as {x, y, w, h}, whether it came as a tuple (test runs) or an object. */
+export function boxOf(box: Box | [number, number, number, number] | null): Box | null {
+  if (!box) return null;
+  if (Array.isArray(box)) {
+    const [x, y, w, h] = box;
+    return { x, y, w, h };
+  }
+  return box;
+}
+
+/** A frame on the photo; object frames know the object's idx (hover highlight). */
+export type FrameBox = AnalysisBox & { objectIndex?: number };
+
+/** Objects with a box as frames of kind "object", labelled in German. */
+export function objectBoxes(
+  objects: ReadonlyArray<{
+    label_de: string;
+    score: number;
+    box: Box | [number, number, number, number] | null;
+    idx?: number;
+  }>,
+): FrameBox[] {
+  const out: FrameBox[] = [];
+  objects.forEach((o, i) => {
+    const b = boxOf(o.box);
+    if (b) out.push({ kind: 'object', ...b, label: o.label_de, score: o.score, objectIndex: o.idx ?? i });
+  });
+  return out;
+}
+
+/**
+ * Faces and hands from `boxes`, plus every object with a box. Persons and objects are
+ * in the object list now (N2): when there is one, their `boxes` copies are dropped.
+ */
+export function framesOf(analysis: Pick<PhotoAnalysis, 'boxes' | 'objects'>): FrameBox[] {
+  const rest =
+    analysis.objects.length > 0
+      ? analysis.boxes.filter((b) => b.kind !== 'object' && b.kind !== 'person')
+      : analysis.boxes;
+  return [...rest, ...objectBoxes(analysis.objects)];
 }

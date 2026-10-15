@@ -218,7 +218,8 @@ export function getSession(): SessionState {
 
 /**
  * POST /api/join with the version of the texts the guest saw, the optional
- * Instagram name and „Meine Fotos nicht automatisch auswerten“ (`analysisOptOut`).
+ * Instagram name, „Meine Fotos nicht automatisch auswerten“ (`analysisOptOut`) and
+ * „Keine Weitergabe an externe KI“ (`aiOptOut`).
  * Rejects with the ApiError (the sheet shows its message).
  * `consent_outdated`: the texts changed meanwhile; the session identifies again, so
  * the sheet shows the new texts (or closes when another tab joined), then rejects.
@@ -226,17 +227,19 @@ export function getSession(): SessionState {
 export async function joinParty(input: {
   instagram: string | null;
   analysisOptOut?: boolean;
+  aiOptOut?: boolean;
 }): Promise<void> {
   const s = get();
   if (s.status !== 'needs_join') return;
   const fp = await getDeviceTraits();
   const instagram = input.instagram?.trim() || null;
   const analysis_opt_out = input.analysisOptOut ?? false;
+  const ai_opt_out = input.aiOptOut ?? false;
   let res: JoinResponse;
   try {
     res = await unwrap(
       api.POST('/api/join', {
-        body: { accept: true, version: s.join.version, instagram, fp, analysis_opt_out },
+        body: { accept: true, version: s.join.version, instagram, fp, analysis_opt_out, ai_opt_out },
       }),
     );
   } catch (err) {
@@ -260,11 +263,10 @@ export async function joinParty(input: {
   });
 }
 
-/** PATCH /api/me; null or blank clears the name. Rejects with the ApiError. */
-export async function setInstagram(handle: string | null): Promise<GuestUser> {
-  const instagram = handle?.trim().replace(/^@+/, '') || null;
+/** Runs a /api/me change and puts the answer's user into the session. */
+async function changeMe(request: () => Promise<{ user: GuestUser }>): Promise<GuestUser> {
   try {
-    const { user } = await unwrap(api.PATCH('/api/me', { body: { instagram } }));
+    const { user } = await request();
     const s = get();
     if (s.status === 'ready') set({ ...s, user });
     else if (s.status === 'banned') set({ ...s, user });
@@ -275,21 +277,33 @@ export async function setInstagram(handle: string | null): Promise<GuestUser> {
   }
 }
 
+/** PATCH /api/me; null or blank clears the name. Rejects with the ApiError. */
+export function setInstagram(handle: string | null): Promise<GuestUser> {
+  const instagram = handle?.trim().replace(/^@+/, '') || null;
+  return changeMe(() => unwrap(api.PATCH('/api/me', { body: { instagram } })));
+}
+
+/**
+ * PATCH /api/me with only `display_name`: the name others see (null or blank: back to
+ * the default, the Instagram name or the random name). Rejects with the ApiError
+ * (`invalid_display_name`, `display_name_taken`: the sheet shows its message).
+ */
+export function setDisplayName(name: string | null): Promise<GuestUser> {
+  const display_name = name?.trim() || null;
+  return changeMe(() => unwrap(api.PATCH('/api/me', { body: { display_name } })));
+}
+
 /**
  * PUT /api/me/analysis: „Meine Fotos nicht automatisch auswerten“ on (true) or off.
  * Rejects with the ApiError.
  */
-export async function setAnalysisOptOut(optOut: boolean): Promise<GuestUser> {
-  try {
-    const { user } = await unwrap(api.PUT('/api/me/analysis', { body: { opt_out: optOut } }));
-    const s = get();
-    if (s.status === 'ready') set({ ...s, user });
-    else if (s.status === 'banned') set({ ...s, user });
-    return user;
-  } catch (err) {
-    if (isApiError(err) && (err.code === 'banned' || err.code === 'needs_consent')) void refreshSession();
-    throw err;
-  }
+export function setAnalysisOptOut(optOut: boolean): Promise<GuestUser> {
+  return changeMe(() => unwrap(api.PUT('/api/me/analysis', { body: { opt_out: optOut } })));
+}
+
+/** PUT /api/me/external-ai: „Keine Weitergabe an externe KI“ on (true) or off. */
+export function setExternalAiOptOut(optOut: boolean): Promise<GuestUser> {
+  return changeMe(() => unwrap(api.PUT('/api/me/external-ai', { body: { opt_out: optOut } })));
 }
 
 /**

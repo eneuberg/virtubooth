@@ -1,6 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import { loginUrl, safeNext } from '../lib/nav';
-import { parseGuestFilter, parsePhotoFilter, parseSection, sectionHref, withParams } from './manageUrl';
+import {
+  SECTIONS,
+  parseGuestFilter,
+  parsePhotoFilter,
+  parseSection,
+  sectionHref,
+  withParams,
+} from './manageUrl';
 
 const q = (s: string) => new URLSearchParams(s);
 
@@ -12,6 +19,36 @@ describe('manage URL state', () => {
     expect(parseSection(null)).toBe('fotos');
     expect(sectionHref('fotos')).toBe('/manage');
     expect(sectionHref('sperren')).toBe('/manage?tab=sperren');
+  });
+
+  it('opens Allgemeines and Fotobox; the old Einstellungen bookmark opens Allgemeines', () => {
+    expect(parseSection('allgemein')).toBe('allgemein');
+    expect(parseSection('fotobox')).toBe('fotobox');
+    expect(parseSection('einstellungen')).toBe('allgemein');
+    expect(parseSection('constructor')).toBe('fotos');
+    expect(parseSection('__proto__')).toBe('fotos');
+    expect(sectionHref('allgemein')).toBe('/manage?tab=allgemein');
+  });
+
+  it('knows every section (PLAN-NIGHT N17)', () => {
+    expect(SECTIONS.toSorted()).toEqual(
+      [
+        'uebersicht',
+        'allgemein',
+        'fotos',
+        'gaeste',
+        'instagram',
+        'fotobox',
+        'livewall',
+        'ml',
+        'sperren',
+        'protokoll',
+        'qr',
+        'plakat',
+        'export',
+      ].toSorted(),
+    );
+    for (const section of SECTIONS) expect(parseSection(section)).toBe(section);
   });
 
   it('reads the photo filters and drops invalid values', () => {

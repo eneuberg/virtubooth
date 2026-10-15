@@ -20,21 +20,19 @@ from contextlib import contextmanager
 from dataclasses import dataclass, replace
 from pathlib import Path
 
-from ..api.schemas.exports import ArchiveOptions, QrOptions, TimelapseOptions
+from ..api.schemas.exports import ArchiveOptions, TimelapseOptions
 from ..core.clock import now_iso
 from ..domain.exports import ExportJob, ExportKind
 from ..extensions.sdk import Extension
 from ..repositories.container import Repositories
 from ..settings import Settings
 from ..tools import export as export_tool
-from ..tools import qr as qr_tool
 from ..tools import timelapse as timelapse_tool
 from ..tools._common import DB_NAME, ToolError, check_free_space
 from .host_settings import event_name
 
 log = logging.getLogger("virtubooth.exports")
 
-NO_ACTIVE_CODE = "Kein aktiver QR-Code. Leg im Tab „QR-Codes“ einen an."
 # the timelapse video: the Beer Cam's 3:4 at full size, x264's default speed
 TIMELAPSE_SIZE = timelapse_tool.Size(1080, 1440)
 TIMELAPSE_PRESET = "medium"
@@ -228,47 +226,9 @@ def run_timelapse(ctx: JobContext) -> None:
         )
 
 
-# ----------------------------------------------------------------------- qr
-
-
-def run_qr(ctx: JobContext) -> None:
-    """qr-sheet.html (self-contained, one A4 page per code) plus every code as
-    SVG and PNG, in one zip. The codes carry the party token."""
-    opts = QrOptions.model_validate(ctx.job.options)
-    if not opts.base_url:  # resolved when the job was created
-        raise JobFailed("Keine öffentliche Adresse für die QR-Codes.")
-    settings = ctx.settings
-    party_name = event_name(settings, ctx.repos)
-    cards = qr_tool.build_cards(
-        opts.base_url,
-        _qr_token(ctx, opts.code_id),
-        [e for e in ctx.extensions if e.show_on_home],
-        party_name=party_name,
-    )
-    root = ctx.root
-    with zipfile.ZipFile(ctx.part, "w", compression=zipfile.ZIP_DEFLATED) as zf:
-        zf.writestr(f"{root}/{qr_tool.SHEET_NAME}", qr_tool.render_sheet(cards, party_name))
-        for i, card in enumerate(cards, 1):
-            for name, data in qr_tool.render_codes(card):
-                zf.writestr(f"{root}/{name}", data)
-            ctx.progress(i / len(cards))
-
-
-def _qr_token(ctx: JobContext, code_id: int | None) -> str:
-    """The token of the job's QR code (chosen when the job was created; jobs
-    from before the choice: the active code with the lowest number)."""
-    code = ctx.repos.codes.get(code_id) if code_id else ctx.repos.codes.lowest_active()
-    if code is None:
-        raise JobFailed(NO_ACTIVE_CODE)
-    if not code.active:
-        raise JobFailed(f"{code.name} wurde inzwischen gelöscht. Wähl einen aktiven QR-Code.")
-    return code.token
-
-
 RUNNERS: dict[ExportKind, Runner] = {
     "archive": run_archive,
     "timelapse": run_timelapse,
-    "qr": run_qr,
 }
 
 

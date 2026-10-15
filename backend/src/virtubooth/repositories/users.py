@@ -44,6 +44,7 @@ class UsersRepo:
         lock_period: int | None = None,
         code_id: int | None = None,
         analysis_opt_out: bool = False,
+        ai_opt_out: bool = False,
     ) -> int:
         """Insert a guest (named by its id) and its first fingerprint. A
         `lock_period` starts it with uploads paused by that new-guest lock;
@@ -53,15 +54,15 @@ class UsersRepo:
                 "INSERT INTO users (public_id, created_at, last_seen_at, consent_at, "
                 "consent_version, instagram, fp_hash, fp_components, first_ip, last_ip, "
                 "user_agent, banned_at, ban_reason, uploads_paused_at, uploads_paused_source, "
-                "uploads_lock_period, code_id, analysis_opt_out) "
-                "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                "uploads_lock_period, code_id, analysis_opt_out, ai_opt_out) "
+                "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
                 (
                     public_id, at, at, at, consent_version, instagram, fp_hash,
                     json.dumps(fp_components), ip, ip, user_agent,
                     at if banned_reason else None, banned_reason,
                     at if lock_period else None,
                     PAUSE_NEW_GUEST_LOCK if lock_period else None,
-                    lock_period, code_id, int(analysis_opt_out),
+                    lock_period, code_id, int(analysis_opt_out), int(ai_opt_out),
                 ),
             )  # fmt: skip
             uid = cur.lastrowid
@@ -121,52 +122,47 @@ class UsersRepo:
         with self.db.tx() as c:
             c.execute("UPDATE users SET instagram=? WHERE id=?", (handle, user_id))
 
-    def set_analysis_opt_out(self, user_id: int, opt_out: bool, *, requeue: bool = True) -> bool:
-        """Switch the guest's photo analysis opt-out; False when unchanged.
-
-        On a change with `requeue`, the guest's photos lose what the Live-Wall
-        analysis found (facts, boxes, details; tables of migration 9) and are
-        queued again, so the worker redoes them with only the basic image values
-        (opted out) or everything. Without `requeue` (the caller's rate limit):
-        switching it off still drops all of that at once (the rows keep their
-        state, with empty versions, so the worker's sweep redoes them); a row
-        being analysed goes back to `pending` so its ML result is never stored.
-        Switching it on leaves the rows to the sweep. Every changed row gets its
-        own `rev` (the app polls changes by rev)."""
+    def set_analysis_opt_out(self, user_id: int, opt_out: bool) -> bool:
+        """Switch the guest's analysis opt-out; False when unchanged. Only the
+        flag flips: what the analysis found stays frozen (PLAN-NIGHT N4), and
+        while the flag is on the guest's photos are left out of categories,
+        polls, verdicts and external detection (their readers check it live)."""
         with self.db.tx() as c:
-            changed = c.execute(
-                "UPDATE users SET analysis_opt_out=? WHERE id=? AND analysis_opt_out != ?",
-                (int(opt_out), user_id, int(opt_out)),
-            ).rowcount
-            if not changed:
-                return False
-            if not requeue and not opt_out:
-                return True
-            photos = "SELECT id FROM photos WHERE user_id=?"
-            c.execute(f"DELETE FROM wall_facts WHERE photo_id IN ({photos})", (user_id,))
-            rows = c.execute(
-                f"SELECT photo_id, state FROM wall_analysis WHERE photo_id IN ({photos}) "
-                "ORDER BY photo_id",
-                (user_id,),
-            ).fetchall()
-            base = int(
-                c.execute("SELECT COALESCE(MAX(rev), 0) + 1 FROM wall_analysis").fetchone()[0]
+            return (
+                c.execute(
+                    "UPDATE users SET analysis_opt_out=? WHERE id=? AND analysis_opt_out != ?",
+                    (int(opt_out), user_id, int(opt_out)),
+                ).rowcount
+                > 0
             )
-            if requeue:
-                c.executemany(
-                    "UPDATE wall_analysis SET state='pending', attempts=0, error=NULL, "
-                    "data='{}', versions='{}', rev=? WHERE photo_id=?",
-                    [(base + i, r[0]) for i, r in enumerate(rows)],
-                )
-            else:
-                c.executemany(
-                    "UPDATE wall_analysis SET data='{}', versions='{}', rev=?, "
-                    "state=CASE WHEN state='running' THEN 'pending' ELSE state END, "
-                    "attempts=CASE WHEN state='running' THEN 0 ELSE attempts END "
-                    "WHERE photo_id=?",
-                    [(base + i, r[0]) for i, r in enumerate(rows)],
-                )
-        return True
+
+    def set_ai_opt_out(self, user_id: int, opt_out: bool) -> bool:
+        """„Keine Weitergabe an externe KI“ on or off; False when unchanged."""
+        with self.db.tx() as c:
+            return (
+                c.execute(
+                    "UPDATE users SET ai_opt_out=? WHERE id=? AND ai_opt_out != ?",
+                    (int(opt_out), user_id, int(opt_out)),
+                ).rowcount
+                > 0
+            )
+
+    def set_display_name(self, user_id: int, name: str | None) -> bool:
+        """The name the guest chose (None: back to the default); False when unchanged."""
+        with self.db.tx() as c:
+            return (
+                c.execute(
+                    "UPDATE users SET display_name=? WHERE id=? AND display_name IS NOT ?",
+                    (name, user_id, name),
+                ).rowcount
+                > 0
+            )
+
+    def names(self) -> builtins.list[tuple[int, str, str | None, str | None]]:
+        """(id, pseudonym, instagram, display name) of every guest: the display
+        name check compares against all of them."""
+        rows = self.db.all("SELECT id, name, instagram, display_name FROM users")
+        return [(int(r[0]), r[1] or "", r[2], r[3]) for r in rows]
 
     def list(
         self,
@@ -190,9 +186,12 @@ class UsersRepo:
                 "u.uploads_paused_at IS NOT NULL" if paused else "u.uploads_paused_at IS NULL"
             )
         if search:
-            where.append("(u.name LIKE ? OR u.instagram LIKE ? OR CAST(u.id AS TEXT) = ?)")
+            where.append(
+                "(u.name LIKE ? OR u.instagram LIKE ? OR u.display_name LIKE ? "
+                "OR CAST(u.id AS TEXT) = ?)"
+            )
             like = f"%{search}%"
-            params += [like, like, search.lstrip("#")]
+            params += [like, like, like, search.lstrip("#")]
         sql = f"SELECT {USER_COLS}, {_PHOTO_COUNT} FROM users u"
         if where:
             sql += " WHERE " + " AND ".join(where)

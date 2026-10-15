@@ -45,6 +45,15 @@ body {
   height: 100%;
 }
 
+/* The live wall is a TV screen: nothing that browser extensions add to the page may sit
+   on it. Bitwarden's "save login" bar (a fixed 430×400 box at the top right, blank white
+   on this page) stayed there after the wall's login. Only body children other than the
+   app: the boot-check notice stays; extension UI in the top layer (popovers) is not
+   reached, the login blurs its field so that closes on its own (Screens.tsx). */
+:root[data-wall-live] body > :not(#app):not([data-testid='load-failed']) {
+  display: none !important;
+}
+
 .wall {
   position: fixed;
   inset: 0;
@@ -383,13 +392,32 @@ body {
   background: linear-gradient(90deg, var(--wall-primary), var(--wall-secondary));
 }
 
+/* the winners and (on a compact grid) the AI's verdict under them */
+.wall-cat-side {
+  display: grid;
+  grid-template-rows: minmax(0, 1fr) auto;
+  align-items: center;
+  height: 100%;
+  min-height: 0;
+}
+
 .wall-cat-winners {
   display: flex;
   align-items: center;
   justify-content: center;
   gap: 4vmin;
   height: 100%;
+  min-height: 0;
   container-type: size;
+}
+
+/* 4–10 winners: two rows of uniform 3:4 cells, as large as the column allows */
+.wall-cat-winners[data-compact] {
+  display: grid;
+  grid-template-columns: repeat(var(--cols, 3), auto);
+  align-content: center;
+  justify-content: center;
+  gap: 4.4vmin 2.6vmin;
 }
 
 /* the corner overlay (Corner.tsx publishes its size) keeps the category clear: both
@@ -441,6 +469,39 @@ body {
   height: 46vh;
 }
 
+.wall-cat-winners[data-cols='2'] {
+  --cols: 2;
+}
+
+.wall-cat-winners[data-cols='3'] {
+  --cols: 3;
+}
+
+.wall-cat-winners[data-cols='4'] {
+  --cols: 4;
+}
+
+.wall-cat-winners[data-cols='5'] {
+  --cols: 5;
+}
+
+.wall-cat-winners[data-compact] .wall-cat-pic {
+  aspect-ratio: 3 / 4;
+  height: 30vh;
+}
+
+.wall-cat-winners[data-compact] .wall-cat-photo {
+  animation-duration: 800ms;
+}
+
+.wall-cat-winners[data-compact] .wall-cat-photo:nth-child(n + 4) {
+  animation-delay: 480ms;
+}
+
+.wall-cat-winners[data-compact] .wall-cat-photo:nth-child(n + 7) {
+  animation-delay: 600ms;
+}
+
 /* (old TV browsers without container queries keep the plain heights above) */
 @supports (height: 1cqh) {
   .wall-cat-pic {
@@ -457,6 +518,20 @@ body {
 
   .wall-cat-winners[data-count='3'] .wall-cat-pic {
     height: min(46vh, var(--room), (100cqw - 12vmin) / 3 / var(--a, 0.75));
+  }
+
+  /* two lines of verdict under the photo need room too */
+  .wall-cat-winners[data-verdict] .wall-cat-pic {
+    --room: calc(100cqh - 24vmin);
+  }
+
+  /* two rows; each cell's label sits on the photo, the name under it (7vmin) */
+  .wall-cat-winners[data-compact] .wall-cat-pic {
+    height: min(
+      34vh,
+      (100cqh - 4.4vmin - 14vmin) / 2,
+      (100cqw - (var(--cols, 3) - 1) * 2.6vmin) / var(--cols, 3) * 4 / 3
+    );
   }
 }
 
@@ -493,6 +568,105 @@ body {
   font-size: clamp(14px, 2.6vmin, 80px);
   font-weight: 650;
   text-align: center;
+}
+
+.wall-cat-winners[data-compact] .wall-cat-value {
+  top: -1.4vmin;
+  right: -1.4vmin;
+  padding: 0.6vmin 1.4vmin;
+  font-size: clamp(14px, 2vmin, 60px);
+}
+
+.wall-cat-winners[data-compact] .wall-cat-by {
+  margin-top: 0.8vmin;
+  overflow: hidden;
+  max-width: 100%;
+  font-size: clamp(14px, 1.9vmin, 56px);
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+/* the place on a compact cell, bottom left on the photo */
+.wall-cat-pic {
+  position: relative;
+}
+
+.wall-cat-rank {
+  position: absolute;
+  bottom: 0.8vmin;
+  left: 0.8vmin;
+  display: grid;
+  place-items: center;
+  min-width: 4.4vmin;
+  height: 4.4vmin;
+  padding: 0 1vmin;
+  border-radius: 999px;
+  background: rgb(0 0 0 / 0.62);
+  color: #fff;
+  font-size: clamp(14px, 2.4vmin, 70px);
+  font-weight: 800;
+}
+
+/* the AI's verdict, two lines at most. Under one of 1–3 photos it hangs below the
+   photo out of the flow (it may be wider than the photo, the row keeps its width; the
+   pictures leave room for it); under a compact grid it is the side column's last row */
+.wall-cat-verdict {
+  display: -webkit-box;
+  overflow: hidden;
+  margin: 0;
+  font-size: clamp(16px, 2.5vmin, 76px);
+  font-weight: 650;
+  line-height: 1.25;
+  text-align: center;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  animation: wall-verdict-in 900ms ease-out 1.1s both;
+}
+
+.wall-cat-photo .wall-cat-verdict {
+  position: absolute;
+  top: calc(100% + 1.4vmin);
+  width: max-content;
+  max-width: min(84vmin, 100cqw);
+}
+
+.wall-cat-verdict[data-align='start'] {
+  left: 0;
+  text-align: left;
+}
+
+.wall-cat-verdict[data-align='end'] {
+  right: 0;
+  text-align: right;
+}
+
+.wall-cat-verdict[data-align='center'] {
+  left: 50%;
+  width: min(84vmin, 100cqw);
+  margin-left: calc(min(84vmin, 100cqw) / -2);
+}
+
+.wall-cat-side > .wall-cat-verdict {
+  max-width: min(110vmin, 100%);
+  margin: 0 auto 2vmin;
+}
+
+/* the compact cell the verdict is about */
+.wall-cat-winners[data-compact] .wall-cat-photo[data-verdict] .wall-cat-pic {
+  outline: 0.7vmin solid var(--wall-secondary);
+  outline-offset: 0.5vmin;
+}
+
+.wall-cat-verdict-emoji {
+  margin-right: 0.35em;
+}
+
+@keyframes wall-verdict-in {
+  from {
+    opacity: 0;
+    transform: translateY(1.6vmin);
+  }
 }
 
 @keyframes wall-slide-in {

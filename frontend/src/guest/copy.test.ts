@@ -1,10 +1,14 @@
 import { describe, expect, it } from 'vitest';
-import { activityList, fallbackJoinText, firstPhotoText, WALL_ANALYSIS_TEXT } from './copy';
+import { activityList, EXTERNAL_AI_TEXT, fallbackJoinText, firstPhotoText, WALL_ANALYSIS_TEXT } from './copy';
 
 describe('the join texts before the server sent them', () => {
   it('say what the Live-Wall analysis does, before the last paragraph', () => {
     const texts = fallbackJoinText('@party');
-    expect(texts.at(-2)).toBe(WALL_ANALYSIS_TEXT);
+    expect(texts.at(-3)).toBe(WALL_ANALYSIS_TEXT);
+    expect(texts.at(-2)).toBe(EXTERNAL_AI_TEXT);
+    expect(EXTERNAL_AI_TEXT).toContain('Anthropic');
+    expect(EXTERNAL_AI_TEXT).toContain('Mistral AI');
+    expect(texts.join(' ')).not.toContain('verlässt den Server');
     expect(texts.at(-1)).toBe('Wenn du das nicht möchtest, mach hier bitte keine Fotos.');
   });
 });

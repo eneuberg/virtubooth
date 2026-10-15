@@ -31,6 +31,7 @@ import {
 } from 'lucide-react';
 import { useEffect, useState, type ReactNode } from 'react';
 import { formatCount, frameLabel } from '@/lib/format';
+import { HandleField } from '@/sdk/components/HandleField';
 import { Badge } from '@/ui/Badge';
 import { BottomBar } from '@/ui/BottomBar';
 import { Button, LinkButton } from '@/ui/Button';
@@ -130,7 +131,7 @@ function Tokens() {
       <Both>
         {() => (
           <div className="grid gap-2">
-            <p className="text-3xl font-bold">Eriks Geburtstag</p>
+            <p className="text-3xl font-bold">Lenas Geburtstag</p>
             <p className="text-2xl font-bold">Display 34</p>
             <p className="text-xl font-bold">Titel 27</p>
             <p className="text-lg font-semibold">Abschnitt 21</p>
@@ -256,7 +257,7 @@ function Status() {
 }
 
 function Forms() {
-  const [insta, setInsta] = useState('erik.n');
+  const [insta, setInsta] = useState('lena.k');
   const [bad, setBad] = useState('müller');
   const [ext, setExt] = useState<'all' | 'beer' | 'booth'>('all');
   const [vis, setVis] = useState<'all' | 'visible' | 'hidden'>('all');
@@ -270,18 +271,14 @@ function Forms() {
         {(tone) => (
           <>
             <div className="grid gap-4 sm:grid-cols-2">
-              <TextField
+              <HandleField
                 label="Instagram (freiwillig)"
                 description="Dann können wir dich markieren."
-                prefix="@"
-                placeholder="deinname…"
                 value={insta}
                 onChange={setInsta}
-                maxLength={31}
               />
-              <TextField
+              <HandleField
                 label="Instagram-Name"
-                prefix="@"
                 value={bad}
                 onChange={setBad}
                 errorMessage="Instagram-Namen haben keine Umlaute und kein ß. Schau nochmal, wie deiner genau geschrieben wird."
@@ -410,7 +407,7 @@ function Navigation() {
                 currentId="fotos"
                 header={
                   <div className="grid gap-1">
-                    <p className="text-md font-bold">Eriks Geburtstag</p>
+                    <p className="text-md font-bold">Lenas Geburtstag</p>
                     <ConnectionIndicator status="live" />
                   </div>
                 }
@@ -703,7 +700,7 @@ function Overlays() {
         isOpen={join}
         onOpenChange={setJoin}
         isDismissable={false}
-        title="Willkommen bei Eriks Geburtstag"
+        title="Willkommen bei Lenas Geburtstag"
         titleSize="xl"
         data-testid="join"
         footer={
@@ -717,19 +714,18 @@ function Overlays() {
       >
         <div className="grid gap-4">
           <p className="text-md">
-            Deine Fotos sehen die Gastgeber, und sie dürfen sie auf <span translate="no">@eriks.party</span>{' '}
+            Deine Fotos sehen die Gastgeber, und sie dürfen sie auf <span translate="no">@lenas.party</span>{' '}
             posten. Wenn du das nicht willst, mach hier bitte keine Fotos.
           </p>
           <HelpDisclosure summary="Mehr dazu">
             Damit wir dich wiedererkennen, merkt sich die Seite dein Gerät. Deine Fotos bleiben auf dem
             Party-Server.
           </HelpDisclosure>
-          <TextField
+          <HandleField
             label="Instagram (freiwillig)"
             description="Dann können wir dich markieren."
-            prefix="@"
-            placeholder="deinname…"
-            maxLength={31}
+            value=""
+            onChange={() => undefined}
           />
         </div>
       </Sheet>

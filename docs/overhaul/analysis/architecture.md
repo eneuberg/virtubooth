@@ -6,8 +6,8 @@ I analysed `.worktrees/overhaul` at commit `1d6b5eb`, which is identical to `mai
 - I read every backend module, the core frontend SDK and both extension frontends myself.
 - I confirmed the exact response shapes by calling the real app with FastAPI's `TestClient`. It ran in a scratch data directory with bytecode writing off, so no repo files were touched.
 - Two read-only helpers produced the admin UI inventory and the test-suite map. Their full reports are much longer than the summaries in §3.9 and §6. **Save them verbatim as appendices**, because the rewrite must not lose anything in them:
-  - **Appendix A, admin UI inventory (about 1160 lines):** `/home/erikli/.claude/projects/-home-erikli-a-personal-aaa-doingthings-random-projects/c8c156ec-0ba7-4a87-baaa-c6c050bea40f/tool-results/toolu_01DuJianoMgwYYwuw7B7PUWF.txt`. Suggested name: `docs/overhaul/analysis/admin-ui-inventory.md`.
-  - **Appendix B, test-suite map (about 1200 lines):** `/home/erikli/.claude/projects/-home-erikli-a-personal-aaa-doingthings-random-projects/c8c156ec-0ba7-4a87-baaa-c6c050bea40f/tool-results/toolu_01CfXJR5wGpk4TnbtQRa3acN.txt`. Suggested name: `docs/overhaul/analysis/test-suite-map.md`.
+  - **Appendix A, admin UI inventory (about 1160 lines):** `<session>/tool-results/toolu_01DuJianoMgwYYwuw7B7PUWF.txt`. Suggested name: `docs/overhaul/analysis/admin-ui-inventory.md`.
+  - **Appendix B, test-suite map (about 1200 lines):** `<session>/tool-results/toolu_01CfXJR5wGpk4TnbtQRa3acN.txt`. Suggested name: `docs/overhaul/analysis/test-suite-map.md`.
 
 ---
 

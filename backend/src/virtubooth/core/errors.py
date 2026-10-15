@@ -20,11 +20,18 @@ ErrorCode = Literal[
     "consent_outdated",
     "invalid_instagram",
     "join_closed",
+    "invalid_display_name",
+    "display_name_taken",
     # live wall
     "wall_login_required",
     "wall_no_password",
     "wall_password_too_short",
     "invalid_wall_config",
+    # wall categories and analysis
+    "invalid_category",
+    "category_exists",
+    "invalid_analyzer_settings",
+    "worker_off",
     # uploads
     "uploads_paused",
     "uploads_stopped",
@@ -48,6 +55,7 @@ ErrorCode = Literal[
     "restore_required",
     # admin settings
     "invalid_event_name",
+    "invalid_public_address",
     "password_too_short",
     "password_unchanged",
     "no_filter_enabled",
@@ -55,14 +63,19 @@ ErrorCode = Literal[
     # admin exports
     "export_not_ready",
     "export_running",
-    "base_url_required",
-    "invalid_base_url",
     # QR codes
     "invalid_token",
     "token_taken",
     "code_revoked",
     "invalid_target",
     "invalid_note",
+    # external AI (LLM)
+    "invalid_llm_config",
+    "llm_not_configured",
+    "llm_key_invalid",
+    "llm_budget_exhausted",
+    "invalid_property",
+    "property_exists",
     # request guards
     "bad_origin",
     "length_required",
@@ -80,6 +93,11 @@ class ErrorBody(BaseModel):
 
     error: ErrorCode = Field(description="Machine-readable error code.")
     message: str = Field(description="German text for the guest or admin, shown as-is.")
+    field: str | None = Field(
+        default=None,
+        description="The form field a 400 is about, when the answer names one "
+        "(e.g. `invalid_category`: title, line, where, by, count, verdict, ...).",
+    )
 
 
 class ApiError(Exception):
@@ -90,15 +108,20 @@ class ApiError(Exception):
         message: str,
         *,
         headers: dict[str, str] | None = None,
+        field: str | None = None,
     ) -> None:
         super().__init__(message)
         self.status = status
         self.code: ErrorCode = code
         self.message = message
         self.headers = headers or {}
+        self.field = field
 
     def body(self) -> dict[str, str]:
-        return {"error": self.code, "message": self.message}
+        out = {"error": self.code, "message": self.message}
+        if self.field is not None:
+            out["field"] = self.field
+        return out
 
 
 # ------------------------------------------------------------ factories

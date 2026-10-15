@@ -6,7 +6,13 @@
 import { sortedCopy } from '../lib/browser';
 import type { PlaylistEntry, WallConfig, WallMode } from './types';
 
-export type WallEdit = Omit<WallConfig, 'rev' | 'updated_at' | 'by'>;
+/**
+ * What the admin sends. `categories.disabled` is left out: categories are switched on
+ * and off in their own table now (PUT /categories/{id}); the server ignores the list.
+ */
+export type WallEdit = Omit<WallConfig, 'rev' | 'updated_at' | 'by' | 'categories'> & {
+  categories: Pick<WallConfig['categories'], 'per_category_s'>;
+};
 
 export const RANGES = {
   duration_s: [10, 3600],
@@ -28,7 +34,7 @@ export function editable(config: WallConfig): WallEdit {
     playlist: config.playlist,
     spotlight: config.spotlight,
     gallery: config.gallery,
-    categories: config.categories,
+    categories: { per_category_s: config.categories.per_category_s },
     sources: config.sources,
     delay_s: config.delay_s,
     show_instagram: config.show_instagram,

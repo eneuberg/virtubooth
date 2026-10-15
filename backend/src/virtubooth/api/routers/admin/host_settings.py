@@ -1,4 +1,5 @@
-"""Einstellungen: the event name and the admin password (`/api/admin/settings`).
+"""Allgemeines: the event name, the admin password and the public address
+(`/api/admin/settings`).
 Extensions add their own settings under `/api/admin/x/<id>/` (Extension.admin_router)."""
 
 from __future__ import annotations
@@ -8,20 +9,46 @@ from fastapi import APIRouter, Request
 from ....core.security import client_ip, is_direct_loopback
 from ...deps import AdminDep, CoreDep
 from ...schemas.host_settings import (
+    AddressCheck,
     AdminSettingsOut,
     EventNameIn,
     EventSettingsOut,
     PasswordChangedOut,
     PasswordChangeIn,
+    PublicAddress,
+    PublicAddressIn,
 )
 
 router = APIRouter()
 
 
+def _origin(request: Request) -> str:
+    return str(request.base_url).rstrip("/")
+
+
 @router.get("/settings")
-def get_settings(core: CoreDep) -> AdminSettingsOut:
-    """The event name and where the admin password comes from."""
-    return core.services.host_settings.admin_settings()
+def get_settings(request: Request, core: CoreDep) -> AdminSettingsOut:
+    """The event name, where the admin password comes from, and the public
+    address with its last check."""
+    return core.services.host_settings.admin_settings(_origin(request))
+
+
+@router.put("/settings/public-address")
+def set_public_address(
+    body: PublicAddressIn, request: Request, core: CoreDep, admin: AdminDep
+) -> PublicAddress:
+    """Set the public address (null or blank: VB_PUBLIC_BASE_URL, else
+    automatic) and check it at once. 400 `invalid_public_address`. A failed
+    check never blocks saving."""
+    return core.services.host_settings.set_public_address(
+        body.address, actor=admin.actor, origin=_origin(request)
+    )
+
+
+@router.post("/settings/public-address/check")
+def check_public_address(core: CoreDep) -> AddressCheck:
+    """Check the public address now: does `<address>/healthz` reach this server?"""
+    return core.services.host_settings.check_public_address()
 
 
 @router.put("/settings/event")

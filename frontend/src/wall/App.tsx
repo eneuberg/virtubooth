@@ -246,6 +246,14 @@ export function WallApp() {
 
   useEffect(() => keepScreenOn(), []);
 
+  // live: wall.css hides what browser extensions put into the page (see `data-wall-live`)
+  useEffect(() => {
+    const root = document.documentElement;
+    if (!live) return undefined;
+    root.setAttribute('data-wall-live', '');
+    return () => root.removeAttribute('data-wall-live');
+  }, [live]);
+
   const corner = state.config.overlay.corner;
   return (
     <div

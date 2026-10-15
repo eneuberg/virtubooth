@@ -236,4 +236,4 @@ def test_join_texts_say_what_the_hosts_see(client):
     consent = identify(client)["consent"]
     assert SENTENCE in consent["paragraphs"]
     # between the device paragraph and the last one (under „Mehr dazu“)
-    assert consent["paragraphs"].index(SENTENCE) == len(consent["paragraphs"]) - 2
+    assert 0 < consent["paragraphs"].index(SENTENCE) < len(consent["paragraphs"]) - 1

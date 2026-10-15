@@ -1,6 +1,6 @@
 # virtubooth admin UI: behaviour inventory
 
-Everything below comes from reading the code in `/home/erikli/a/personal/aaa_doingthings/random_projects/virtubooth/.worktrees/overhaul`. Nothing was modified. Paths are relative to `virtubooth/` unless stated otherwise.
+Everything below comes from reading the code in `<repo>/.worktrees/overhaul`. Nothing was modified. Paths are relative to `virtubooth/` unless stated otherwise.
 
 Overall: the admin UI has no QR feature and no export beyond a single-photo download. The admin cannot edit or rename a guest's Instagram handle or name; handles are only shown, copied or linked. Section 15 lists the existing bugs, which the rewrite should knowingly keep or fix.
 

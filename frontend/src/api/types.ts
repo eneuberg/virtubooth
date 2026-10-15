@@ -101,7 +101,6 @@ export type ExportKind = S['ExportJob']['kind'];
 export type ExportStatus = S['ExportJob']['status'];
 export type ArchiveOptions = S['ArchiveOptions'];
 export type TimelapseOptions = S['TimelapseOptions'];
-export type QrOptions = S['QrOptions'];
 /** POST /api/admin/exports body (one variant per kind) */
 export type ExportRequest = S['ExportIn'];
 /** POST /api/admin/exports: 202 + created:true, or 200 + created:false (already queued/running) */
@@ -129,6 +128,8 @@ export type CodesList = S['CodesOut'];
 /** GET /api/admin/settings */
 export type AdminSettings = S['AdminSettingsOut'];
 export type EventSettings = S['EventSettings'];
+export type PublicAddress = S['PublicAddress'];
+export type AddressCheck = S['AddressCheck'];
 export type PasswordState = S['PasswordState'];
 /** GET/PUT /api/admin/x/booth/filters */
 export type BoothFilterSettings = S['BoothFilterSettingsOut'];
@@ -138,3 +139,23 @@ export type PosterOut = S['PosterOut'];
 export type PosterTemplate = S['PosterTemplate'];
 /** PUT /api/admin/poster/layout */
 export type PosterLayoutIn = S['PosterLayoutIn'];
+
+// ---------------- Live-Wall analysis, categories and ML-Pipeline (PLAN-NIGHT §4.3, §4.4)
+// Only the answers whose generated type has no defaulted (optional) fields; the
+// others are written by hand in admin/wall/types.ts and admin/ml/types.ts and
+// checked against these schemas there (contract.ts).
+
+/** the external-AI key's state, never the key itself (N11) */
+export type LlmKeyState = S['KeyOut'];
+export type LlmKeyTest = S['KeyTestOut'];
+export type LlmProvider = S['ProviderOut'];
+export type LlmModel = S['ModelOut'];
+export type LlmPoller = S['PollerOut'];
+export type LlmDetection = S['DetectionOut'];
+export type LlmUsageTotals = S['UsageTotals'];
+export type LlmUsageRow = S['UsageByKind'];
+export type LlmProperty = S['PropertyOut'];
+/** POST /api/x/wall/admin/llm/poll */
+export type LlmPollResponse = S['PollOut'];
+/** one object of a test-image run (box 0..1 of the image) */
+export type TestObject = S['ObjectOut'];

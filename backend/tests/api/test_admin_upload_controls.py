@@ -113,6 +113,9 @@ def test_paused_guest_cannot_upload_but_keeps_everything_else(admin, guest, core
     # the guest sees only the flag, not why or since when
     assert set(me["user"]) == {
         "name",
+        "display_name",
+        "shown_name",
+        "ai_opt_out",
         "instagram",
         "banned",
         "uploads_paused",

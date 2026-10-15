@@ -13,16 +13,58 @@ export const ANALYSIS_OPT_OUT = {
   help: 'Dann zählt die Live-Wall auf deinen Fotos keine Gesichter oder Hände, nur Helligkeit und Farben.',
 } as const;
 
+/** „Keine Weitergabe an externe KI“ (join sheet while the host has it on, and the „Du“ sheet). */
+export const EXTERNAL_AI_OPT_OUT = {
+  label: 'Keine Weitergabe an externe KI',
+  help: 'Deine Fotos und Namen gehen nie an einen externen KI-Dienst. Die Auswertung hier auf dem Server läuft trotzdem.',
+} as const;
+
+/** The „Anzeigename“ field of the „Du“ sheet. */
+export const DISPLAY_NAME = {
+  label: 'Anzeigename',
+  help: 'So sehen dich die anderen. Standard: dein Instagram-Name, sonst dein Zufallsname.',
+  max: 24,
+} as const;
+
+/** The name the guest is shown with by default: „@<instagram>“, else the random name. */
+export function defaultName(user: { instagram: string | null; name: string }): string {
+  return user.instagram ? `@${user.instagram}` : user.name;
+}
+
+/**
+ * The guest pass's first line: the chosen display name, else the handle, else the
+ * random name without its number.
+ */
+export function passName(user: {
+  display_name: string | null;
+  instagram: string | null;
+  name: string;
+}): string {
+  return user.display_name ?? (user.instagram ? `@${user.instagram}` : shortName(user.name));
+}
+
 /** 30 characters is Instagram's limit */
 export const HANDLE_MAX = 30;
 
-/** "@party.anna" → "party.anna"; leading spaces and @ go. */
+/** "@party.anna" → "party.anna": leading spaces and every "@" go (typed or pasted; the field shows its own). */
 export function cleanHandle(value: string): string {
-  return value.replace(/^[\s@]+/, '');
+  return value.replace(/[@＠]/g, '').replace(/^\s+/, '');
 }
 
 /** The handle inside a pasted profile link, or null for plain text. */
 export function handleFromLink(text: string): string | null {
   const m = /instagram\.com\/([A-Za-z0-9._]+)/i.exec(text);
   return m?.[1] ?? null;
+}
+
+/** "Party Fred" → "PF", "@lena.k" → "L", "🎉 Fred" → "🎉F" (whole characters, never half an emoji). */
+export function initials(name: string): string {
+  return name
+    .replace(/^@/, '')
+    .replace(/\s*#\d+$/, '')
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((w) => (Array.from(w)[0] ?? '').toLocaleUpperCase('de-DE'))
+    .join('');
 }

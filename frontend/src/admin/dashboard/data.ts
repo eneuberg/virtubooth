@@ -77,6 +77,8 @@ export async function flipSwitch(qc: QueryClient, which: QuickSwitch, enabled: b
  */
 export function handFocus(testId: string): void {
   window.setTimeout(() => {
+    // the page (or a test's DOM) may be gone by now
+    if (typeof document === 'undefined') return;
     const active = document.activeElement;
     if (active && active !== document.body && active.isConnected) return;
     document.querySelector<HTMLElement>(`[data-testid="${testId}"]`)?.focus();

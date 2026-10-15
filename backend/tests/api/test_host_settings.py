@@ -42,6 +42,17 @@ def test_defaults(admin):
             "by": None,
         },
         "password": {"source": "env", "changed_at": None},
+        "public_address": {
+            "address": None,
+            "effective": "http://testserver",
+            "source": "auto",
+            "check": {
+                "status": "auto",
+                "url": None,
+                "at": None,
+                "message": "Die QR-Codes nehmen die Adresse, unter der die Verwaltung offen ist.",
+            },
+        },
     }
 
 

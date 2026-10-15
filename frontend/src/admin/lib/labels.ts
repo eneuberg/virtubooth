@@ -98,6 +98,10 @@ const VALUE_LABELS: Record<string, Record<string, string>> = {
     vhs: 'Vintage/VHS',
     retro: 'Retro-Pixel',
     comic: 'Comic',
+    thermal: 'Wärmebild',
+    disco: 'Disco',
+    kaleido: 'Kaleidoskop',
+    glow: 'Neonlinien',
   },
 };
 
@@ -153,6 +157,9 @@ export const AUDIT_LABELS: Record<string, string> = {
   'admin.password_change_failed': 'Passwort ändern: falsches Passwort',
   'admin.password_reset': 'Admin-Passwort zurückgesetzt (Server)',
   'settings.event': 'Eventname geändert',
+  'settings.public_address': 'Öffentliche Adresse geändert',
+  'user.display_name': 'Anzeigename geändert',
+  'user.display_name_reset': 'Anzeigename zurückgesetzt',
   'extension.settings': 'Aktivität eingestellt',
   'user.uploads_pause': 'Hochladen für Gast pausiert',
   'user.uploads_unpause': 'Hochladen für Gast erlaubt',
@@ -179,9 +186,11 @@ export function auditAction(action: string): string {
   return AUDIT_LABELS[action] ?? action;
 }
 
-/** "Admin-Sitzung edb5", "Unbekannt". */
+/** "Admin-Sitzung edb5", "Gast #12" (the guest did it), "Unbekannt". */
 export function auditActor(actor: string): string {
   if (actor === 'anonymous' || !actor) return 'Unbekannt';
+  const guest = /^guest:(\d+)$/.exec(actor);
+  if (guest?.[1]) return `Gast #${guest[1]}`;
   const m = /^admin:([0-9a-f]+)$/.exec(actor);
   return m?.[1] ? `Admin-Sitzung ${m[1].slice(0, 4)}` : actor;
 }
@@ -215,7 +224,7 @@ const KIND_WORDS: Record<string, string> = { archive: 'Archiv', timelapse: 'Zeit
 
 /**
  * "Zeitraffer (Beer Cam) vom 13.10.2026, 22:41": a timelapse names its activity by
- * title, a QR-Bogen its code ("QR-Bogen (#2) vom …").
+ * title. (The old QR-Bogen kind only lives on in audit entries: KIND_WORDS.)
  */
 export function exportJobTitle(
   job: Pick<ExportJob, 'kind' | 'options' | 'created_at'>,
@@ -223,13 +232,8 @@ export function exportJobTitle(
 ): string {
   const options: Record<string, unknown> = { ...job.options };
   const id = options['extension'];
-  const code = options['code_id'];
   const what =
-    job.kind === 'timelapse' && typeof id === 'string'
-      ? ` (${extensions?.get(id)?.title ?? id})`
-      : job.kind === 'qr' && typeof code === 'number'
-        ? ` (#${code})`
-        : '';
+    job.kind === 'timelapse' && typeof id === 'string' ? ` (${extensions?.get(id)?.title ?? id})` : '';
   return `${KIND_WORDS[job.kind] ?? job.kind}${what} vom ${formatDateTime(job.created_at)}`;
 }
 
@@ -290,6 +294,8 @@ const DETAIL_LABELS: Record<string, string> = {
   note: 'Notiz',
   token: 'Token',
   token_end: 'Token endet auf',
+  address: 'Adresse',
+  display_name: 'Anzeigename',
 };
 
 /** `names`: filter ids to names for the booth's `extension.settings` entries. */

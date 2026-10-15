@@ -111,3 +111,19 @@ def test_users_csv_has_the_online_time(guest, core, tmp_path):
     assert list(row) == USER_COLUMNS
     assert (row["online_seconds"], row["online_sessions"]) == ("4321", "3")
     assert row["code"] == snap.code_names[1] and row["code"].endswith(" 1")  # joined via code 1
+
+
+def test_csvs_have_the_display_name(guest, core, tmp_path):
+    from virtubooth.tools.export import photos_csv
+
+    g = guest()
+    with core.db.tx() as c:
+        c.execute("UPDATE users SET display_name='Partyfuchs' WHERE id=?", (user_id_of(core, g),))
+    g.post("/api/x/demo/upload", content=jpeg(), headers=JPEG | ORIGIN)
+    scratch = tmp_path / "scratch"
+    scratch.mkdir()
+    snap = take_snapshot(core.settings.data_dir, scratch, include_hidden=True)
+    [user] = read_csv(users_csv(snap.users, snap.code_names))
+    assert user["display_name"] == "Partyfuchs" and user["user"] != "Partyfuchs"
+    [photo] = read_csv(photos_csv(snap.entries))
+    assert photo["display_name"] == "Partyfuchs"

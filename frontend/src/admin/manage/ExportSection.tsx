@@ -1,5 +1,5 @@
-import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { Archive, Download, Film, QrCode, Trash2, X } from 'lucide-react';
+import { useQueryClient } from '@tanstack/react-query';
+import { Archive, Download, Film, Trash2, X } from 'lucide-react';
 import { useState, type FormEvent, type ReactNode } from 'react';
 import type { ExportJob, ExportKind, ExportRequest } from '@/api/types';
 import { formatBytes, formatRelative } from '@/lib/format';
@@ -11,16 +11,13 @@ import { EmptyState } from '@/ui/EmptyState';
 import { IconButton } from '@/ui/IconButton';
 import { Select } from '@/ui/Select';
 import { Progress, Spinner } from '@/ui/Spinner';
-import { TextField } from '@/ui/TextField';
 import { showToast } from '@/ui/Toast';
-import { fetchCodes } from '../codes/api';
-import { codesKey } from '../codes/keys';
 import { errorText, showError } from '../common/usePhotoActions';
 import { exportJobTitle } from '../lib/labels';
 import { deleteExport, startExport } from '../store/actions';
 import { useExports, useExtensionMap, useExtensions } from '../store/hooks';
 
-const KIND_LABEL: Record<ExportKind, string> = { archive: 'Archiv', timelapse: 'Zeitraffer', qr: 'QR-Bogen' };
+const KIND_LABEL: Record<ExportKind, string> = { archive: 'Archiv', timelapse: 'Zeitraffer' };
 const FPS = [6, 8, 12, 15, 24, 30] as const;
 
 function Panel({
@@ -86,7 +83,10 @@ function JobStatus({ job }: { job: ExportJob }) {
   }
 }
 
-/** Export: archive, timelapse and QR sheet as background jobs on the server. */
+/**
+ * Export: archive and timelapse as background jobs on the server. (The QR sheet is gone:
+ * the QR-Codes tab makes each code's PNG, PDF and poster.)
+ */
 export function ExportSection() {
   const qc = useQueryClient();
   const exportsQuery = useExports();
@@ -100,9 +100,6 @@ export function ExportSection() {
     crossfade: false,
     include_hidden: false,
   });
-  const [baseUrl, setBaseUrl] = useState<string | null>(null);
-  const [qrCode, setQrCode] = useState<number | null>(null);
-  const codes = useQuery({ queryKey: codesKey, queryFn: fetchCodes });
   const [starting, setStarting] = useState<ExportKind | null>(null);
   const [errors, setErrors] = useState<Partial<Record<ExportKind, string>>>({});
   const [deleting, setDeleting] = useState<ExportJob | null>(null);
@@ -110,10 +107,6 @@ export function ExportSection() {
 
   const activities = (extensions ?? []).filter((e) => e.uploads);
   const timelapseExt = timelapse.extension || activities[0]?.id || 'beer';
-  const qrUrl = baseUrl ?? data?.public_base_url ?? '';
-  // the active codes; default (and after the chosen one was deleted): the lowest number
-  const activeCodes = (codes.data?.codes ?? []).filter((c) => c.active);
-  const qrCodeId = activeCodes.find((c) => c.id === qrCode)?.id ?? activeCodes[0]?.id ?? null;
   const ffmpeg = data?.ffmpeg ?? true;
 
   const start = async (request: ExportRequest) => {
@@ -238,7 +231,7 @@ export function ExportSection() {
           </ul>
         )}
       </section>
-      <div className="grid gap-8 md:grid-cols-2 xl:grid-cols-3">
+      <div className="grid gap-8 md:grid-cols-2">
         <Panel
           icon={Archive}
           title="Archiv"
@@ -331,57 +324,6 @@ export function ExportSection() {
             className="justify-self-start"
           >
             Zeitraffer erstellen
-          </Button>
-        </Panel>
-        <Panel
-          icon={QrCode}
-          title="QR-Bogen"
-          text="Ein Bogen pro Aktivität für den gewählten Code. Einzelne Codes und Plakate gibt es im Tab „QR-Codes“."
-          onSubmit={() => {
-            if (!qrUrl.trim()) {
-              setErrors((e) => ({ ...e, qr: 'Bitte die Adresse der Party angeben.' }));
-              return;
-            }
-            void start({
-              kind: 'qr',
-              options: { base_url: qrUrl.trim(), ...(qrCodeId !== null ? { code_id: qrCodeId } : {}) },
-            });
-          }}
-          testid="export-qr"
-        >
-          <TextField
-            label="Adresse der Party"
-            description="Die Codes führen hierhin, mit dem Party-Zugang."
-            type="url"
-            inputMode="url"
-            size="sm"
-            placeholder="https://party.example.org…"
-            autoComplete="off"
-            spellCheck="false"
-            isRequired={!data?.public_base_url}
-            value={qrUrl}
-            onChange={setBaseUrl}
-            errorMessage={errors.qr ?? null}
-          />
-          <Select
-            label="QR-Code"
-            size="sm"
-            options={activeCodes.map((c) => ({ id: c.id, label: c.name }))}
-            value={qrCodeId}
-            onChange={setQrCode}
-            placeholder={codes.isPending ? 'Wird geladen…' : 'Kein aktiver QR-Code'}
-            isDisabled={activeCodes.length === 0}
-            data-testid="export-qr-code"
-            className="min-w-0"
-          />
-          <Button
-            type="submit"
-            variant="primary"
-            size="sm"
-            isPending={starting === 'qr'}
-            className="justify-self-start"
-          >
-            QR-Bogen erstellen
           </Button>
         </Panel>
       </div>

@@ -75,8 +75,13 @@ const COLUMNS: ReadonlyArray<DataColumn<AdminUser>> = [
     isRowHeader: true,
     allowsSorting: true,
     render: (u) => (
-      <span translate="no" className="font-semibold">
-        {u.name}
+      <span translate="no" className="grid">
+        <span className="font-semibold">{u.name}</span>
+        {u.display_name ? (
+          <span className="text-xs text-ink-muted" data-testid="guest-display-name">
+            nennt sich „{u.display_name}“
+          </span>
+        ) : null}
       </span>
     ),
   },
@@ -84,7 +89,7 @@ const COLUMNS: ReadonlyArray<DataColumn<AdminUser>> = [
     id: 'status',
     label: 'Status',
     render: (u) => (
-      <span className="inline-flex gap-1.5">
+      <span className="inline-flex flex-wrap gap-1.5">
         <GuestBadges user={u} />
       </span>
     ),

@@ -30,6 +30,10 @@ describe('filter catalogue ↔ shaders', () => {
       'vhs',
       'retro',
       'comic',
+      'thermal',
+      'disco',
+      'kaleido',
+      'glow',
     ]);
     expect(filters.find((f) => f.id === 'bw')?.name).toBe('Schwarz-Weiß');
     expect(filters[0]?.id).toBe('normal'); // the default is first
@@ -37,7 +41,16 @@ describe('filter catalogue ↔ shaders', () => {
 
   it('leaves out GPU-only filters without WebGL', () => {
     const { filters } = buildFilterList(catalogue, 'canvas2d');
-    expect(filters.map((f) => f.id)).toEqual(['normal', 'bw', 'sepia', 'colorpop', 'party', 'emoji', 'neon']);
+    expect(filters.map((f) => f.id)).toEqual([
+      'normal',
+      'bw',
+      'sepia',
+      'colorpop',
+      'party',
+      'emoji',
+      'neon',
+      'thermal',
+    ]);
     for (const f of filters) expect(runsOn(f, 'canvas2d')).toBe(true);
   });
 

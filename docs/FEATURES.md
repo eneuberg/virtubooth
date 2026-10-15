@@ -4,8 +4,9 @@ Was man mit virtubooth machen kann, nach Rolle und Bereich. Für Gastgeber und f
 Entwickler. Jede Zeile ist gegen den Code geprüft. Wörter in „…“ stehen genau so in
 der App.
 
-**Stand:** 14.10.2026, Branch `main` (mit QR-Codes, Plakaten, Einstellungen und
-Online-Zeit).
+**Stand:** 15.10.2026, Branch `night/int2` (mit QR-Codes, Plakaten, Online-Zeit und
+der Nachtrunde: eingefrorene Fotoanalyse, Kategorien als Regeln, ML-Pipeline mit
+optionaler externer KI, Allgemeines/Fotobox, öffentliche Adresse, Anzeigenamen).
 
 **Inhalt:**
 [1. Kurzüberblick](#1-kurzüberblick) ·
@@ -68,8 +69,14 @@ Installation.
 - Ist die [Live-Wall](#live-wall) geladen, steht unter „Mehr dazu“ auch, dass Fotos
   für sie automatisch auf dem Server ausgewertet werden, und darunter der Schalter
   „Meine Fotos nicht automatisch auswerten“ (siehe [Fotoanalyse](#fotoanalyse)).
+- Unter „Mehr dazu“ steht immer, dass Fotos und erkannte Dinge zusätzlich von einem
+  externen KI-Dienst ausgewertet werden können, wenn der Gastgeber es einschaltet. Der
+  Text nennt den eingestellten Anbieter („Anthropic, USA“ oder „Mistral AI, EU“).
+  Solange der Host externe KI wirklich nutzt, steht darunter der Schalter „Keine
+  Weitergabe an externe KI“ (siehe [ML-Pipeline](#ml-pipeline-und-externe-ki)).
 - Feld „Instagram-Name (freiwillig)“ mit „Dann können wir dich markieren.“
-  - Nimmt `@name`, `name` oder einen Profil-Link.
+  - Ein festes „@“ steht vorn im Feld; ein getipptes oder eingefügtes „@“ fällt weg.
+  - Nimmt `name` oder einen Profil-Link.
   - Fehler werden konkret erklärt: Umlaute, Akzente, Leerzeichen, zwei Punkte, mehr
     als 30 Zeichen.
 - Ein einziger Knopf: „Alles klar, los geht’s!“. Es gibt kein „Nein“ und kein
@@ -93,13 +100,20 @@ Installation.
   - Er zeigt Monogramm und Kurznamen, auf Start darunter den Instagram-Namen mit @
     oder „Instagram hinzufügen“.
   - Ein Punkt am Monogramm markiert Pause oder Stopp (bernstein) und Sperre (rot).
-- Ein Tipp öffnet das Du-Sheet. Titel ist das Pseudonym, darunter „Dein Name auf
+- Ein Tipp öffnet das Du-Sheet. Titel ist der angezeigte Name, darunter „Dein Name auf
   dieser Party“.
+  - „Anzeigename“: „So sehen dich die anderen. Standard: dein Instagram-Name, sonst
+    dein Zufallsname.“ 2 bis 24 Zeichen; keine Steuer- oder unsichtbaren Zeichen, kein
+    „@“ vorn, nicht der Name eines anderen Gasts, nicht „Admin“, „Gastgeber“ o. ä. oder
+    der Eventname („Dieser Name ist schon vergeben.“, „Dieser Name geht leider
+    nicht.“). Leeren stellt den Standard wieder her. Die interne Nummer bleibt.
   - Instagram-Namen eintragen oder ändern („Speichern“) oder löschen („Entfernen“).
     Geht auch, während Hochladen pausiert ist.
   - Abschnitt „Hochladen“: ob man gerade hochladen kann, in einem Satz.
   - Mit der Live-Wall: der Schalter „Meine Fotos nicht automatisch auswerten“. Er
-    gilt sofort, auch für schon hochgeladene Fotos.
+    gilt sofort, auch für schon hochgeladene Fotos (sie fallen aus allen Kategorien).
+  - „Keine Weitergabe an externe KI“: jederzeit änderbar, gilt ab dem nächsten Aufruf
+    der KI.
 
 ### Start
 
@@ -111,7 +125,7 @@ Installation.
 - Die Aktivitäten als Filmstreifen, in der Reihenfolge aus `VB_EXTENSIONS`, je mit
   Titel, Untertitel und Live-Zeile:
   - Beer Cam: die Zahl der sichtbaren Biere „von 1 Mio. Bieren“, alle 30 s neu.
-  - Fotobox: fünf feste Beispielbilder und die Zahl der Filter („10 Filter“).
+  - Fotobox: fünf feste Beispielbilder und die Zahl der Filter („14 Filter“).
 - „Deine Bilder“ (nächster Abschnitt).
 - Fußzeile: „Was passiert mit meinen Fotos?“ (die Beitrittstexte zum Nachlesen) und,
   wenn gesetzt, „Die Gastgeber posten ausgewählte Fotos auf <Account>.“
@@ -165,14 +179,15 @@ Selfies mit Live-Filtern. Adresse: `/x/booth/`.
 
 - Frontkamera als Standard, gespiegelt wie ein Spiegel. „Kamera wechseln“ per Knopf
   oder Doppeltipp auf das Bild.
-- **10 Filter** in dieser Reihenfolge: „Normal“, „Schwarz-Weiß“, „Sepia“, „Color Pop“,
+- **14 Filter** in dieser Reihenfolge: „Normal“, „Schwarz-Weiß“, „Sepia“, „Color Pop“,
   „Party-Rahmen“ (mit dem Partynamen), „Emoji-Props“, „Neon“, „Vintage/VHS“,
-  „Retro-Pixel“, „Comic“.
+  „Retro-Pixel“, „Comic“, „Wärmebild“, „Disco“ (Farbversatz, Spots, Glitzer),
+  „Kaleidoskop“ (ein Ring aus Gesichtern), „Neonlinien“ (leuchtende Kanten).
   - Wählen per Filterleiste, Wischen über das Bild oder Pfeiltasten.
   - Die Filter sind WebGL-Shader. Ohne WebGL läuft eine Canvas2D-Variante; Filter, die
     dort nicht gehen, fehlen dann in der Leiste.
   - Das gespeicherte Foto ist genau das Vorschaubild, mit Filter, in 1080 × 1440 px.
-  - Der Host kann einzelne Filter unter [Einstellungen](#einstellungen) ausschalten,
+  - Der Host kann einzelne Filter unter [Fotobox-Filter](#fotobox-filter) ausschalten,
     mindestens einer bleibt an. Sie verschwinden spätestens nach 30 s aus der Leiste;
     war einer davon gewählt, gilt der erste Filter.
 - **Countdown:** Schalter „aus“ / „3 s“, das Gerät merkt sich die Wahl. Ein Tipp auf
@@ -271,7 +286,7 @@ Laptop und Handy.
   zurück zur gewünschten Seite.
 - Login-Seite: ein Feld „Passwort“, Knopf „Anmelden“.
 - **Ein gemeinsames Passwort**, keine Admin-Konten: zuerst das aus
-  `VB_ADMIN_PASSWORD`. Ändert der Host es unter [Einstellungen](#einstellungen), gilt
+  `VB_ADMIN_PASSWORD`. Ändert der Host es unter [Allgemeines](#allgemeines), gilt
   nur noch das neue; der Server speichert es als scrypt-Hash in der Datenbank, nie im
   Klartext. Im „Protokoll“ hat jede Sitzung eine eigene Kennung („Admin-Sitzung 3f2a“).
 - Eine Sitzung hält `VB_ADMIN_SESSION_HOURS` (12 h). Tipp: kurz vor der Party
@@ -384,24 +399,29 @@ Der Leuchttisch (`/admin/manage`), hell, für den Desktop gedacht, geht aber auc
 Handy.
 
 - Desktop: Seitenleiste mit den Tabs und ihren Zahlen, Verbindungsanzeige,
-  Schnellschaltern, Status-Pille („Hochladen: an“ usw.), „Live öffnen“,
-  „Einstellungen“ und „Abmelden“.
-- Handy: Kopfzeile mit Status-Pille, Zahnrad („Einstellungen“), „Abmelden“,
-  Schnellschaltern, Statusleiste und Tab-Leiste. Unten dieselbe Leiste wie auf Live.
+  Schnellschaltern, Status-Pille („Hochladen: an“ usw.), „Live öffnen“ und
+  „Abmelden“.
+- Handy: Kopfzeile mit Status-Pille, „Abmelden“, Schnellschaltern, Statusleiste und
+  Tab-Leiste. Unten dieselbe Leiste wie auf Live.
+- Reihenfolge: Übersicht · Allgemeines · Fotos · Gäste · Instagram · Fotobox ·
+  Live-Wall · ML-Pipeline · Sperren · Protokoll · QR-Codes · Plakat · Export.
 - Der Tab steht in der Adresse (`?tab=…`), alte Lesezeichen funktionieren weiter.
 
 | Tab | Adresse | Inhalt |
 |---|---|---|
 | „Übersicht“ | `?tab=uebersicht` | alle Live-Zahlen, siehe [oben](#übersicht-und-live-zahlen) |
+| „Allgemeines“ | `?tab=allgemein` (alt: `einstellungen`) | Eventname, Admin-Passwort, öffentliche Adresse, siehe [Allgemeines](#allgemeines) |
 | „Fotos“ | Standard | der Kontaktbogen, siehe unten |
 | „Gäste“ | `?tab=gaeste` | die Gästeliste, siehe unten |
 | „Instagram“ | `?tab=instagram` | die Liste zum Markieren, siehe [Instagram](#instagram) |
+| „Fotobox“ | `?tab=fotobox` | die Fotobox-Filter an und aus, siehe [Fotobox-Filter](#fotobox-filter) |
+| „Live-Wall“ | `?tab=livewall` | siehe [Live-Wall](#live-wall) und [Kategorien](#kategorien) |
+| „ML-Pipeline“ | `?tab=ml` | Analysen, Testbild, externe KI, Eigenschaften, Budget, siehe [ML-Pipeline](#ml-pipeline-und-externe-ki) |
 | „Sperren“ | `?tab=sperren` | gesperrte Gäste und Gerätemerkmale, siehe [Sperren](#sperren-und-gerätemerkmale) |
 | „Protokoll“ | `?tab=protokoll` | wer wann was gemacht hat, siehe unten |
 | „QR-Codes“ | `?tab=qr` | die QR-Codes mit ihren Zahlen und Exporten, siehe [QR-Codes](#qr-codes) |
 | „Plakat“ | `?tab=plakat` | die Plakat-Vorlage und das QR-Feld, siehe [Plakate](#plakate) |
-| „Export“ | `?tab=export` | Archiv, Zeitraffer, QR-Bogen, siehe [Exporte](#exporte) |
-| „Einstellungen“ | `?tab=einstellungen` | über Seitenleiste/Kopfzeile, kein Tab in der Liste; Eventname, Fotobox-Filter, Admin-Passwort, siehe [Einstellungen](#einstellungen) |
+| „Export“ | `?tab=export` | Archiv und Zeitraffer, siehe [Exporte](#exporte) |
 
 **„Fotos“, der Kontaktbogen:**
 
@@ -436,7 +456,11 @@ Handy.
 - Suche nach Name, @instagram oder #Nummer. Filter „Status“: „Alle“, „Gesperrt“,
   „Nicht gesperrt“, „Hochladen pausiert“. Filter „QR-Code“: alle Codes, gelöschte mit
   „(gelöscht)“; er steht in der Adresse (`&code=<Nr.>`).
-- Status als Abzeichen: „Gesperrt“, „Automatisch gesperrt“, „Hochladen pausiert“.
+- Status als Abzeichen: „Gesperrt“, „Automatisch gesperrt“, „Hochladen pausiert“,
+  dazu die eigenen Wünsche des Gasts: „Gast möchte keine Auswertung“ und „Keine externe
+  KI“.
+- „Name“ ist der angezeigte Name; die Gästeseite zeigt Nummer, Zufallsname und
+  Anzeigenamen und kann einen Anzeigenamen zurücksetzen.
 - Ein Klick auf eine Zeile öffnet die [Gästeseite](#gästeseite).
 
 **„Protokoll“:**
@@ -556,6 +580,10 @@ Handy-Leiste. Drei Hebel, unabhängig voneinander und von Sperren:
   heißen z. B. `qr-02-gorilla.png`, `qr-02-gorilla-gross.pdf`, `plakat-02-gorilla.pdf`.
   Ist das Ziel eine Aktivität, steht ihr Titel als Untertitel auf dem großen QR und
   dem Standard-Plakat.
+- Alle Codes und Plakate nehmen die [öffentliche Adresse](#allgemeines). Ist sie
+  nicht geprüft oder nicht erreichbar, warnt der Tab: „Die öffentliche Adresse ist
+  nicht geprüft oder nicht erreichbar. Prüfe sie unter „Allgemeines“, bevor du
+  druckst.“
 - Jeder Gast gehört zu dem Code, über den er beigetreten ist, und bleibt dabei.
 - Anlegen, Bearbeiten, Token ändern und Löschen stehen im Protokoll, nie mit dem
   ganzen Token (nur „Token endet auf“).
@@ -614,7 +642,6 @@ dem anderen. Man kann die Seite verlassen.
 |---|---|---|
 | „Archiv erstellen“ | „Ausgeblendete Fotos mitnehmen“, „Datenbank mitnehmen (für ein Backup)“ | ZIP: Fotos pro Aktivität (ausgeblendete im Unterordner `hidden/`), `photos.csv`, `users.csv`, `instagram.csv`, `manifest.json`, `README.txt`, optional eine Kopie der Datenbank |
 | „Zeitraffer erstellen“ | „Aktivität“, „Fotos pro Sekunde“ (6, 8, 12, 15, 24, 30; Standard 12), „Weich überblenden“, „Ausgeblendete Fotos mitnehmen“ | MP4 (H.264), 1080 × 1440, Fotos in Upload-Reihenfolge, das letzte 2 s lang. Gelöschte Fotos nie |
-| „QR-Bogen erstellen“ | „QR-Code“ (Standard: der aktive mit der kleinsten Nummer), „Adresse der Party“ (vorbelegt mit `VB_PUBLIC_BASE_URL`) | ZIP: `qr-sheet.html` mit einer A4-Seite für Start und einer pro Aktivität, alle mit dem Token des gewählten Codes, zum Drucken aus dem Browser, dazu jeder Code als SVG und PNG |
 
 - Liste „Erstellte Exporte“ mit Status („Wartet…“, Fortschrittsbalken „Wird
   erstellt…“, Fehler in Worten), „Herunterladen“, „Abbrechen“ (solange er wartet) und
@@ -626,16 +653,16 @@ dem anderen. Man kann die Seite verlassen.
 - Ohne ffmpeg: „Auf dem Server fehlt ffmpeg, darum geht der Zeitraffer gerade nicht.“
   Im Docker-Image ist ffmpeg dabei.
 - Ein Neustart beendet laufende Jobs mit „Server wurde neu gestartet.“
-- **QR-Bogen:** eine Seite für Start und eine pro Aktivität auf Start, alle für den
-  gewählten Code (sein Ziel spielt hier keine Rolle). Jede Seite hat
-  Titel, Untertitel, den großen Code und „Handy-Kamera drauf halten und los!“. Die
-  Codes nutzen die höchste Fehlerkorrektur. Das Token steht nur im Code, nie als Text.
-  Wer einen Code hat, ist drin: Bögen wie Schlüssel behandeln.
+- **Kein QR-Bogen mehr** im Admin (alte Jobs dieser Art sind ausgeblendet); der Bogen
+  bleibt über die Kommandozeile (`virtubooth qr`).
 - **Einzelne Codes und Plakate** gibt es im Tab „QR-Codes“: „QR als PNG“, „QR groß
   (PDF)“, „Plakat (PDF)“ im Sheet jedes Codes (siehe [QR-Codes](#qr-codes)). Sie
   entstehen sofort im Browser, ohne Job.
-- **`users.csv`** hat pro Gast auch die Online-Zeit (`online_seconds`,
-  `online_sessions`) und den QR-Code des Beitritts (`code`, der Name).
+- **`users.csv`** hat pro Gast auch den Anzeigenamen (`display_name`), die Online-Zeit
+  (`online_seconds`, `online_sessions`) und den QR-Code des Beitritts (`code`, der
+  Name); `photos.csv` hat den Anzeigenamen ebenfalls.
+- **Datenbank im Archiv** ohne den API-Schlüssel der externen KI (`x.llm.key`) und ohne
+  jeden Einstellungs-Schlüssel auf `.secret`.
 - **Datenbank im Archiv:** eine konsistente Kopie, ohne Admin-Sitzungen, Export-Jobs
   und Besucher-IDs (auch nicht pro QR-Code), so bereinigt, dass früher Gelöschtes
   nicht mehr lesbar ist. Sie enthält Gäste mit IPs und Gerätemerkmalen, die QR-Codes
@@ -695,11 +722,13 @@ Aktivität; sie steht nicht auf Start. Einstellungen im Tab „Live-Wall“ der 
   Fehlversuche“), auch mit dem richtigen Passwort; angemeldete Wände laufen weiter.
 - **Ablauf:** drei Modi im Wechsel, Reihenfolge und Dauer frei (10 s bis 1 h, mindestens
   einer an):
-  - **Einzelbild:** ein Foto groß mit „von <Pseudonym>“, optional dem Instagram-Namen
+  - **Einzelbild:** ein Foto groß mit „von <Name>“ (Anzeigename, sonst „@Instagram“,
+    wenn die Wall Instagram-Namen zeigt, sonst der Zufallsname), optional dem Instagram-Namen
     und dem Alter („vor 3 Min.“). Wechsel alle 3 bis 120 s, eine Runde zeigt N Fotos.
   - **Galerie:** eine endlose Fotowand, 2 bis 6 Reihen, langsam, mittel oder schnell.
-  - **Kategorien:** die Gewinner der lustigen [Kategorien](#fotoanalyse), je 4 bis 60 s.
-    Einzelne Kategorien lassen sich ausschalten.
+  - **Kategorien:** die Gewinner der lustigen [Kategorien](#kategorien), je 4 bis 60 s,
+    1 bis 10 Gewinner in der Reihenfolge des Servers, darunter das Urteil der KI, wenn
+    die Kategorie eins hat.
 - **Auswahl im Einzelbild:** „Die neuesten N im Kreis“, „Zufällig“, „Gemischt, ohne
   Wiederholung“, „Fair: jeder Gast reihum“, „Selten gezeigte zuerst“, „Neue Fotos
   sofort, sonst gemischt“ (Standard) und „Kategorie-Highlights“.
@@ -734,31 +763,71 @@ Aktivität; sie steht nicht auf Start. Einstellungen im Tab „Live-Wall“ der 
 ### Fotoanalyse
 
 Für die Kategorien der Live-Wall wertet ein eigener Prozess auf dem Server jedes Foto
-aus. Nichts davon verlässt den Server.
+**einmal** aus. Ohne [externe KI](#ml-pipeline-und-externe-ki) verlässt nichts davon den
+Server.
 
 - **Immer:** Bildwerte mit Pillow (Helligkeit, Farbigkeit, Schärfe), dazu die Details
   „Aufgenommen“, „Quelle“, Filter bzw. Gefäß, „Gast“, „QR-Code“ und „Größe“.
 - **Mit dem KI-Paket** (Docker-Image mit `VB_ML=1`, lokal `make models`) und den
   heruntergeladenen Modellen ([DEPLOY.md → Live-Wall](DEPLOY.md#live-wall-and-photo-analysis)):
-  „Gesichter“ (Anzahl, Lächeln, offene Augen und Münder, Größe), „Gesichtsausdruck“
-  (fröhlich, traurig, überrascht), „Hände und Gesten“ (Peace, Daumen hoch,
-  Pommesgabel), „Personen und Gläser“, „Brillen, Hüte, Altersgruppe“ und „Alter
-  (FairFace)“ (aus, bis der Host es einschaltet). Gespeichert werden nur Zahlen pro
-  Foto und Rahmen um Gesichter, Hände und Gegenstände: keine Gesichtsmerkmale, nichts,
-  was eine Person wiedererkennt.
-- **Analyse-Karte** im Tab „Live-Wall“: ob der Prozess läuft, wie viele Fotos fertig
-  sind, warten oder fehlschlugen, jede Analyse ein- und ausschalten (mit dem Grund,
-  wenn eine fehlt, z. B. „Modell fehlt“), „Fehlgeschlagene neu analysieren“ und „Alle neu analysieren…“.
-- **Analyse im Foto-Inspektor** (Verwaltung): Zustand, gefundene Werte, die Rahmen und
-  die Details (Quelle und Angaben mit Namen, z. B. „Filter: Schwarz-Weiß“, „Kamera:
-  Selfie“); „Neu analysieren“ stellt das Foto wieder an.
-- Der Prozess läuft mit niedriger Priorität, ein Foto nach dem anderen (auf einem
-  Raspberry Pi 5 0,4 bis 2 s je Foto), startet bei einem Absturz neu und beginnt nach
-  200 Fotos oder 900 MB frisch. Gelöschte Fotos verlieren ihre Analyse.
-- **Kategorien** (Gewinner sind nur sichtbare Fotos nach der Verzögerung, je Kategorie
-  höchstens eins pro Gast (sein bestes); bei Gleichstand das neuere):
+  „Gesichter“, „Gesichtsausdruck“, „Hände und Gesten“, „Objekte“ (EfficientDet-Lite2,
+  alle 80 COCO-Klassen mit deutschen Namen, z. B. „Weinglas“, „Sonnenbrille“),
+  „Brillen, Hüte, Altersgruppe“ und „Alter (FairFace)“ (aus, bis der Host es
+  einschaltet). Gespeichert werden nur Zahlen pro Foto, die **Objektliste** (Name,
+  Sicherheit, Rahmen, Quelle) und Rahmen um Gesichter und Hände: keine
+  Gesichtsmerkmale, nichts, was eine Person wiedererkennt. „Personen“ zählt der
+  Objekt-Detektor, ohne ihn die Gesichter.
+- **Eingefroren:** „Analysen werden einmal gemacht und danach nicht mehr verändert.“
+  Kein „Neu analysieren“, keine Neu-Analyse nach Updates. Eine abgestürzte Analyse wird
+  bis zu dreimal versucht, bevor das Foto als fehlgeschlagen gilt. Analysen an/aus und
+  ihre Einstellungen (z. B. beim Objekt-Detektor „Mindest-Sicherheit“ und „Höchstens
+  Objekte“) gelten nur für danach analysierte Fotos. Dazukommen kann nur etwas: Objekte
+  der externen KI werden an die Liste angehängt.
+- **Analyse im Foto-Inspektor** (Verwaltung): Zustand, gefundene Werte, die Objektliste
+  mit Quelle („lokal“ oder der KI-Dienst), die Rahmen, die Details und die Werte der
+  [Eigenschaften](#ml-pipeline-und-externe-ki) pro Objekt. Die aktuellen Wünsche des
+  Gasts stehen dabei („Gast möchte keine Auswertung“, „Keine externe KI“).
+- Der Prozess läuft mit niedriger Priorität, ein Foto nach dem anderen, das neueste
+  zuerst, startet bei einem Absturz neu und beginnt nach 200 Fotos oder 900 MB frisch.
+  Uploads werden dadurch nicht langsamer (Lasttest: 20 Gäste × 3 Fotos gleichzeitig,
+  Upload-p95 mit und ohne Analyse gleich, nie mehr als ein Foto in Arbeit). Gelöschte
+  Fotos verlieren ihre Analyse, Objekte, Werte und Urteile.
+- **Abschalten durch den Gast:** „Meine Fotos nicht automatisch auswerten“ im
+  Beitritts-Sheet unter „Mehr dazu“ und im Du-Sheet. Fotos aus dieser Zeit bekommen nur
+  die Bildwerte. Solange der Schalter an ist, fallen **alle** Fotos des Gasts aus allen
+  Kategorien, Abfragen, Urteilen und der externen Erkennung; schon Gefundenes bleibt
+  gespeichert, der Admin sieht es mit „Gast möchte keine Auswertung“. Umschalten ändert
+  nur den Schalter. Gäste können eigene Fotos unter „Deine Bilder“ löschen.
 
-| | Kategorie | Zeile | Gewinnt |
+### Kategorien
+
+Kategorien sind Regeln, keine feste Liste. Im Tab „Live-Wall“ zeigt die Karte
+„Kategorien“ jede mit Schalter, Reihenfolge (↑/↓), den aktuellen Gewinnern und, wenn
+nichts gewinnen kann, warum (z. B. „Braucht die Analyse …“).
+
+- **Eine Kategorie:** Emoji, Titel (1–40 Zeichen), Zeile (bis 80), „Bedingungen“ (bis
+  8, alle müssen gelten), „Auswahl: Top / Bottom“ nach einem Wert, „Anzahl“ (1–10),
+  bis zu zwei Werte bei Gleichstand, „Ein Foto pro Gast“, die Beschriftung auf der Wall
+  (Anzahl, Prozent, Zahl, Uhrzeit, fester Text oder der Name des besten Objekts) und
+  optional „Urteil der KI (Prompt)“. Bei Gleichstand gewinnt das neuere Foto.
+- **Werte:** jeder Analysewert (Personen, Lächeln, Hände, Gesten, Schärfe, Farbigkeit
+  …), die Objektliste, „Anzahl von <Objekt>“, die Werte der Eigenschaften (höchster,
+  niedrigster, Summe, Durchschnitt, Anzahl bewerteter Objekte, Wert eines bestimmten
+  Objekts), Aufnahmezeit und Fotos des Gasts.
+- **Vergleiche:** > < ≥ ≤ = ≠, „zwischen“, „existiert“, „existiert nicht“, „enthält“,
+  „enthält nicht“, „enthält eins von“.
+- „Kategorie bearbeiten“ zeigt „Vorschau: aktuelle Gewinner“ und wie viele Fotos
+  passen, während man tippt. Fehler stehen am Feld.
+- **Vorlagen:** die 19 bisherigen Kategorien als Regeln mit denselben Gewinnern
+  (geprüft gegen die alte Berechnung), dazu „Das coolste Objekt“ 🏆 (aus; braucht die
+  Eigenschaft `coolness` und hat ein Urteil der KI). Vorlagen lassen sich ändern und
+  löschen; „Vorlagen wiederherstellen“ holt gelöschte zurück. Beim ersten Start wurden
+  die früher ausgeschalteten Kategorien übernommen.
+- Gewinner sind nur sichtbare Fotos nach der Verzögerung, nie von Gästen mit
+  „Meine Fotos nicht automatisch auswerten“.
+- Keine Vorlage nennt die älteste oder jüngste Person oder bewertet Aussehen.
+
+| | Vorlage | Zeile | Gewinnt |
 |---|---|---|---|
 | 👥 | Volles Haus | Die meisten Leute auf einem Foto | die meisten Personen (ab 3) |
 | 🙌 | Hände hoch! | Die meisten Hände in der Luft | die meisten Hände (ab 3) |
@@ -779,19 +848,53 @@ aus. Nichts davon verlässt den Server.
 | 💨 | Action-Shot | So viel Bewegung, die Kamera kam kaum mit | das unschärfste, nicht zu dunkle oder helle Foto |
 | 🎬 | Eröffnungsfoto | Das allererste Foto des Abends | das erste Foto |
 | 📸 | Dauerauslöser | Die meisten Fotos von einer Person (hier das neueste) | der Gast mit den meisten Fotos (ab 5) |
+| 🏆 | Das coolste Objekt | Was die KI am coolsten findet | höchster `coolness`-Wert eines Objekts, mit Urteil der KI (aus) |
 
-- Keine Kategorie nennt die älteste oder jüngste Person oder bewertet Aussehen.
-- Im Tab „Live-Wall“ zeigt die Karte „Kategorien“ jede Kategorie mit Schalter und dem
-  aktuellen Gewinner, oder warum sie nichts gewinnen kann („Braucht die Analyse …“).
-- **Abschalten durch den Gast:** „Meine Fotos nicht automatisch auswerten“ im
-  Beitritts-Sheet unter „Mehr dazu“ und im Du-Sheet. Dann gibt es für die Fotos dieses
-  Gasts nur die Bildwerte; sie gewinnen keine Kategorie, die Gesichter, Hände oder
-  Gegenstände braucht. Umschalten löscht die bisherige Auswertung seiner Fotos und
-  wertet sie neu aus. Wer mehrmals hin- und herschaltet, löst höchstens alle 5 Minuten
-  eine neue Auswertung aus; Ausschalten löscht die Auswertung trotzdem sofort.
-- **Automatisch neu analysiert** werden fertige Fotos, wenn eine Analyse eingeschaltet
-  wird (oder ihr Modell nachträglich ankommt) und wenn ein Update eine Analyse
-  ändert (neue Version), die neuesten zuerst. Ausschalten stellt nichts neu an.
+### ML-Pipeline und externe KI
+
+Tab „ML-Pipeline“ (`?tab=ml`), fünf Karten:
+
+- **„Modelle“:** jede Analyse mit Beschreibung, Größe, an/aus, ihren Einstellungen und
+  Zahlen (Ø und letzte Dauer, Fotos, Fehler), dazu die Warteschlange und der
+  Herzschlag des Analyse-Prozesses.
+- **„Testbild“:** ein JPEG hochladen und sehen, was die ganze Pipeline oder einzelne
+  Analysen finden (Werte, Objekte mit Rahmen, Dauer, was nicht lief und warum), auf
+  Wunsch auch der KI-Dienst („kostet“). Nichts wird als Partyfoto gespeichert;
+  höchstens 6 pro Minute.
+- **„Claude (KI-Dienst)“** (optional, aus): „Externe KI verwenden“, Anbieter
+  (Anthropic, USA, oder Mistral AI, EU), Modell (Standard Claude Haiku 5.5; Sonnet 5.5,
+  Opus 5.5; bei Mistral Small 3.2 und Medium 3.1), „Abfrage alle … Minuten“ (1–60),
+  „Erkennung beim Hochladen: lokal / Claude“ (beides geht; „lokal“ aus schaltet den
+  Objekt-Detektor ab). „API-Schlüssel“: wird verschlüsselt gespeichert und nie wieder
+  angezeigt, danach steht nur „gesetzt“ („Schlüssel ersetzen“, „Schlüssel löschen“,
+  Test). Nach einem neuen `VB_SECRET_KEY`: „Schlüssel ungültig, bitte neu eingeben“.
+  „Jetzt abfragen“ startet eine Abfrage sofort.
+- **„Eigenschaften“:** z. B. `coolness` mit Prompt („Bewerte, wie cool jedes Objekt
+  ist“). „Name und Prompt lassen sich später nicht ändern. Für eine Änderung legst du
+  eine neue Eigenschaft an.“ Statt Löschen: „Archivieren“ (keine Abfragen mehr, die
+  letzten Werte bleiben lesbar; zurückholbar).
+- **„Budget“:** Grenzen in USD und/oder Aufrufen für die ganze Party und pro Tag, der
+  Verbrauch (Aufrufe, Tokens, geschätzte Kosten) gesamt und je Erkennung, Eigenschaft,
+  Urteil und Testbild. Am Limit stoppt jeder Aufruf: „Budget erreicht – externe KI
+  pausiert“.
+
+Was die externe KI tut, wenn sie an ist:
+
+- **Erkennung beim Hochladen:** nach der lokalen Analyse geht das Foto verkleinert
+  (≤ 1024 px, ohne Metadaten) an den Dienst; seine Objekte werden an die Liste
+  angehängt. Ältere Fotos werden nachgeholt, die neuesten zuerst.
+- **Abfrage** (alle 1–60 Minuten, nur Text): pro Eigenschaft die Objekte aller
+  erlaubten Fotos als Liste („P… von <Name>: [0] Hut, [1] Weinglas“); zurück kommt
+  pro Foto ein Wert je Objekt in derselben Reihenfolge. Nur die neuesten Werte bleiben.
+  Danach ein Urteil pro Kategorie mit Prompt; der Text (höchstens 160 Zeichen) steht
+  auf der Wall unter dem Gewinner. Hat sich nichts geändert, wird nicht abgefragt.
+- **Nie hinaus** gehen Fotos, Objekte und Namen von Gästen mit „Keine Weitergabe an
+  externe KI“ oder „Meine Fotos nicht automatisch auswerten“, von gesperrten Gästen und
+  ausgeblendete oder gelöschte Fotos; geprüft direkt vor jedem Aufruf. Ein Urteil, das
+  einen solchen Gast nennt, verschwindet sofort von der Wall.
+- Gäste werden so benannt wie auf der Wall (Anzeigename, „@Instagram“ nur, wenn die
+  Wall Instagram-Namen zeigt, sonst der Zufallsname), immer als Daten markiert: was in
+  Namen steht, ist für die KI keine Anweisung.
 
 ### Deep Links
 
@@ -803,7 +906,7 @@ aus. Nichts davon verlässt den Server.
 | `/admin/manage?tab=gaeste&q=<Suche>&show=paused` | die Gästeliste gefiltert (`banned`, `ok`, `paused`) |
 | `/admin/manage?tab=gaeste&code=<Nr.>` | die Gäste, die über diesen QR-Code beigetreten sind |
 | `/admin/manage?tab=qr&code=<Nr.>` | das Sheet eines QR-Codes (`&deleted=1`: mit den gelöschten) |
-| `/admin/manage?tab=<Tab>` | einen Tab der Verwaltung (auch `einstellungen`, `livewall`) |
+| `/admin/manage?tab=<Tab>` | einen Tab der Verwaltung (z. B. `allgemein`, `fotobox`, `livewall`, `ml`; `einstellungen` öffnet „Allgemeines“) |
 | `/livewall` | die Live-Wall (Bildschirm) |
 | `/admin/user?id=<Nr.>&photo=<id>` | einen Gast, optional mit einem Foto groß |
 | `/admin/login?next=<Pfad>` | den Login, danach den Pfad |
@@ -828,24 +931,18 @@ Ansicht.
 - Ein Login hält höchstens 4 Live-Verbindungen. Ein fünfter Tab ersetzt den ältesten,
   der sich dann neu verbindet.
 
-### Einstellungen
+### Allgemeines
 
-„Einstellungen“ (`/admin/manage?tab=einstellungen`): am Desktop unten in der
-Seitenleiste über „Abmelden“, am Handy das Zahnrad in der Kopfzeile. Kein Tab in der
-Tab-Leiste. Jede Änderung steht im „Protokoll“, andere Admin-Geräte sehen sie sofort.
+„Allgemeines“ (`/admin/manage?tab=allgemein`; das alte `?tab=einstellungen` führt
+hierher) ist ein Tab der Navigation. Jede Änderung steht im „Protokoll“, andere
+Admin-Geräte sehen sie sofort.
 
 - **„Eventname“:** „Name des Events“, 1 bis 60 Zeichen (mehrere Leerzeichen werden zu
   einem). Er steht auf Start, im Beitritts-Sheet („Willkommen bei …!“), im
-  „Party-Rahmen“ der Fotobox, auf dem QR-Bogen, auf Plakaten und großen QR-Codes und
+  „Party-Rahmen“ der Fotobox, auf Plakaten und großen QR-Codes und
   im Archiv; auch `python -m virtubooth.tools.qr` nimmt ihn. Ohne eigenen Namen gilt
   `VB_PARTY_NAME`; „Zurück zu „…““ löscht den eigenen wieder. Gäste sehen den neuen
   Namen spätestens nach einer Minute.
-- **„Fotobox-Filter“** (nur mit der Fotobox): ein Schalter pro Filter, jeder Klick
-  speichert sofort („„Neon“ ist aus.“, „„Neon“ ist wieder an.“). Mindestens ein Filter
-  bleibt an: der letzte Schalter ist gesperrt. Gäste in der Fotobox haben die Änderung
-  spätestens nach 30 s, die Fotobox-Zeile auf Start zählt nur die eingeschalteten.
-  Fotos, die schon unterwegs sind, kommen trotzdem an. Filter, die ein Update neu
-  bringt, sind an.
 - **„Admin-Passwort“:** sagt, welches gilt („Gerade gilt das Passwort aus
   VB_ADMIN_PASSWORD.“ oder „Hier geändert am …“). Ändern mit „Aktuelles Passwort“,
   „Neues Passwort“ (mindestens 12 Zeichen, besser 16 oder mehr) und „Neues Passwort
@@ -853,6 +950,24 @@ Tab-Leiste. Jede Änderung steht im „Protokoll“, andere Admin-Geräte sehen 
   anderes Gerät abgemeldet.“), dieses bleibt angemeldet. Es gelten die Limits des
   Logins; ein falsches aktuelles Passwort zählt wie ein falscher Login. „Passwort
   vergessen?“ nennt den Befehl für den Server.
+- **„Öffentliche Adresse“** (z. B. `https://party.example.com`; „Leer lassen =
+  automatisch aus dem Aufruf“): sie steht in allen QR-Codes, auf Plakaten und in der
+  Ecke der Live-Wall und geht vor `VB_PUBLIC_BASE_URL`. Beim Speichern (und mit
+  „Prüfen“) ruft der Server `<Adresse>/healthz` auf und prüft, dass genau dieser Server
+  antwortet: „Erreichbar ✓“ oder „Nicht erreichbar – QR-Codes würden ins Leere
+  führen.“ (auch bei Umleitungen oder einem anderen Server). Eine Warnung blockiert
+  nichts: hinter manchen Routern erreicht der Server sich selbst nicht.
+
+### Fotobox-Filter
+
+Tab „Fotobox“ (`?tab=fotobox`, nur mit der Fotobox):
+
+- Ein Schalter pro Filter, jeder Klick
+  speichert sofort („„Neon“ ist aus.“, „„Neon“ ist wieder an.“). Mindestens ein Filter
+  bleibt an: der letzte Schalter ist gesperrt. Gäste in der Fotobox haben die Änderung
+  spätestens nach 30 s, die Fotobox-Zeile auf Start zählt nur die eingeschalteten.
+  Fotos, die schon unterwegs sind, kommen trotzdem an. Filter, die ein Update neu
+  bringt, sind an.
 
 ## 4. Betrieb
 
@@ -884,7 +999,7 @@ docker compose ps                                           # warten auf "(healt
 
 ### Umgebungsvariablen
 
-Alles, was nicht im Admin unter [Einstellungen](#einstellungen) oder
+Alles, was nicht im Admin unter [Allgemeines](#allgemeines) oder
 [QR-Codes](#qr-codes) steht, über `VB_*`-Umgebungsvariablen (Compose: `.env`,
 Coolify: Environment Variables). Fehlt ein Pflichtwert oder ist einer ungültig,
 startet der Server nicht und nennt die Variable. Die Limits stehen unter
@@ -895,7 +1010,7 @@ startet der Server nicht und nennt die Variable. Die Limits stehen unter
 | `VB_PARTY_TOKEN` | leer | optional; nur beim ersten Start gelesen: wird das Token von QR-Code 1 (16 bis 128 Zeichen aus `A-Z a-z 0-9 _ -`; leer: ein neues). Danach im Admin verwalten; ein späteres Ändern bewirkt nichts außer einer Warnung im Log |
 | `VB_ADMIN_PASSWORD` | Pflicht | Start-Passwort, mindestens 12 Zeichen; sobald im Admin geändert, gilt das dort gesetzte (zurücksetzen: `virtubooth reset-admin-password --from-env`). Unter 16 oder eintönig: Warnung im Log. Solange keins im Admin gesetzt ist, beendet Ändern alle Admin-Sitzungen |
 | `VB_SECRET_KEY` | Pflicht | Signiert die Cookies, mindestens 32 Zeichen. Ändern vergisst alle Gast-Geräte |
-| `VB_PARTY_NAME` | `Party` | Standard-Eventname; im Admin überschreibbar. Auf Start, im Beitritts-Sheet, im Party-Rahmen, auf QR-Bogen und Plakaten |
+| `VB_PARTY_NAME` | `Party` | Standard-Eventname; im Admin überschreibbar. Auf Start, im Beitritts-Sheet, im Party-Rahmen und auf Plakaten |
 | `VB_INSTAGRAM_ACCOUNT` | leer | der Account, auf dem gepostet wird; steht im Beitritts-Sheet und auf Start |
 | `VB_PUBLIC_BASE_URL` | leer | öffentliche Adresse, z. B. `https://party.example.com`: QR-Codes, CSRF-Prüfung, Secure-Cookies |
 | `VB_EXTENSIONS` | alle | Aktivitäten und ihre Reihenfolge, z. B. `beer,booth,wall` (`wall` = Live-Wall). Unbekannte IDs verhindern den Start |
@@ -991,12 +1106,16 @@ Jede Schicht im Detail: [ARCHITECTURE.md → Security model](ARCHITECTURE.md#sec
 | Cookie | Inhalt | Dauer | Eigenschaften |
 |---|---|---|---|
 | `vb_access` | signierte Code-Nummer mit der Token-Generation des gescannten QR-Codes | 30 Tage | HttpOnly, SameSite=Lax |
-| `vb_uid` | signierte Gast-ID | 30 Tage | HttpOnly, SameSite=Lax |
+| `vb_uid` (mit Secure: `__Host-vb_uid`) | signierte Gast-ID | 30 Tage | HttpOnly, SameSite=Lax |
 | `vb_vid` | zufällige Besucher-ID, signiert | 30 Tage | HttpOnly, SameSite=Lax |
 | `vb_admin` | zufälliges Sitzungstoken, in der DB nur als SHA-256 | `VB_ADMIN_SESSION_HOURS` (12 h) | HttpOnly, SameSite=Strict |
 
 Secure setzt `VB_COOKIE_SECURE`. Bei `auto`: wenn die Anfrage über HTTPS kam oder
 `VB_PUBLIC_BASE_URL` mit `https://` beginnt.
+Mit Secure heißt das Gast-ID-Cookie `__Host-vb_uid`: Der Browser nimmt es nur von
+dieser Domain über HTTPS an. Ein `vb_uid`, das eine Nachbar-Subdomain oder ein Angreifer im
+Party-WLAN über eine HTTP-Antwort setzt, wird dann nicht gelesen. Ein Gast mit dem
+alten Namen bleibt derselbe Gast: Die Seite schickt die Kopie aus dem localStorage mit.
 
 ### CSRF und Header
 
@@ -1067,7 +1186,7 @@ Cookie-Hinweis aussieht. virtubooth vermeidet das:
 
 | Daten | Wozu |
 |---|---|
-| Gast-Nr. und Pseudonym | Anzeige; nie ein echter Name |
+| Gast-Nr. und Pseudonym, optional ein selbst gewählter Anzeigename | Anzeige |
 | Instagram-Name, nur wenn angegeben | Markieren beim Posten |
 | Zeit und Textversion des Beitritts | Nachweis, was der Gast gesehen hat |
 | Erstes und letztes Mal gesehen | Gästeliste, „Aktiv“ |
@@ -1078,7 +1197,8 @@ Cookie-Hinweis aussieht. virtubooth vermeidet das:
 | Fotos mit Vorschaubild, Aktivität, Nummer, Zeit, Gefäß bzw. Filter und Kamera | die Party |
 | Anonyme Besucher-ID mit erstem und letztem Mal gesehen und dem Gast, zu dem sie wurde. Keine IP, kein User-Agent | „Gescannt“ in der Übersicht |
 | QR-Code des Beitritts; welche Besucher-ID welchen Code wie oft geöffnet hat (erstes und letztes Mal). Keine IP | Zahlen pro QR-Code |
-| Mit der Live-Wall: pro Foto Zahlen der [Fotoanalyse](#fotoanalyse) (Gesichter, Lächeln, Hände, geschätzter Ausdruck und Altersspanne u. a.) und Rahmen. Keine Gesichtsmerkmale, nichts, was eine Person wiedererkennt; beim Löschen des Fotos entfernt. Ob der Gast die Auswertung abgeschaltet hat | Kategorien der Live-Wall |
+| Mit der Live-Wall: pro Foto Zahlen der [Fotoanalyse](#fotoanalyse) (Gesichter, Lächeln, Hände, geschätzter Ausdruck und Altersspanne u. a.), die Objektliste und Rahmen. Keine Gesichtsmerkmale, nichts, was eine Person wiedererkennt; beim Löschen des Fotos entfernt. Ob der Gast die Auswertung abgeschaltet hat | Kategorien der Live-Wall |
+| Mit externer KI: die Werte der Eigenschaften pro Objekt, das letzte Urteil pro Kategorie, die Verbrauchszahlen (ohne Inhalte). Ob der Gast „Keine Weitergabe an externe KI“ gewählt hat. Was beim KI-Dienst landet: das verkleinerte Foto (Erkennung), Objektnamen und angezeigte Namen (Abfragen) | Kategorien der Live-Wall |
 
 - Admin-Aktionen und Login-Versuche (mit IP) stehen im Protokoll. Admin-Sitzungen
   speichern Token-Hash, IP und User-Agent.

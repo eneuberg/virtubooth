@@ -123,7 +123,7 @@ class CodesService:
         active = sum(c.active for c in codes)
         return CodesOut(
             codes=codes,
-            base_url=self.core.settings.public_base_url or None,
+            base_url=self.core.services.host_settings.public_base_url(),
             active=active,
             revoked=len(codes) - active,
         )

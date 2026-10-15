@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { ApiError } from '@/api/errors';
 import { lockoutText } from '../login/lockout';
 import {
+  auditAction,
   auditActor,
   auditDetails,
   auditTarget,
@@ -98,6 +99,8 @@ describe('admin labels', () => {
   it('makes audit entries readable', () => {
     expect(auditActor('anonymous')).toBe('Unbekannt');
     expect(auditActor('admin:edb5eaeb')).toBe('Admin-Sitzung edb5');
+    expect(auditActor('guest:12')).toBe('Gast #12');
+    expect(auditAction('user.display_name')).toBe('Anzeigename geändert');
     expect(auditTarget('user:12')).toEqual({ kind: 'user', id: 12 });
     expect(auditTarget('photo:abcdefgh')).toEqual({ kind: 'photo', id: 'abcdefgh' });
     expect(auditTarget('fp:0123456789abcdef')).toEqual({ kind: 'device', hash: '0123456789abcdef' });
@@ -121,8 +124,7 @@ describe('admin labels', () => {
     expect(auditDetails({ details: { kind: 'qr', options: { code_id: 2 } } })).toBe(
       'Art: QR-Bogen, Optionen: QR-Code 2',
     );
-    const qr = { kind: 'qr' as const, options: { base_url: 'https://x.example', code_id: 2 } };
-    expect(exportJobTitle({ ...qr, created_at: '2026-10-13T20:41:00Z' })).toMatch(/^QR-Bogen \(#2\) vom /);
+    // the QR-Bogen job kind is gone; old audit entries keep their words
   });
 
   it('counts released devices and shortens hashes', () => {

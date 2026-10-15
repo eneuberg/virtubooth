@@ -535,6 +535,158 @@ Kein Wackler.
 6. **Kategorien-Ansicht:** Mit einer hohen QR-Ecke unten wird das Layout eng.
 7. **Alte Analysen** zeigen rohe Filter-IDs statt Namen, bis sie neu analysiert werden.
 
+## Nachtrag 15./16.10.: Nachtrunde (Fotoanalyse, Kategorien, externe KI, Admin, Gäste)
+
+Die Wünsche des Hosts vom 15.10. (`.worktrees/_plans/REQUIREMENTS-2026-10-15.md`), in
+einer Nacht gebaut, während der Host schlief. Erst vier kleine Branches direkt in
+`main` (Weißer Kasten auf der Wall, neue Fotobox-Filter, Sicherheitsreview 3, CI),
+dann die Schema-Migration 11 auf `main`, dann vier Funktionsbranches parallel (`night/d1-data`,
+`night/d2-llm`, `night/ui2-admin`, `night/ui1-ml`), zusammengeführt und verdrahtet in
+`night/int2`. Das neue Aussehen (`night/identity`) ist ein eigener Branch zur Ansicht und
+nicht gemerged. Funktionen im Detail: `docs/FEATURES.md`.
+
+### Was gebaut wurde
+
+- **Weißer Kasten auf der Live-Wall:** kein WebGL-Rest, sondern eine von einer
+  Browser-Erweiterung (Bitwarden) eingeblendete Leiste; die Wall blendet solche Leisten
+  aus (`night/wall-whitebox`).
+- **Fotobox:** vier neue Filter: „Wärmebild“, „Disco“, „Kaleidoskop“, „Neonlinien“.
+- **Fotoanalyse eingefroren:** Jedes Foto wird einmal ausgewertet; Werte, Rahmen und die
+  neue **Objektliste** (Name, Sicherheit, Rahmen, Quelle) ändern sich danach nie mehr
+  (Datenbank-Trigger). „Neu analysieren“ und die automatische Neu-Analyse nach Updates
+  sind weg. Dazukommen kann nur etwas: Objekte der externen KI werden angehängt.
+- **Detektor:** EfficientDet-Lite2 bleibt, jetzt mit allen 80 COCO-Klassen (vorher eine
+  Auswahl) und deutschen Namen, einstellbar („Mindest-Sicherheit“, „Höchstens
+  Objekte“). Begründung unten.
+- **Kategorien als Regeln:** Bedingungen auf jedem Analysewert, auf der Objektliste und auf
+  den Werten der Eigenschaften, Auswahl Top/Bottom X, Titel, Zeile, Emoji, an/aus,
+  anlegen, löschen, Reihenfolge, Vorschau der aktuellen Gewinner. Die 19 bisherigen
+  Kategorien sind Vorlagen mit denselben Gewinnern (Golden-Test gegen die alte
+  Berechnung), dazu „Das coolste Objekt“ mit Urteil der KI (aus).
+- **ML-Pipeline** (neuer Tab): Analysen mit Beschreibung, Größe, Einstellungen und
+  Zahlen, Warteschlange, Testbild (ganze Pipeline oder einzelne Analysen, ohne
+  Speichern), Einstellungen der externen KI, Eigenschaften, Budget mit Verbrauch.
+- **Externe KI (optional, aus):** Anthropic (offizielles SDK; Standard Claude Haiku 5.5,
+  wählbar Sonnet und Opus 5.5) oder Mistral AI (EU). Erkennung beim Hochladen
+  (verkleinertes Foto), Abfrage der Eigenschaften alle 1–60 Minuten (nur Text), Urteil
+  pro Kategorie unter dem Gewinner auf der Wall. API-Schlüssel nur in der ML-Pipeline,
+  verschlüsselt gespeichert, nie wieder angezeigt, nie in Exporten oder Logs. Budget pro
+  Party und Tag in USD und/oder Aufrufen; am Limit stoppt alles.
+- **Gäste:** Anzeigename (Standard: Instagram-Name, sonst Zufallsname; geprüft gegen
+  Steuerzeichen, Doppelgänger und „Admin“ & Co.), festes „@“ im Instagram-Feld,
+  „Keine Weitergabe an externe KI“ beim Beitritt und im Du-Sheet, eigene Fotos löschen.
+  „Meine Fotos nicht automatisch auswerten“ schaltet jetzt nur noch um (siehe unten).
+- **Admin:** „Allgemeines“ (Eventname, Admin-Passwort, öffentliche Adresse) und
+  „Fotobox“ (Filter) als eigene Tabs; der QR-Bogen ist aus „Export“ verschwunden.
+  **Öffentliche Adresse** mit automatischer Prüfung (`/healthz` mit signierter Antwort,
+  so dass nur dieser Server besteht); der Tab QR-Codes warnt, solange sie nicht geprüft
+  oder nicht erreichbar ist.
+- **Sicherheitsreview 3 (PSA)** und **Sicherheitsdurchgang 2** über den Schlüssel- und
+  KI-Pfad, siehe unten.
+
+### Lasttest der Warteschlange
+
+20 Gäste laden je 3 Fotos gleichzeitig hoch (`virtubooth wall burst`, echter
+Analyse-Prozess, x86-Laptop):
+
+| Lauf | Upload-p95 ohne → mit Analyse | höchstens in Arbeit | Warteschlange leer nach |
+|---|---|---|---|
+| nur Bildwerte | 266 → 279 ms | 1 Foto | 2,3 s |
+| volle ML-Pipeline | 301 → 286 ms | 1 Foto | 9,2 s |
+| volle ML, 4 Kerne, 20 × 10 Fotos | 503 → 326 ms | 1 Foto | 24,8 s |
+
+Uploads werden durch die Analyse nicht langsamer, die Analyse arbeitet streng ein Foto
+nach dem anderen (neueste zuerst) und holt den Rückstand danach auf; jedes Foto genau
+einmal. Auf einem Pi 5 (geschätzt 1,5 s pro Foto) wären 60 Fotos nach etwa 1,5 Minuten
+durch. Gemessen nur auf x86; auf dem Pi bitte `virtubooth wall burst` laufen lassen.
+
+### Entscheidungen, die der Host vielleicht anders erwartet
+
+- **Detektor mit mehr Klassen abgelehnt (Lizenz):** D-FINE-S mit Objects365 (365
+  Klassen, auf dem Pi 5 etwa 0,9–1,4 s) wäre technisch der beste. Objects365 ist laut
+  eigener Seite „nur für akademische Zwecke“, und das D-FINE-README warnt selbst davor;
+  das widerspricht „keine Nicht-kommerziell-Lizenzen“. Die saubere Alternative (Open
+  Images, 600 Klassen) gibt es nicht als ONNX und ist schlechter. Darum EfficientDet-Lite2
+  mit allen 80 Klassen. Für eine private Party wäre D-FINE vertretbar; der Umstieg ist in
+  `night/d1/DETECTOR.md` beschrieben (eine Modelldatei, ein Decoder, eine Namensliste).
+- **Externer Dienst in der EU:** Mistral AI ist eingebaut (EU-gehostet, ein Schlüssel wie
+  bei Anthropic). Azure, Google und AWS in EU-Regionen wären auch möglich, brauchen aber
+  Cloud-Konto, IAM und Freischaltungen: zu viel für einen Party-Host. Mistrals Preise
+  stammen aus Vergleichsseiten (die offizielle Seite nannte keine), Rahmen sind dort
+  ungenauer, getestet nur gegen einen nachgebauten Server. Erster echter Versuch: Testbild
+  mit „Auch an … schicken“.
+- **N3 Absturz-Wiederholung:** „Einmal analysieren“ heißt: einmal erfolgreich. Stürzt
+  der Analyse-Prozess mitten im Foto ab, wird es bis zu dreimal versucht, bevor es als
+  fehlgeschlagen gilt.
+- **N4 Analyse-Opt-out:** Umschalten löscht nichts mehr und stellt nichts neu an. Solange
+  der Schalter an ist, fallen alle Fotos des Gasts aus allen Kategorien, Abfragen,
+  Urteilen und der externen Erkennung; schon Gefundenes bleibt gespeichert und ist für
+  den Admin mit „Gast möchte keine Auswertung“ markiert. Wer die Fotos wirklich weg haben
+  will, löscht sie (Gast oder Admin).
+- **N7 Eigenschaften:** wie gewünscht nur archivieren, nie löschen (sonst hängen Regeln
+  und alte Urteile in der Luft); Name und Prompt sind unveränderlich, archivierte lassen
+  sich zurückholen.
+- **N12 Geld in USD:** Budgets und Kosten in US-Dollar, weil Anthropic in USD abrechnet.
+  Die Kosten sind Schätzungen aus einer Preistabelle im Code.
+- **N14 CSRF unverändert:** Die öffentliche Adresse gilt für QR-Codes, Plakate und die
+  Wall, nicht für die CSRF-Prüfung und Cookies; die bleiben bei `VB_PUBLIC_BASE_URL`
+  bzw. `VB_ALLOWED_ORIGINS`. Eine falsch eingetippte Adresse kann so niemanden aussperren.
+- **N16 QR-Bogen:** aus dem Admin entfernt, die Kommandozeile
+  (`python -m virtubooth.tools.qr`) bleibt.
+- **Name des Schlüssels:** Review 3 empfahl einen Einstellungs-Schlüssel auf `.secret`;
+  der Plan legte `x.llm.key` fest. Das Archiv löscht jetzt beides.
+- **Gäste gegenüber der KI:** Die Abfrage nennt Gäste so wie die Wall
+  (Anzeigename, „@Instagram“ nur, wenn die Wall Instagram-Namen zeigt, sonst
+  Zufallsname), weil das Urteil auf der Wall erscheint.
+- **„Mehr dazu“** nennt den eingestellten Anbieter („Anthropic, USA“ oder „Mistral AI,
+  EU“). Die Beitrittstexte haben sich geändert: **beim Deploy `VB_CONSENT_VERSION`
+  erhöhen.**
+
+### Sicherheit
+
+- **Review 3 (PSA)**, Details in `SECURITY_REVIEW.md`: 0 kritisch, 0 hoch, 1 mittel
+  (REPO-01: alte Screenshots mit echtem Partynamen in der öffentlichen Git-Historie,
+  braucht ein Umschreiben der Historie durch den Host), 5 niedrig (behoben oder
+  akzeptiert), 6 Info.
+- **Durchgang 2** über Schlüssel, KI-Pfad, Adressprüfung und Prompt-Injection: keine
+  offenen hohen oder mittleren Befunde. Behoben: Ein Urteil, das einen Gast nennt,
+  verschwindet sofort von der Wall, wenn der Gast „Keine Weitergabe an externe KI“
+  einschaltet; Instagram-Namen gehen nur an die KI, wenn die Wall sie zeigt; das
+  Schwärzen des Schlüssels in Logs greift auch für später angelegte Logger; die
+  Adressprüfung nennt bei einer Umleitung nur noch das Ziel ohne Pfad. Ein Test zeichnet
+  jeden Aufruf an den KI-Dienst über Erkennung, Abfrage und Urteil mit gemischten Gästen
+  auf: nichts von Gästen mit Opt-out, gesperrten Gästen oder ausgeblendeten Fotos geht
+  hinaus.
+
+### Tests
+
+INT2 (`night/int2`), gezielt:
+
+| Lauf | Ergebnis |
+|---|---|
+| `make lint typecheck openapi-check` | sauber |
+| Backend, die Testlisten der vier Briefs plus die neuen Integrationstests (pytest, 4 Prozesse) | 836 bestanden, 6 übersprungen (33 s) |
+| Vitest: admin/ml, admin/wall, wall, admin/manage, admin/settings, admin/booth, admin/codes, guest, sdk, api | 435 bestanden in 51 Dateien |
+| e2e Chromium (2 Prozesse, unter dem Lock): ML-Pipeline, Live-Wall-Admin, Einstellungen, Bereiche, Beitritt, Wall-Bildschirm, Wall live, Export, neu `test_ml_live_e2e.py` | 88 bestanden, 1 übersprungen (1:30 min; dazu Dashboard) |
+
+Neu gegen den echten Server (ohne nachgebaute Antworten): ML-Pipeline mit Schlüssel,
+Eigenschaft, Erkennung und „Jetzt abfragen“, Vorlage im Kategorie-Editor einschalten,
+das Urteil im Admin und auf dem Fernseher, Testbild durch den echten Analyse-Prozess;
+dazu ein API-Test des ganzen KI-Wegs mit Ereignis `categories.changed`.
+
+### Offene Punkte
+
+1. **CI auf `main`** war vor der Nacht rot (Firefox-e2e hängt ohne WebGL, zwei Tests
+   abhängig von Farben bzw. ffmpeg, Docker-Smoke ohne sauberes Herunterfahren);
+   `night/ci-fix` arbeitet daran und ist noch nicht gemerged.
+2. **Detektor mit mehr Klassen:** Entscheidung des Hosts (siehe oben).
+3. **Mistral:** Preise und Rahmenqualität am echten Dienst prüfen.
+4. **Raspberry Pi 5:** Analysezeiten und Lasttest am echten Gerät messen.
+5. **REPO-01:** Git-Historie mit den alten Screenshots umschreiben (Host).
+6. **Urteile der KI** werden nicht moderiert; der Host kann nur die Kategorie
+   ausschalten.
+7. **`night/identity`** (neues Aussehen, Themen-Farben) liegt zur Ansicht bereit.
+
 ## Starten
 
 Lokal (braucht uv, Node 22 und pnpm 11):

@@ -134,7 +134,7 @@ no budget of its own: admin sessions are exempt from the API budgets.
 | Route | Answer |
 |---|---|
 | `GET /api/admin/exports` | `ExportJobsOut {jobs: ExportJob[], public_base_url: string \| null, ffmpeg: bool}`. Jobs newest first. `public_base_url` = `VB_PUBLIC_BASE_URL` (prefill for the QR form), `ffmpeg` = timelapse jobs can run. |
-| `POST /api/admin/exports` | Body `ExportIn {kind, options?}` (a union discriminated by `kind`). New job: **202** `ExportCreatedOut {job, created: true}`. A job of the same kind already queued or running: **200** `{job: <that job>, created: false}`; nothing new is queued and the request's options are ignored. 400 `base_url_required` / `invalid_base_url` (qr), 422 `invalid_request` (unknown kind or option, out-of-range value). |
+| `POST /api/admin/exports` | Body `ExportIn {kind, options?}` (a union discriminated by `kind`). New job: **202** `ExportCreatedOut {job, created: true}`. A job of the same kind already queued or running: **200** `{job: <that job>, created: false}`; nothing new is queued and the request's options are ignored. 422 `invalid_request` (unknown kind or option, out-of-range value; also `qr`, removed in the night batch, N16). |
 | `GET /api/admin/exports/{id}/download` | The file as an attachment: `application/zip` (archive, qr) or `video/mp4` (timelapse), `Content-Disposition: attachment; filename="<file_name>"`, Range requests work. 409 `export_not_ready` while queued or running ("Der Export ist noch nicht fertig.") or when it failed; 404 `not_found` for an unknown id or a file that is gone. |
 | `DELETE /api/admin/exports/{id}` | `ExportDeletedOut {ok: true, id}`: record and file are gone. Deleting a **queued** job cancels it. 409 `export_running` while it runs; 404 `not_found`. |
 | `GET /api/admin/instagram` | unchanged, plus `done: bool` per handle. |
@@ -166,7 +166,7 @@ Options (all optional; unknown keys are 422):
 |---|---|---|
 | `archive` | `include_hidden` (false), `include_db` (false) | `archiv-<YYYYMMDD-HHMM>-<id8>.zip`, one top folder named like the file: `photos/<activity>/<seq>_<file>.jpg` (hidden ones under `photos/<activity>/hidden/`), `photos.csv`, `users.csv`, `instagram.csv` (as the CLI export), `manifest.json` (`format: "virtubooth-archive/1"`, party name, options, counts, one entry per photo with its `file`), `README.txt`, and with `include_db` `virtubooth.db`: a consistent copy made with SQLite's backup API (never the live file), with `admin_sessions` and `export_jobs` emptied and vacuumed (wave 4, SEC-03). |
 | `timelapse` | `extension` ("beer", an activity id), `fps` (12, photos per second, 1–30), `crossfade` (false), `include_hidden` (false) | `zeitraffer-<extension>-<YYYYMMDD-HHMM>-<id8>.mp4`: H.264, 1080×1440, the last photo held 2 s, as `python -m virtubooth.tools.timelapse` makes it. With `crossfade` the video runs at 30 fps (60 when `fps` is 30). |
-| `qr` | `base_url` (`VB_PUBLIC_BASE_URL`; neither → 400 `base_url_required`, malformed → 400 `invalid_base_url`) | `qr-codes-<YYYYMMDD-HHMM>-<id8>.zip`, one top folder: `qr-sheet.html` (self-contained: inline CSS and SVG, no scripts, no external files; party name on it; one A4 page per code) plus `qr-home.svg/.png` and `qr-<activity>.svg/.png` for every activity on the home page. The codes carry the party token. |
+| ~~`qr`~~ | removed 2026-10-15 (PLAN-NIGHT N16): old jobs of this kind are hidden from the list; the sheet stays in the CLI (`python -m virtubooth.tools.qr`). Was: `base_url` | `qr-codes-<YYYYMMDD-HHMM>-<id8>.zip`, one top folder: `qr-sheet.html` (self-contained: inline CSS and SVG, no scripts, no external files; party name on it; one A4 page per code) plus `qr-home.svg/.png` and `qr-<activity>.svg/.png` for every activity on the home page. The codes carry the party token. |
 
 A job fails (status `failed`, German `error`) for example when ffmpeg is
 missing ("Für den Zeitraffer fehlt ffmpeg auf dem Server. …"), when the
@@ -180,8 +180,6 @@ fehlgeschlagen. Details stehen im Server-Log."
 |---|---|---|
 | `export_not_ready` | 409 | download of a queued, running or failed job |
 | `export_running` | 409 | delete of a running job |
-| `base_url_required` | 400 | qr job without `base_url` and without `VB_PUBLIC_BASE_URL` |
-| `invalid_base_url` | 400 | qr `base_url` not `http(s)://host[/path]` or with `?`/`#` |
 
 Admin events (in the `AdminEvent` union):
 
@@ -228,8 +226,7 @@ Each is written in the same transaction as the change.
 - Download: a plain link to `download_url` (`<a href download>`); it is a GET
   with the admin cookie, so no CSRF header is needed. The same for the
   Instagram zip: `/api/admin/instagram/<handle>/photos.zip`.
-- QR form: prefill `base_url` with `public_base_url`; when that is null the
-  field is required (else 400 `base_url_required`). Timelapse form: disable it
+- Timelapse form: disable it
   with a hint when `ffmpeg` is false; `fps` 1–30 (default 12).
 
 ## 7. The dashboard: join stop and live overview

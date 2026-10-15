@@ -35,6 +35,21 @@ class AnalysisCounts(BaseModel):
     total: int
 
 
+class AnalyzerStats(BaseModel):
+    processed: int = Field(description="Photos this analyzer ran on (worker heartbeat).")
+    errors: int = Field(description="Photos that failed in this analyzer.")
+    avg_ms: float | None = Field(description="Average duration (recent photos weigh most).")
+    last_ms: float | None = Field(description="Duration on the last photo.")
+
+
+class AnalyzerSettingSpec(BaseModel):
+    key: str
+    title: str = Field(description="German.")
+    min: float
+    max: float
+    step: float
+
+
 class AnalyzerStatus(BaseModel):
     name: str
     title: str
@@ -44,11 +59,25 @@ class AnalyzerStatus(BaseModel):
     available: bool
     reason: str | None = Field(description="Why it cannot run (German); null when available.")
     facts: list[str]
+    description: str = Field(description="What it does (German, one sentence).")
+    size_mb: float = Field(description="Its model files on disk (MB); 0 without models.")
+    stats: AnalyzerStats
+    settings: dict[str, float] | None = Field(
+        description="Its current settings; null when it has none."
+    )
+    settings_schema: list[AnalyzerSettingSpec]
+
+
+class AnalysisQueue(BaseModel):
+    pending: int = Field(description="Photos waiting for their analysis.")
+    running: int
+    oldest_pending_s: int | None = Field(description="Age of the oldest waiting photo (s).")
 
 
 class AnalysisStatus(BaseModel):
     worker: WorkerStatus
     counts: AnalysisCounts
+    queue: AnalysisQueue
     analyzers: list[AnalyzerStatus]
 
 
@@ -58,12 +87,11 @@ class AnalyzersIn(BaseModel):
     )
 
 
-class RerunIn(BaseModel):
-    scope: Literal["failed", "all"]
-
-
-class RerunOut(BaseModel):
-    queued: int
+class AnalyzerIn(BaseModel):
+    enabled: bool
+    settings: dict[str, float] | None = Field(
+        None, description="Only the keys of its `settings_schema`; omitted = unchanged."
+    )
 
 
 class AnalysisBox(BaseModel):
@@ -81,6 +109,41 @@ class DetailLine(BaseModel):
     value: str
 
 
+class ObjectBox(BaseModel):
+    x: float = Field(description="0..1 from the left")
+    y: float = Field(description="0..1 from the top")
+    w: float
+    h: float
+
+
+class PhotoObject(BaseModel):
+    idx: int = Field(description="Position in the photo's object list (0-based).")
+    label: str = Field(description="Canonical English label, e.g. „wine glass“.")
+    label_de: str = Field(description="German label, e.g. „Weinglas“.")
+    score: float
+    box: ObjectBox | None
+    source: str = Field(description="local | claude | mistral")
+    model: str
+
+
+class DetectionRun(BaseModel):
+    source: str
+    state: Literal["done", "failed", "skipped"]
+    model: str | None
+    error: str | None
+
+
+class OptOutState(BaseModel):
+    analysis: bool = Field(description="Live: the guest does not want the analysis.")
+    external_ai: bool = Field(description="Live: the guest's photos never go to an external AI.")
+
+
+class PropertyScores(BaseModel):
+    name: str
+    archived: bool
+    scores: list[float | None] = Field(description="Index = the object's idx.")
+
+
 class PhotoAnalysis(BaseModel):
     photo_id: str = Field(description="The photo's public id.")
     state: AnalysisState
@@ -91,3 +154,122 @@ class PhotoAnalysis(BaseModel):
     facts: dict[str, float]
     boxes: list[AnalysisBox]
     details: list[DetailLine]
+    objects: list[PhotoObject]
+    runs: list[DetectionRun]
+    opt_out: OptOutState
+    opt_out_at_analysis: bool = Field(
+        description="The guest had the analysis opt-out on when the photo was analysed."
+    )
+    properties: list[PropertyScores]
+    durations_ms: dict[str, int]
+
+
+# ------------------------------------------------- categories (PLAN-NIGHT §4.2)
+
+CategoryOp = Literal[
+    "gt", "lt", "gte", "lte", "eq", "ne", "between", "exists", "not_exists", "contains",
+    "not_contains", "contains_any",
+]  # fmt: skip
+LabelStyle = Literal["count", "percent", "number", "time", "fixed", "object"]
+
+
+class CategoryCondition(BaseModel):
+    value: str = Field(description="A value key (GET /admin/values), e.g. `people`, "
+                       "`objects.count:hat`, `prop.coolness.max`.")  # fmt: skip
+    op: CategoryOp
+    operand: float | str | tuple[float, float] | list[str] | None = Field(
+        None,
+        description="number (gt…ne), [a, b] (between), label (contains, not_contains), "
+        "[labels] (contains_any), null (exists, not_exists).",
+    )
+
+
+class CategoryThenBy(BaseModel):
+    by: str
+    order: Literal["top", "bottom"] = "top"
+
+
+class CategorySelect(BaseModel):
+    by: str = Field(description="The value to rank by (missing values rank last).")
+    order: Literal["top", "bottom"] = "top"
+    count: int = Field(3, description="1–10 winners.")
+    then_by: list[CategoryThenBy] = Field(
+        default_factory=list, description="≤ 2 tie-breakers (a plain key string = top)."
+    )
+    one_per_guest: bool = True
+
+
+class CategoryLabel(BaseModel):
+    value: str | None = Field(
+        None, description="The value shown (and required); null = `select.by`."
+    )
+    style: LabelStyle = "count"
+    one: str = Field("", description="Singular word (or the fixed text).")
+    many: str = Field("", description="Plural word.")
+
+
+class CategoryVerdictSpec(BaseModel):
+    prompt: str = Field(description="1–1000 chars: the LLM verdict prompt (each poll).")
+
+
+class CategorySpec(BaseModel):
+    """A rule-based wall category. Invalid input → 400 `invalid_category`
+    naming the field in German."""
+
+    emoji: str = Field(description="One emoji.")
+    title: str = Field(description="1–40 chars.")
+    line: str = Field("", description="0–80 chars (the subtitle).")
+    where: list[CategoryCondition] = Field(
+        default_factory=list, description="0–8 conditions, all must hold."
+    )
+    select: CategorySelect
+    label: CategoryLabel = Field(default_factory=CategoryLabel)
+    verdict: CategoryVerdictSpec | None = None
+
+
+class CategoryWinnerOut(BaseModel):
+    photo_id: str
+    thumb_url: str
+    value: float | None
+    label: str
+    object_idx: int | None = Field(description="The object the value points at, if any.")
+
+
+class CategoryVerdictOut(BaseModel):
+    text: str = Field(description="German, ≤ 160 chars.")
+    emoji: str | None
+    photo_id: str | None = Field(description="Public id of the photo it names (visible), or null.")
+
+
+class CategoryItem(BaseModel):
+    id: str
+    enabled: bool
+    preset: str | None = Field(description="The preset it came from; null = made by the host.")
+    position: int
+    spec: CategorySpec
+    available: bool
+    reason: str | None = Field(description="Why it cannot win anything (German), or null.")
+    verdict: CategoryVerdictOut | None
+    winners: list[CategoryWinnerOut] = Field(description="Right now, best first (≤ count).")
+
+
+class CategoriesOut(BaseModel):
+    categories: list[CategoryItem]
+
+
+class CategoryOrderIn(BaseModel):
+    ids: list[str] = Field(max_length=200, description="First in this order; the rest after.")
+
+
+class CategoryPreviewOut(BaseModel):
+    winners: list[CategoryWinnerOut]
+    matched: int = Field(description="Visible photos meeting every condition.")
+    reason: str | None = Field(description="Why it cannot win (German), or null.")
+
+
+class RestoreOut(BaseModel):
+    added: list[str]
+
+
+class OkOut(BaseModel):
+    ok: Literal[True]

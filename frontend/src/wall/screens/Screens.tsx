@@ -18,6 +18,10 @@ export function LoginScreen({ onDone, onNoPassword }: { onDone: () => void; onNo
     setError(null);
     try {
       await login(password);
+      // blur before the form goes: removing a focused field does not reliably fire
+      // focusout, and a password manager's button on it (Bitwarden's shield) stayed on
+      // the live wall
+      inputRef.current?.blur();
       onDone();
     } catch (err) {
       if (err instanceof WallApiError && err.status === 409) {
