@@ -127,7 +127,8 @@ describe('GuestPass', () => {
     fireEvent.change(field, { target: { value: '  Fred ' } });
     fireEvent.click(screen.getByTestId('display-name-save'));
     await waitFor(() => expect(requests).toHaveLength(1));
-    const req = requests[0] as Request;
+    const req = requests[0];
+    if (!req) throw new Error('no request');
     expect(req.method).toBe('PATCH');
     expect(await req.clone().json()).toEqual({ display_name: 'Fred' });
     await waitFor(() => expect(screen.getByTestId('guest-pass').textContent).toContain('Fred'));

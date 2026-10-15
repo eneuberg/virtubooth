@@ -5,7 +5,16 @@
  * collapsed.
  */
 import { useQueryClient } from '@tanstack/react-query';
-import { Ban, ChevronLeft, Copy, ExternalLink, Images, ShieldCheck, UserRoundX } from 'lucide-react';
+import {
+  Ban,
+  ChevronLeft,
+  Copy,
+  ExternalLink,
+  Images,
+  RotateCcw,
+  ShieldCheck,
+  UserRoundX,
+} from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { useSearchParams } from 'wouter';
 import { isApiError } from '@/api/client';
@@ -21,6 +30,7 @@ import { Skeleton, SkeletonGrid } from '@/ui/Skeleton';
 import { Switch } from '@/ui/Switch';
 import { showToast } from '@/ui/Toast';
 import { AdminFrame } from '../common/AdminFrame';
+import { GuestBadges } from '../common/GuestBadges';
 import { ConnectionBadge } from '../common/ConnectionBadge';
 import { DeletePhotosDialog } from '../common/DeletePhotosDialog';
 import { tileButton, useGridKeys } from '../common/grid';
@@ -35,6 +45,7 @@ import { useExtensionMap, useUploadPause, useUploadStop, useUserDetail } from '.
 import { useDocumentSurface } from '../surface';
 import { UploadStatusPill } from '../uploads/UploadStatusPill';
 import { pauseSource } from '../uploads/uploadState';
+import { resetDisplayName } from './api';
 import { BanSheet } from './BanSheet';
 import { TechDetails } from './TechDetails';
 import { UnbanSheet } from './UnbanSheet';
@@ -162,6 +173,7 @@ function Guest({ detail }: { detail: UserDetail }) {
   const [sheet, setSheet] = useState<'ban' | 'unban' | null>(null);
   const grid = useGridKeys<HTMLUListElement>();
   const [pausing, setPausing] = useState(false);
+  const [resetting, setResetting] = useState(false);
   const [deleting, setDeleting] = useState<AdminPhoto[]>([]);
   const state = guestState(user);
   const shown = photoId ? (photos.find((p) => p.id === photoId) ?? null) : null;
@@ -189,12 +201,59 @@ function Guest({ detail }: { detail: UserDetail }) {
     }
   };
 
+  const resetName = async () => {
+    setResetting(true);
+    try {
+      await resetDisplayName(qc, user.id);
+      showToast({ message: `Anzeigename von ${user.name} zurückgesetzt`, tone: 'success' });
+    } catch (err) {
+      showError(err);
+    } finally {
+      setResetting(false);
+    }
+  };
+
   return (
     <>
       <header className="grid gap-3">
         <h1 data-testid="user-name" translate="no" className="text-2xl font-bold break-words sm:text-3xl">
           {user.name}
         </h1>
+        <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-md" data-testid="user-ident">
+          <span className="text-ink-muted tabular">Gast #{user.id}</span>
+          {user.display_name ? (
+            <>
+              <span data-testid="user-display-name">
+                · nennt sich <strong translate="no">„{user.display_name}“</strong>
+                <span className="text-ink-muted"> (so sehen die anderen den Gast)</span>
+              </span>
+              <Button
+                variant="quiet"
+                size="xs"
+                icon={RotateCcw}
+                isPending={resetting}
+                pendingLabel="Setzt zurück…"
+                onPress={() => void resetName()}
+                data-testid="reset-display-name"
+              >
+                Zurücksetzen
+              </Button>
+            </>
+          ) : null}
+        </p>
+        {user.analysis_opt_out || user.ai_opt_out ? (
+          <p className="flex flex-wrap gap-1.5" data-testid="user-opt-outs">
+            <GuestBadges
+              user={{
+                banned: false,
+                auto_banned: false,
+                uploads_paused: false,
+                analysis_opt_out: user.analysis_opt_out,
+                ai_opt_out: user.ai_opt_out,
+              }}
+            />
+          </p>
+        ) : null}
         <p className="flex flex-wrap items-center text-md text-ink-muted">
           {user.instagram ? (
             <>

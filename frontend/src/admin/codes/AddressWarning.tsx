@@ -26,14 +26,13 @@ export function AddressWarning() {
 
   if (!check || addressIsFine(check)) return null;
   return (
-    <div
-      role="status"
+    <output
       data-testid="address-warning"
       data-status={check.status}
       className="flex items-start gap-3 border-l-4 border-accent bg-surface-sunk px-3 py-2.5 text-sm"
     >
       <TriangleAlert aria-hidden="true" className="mt-0.5 size-5 shrink-0 text-accent-ink" strokeWidth={2} />
-      <p className="grid gap-1">
+      <span className="grid gap-1">
         <span className="font-semibold">{QR_ADDRESS_WARNING}</span>
         <Link
           href={sectionHref('allgemein')}
@@ -41,7 +40,7 @@ export function AddressWarning() {
         >
           Zu „Allgemeines“
         </Link>
-      </p>
-    </div>
+      </span>
+    </output>
   );
 }

@@ -24,8 +24,7 @@ export function AddressStatus({ state }: { state: PublicAddress }) {
   const { text, detail, tone } = addressStatus(state.check);
   const Icon = tone === 'ok' ? CircleCheck : tone === 'warn' ? CircleAlert : Globe;
   return (
-    <p
-      role="status"
+    <output
       data-testid="address-status"
       data-status={state.check.status}
       className={cx(
@@ -38,7 +37,7 @@ export function AddressStatus({ state }: { state: PublicAddress }) {
       <Icon aria-hidden="true" className="mt-0.5 size-4" strokeWidth={2.25} />
       <span className="font-semibold">{text}</span>
       {detail ? <span className="col-start-2 text-xs text-ink-muted">{detail}</span> : null}
-    </p>
+    </output>
   );
 }
 

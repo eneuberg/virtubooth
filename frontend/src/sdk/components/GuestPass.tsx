@@ -10,23 +10,11 @@ import { useState } from 'react';
 import { Button as AriaButton } from 'react-aria-components';
 import { t } from '@/lib/messages.de';
 import { cx } from '@/ui/cx';
-import { passName } from '../identity';
+import { initials, passName } from '../identity';
 import { useSession } from '../session';
 import { useGuestStatus } from '../status';
 import { GuestSheet } from './GuestSheet';
 import { StatusDot } from './StatusSlot';
-
-/** "Party Fred" → "PF", "@lena.k" → "L", "🎉 Fred" → "🎉F" (whole characters, never half an emoji). */
-export function initials(name: string): string {
-  return name
-    .replace(/^@/, '')
-    .replace(/\s*#\d+$/, '')
-    .split(/\s+/)
-    .filter(Boolean)
-    .slice(0, 2)
-    .map((w) => (Array.from(w)[0] ?? '').toLocaleUpperCase('de-DE'))
-    .join('');
-}
 
 export interface GuestPassProps {
   /** camera top bar: the short name only, no second line */

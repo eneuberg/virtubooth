@@ -232,7 +232,8 @@ export function exportJobTitle(
 ): string {
   const options: Record<string, unknown> = { ...job.options };
   const id = options['extension'];
-  const what = job.kind === 'timelapse' && typeof id === 'string' ? ` (${extensions?.get(id)?.title ?? id})` : '';
+  const what =
+    job.kind === 'timelapse' && typeof id === 'string' ? ` (${extensions?.get(id)?.title ?? id})` : '';
   return `${KIND_WORDS[job.kind] ?? job.kind}${what} vom ${formatDateTime(job.created_at)}`;
 }
 

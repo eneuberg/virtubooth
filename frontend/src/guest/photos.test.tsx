@@ -4,7 +4,7 @@ import type { ReactNode } from 'react';
 import { describe, expect, it, vi } from 'vitest';
 import type { GuestPhoto, MyPhotosResponse } from '@/api/types';
 import type { OutboxEvent } from '@/sdk/outbox';
-import { MY_PHOTOS_KEY, useMyPhotosSync } from './photos';
+import { deleteMyPhoto, MY_PHOTOS_KEY, useMyPhotosSync } from './photos';
 
 const listeners = vi.hoisted(() => new Set<(e: OutboxEvent) => void>());
 vi.mock('@/sdk/outbox', () => ({
@@ -87,5 +87,39 @@ describe('"Deine Bilder" after a sent photo', () => {
     expect(listeners.size).toBe(1);
     hook.unmount();
     expect(listeners.size).toBe(0);
+  });
+});
+
+describe('deleting one of my photos', () => {
+  it('asks the server, then drops it from the cached list', async () => {
+    const { client, ids } = setup({ photos: [photo('a', 2), photo('b', 1)] });
+    const seen: Request[] = [];
+    vi.stubGlobal('fetch', async (req: Request) => {
+      seen.push(req);
+      return new Response(JSON.stringify({ ok: true }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    });
+    await deleteMyPhoto(client, 'a');
+    expect(seen[0]?.method).toBe('DELETE');
+    expect(new URL(seen[0]?.url ?? '').pathname).toBe('/api/me/photos/a');
+    expect(ids()).toEqual(['b']);
+    vi.unstubAllGlobals();
+  });
+
+  it('keeps the list when the server refuses', async () => {
+    const { client, ids } = setup({ photos: [photo('a', 2)] });
+    vi.stubGlobal(
+      'fetch',
+      async () =>
+        new Response(JSON.stringify({ error: 'not_found', message: 'Foto nicht gefunden.' }), {
+          status: 404,
+          headers: { 'Content-Type': 'application/json' },
+        }),
+    );
+    await expect(deleteMyPhoto(client, 'a')).rejects.toMatchObject({ message: 'Foto nicht gefunden.' });
+    expect(ids()).toEqual(['a']);
+    vi.unstubAllGlobals();
   });
 });

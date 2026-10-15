@@ -56,3 +56,15 @@ export function handleFromLink(text: string): string | null {
   const m = /instagram\.com\/([A-Za-z0-9._]+)/i.exec(text);
   return m?.[1] ?? null;
 }
+
+/** "Party Fred" → "PF", "@lena.k" → "L", "🎉 Fred" → "🎉F" (whole characters, never half an emoji). */
+export function initials(name: string): string {
+  return name
+    .replace(/^@/, '')
+    .replace(/\s*#\d+$/, '')
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((w) => (Array.from(w)[0] ?? '').toLocaleUpperCase('de-DE'))
+    .join('');
+}
