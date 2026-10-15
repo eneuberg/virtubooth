@@ -24,6 +24,7 @@ VB_E2E_BROWSER=firefox uv run pytest -m e2e -n 4
 tests/e2e/run_webkit.sh -n 4              # WebKit in the Playwright Docker image
 VB_BLOCKLISTS=.blocklists uv run pytest tests/unit/test_core_blockers.py   # full filter lists
 uv run python -m virtubooth.tools.qr --help                     # also: timelapse, export
+uv sync --extra ml && uv run virtubooth wall models fetch --data-dir ../data   # photo analysis (or: make models)
 ```
 
 From the repository root, `uv run --project backend ruff check .` lints every
@@ -40,20 +41,20 @@ server refuses to start, unless `VB_DEV=1`.
 
 | Path | What |
 |---|---|
-| `__main__.py` | CLI: `serve` (default), `gen-env`, `export-openapi` |
+| `__main__.py` | CLI: `serve` (default), `gen-env`, `export-openapi`, `reset-admin-password`, `wall` |
 | `app.py` | `create_app(settings, extensions=None)`: the composition root |
 | `settings.py` | pydantic-settings (`VB_*`), secrets as `SecretStr`, `ConfigError` |
 | `runtime.py` | `Core`: settings, db, repos, services, bus, signer, limits, web, extensions |
 | `middleware.py` | pure ASGI: token entry, CSRF origin check, body cap, API budget, security headers |
 | `openapi.py` | the deterministic schema export (sorted keys, dummy settings, every built-in extension) |
-| `core/` | errors (`ErrorCode`, `ErrorBody`, `ApiError`), security, events (bus, replay), ratelimit, logs, clock |
+| `core/` | errors (`ErrorCode`, `ErrorBody`, `ApiError`), security, events (bus, replay), ratelimit, passwords, logs, clock |
 | `db/` | `Database` (one connection, nested transactions, on-commit hooks), `migrations.py` (append only) |
-| `domain/` | dataclasses (`User`, `Photo`, ...), constants, pseudonyms, export job types |
-| `repositories/` | one per aggregate (users, photos, bans, app_settings, admin_sessions, audit, exports, instagram) + admin read models; SQL only |
-| `services/` | identity, uploads, moderation, upload controls, admin auth, admin views, typed events, export jobs (one worker thread, `export_runners.py`), Instagram board |
+| `domain/` | dataclasses (`User`, `Photo`, ...), constants, pseudonyms, QR code rules, export job types |
+| `repositories/` | one per aggregate (users, photos, bans, codes, app_settings, admin_sessions, audit, exports, instagram, ...) + admin read models; SQL only |
+| `services/` | identity, uploads, moderation, upload controls, admin auth, codes, presence, theme, host settings, posters, admin views, typed events, export jobs (one worker thread, `export_runners.py`), Instagram board |
 | `api/` | `deps.py` (Annotated dependencies), `schemas/` (pydantic In/Out, events), `routers/` (guest, uploads, media, health, `admin/*`) |
 | `web/` | serving `VB_WEB_DIR`: HTML entries, gate/404, `/assets` |
-| `extensions/` | `sdk.py` (Extension, UploadPolicy, discovery), `beer/`, `booth/` (filters.json) |
+| `extensions/` | `sdk.py` (Extension, UploadPolicy, discovery), `beer/`, `booth/` (filters.json), `wall/` (Live-Wall: screen, photo analysis in `enrich/`, external AI in `llm/`) |
 | `tools/` | qr, timelapse, export (`python -m virtubooth.tools.<x>`); the admin's export jobs reuse their functions |
 
 Rules of thumb:
@@ -81,7 +82,7 @@ Rules of thumb:
 | `api/` | the HTTP API and pages through `TestClient` (SSE through a live uvicorn) |
 | `unit/` | migrations, tools, settings, events, OpenAPI export, content blockers, frontend contract |
 | `fixtures/` | `blocker_rules.txt`, `web/` (a stub frontend build) |
-| `e2e/` | Playwright harness serving `frontend/dist` (skipped without a build): `guest/`, `activities/`, `admin/`, `run_webkit.sh` |
+| `e2e/` | Playwright harness serving `frontend/dist` (skipped without a build): `guest/`, `activities/`, `admin/`, `wall/`, `run_webkit.sh` |
 
-Contracts for the frontend: `../docs/overhaul/contracts/web-serving.md` and
-`../docs/overhaul/contracts/api.md`.
+The API contract is the OpenAPI export (`frontend/openapi.json`); the
+web-serving contract is `../docs/overhaul/contracts/web-serving.md`.
