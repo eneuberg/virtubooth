@@ -39,6 +39,8 @@ log = logging.getLogger("virtubooth.web")
 ENTRIES = ("index.html", "admin.html", "gate.html")
 # optional extra entries (WebFrontend.extra_page), e.g. wall.html
 EXTRA_PAGE_RE = re.compile(r"^[a-z][a-z0-9-]{0,40}\.html$")
+# a guest page's <html> tag: the theme's style goes into it (data-vb-style)
+_HTML_TAG_RE = re.compile(r"<html\b")
 GATE_PLACEHOLDER = 'data-vb-mode="gate"'
 NOT_FOUND_MARK = 'data-vb-mode="notfound"'
 PageMode = Literal["gate", "notfound"]
@@ -144,6 +146,8 @@ class WebFrontend:
         # the theme's <link> (Core sets it: ThemeService.head_html) for every
         # guest-facing page; the admin keeps its own look
         self.theme_head: Callable[[], str] | None = None
+        # the theme's style for <html data-vb-style> (ThemeService.style)
+        self.theme_style: Callable[[], str] | None = None
 
     @classmethod
     def from_settings(cls, settings: Settings) -> WebFrontend:
@@ -195,6 +199,9 @@ class WebFrontend:
         if self.root is None or self.theme_head is None or "</head>" not in text:
             return text, page.etag if text is page.text else _etag(text)
         text = text.replace("</head>", self.theme_head() + "</head>", 1)
+        if self.theme_style is not None:
+            style = self.theme_style()
+            text = _HTML_TAG_RE.sub(f'<html data-vb-style="{style}"', text, count=1)
         return text, _etag(text)
 
     def guest_app(self) -> HTMLResponse:

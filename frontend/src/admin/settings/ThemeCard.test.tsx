@@ -22,15 +22,19 @@ const KLASSISCH: ThemeColors = {
   text_muted: '#c9b8b0',
 };
 
+const RUMMEL: ThemeColors = { ...NEON_NACHT, background: '#15123d', primary: '#ffd23f' };
+
 function out(
-  preset: 'neon_nacht' | 'klassisch' | 'custom',
+  preset: 'neon_nacht' | 'klassisch' | 'rummel' | 'custom',
   colors: ThemeColors,
   custom = false,
+  style: 'elegant' | 'goofy' = 'elegant',
 ): AdminThemeOut {
   return {
     theme: {
       preset,
       colors,
+      style,
       on_primary: '#000000',
       on_accent: '#1b1b1a',
       primary_ink: '#cc4ffe',
@@ -40,8 +44,9 @@ function out(
       by: custom ? 'admin:1' : null,
     },
     presets: [
-      { id: 'neon_nacht', label: 'Neon Nacht', colors: NEON_NACHT },
-      { id: 'klassisch', label: 'Klassisch', colors: KLASSISCH },
+      { id: 'neon_nacht', label: 'Neon Nacht', colors: NEON_NACHT, style: 'elegant' },
+      { id: 'klassisch', label: 'Klassisch', colors: KLASSISCH, style: 'elegant' },
+      { id: 'rummel', label: 'Rummel', colors: RUMMEL, style: 'goofy' },
     ],
   };
 }
@@ -92,6 +97,27 @@ describe('ThemeCard (Erscheinungsbild)', () => {
     expect(await bodyField(requests[0]!, 'preset')).toBe('klassisch');
     expect(await bodyField(requests[0]!, 'colors')).toBeNull();
     await screen.findByText('Erscheinungsbild gespeichert.');
+  });
+
+  it('„Rummel“ brings the goofy style; the style can be switched on its own', async () => {
+    const { requests } = renderCard({
+      'PUT /api/admin/theme': () => out('rummel', RUMMEL, true, 'goofy'),
+    });
+    const style = (name: string) =>
+      within(screen.getByTestId('theme-style')).getByRole('radio', { name }) as HTMLInputElement;
+    expect(style('Ruhig').checked).toBe(true);
+    fireEvent.click(within(screen.getByTestId('theme-preset')).getByText('Rummel'));
+    expect(style('Verspielt').checked).toBe(true);
+    fireEvent.click(save());
+    await waitFor(() => expect(requests).toHaveLength(1));
+    expect(await bodyField(requests[0]!, 'preset')).toBe('rummel');
+    expect(await bodyField(requests[0]!, 'style')).toBe('goofy');
+  });
+
+  it('only the style changed: still something to save', () => {
+    renderCard();
+    fireEvent.click(within(screen.getByTestId('theme-style')).getByText('Verspielt'));
+    expect(save().getAttribute('data-disabled')).toBeNull();
   });
 
   it('an edited colour becomes „Eigene“ and is saved with all colours', async () => {

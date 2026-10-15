@@ -2047,7 +2047,7 @@ export interface components {
              * Preset
              * @enum {string}
              */
-            preset: "neon_nacht" | "klassisch" | "custom";
+            preset: "neon_nacht" | "klassisch" | "rummel" | "custom";
             /**
              * Primary Ink
              * @description `primary` as text: itself, or lightened towards `text` until it reads on background and surface (4.5:1).
@@ -2058,6 +2058,13 @@ export interface components {
              * @description Counts saves; 0 = never saved (the default).
              */
             rev: number;
+            /**
+             * Style
+             * @description The look's layer on guest pages and the wall: `elegant` or `goofy` (<html data-vb-style>).
+             * @default elegant
+             * @enum {string}
+             */
+            style: "elegant" | "goofy";
             /** Updated At */
             updated_at: string | null;
         };
@@ -4605,7 +4612,7 @@ export interface components {
              * Preset
              * @enum {string}
              */
-            preset: "neon_nacht" | "klassisch" | "custom";
+            preset: "neon_nacht" | "klassisch" | "rummel" | "custom";
             /**
              * Primary Ink
              * @description `primary` as text: itself, or lightened towards `text` until it reads on background and surface (4.5:1).
@@ -4616,6 +4623,13 @@ export interface components {
              * @description Counts saves; 0 = never saved (the default).
              */
             rev: number;
+            /**
+             * Style
+             * @description The look's layer on guest pages and the wall: `elegant` or `goofy` (<html data-vb-style>).
+             * @default elegant
+             * @enum {string}
+             */
+            style: "elegant" | "goofy";
         };
         /** RestoreOut */
         RestoreOut: {
@@ -4849,7 +4863,12 @@ export interface components {
              * Preset
              * @enum {string}
              */
-            preset: "neon_nacht" | "klassisch" | "custom";
+            preset: "neon_nacht" | "klassisch" | "rummel" | "custom";
+            /**
+             * Style
+             * @description The layer; null: the preset's (`custom`: elegant).
+             */
+            style?: ("elegant" | "goofy") | null;
         };
         /** ThemePreset */
         ThemePreset: {
@@ -4858,9 +4877,15 @@ export interface components {
              * Id
              * @enum {string}
              */
-            id: "neon_nacht" | "klassisch";
+            id: "neon_nacht" | "klassisch" | "rummel";
             /** Label */
             label: string;
+            /**
+             * Style
+             * @description The style the preset comes with.
+             * @enum {string}
+             */
+            style: "elegant" | "goofy";
         };
         /** TimelapseExportIn */
         TimelapseExportIn: {

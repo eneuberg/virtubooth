@@ -1,7 +1,10 @@
 """The theme: colours of the guest UI and the Live Wall, set in Allgemeines.
 
-Stored as `x.theme` = {preset, colors, rev, updated_at, by}; absent = „Neon
-Nacht“. Every guest page (index.html, gate.html, wall.html) links
+Stored as `x.theme` = {preset, colors, style, rev, updated_at, by}; absent =
+„Neon Nacht“. `style` is the layer on top of the colours: "elegant" or "goofy"
+(the „Rummel“ fairground look); the server writes it into the guest pages'
+<html data-vb-style> (WebFrontend.theme_style), so the goofy CSS applies before
+the first paint. Every guest page (index.html, gate.html, wall.html) links
 `/api/theme.css?v=<rev>` in its <head> (WebFrontend.theme_head), so the
 colours are there before the first paint without an inline style (CSP).
 The guest app re-reads `/api/theme` when it becomes visible again, and open
@@ -27,6 +30,7 @@ from ..api.schemas.theme import (
     ThemeColors,
     ThemeIn,
     ThemePreset,
+    ThemeStyle,
 )
 from ..core import errors
 from ..core.clock import now_iso
@@ -67,10 +71,26 @@ KLASSISCH = ThemeColors(
     text="#fbefe9",
     text_muted="#c9b8b0",
 )
-PRESETS: Final = (
-    ThemePreset(id="neon_nacht", label="Neon Nacht", colors=NEON_NACHT),
-    ThemePreset(id="klassisch", label="Klassisch", colors=KLASSISCH),
+# a fairground at night, about 1994: indigo sky, bulb yellow, candy floss, awning red
+RUMMEL = ThemeColors(
+    background="#15123d",
+    surface="#241d5c",
+    depth="#0b0926",
+    primary="#ffd23f",
+    secondary="#ff9ed2",
+    tertiary="#7fe3d0",
+    accent="#ff4b3e",
+    highlight="#fff4c2",
+    hit="#ffffff",
+    text="#fff8ec",
+    text_muted="#cdc6f2",
 )
+PRESETS: Final = (
+    ThemePreset(id="neon_nacht", label="Neon Nacht", colors=NEON_NACHT, style="elegant"),
+    ThemePreset(id="klassisch", label="Klassisch", colors=KLASSISCH, style="elegant"),
+    ThemePreset(id="rummel", label="Rummel", colors=RUMMEL, style="goofy"),
+)
+STYLES: Final = ("elegant", "goofy")
 DEFAULT_PRESET: Final = PRESETS[0]
 
 LABELS: Final = {
@@ -184,6 +204,11 @@ def parse_colors(raw: Any) -> ThemeColors:
 # --------------------------------------------------------------------- service
 
 
+def _preset_style(preset: str) -> ThemeStyle:
+    """The style a preset comes with (own colours and unknown: elegant)."""
+    return next((p.style for p in PRESETS if p.id == preset), "elegant")
+
+
 def css_variables(theme: PublicTheme) -> str:
     """The theme as CSS custom properties on :root (`--t-<name>`; underscores
     become dashes). Mirrored in frontend/src/styles/theme.ts `themeVariables`."""
@@ -212,8 +237,11 @@ class ThemeService:
             colors = ThemeColors.model_validate(raw.get("colors"))
         except ValidationError:
             raw, at, colors = {}, None, DEFAULT_PRESET.colors
-        if preset not in ("neon_nacht", "klassisch", "custom"):
+        if preset not in ("neon_nacht", "klassisch", "rummel", "custom"):
             preset = DEFAULT_PRESET.id
+        style = raw.get("style")
+        if style not in STYLES:
+            style = _preset_style(preset)
         by = raw.get("by")
         return AdminTheme(
             preset=preset,
@@ -221,6 +249,7 @@ class ThemeService:
             on_primary=readable_on(colors.primary, colors),
             on_accent=readable_on(colors.accent, colors),
             primary_ink=ink_of(colors.primary, colors),
+            style=style,
             rev=int(raw.get("rev") or 0),
             custom=bool(raw),
             updated_at=at if raw else None,
@@ -242,6 +271,10 @@ class ThemeService:
     def css(self) -> str:
         return css_variables(self.public())
 
+    def style(self) -> ThemeStyle:
+        """The layer for <html data-vb-style> on every guest page."""
+        return self.admin_theme().style
+
     def head_html(self) -> str:
         """The <link> every guest page carries (before the first paint)."""
         return f'<link rel="stylesheet" href="/api/theme.css?v={self.etag()[2:12]}">'
@@ -253,6 +286,7 @@ class ThemeService:
             colors = next(p.colors for p in PRESETS if p.id == body.preset)
         else:
             colors = parse_colors(body.colors)
+        style = body.style or _preset_style(body.preset)
         with self.db.tx():
             old = self.admin_theme()
             at = now_iso()
@@ -261,12 +295,13 @@ class ThemeService:
                 {
                     "preset": body.preset,
                     "colors": colors.model_dump(),
+                    "style": style,
                     "rev": old.rev + 1,
                     "by": actor,
                 },
                 at=at,
             )
-            self.repos.audit.log(actor, "settings.theme", details={"preset": body.preset}, at=at)
+            self.repos.audit.log(actor, "settings.theme", details={"preset": body.preset, "style": style}, at=at)
             self.events.theme_changed()
         return self.admin_out()
 

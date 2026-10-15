@@ -9,7 +9,10 @@ from typing import Annotated, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
-ThemePresetId = Literal["neon_nacht", "klassisch", "custom"]
+ThemePresetId = Literal["neon_nacht", "klassisch", "rummel", "custom"]
+# the layer on top of the colours: "elegant" (calm) or "goofy" (the „Rummel“ fairground
+# look: googly eyes, chasing bulbs, jelly buttons; <html data-vb-style="goofy">)
+ThemeStyle = Literal["elegant", "goofy"]
 THEME_COLOR_PATTERN = r"^#[0-9a-f]{6}$"
 ThemeColor = Annotated[str, Field(pattern=THEME_COLOR_PATTERN)]
 
@@ -35,9 +38,10 @@ class ThemeColors(BaseModel):
 
 
 class ThemePreset(BaseModel):
-    id: Literal["neon_nacht", "klassisch"]
+    id: Literal["neon_nacht", "klassisch", "rummel"]
     label: str
     colors: ThemeColors
+    style: ThemeStyle = Field(description="The style the preset comes with.")
 
 
 class PublicTheme(BaseModel):
@@ -50,6 +54,11 @@ class PublicTheme(BaseModel):
     primary_ink: ThemeColor = Field(
         description="`primary` as text: itself, or lightened towards `text` until it "
         "reads on background and surface (4.5:1)."
+    )
+    style: ThemeStyle = Field(
+        "elegant",
+        description="The look's layer on guest pages and the wall: `elegant` or `goofy` "
+        "(<html data-vb-style>).",
     )
     rev: int = Field(description="Counts saves; 0 = never saved (the default).")
 
@@ -71,4 +80,7 @@ class ThemeIn(BaseModel):
     preset: ThemePresetId
     colors: dict[str, str] | None = Field(
         None, description="All colours of ThemeColors as #rrggbb; null: the preset's."
+    )
+    style: ThemeStyle | None = Field(
+        None, description="The layer; null: the preset's (`custom`: elegant)."
     )
