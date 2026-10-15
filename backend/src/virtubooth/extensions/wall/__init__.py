@@ -71,7 +71,9 @@ def __getattr__(name: str) -> Extension:
 
 
 def _both(first: Callable[[Core], None], second: Callable[[Core], None]) -> Callable[[Core], None]:
-    """Run two lifecycle hooks in order; the second runs even if the first fails."""
+    """Run two lifecycle hooks in order; the second runs even if the first fails.
+    Like a bound method, the result's `__self__` is the first hook's owner (the
+    wall tests reach the hub through `on_start.__self__`)."""
 
     def run(core: Core) -> None:
         try:
@@ -79,4 +81,5 @@ def _both(first: Callable[[Core], None], second: Callable[[Core], None]) -> Call
         finally:
             second(core)
 
+    run.__self__ = getattr(first, "__self__", None)  # type: ignore[attr-defined]
     return run

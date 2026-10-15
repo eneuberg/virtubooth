@@ -52,7 +52,9 @@ class FakeProvider:
         if self.fail is not None:
             raise self.fail
 
-    def detect(self, image_jpeg: bytes, *, model: str) -> tuple[list[ports.DetectedObject], TokenUsage]:
+    def detect(
+        self, image_jpeg: bytes, *, model: str
+    ) -> tuple[list[ports.DetectedObject], TokenUsage]:
         self.detected.append(image_jpeg)
         self._maybe_fail()
         return list(self.objects), self.usage
@@ -179,7 +181,9 @@ def add_photo(
     return pid, public_id
 
 
-def set_flags(core: Core, user_id: int, *, ai: bool | None = None, analysis: bool | None = None) -> None:
+def set_flags(
+    core: Core, user_id: int, *, ai: bool | None = None, analysis: bool | None = None
+) -> None:
     with core.db.tx() as c:
         if ai is not None:
             c.execute("UPDATE users SET ai_opt_out=? WHERE id=?", (int(ai), user_id))
@@ -202,9 +206,17 @@ COOLEST_SPEC: dict[str, Any] = {
     "title": "Das coolste Objekt",
     "line": "Was die KI am coolsten findet",
     "where": [{"value": "prop.coolness.max", "op": "exists"}],
-    "select": {"by": "prop.coolness.max", "order": "top", "count": 1, "then_by": [], "one_per_guest": True},
+    "select": {
+        "by": "prop.coolness.max",
+        "order": "top",
+        "count": 1,
+        "then_by": [],
+        "one_per_guest": True,
+    },
     "label": {"value": None, "style": "object", "one": "", "many": ""},
-    "verdict": {"prompt": "Werte das coolste Objekt aus den Ergebnissen raus und sag mir, von wem und was."},
+    "verdict": {
+        "prompt": "Werte das coolste Objekt aus den Ergebnissen raus und sag mir, von wem und was."
+    },
 }
 
 

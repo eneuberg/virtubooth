@@ -18,7 +18,9 @@ TZ = "Europe/Berlin"
 
 
 def usage_rows(core):
-    return core.db.all("SELECT kind, ref, ok, input_tokens, output_tokens, cost_micro_usd FROM llm_usage")
+    return core.db.all(
+        "SELECT kind, ref, ok, input_tokens, output_tokens, cost_micro_usd FROM llm_usage"
+    )
 
 
 def test_prices():

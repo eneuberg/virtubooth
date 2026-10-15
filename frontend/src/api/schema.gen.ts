@@ -1138,6 +1138,205 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/x/wall/admin/llm": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Llm Status
+         * @description Config, key state (never the key), providers, models with prices, the
+         *     poller, the detection queue and the usage meter.
+         */
+        get: operations["llm_status_api_x_wall_admin_llm_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/x/wall/admin/llm/config": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Set Llm Config
+         * @description Change some settings (missing fields stay). 400 `invalid_llm_config`.
+         */
+        put: operations["set_llm_config_api_x_wall_admin_llm_config_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/x/wall/admin/llm/key": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Set Llm Key
+         * @description Store the key encrypted (write-only). 400 `llm_key_invalid` for an
+         *     obviously malformed one (more than 400 characters, whitespace).
+         */
+        put: operations["set_llm_key_api_x_wall_admin_llm_key_put"];
+        post?: never;
+        /** Clear Llm Key */
+        delete: operations["clear_llm_key_api_x_wall_admin_llm_key_delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/x/wall/admin/llm/key/test": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Test Llm Key
+         * @description Ask the provider whether the key works (no tokens used).
+         *     400 `llm_not_configured` without a key, `llm_key_invalid` when refused.
+         */
+        post: operations["test_llm_key_api_x_wall_admin_llm_key_test_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/x/wall/admin/llm/poll": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Poll Now
+         * @description Run the poll now (also when nothing changed). `started: false` says why not.
+         */
+        post: operations["poll_now_api_x_wall_admin_llm_poll_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/x/wall/admin/llm/properties": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Properties */
+        get: operations["list_properties_api_x_wall_admin_llm_properties_get"];
+        put?: never;
+        /**
+         * Create Property
+         * @description Name and prompt can never change. 409 `property_exists`, 400 `invalid_property`.
+         */
+        post: operations["create_property_api_x_wall_admin_llm_properties_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/x/wall/admin/llm/properties/{name}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Property
+         * @description One property. There is no PUT and no DELETE (405): archive it instead.
+         */
+        get: operations["get_property_api_x_wall_admin_llm_properties__name__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/x/wall/admin/llm/properties/{name}/archive": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Archive Property
+         * @description No more polling; the last scores stay readable.
+         */
+        post: operations["archive_property_api_x_wall_admin_llm_properties__name__archive_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/x/wall/admin/llm/properties/{name}/unarchive": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Unarchive Property */
+        post: operations["unarchive_property_api_x_wall_admin_llm_properties__name__unarchive_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/x/wall/admin/llm/usage": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Llm Usage */
+        get: operations["llm_usage_api_x_wall_admin_llm_usage_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/x/wall/admin/logout": {
         parameters: {
             query?: never;
@@ -1201,6 +1400,29 @@ export interface paths {
          * @description „Neu analysieren“: queue this photo again (state `pending`).
          */
         post: operations["request_analysis_api_x_wall_admin_photos__public_id__analysis_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/x/wall/admin/test-image": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Test Image
+         * @description Analyse an image without storing it: the local pipeline (D1's worker)
+         *     and, with `external=1`, the external AI (usage kind `test`, budget applies).
+         *     409 `worker_off` / `llm_budget_exhausted`, 400 `llm_not_configured`,
+         *     413/415 like uploads, at most 6 per minute.
+         */
+        post: operations["test_image_api_x_wall_admin_test_image_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1813,6 +2035,37 @@ export interface components {
              */
             next_number: number;
         };
+        /** BoxOut */
+        BoxOut: {
+            /** H */
+            h: number;
+            /** W */
+            w: number;
+            /** X */
+            x: number;
+            /** Y */
+            y: number;
+        };
+        /**
+         * BudgetConfig
+         * @description The cost brake: null = no limit of that kind.
+         */
+        BudgetConfig: {
+            /** Daily Calls */
+            daily_calls?: number | null;
+            /**
+             * Daily Usd
+             * @default 2
+             */
+            daily_usd: number | null;
+            /** Party Calls */
+            party_calls?: number | null;
+            /**
+             * Party Usd
+             * @default 5
+             */
+            party_usd: number | null;
+        };
         /** BulkIn */
         BulkIn: {
             /**
@@ -2038,6 +2291,33 @@ export interface components {
             /** Value */
             value: string;
         };
+        /** DetectConfig */
+        DetectConfig: {
+            /**
+             * External
+             * @description The external AI also lists objects per photo.
+             * @default false
+             */
+            external: boolean;
+            /**
+             * Local
+             * @description The local object detector runs (D1's `objects`).
+             * @default true
+             */
+            local: boolean;
+        };
+        /** DetectionOut */
+        DetectionOut: {
+            /** Done */
+            done: number;
+            /** Failed */
+            failed: number;
+            /**
+             * Pending
+             * @description Photos the external detector will still look at.
+             */
+            pending: number;
+        };
         /** DeviceBanOut */
         DeviceBanOut: {
             /** Created At */
@@ -2083,7 +2363,7 @@ export interface components {
              * @description Machine-readable error code.
              * @enum {string}
              */
-            error: "scan_qr" | "needs_consent" | "banned" | "consent_outdated" | "invalid_instagram" | "join_closed" | "wall_login_required" | "wall_no_password" | "wall_password_too_short" | "invalid_wall_config" | "uploads_paused" | "uploads_stopped" | "unsupported_type" | "too_large" | "invalid_meta" | "empty_upload" | "invalid_image" | "invalid_pdf" | "invalid_layout" | "no_template" | "admin_required" | "wrong_password" | "login_locked" | "invalid_filter" | "unknown_analyzer" | "invalid_cursor" | "no_fingerprint" | "restore_required" | "invalid_event_name" | "password_too_short" | "password_unchanged" | "no_filter_enabled" | "unknown_filter" | "export_not_ready" | "export_running" | "base_url_required" | "invalid_base_url" | "invalid_token" | "token_taken" | "code_revoked" | "invalid_target" | "invalid_note" | "bad_origin" | "length_required" | "rate_limited" | "invalid_request" | "not_found" | "http_404" | "http_405";
+            error: "scan_qr" | "needs_consent" | "banned" | "consent_outdated" | "invalid_instagram" | "join_closed" | "wall_login_required" | "wall_no_password" | "wall_password_too_short" | "invalid_wall_config" | "uploads_paused" | "uploads_stopped" | "unsupported_type" | "too_large" | "invalid_meta" | "empty_upload" | "invalid_image" | "invalid_pdf" | "invalid_layout" | "no_template" | "admin_required" | "wrong_password" | "login_locked" | "invalid_filter" | "unknown_analyzer" | "invalid_cursor" | "no_fingerprint" | "restore_required" | "invalid_event_name" | "password_too_short" | "password_unchanged" | "no_filter_enabled" | "unknown_filter" | "export_not_ready" | "export_running" | "base_url_required" | "invalid_base_url" | "invalid_token" | "token_taken" | "code_revoked" | "invalid_target" | "invalid_note" | "invalid_llm_config" | "llm_not_configured" | "llm_key_invalid" | "llm_budget_exhausted" | "invalid_property" | "property_exists" | "bad_origin" | "length_required" | "rate_limited" | "invalid_request" | "not_found" | "http_404" | "http_405";
             /**
              * Message
              * @description German text for the guest or admin, shown as-is.
@@ -2338,6 +2618,14 @@ export interface components {
             instagram_account: string;
             /** Party Name */
             party_name: string;
+        };
+        /** ExternalTestOut */
+        ExternalTestOut: {
+            /** Error */
+            error: string | null;
+            /** Objects */
+            objects: components["schemas"]["ObjectOut"][];
+            usage: components["schemas"]["UsageTotals"] | null;
         };
         /**
          * Fingerprint
@@ -2650,6 +2938,119 @@ export interface components {
              */
             type: "settings.join_stop";
         };
+        /** KeyIn */
+        KeyIn: {
+            /**
+             * Key
+             * @description At most 400 characters, no whitespace. Write-only.
+             */
+            key: string;
+            /**
+             * Provider
+             * @enum {string}
+             */
+            provider: "anthropic" | "mistral";
+        };
+        /**
+         * KeyOut
+         * @description Never the key itself: whether one is stored, and whether it can be read.
+         */
+        KeyOut: {
+            /** Provider */
+            provider: string | null;
+            /** Set */
+            set: boolean;
+            /** Set At */
+            set_at: string | null;
+            /**
+             * Valid
+             * @description False: stored but unreadable (VB_SECRET_KEY changed).
+             */
+            valid: boolean;
+        };
+        /** KeyTestOut */
+        KeyTestOut: {
+            /** Message */
+            message: string;
+            /** Ok */
+            ok: boolean;
+        };
+        /** LlmConfig */
+        LlmConfig: {
+            budget?: components["schemas"]["BudgetConfig"];
+            /** By */
+            by?: string | null;
+            detect?: components["schemas"]["DetectConfig"];
+            /**
+             * Enabled
+             * @description Master switch: nothing is sent while off.
+             * @default false
+             */
+            enabled: boolean;
+            /**
+             * Image Max Px
+             * @description Long edge sent for detection.
+             * @default 1024
+             */
+            image_max_px: number;
+            /**
+             * Model
+             * @default claude-haiku-5-5
+             */
+            model: string;
+            /**
+             * Poll Interval S
+             * @default 180
+             */
+            poll_interval_s: number;
+            /**
+             * Provider
+             * @default anthropic
+             * @enum {string}
+             */
+            provider: "anthropic" | "mistral";
+            /**
+             * Rev
+             * @default 0
+             */
+            rev: number;
+            /** Updated At */
+            updated_at?: string | null;
+        };
+        /**
+         * LlmConfigIn
+         * @description `PUT /llm/config`: the fields to change (missing ones stay). Ranges are
+         *     checked after merging (400 `invalid_llm_config`), not by the request schema.
+         */
+        LlmConfigIn: {
+            /** Budget */
+            budget?: {
+                [key: string]: number | null;
+            } | null;
+            detect?: components["schemas"]["DetectConfig"] | null;
+            /** Enabled */
+            enabled?: boolean | null;
+            /** Image Max Px */
+            image_max_px?: number | null;
+            /** Model */
+            model?: string | null;
+            /** Poll Interval S */
+            poll_interval_s?: number | null;
+            /** Provider */
+            provider?: ("anthropic" | "mistral") | null;
+        };
+        /** LlmStatus */
+        LlmStatus: {
+            config: components["schemas"]["LlmConfig"];
+            detection: components["schemas"]["DetectionOut"];
+            key: components["schemas"]["KeyOut"];
+            /** Models */
+            models: components["schemas"]["ModelOut"][];
+            poller: components["schemas"]["PollerOut"];
+            /** Providers */
+            providers: components["schemas"]["ProviderOut"][];
+            usage: components["schemas"]["Usage"];
+        };
         /** LoginIn */
         LoginIn: {
             /** Password */
@@ -2675,6 +3076,19 @@ export interface components {
         /** MeOut */
         MeOut: {
             user: components["schemas"]["GuestUser"];
+        };
+        /** ModelOut */
+        ModelOut: {
+            /** Id */
+            id: string;
+            /** Provider */
+            provider: string;
+            /** Title */
+            title: string;
+            /** Usd In Mtok */
+            usd_in_mtok: number;
+            /** Usd Out Mtok */
+            usd_out_mtok: number;
         };
         /**
          * MyPhotosOut
@@ -2702,6 +3116,16 @@ export interface components {
              * @enum {string}
              */
             state: "needs_consent";
+        };
+        /** ObjectOut */
+        ObjectOut: {
+            box: components["schemas"]["BoxOut"] | null;
+            /** Label */
+            label: string;
+            /** Label De */
+            label_de: string;
+            /** Score */
+            score: number;
         };
         /** OkOut */
         OkOut: {
@@ -3089,6 +3513,27 @@ export interface components {
             /** Uploads Paused */
             uploads_paused: boolean;
         };
+        /** PollOut */
+        PollOut: {
+            /** Reason */
+            reason: string | null;
+            /** Started */
+            started: boolean;
+        };
+        /** PollerOut */
+        PollerOut: {
+            /** Last Error */
+            last_error: string | null;
+            /** Last Poll At */
+            last_poll_at: string | null;
+            /** Next Poll At */
+            next_poll_at: string | null;
+            /**
+             * State
+             * @enum {string}
+             */
+            state: "off" | "idle" | "running" | "blocked";
+        };
         /**
          * PosterLayoutIn
          * @description Where the QR code goes. `pages` and the sizes come from the editor's PDF reader.
@@ -3194,6 +3639,57 @@ export interface components {
             sha256: string;
             /** Uploaded At */
             uploaded_at: string;
+        };
+        /** PropertiesOut */
+        PropertiesOut: {
+            /** Properties */
+            properties: components["schemas"]["PropertyOut"][];
+        };
+        /** PropertyIn */
+        PropertyIn: {
+            /**
+             * Name
+             * @description ^[a-z][a-z0-9_]{1,30}$, immutable
+             */
+            name: string;
+            /**
+             * Prompt
+             * @description 1–2000 characters, immutable
+             */
+            prompt: string;
+        };
+        /** PropertyOut */
+        PropertyOut: {
+            /** Archived At */
+            archived_at: string | null;
+            /** Created At */
+            created_at: string;
+            /** Id */
+            id: number;
+            /** Last Scored At */
+            last_scored_at: string | null;
+            /** Name */
+            name: string;
+            /** Prompt */
+            prompt: string;
+            /** Scored Photos */
+            scored_photos: number;
+        };
+        /** ProviderOut */
+        ProviderOut: {
+            /** Available */
+            available: boolean;
+            /**
+             * Eu
+             * @description Hosted in the EU.
+             */
+            eu: boolean;
+            /** Id */
+            id: string;
+            /** Reason */
+            reason: string | null;
+            /** Title */
+            title: string;
         };
         /** PublicExtension */
         PublicExtension: {
@@ -3355,6 +3851,45 @@ export interface components {
              */
             type: "stream.resync";
         };
+        /** TestImageOut */
+        TestImageOut: {
+            external: components["schemas"]["ExternalTestOut"] | null;
+            /** Height */
+            height: number;
+            local: components["schemas"]["TestRunOut"] | null;
+            /** Width */
+            width: number;
+        };
+        /**
+         * TestRunOut
+         * @description The local pipeline's result on the test image (D1's TestRun).
+         */
+        TestRunOut: {
+            /** Boxes */
+            boxes: {
+                [key: string]: unknown;
+            }[];
+            /** Details */
+            details: {
+                [key: string]: unknown;
+            }[];
+            /** Durations Ms */
+            durations_ms: {
+                [key: string]: number;
+            };
+            /** Error */
+            error: string | null;
+            /** Facts */
+            facts: {
+                [key: string]: number;
+            };
+            /** Height */
+            height: number;
+            /** Objects */
+            objects: components["schemas"]["ObjectOut"][];
+            /** Width */
+            width: number;
+        };
         /** TimelapseExportIn */
         TimelapseExportIn: {
             /**
@@ -3489,6 +4024,51 @@ export interface components {
              * @enum {string}
              */
             type: "user.uploads_changed";
+        };
+        /** Usage */
+        Usage: {
+            /** Blocked */
+            blocked: boolean;
+            budget: components["schemas"]["BudgetConfig"];
+            /** By Kind */
+            by_kind: components["schemas"]["UsageByKind"][];
+            party: components["schemas"]["UsageTotals"];
+            /**
+             * Reason
+             * @description „Budget erreicht – externe KI pausiert …“
+             */
+            reason: string | null;
+            today: components["schemas"]["UsageTotals"];
+        };
+        /** UsageByKind */
+        UsageByKind: {
+            /** Calls */
+            calls: number;
+            /** Cost Usd */
+            cost_usd: number;
+            /**
+             * Kind
+             * @description detect | property | verdict | test
+             */
+            kind: string;
+            /**
+             * Ref
+             * @description Property name, category id or photo id.
+             */
+            ref: string | null;
+            /** Tokens */
+            tokens: number;
+        };
+        /** UsageTotals */
+        UsageTotals: {
+            /** Calls */
+            calls: number;
+            /** Cost Usd */
+            cost_usd: number;
+            /** Input Tokens */
+            input_tokens: number;
+            /** Output Tokens */
+            output_tokens: number;
         };
         /** UserBanData */
         UserBanData: {
@@ -10298,6 +10878,1020 @@ export interface operations {
             };
         };
     };
+    llm_status_api_x_wall_admin_llm_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LlmStatus"];
+                };
+            };
+            /** @description Invalid input (see `error`) */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Needs consent or an admin session */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Forbidden: banned, paused, stopped, joining closed or a foreign Origin (CSRF) */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Not found, or no party access (`scan_qr`) */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Request validation failed (`invalid_request`) */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Rate limited (`Retry-After` header) */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    set_llm_config_api_x_wall_admin_llm_config_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["LlmConfigIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LlmStatus"];
+                };
+            };
+            /** @description Invalid input (see `error`) */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Needs consent or an admin session */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Forbidden: banned, paused, stopped, joining closed or a foreign Origin (CSRF) */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Not found, or no party access (`scan_qr`) */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Request validation failed (`invalid_request`) */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Rate limited (`Retry-After` header) */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    set_llm_key_api_x_wall_admin_llm_key_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["KeyIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["KeyOut"];
+                };
+            };
+            /** @description Invalid input (see `error`) */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Needs consent or an admin session */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Forbidden: banned, paused, stopped, joining closed or a foreign Origin (CSRF) */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Not found, or no party access (`scan_qr`) */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Request validation failed (`invalid_request`) */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Rate limited (`Retry-After` header) */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    clear_llm_key_api_x_wall_admin_llm_key_delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["KeyOut"];
+                };
+            };
+            /** @description Invalid input (see `error`) */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Needs consent or an admin session */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Forbidden: banned, paused, stopped, joining closed or a foreign Origin (CSRF) */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Not found, or no party access (`scan_qr`) */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Request validation failed (`invalid_request`) */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Rate limited (`Retry-After` header) */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    test_llm_key_api_x_wall_admin_llm_key_test_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["KeyTestOut"];
+                };
+            };
+            /** @description Invalid input (see `error`) */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Needs consent or an admin session */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Forbidden: banned, paused, stopped, joining closed or a foreign Origin (CSRF) */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Not found, or no party access (`scan_qr`) */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Request validation failed (`invalid_request`) */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Rate limited (`Retry-After` header) */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    poll_now_api_x_wall_admin_llm_poll_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PollOut"];
+                };
+            };
+            /** @description Invalid input (see `error`) */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Needs consent or an admin session */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Forbidden: banned, paused, stopped, joining closed or a foreign Origin (CSRF) */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Not found, or no party access (`scan_qr`) */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Request validation failed (`invalid_request`) */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Rate limited (`Retry-After` header) */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    list_properties_api_x_wall_admin_llm_properties_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PropertiesOut"];
+                };
+            };
+            /** @description Invalid input (see `error`) */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Needs consent or an admin session */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Forbidden: banned, paused, stopped, joining closed or a foreign Origin (CSRF) */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Not found, or no party access (`scan_qr`) */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Request validation failed (`invalid_request`) */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Rate limited (`Retry-After` header) */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    create_property_api_x_wall_admin_llm_properties_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PropertyIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PropertyOut"];
+                };
+            };
+            /** @description Invalid input (see `error`) */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Needs consent or an admin session */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Forbidden: banned, paused, stopped, joining closed or a foreign Origin (CSRF) */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Not found, or no party access (`scan_qr`) */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Request validation failed (`invalid_request`) */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Rate limited (`Retry-After` header) */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    get_property_api_x_wall_admin_llm_properties__name__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                name: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PropertyOut"];
+                };
+            };
+            /** @description Invalid input (see `error`) */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Needs consent or an admin session */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Forbidden: banned, paused, stopped, joining closed or a foreign Origin (CSRF) */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Not found, or no party access (`scan_qr`) */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Request validation failed (`invalid_request`) */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Rate limited (`Retry-After` header) */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    archive_property_api_x_wall_admin_llm_properties__name__archive_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                name: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PropertyOut"];
+                };
+            };
+            /** @description Invalid input (see `error`) */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Needs consent or an admin session */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Forbidden: banned, paused, stopped, joining closed or a foreign Origin (CSRF) */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Not found, or no party access (`scan_qr`) */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Request validation failed (`invalid_request`) */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Rate limited (`Retry-After` header) */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    unarchive_property_api_x_wall_admin_llm_properties__name__unarchive_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                name: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PropertyOut"];
+                };
+            };
+            /** @description Invalid input (see `error`) */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Needs consent or an admin session */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Forbidden: banned, paused, stopped, joining closed or a foreign Origin (CSRF) */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Not found, or no party access (`scan_qr`) */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Request validation failed (`invalid_request`) */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Rate limited (`Retry-After` header) */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    llm_usage_api_x_wall_admin_llm_usage_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Usage"];
+                };
+            };
+            /** @description Invalid input (see `error`) */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Needs consent or an admin session */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Forbidden: banned, paused, stopped, joining closed or a foreign Origin (CSRF) */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Not found, or no party access (`scan_qr`) */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Request validation failed (`invalid_request`) */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Rate limited (`Retry-After` header) */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
     logout_walls_api_x_wall_admin_logout_post: {
         parameters: {
             query?: never;
@@ -10649,6 +12243,136 @@ export interface operations {
             };
             /** @description Not found, or no party access (`scan_qr`) */
             404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Request validation failed (`invalid_request`) */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Rate limited (`Retry-After` header) */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    test_image_api_x_wall_admin_test_image_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "multipart/form-data": {
+                    /**
+                     * @description "all", a comma list of analyzer names, or "" for no local run.
+                     * @default all
+                     */
+                    analyzers?: string;
+                    /**
+                     * @default 0
+                     * @enum {string}
+                     */
+                    external?: "0" | "1";
+                    /**
+                     * Format: binary
+                     * @description A JPEG.
+                     */
+                    file: string;
+                };
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TestImageOut"];
+                };
+            };
+            /** @description Invalid input (see `error`) */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Needs consent or an admin session */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Forbidden: banned, paused, stopped, joining closed or a foreign Origin (CSRF) */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Not found, or no party access (`scan_qr`) */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Content-Length required */
+            411: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Request too large */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Unsupported media type */
+            415: {
                 headers: {
                     [name: string]: unknown;
                 };

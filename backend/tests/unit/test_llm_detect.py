@@ -46,10 +46,10 @@ def test_appends_after_the_local_objects(core):
     ]
     assert objs[2].box == (0.1, 0.1, 0.2, 0.2) and objs[3].box is None
     assert objs[2].model == "claude-haiku-5-5"
-    assert [dict(r) for r in runs(core, pid)][0] == {
+    assert [dict(r) for r in runs(core, pid)] == [{
         "source": "claude", "state": "done", "model": "claude-haiku-5-5", "error": None,
         "objects": 2,
-    }  # fmt: skip
+    }]  # fmt: skip
     # walls refetch the photo
     assert core.db.one("SELECT rev FROM wall_analysis WHERE photo_id=?", (pid,))["rev"] > rev_before
     usage = core.db.one("SELECT kind, ref, ok FROM llm_usage")
@@ -93,11 +93,14 @@ def test_opted_out_guests_are_never_sent(core):
     no_analysis = add_guest(core, analysis_opt_out=True)
     add_photo(core, no_ai)
     add_photo(core, no_analysis)
-    hidden, _ = add_photo(core, add_guest(core), hidden=True)
+    add_photo(core, add_guest(core), hidden=True)
     runner = DetectionRunner(svc)
     assert runner.run_once() == "idle"
     assert fake.detected == []
-    assert core.db.one("SELECT COUNT(*) AS n FROM photo_detection_runs WHERE source='claude'")["n"] == 0
+    assert (
+        core.db.one("SELECT COUNT(*) AS n FROM photo_detection_runs WHERE source='claude'")["n"]
+        == 0
+    )
 
 
 def test_flags_are_read_again_right_before_sending(core, monkeypatch):
@@ -119,7 +122,9 @@ def test_flags_are_read_again_right_before_sending(core, monkeypatch):
 
 def test_failure_is_recorded_and_not_retried(core):
     fake = FakeProvider(
-        fail=ProviderError("Antwort war kein gültiges JSON.", kind="bad_output", usage=TokenUsage(900, 40))
+        fail=ProviderError(
+            "Antwort war kein gültiges JSON.", kind="bad_output", usage=TokenUsage(900, 40)
+        )
     )
     svc = setup_llm(core, fake, detect=EXTERNAL)
     pid, _ = add_photo(core, add_guest(core))
@@ -129,7 +134,10 @@ def test_failure_is_recorded_and_not_retried(core):
     assert run["state"] == "failed" and run["error"] == "Antwort war kein gültiges JSON."
     assert runner.run_once() == "idle"
     assert len(fake.detected) == 1
-    assert dict(core.db.one("SELECT ok, input_tokens FROM llm_usage")) == {"ok": 0, "input_tokens": 900}
+    assert dict(core.db.one("SELECT ok, input_tokens FROM llm_usage")) == {
+        "ok": 0,
+        "input_tokens": 900,
+    }
 
 
 def test_provider_trouble_is_not_the_photos_fault(core):
