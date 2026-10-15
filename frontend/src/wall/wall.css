@@ -598,13 +598,13 @@ body {
   font-weight: 800;
 }
 
-/* the AI's verdict: under its photo (or under the compact grid), two lines at most */
+/* the AI's verdict, two lines at most. Under one of 1–3 photos it hangs below the
+   photo out of the flow (it may be wider than the photo, the row keeps its width; the
+   pictures leave room for it); under a compact grid it is the side column's last row */
 .wall-cat-verdict {
   display: -webkit-box;
   overflow: hidden;
-  width: max-content;
-  max-width: min(84vmin, 100%);
-  margin: 1.6vmin auto 0;
+  margin: 0;
   font-size: clamp(16px, 2.5vmin, 76px);
   font-weight: 650;
   line-height: 1.25;
@@ -615,19 +615,32 @@ body {
   animation: wall-verdict-in 900ms ease-out 1.1s both;
 }
 
-/* under one photo it may be wider than the photo (it stays in the column) */
-.wall-cat-photo[data-verdict] {
-  display: grid;
-  justify-items: center;
-}
-
-.wall-cat-photo[data-verdict] .wall-cat-verdict {
+.wall-cat-photo .wall-cat-verdict {
+  position: absolute;
+  top: calc(100% + 1.4vmin);
+  width: max-content;
   max-width: min(84vmin, 100cqw);
 }
 
+.wall-cat-verdict[data-align='start'] {
+  left: 0;
+  text-align: left;
+}
+
+.wall-cat-verdict[data-align='end'] {
+  right: 0;
+  text-align: right;
+}
+
+.wall-cat-verdict[data-align='center'] {
+  left: 50%;
+  width: min(84vmin, 100cqw);
+  margin-left: calc(min(84vmin, 100cqw) / -2);
+}
+
 .wall-cat-side > .wall-cat-verdict {
-  margin-top: 0;
-  margin-bottom: 2vmin;
+  max-width: min(110vmin, 100%);
+  margin: 0 auto 2vmin;
 }
 
 /* the compact cell the verdict is about */

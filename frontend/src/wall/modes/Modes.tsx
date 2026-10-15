@@ -4,7 +4,7 @@
  */
 import { useEffect, useRef, useState, type CSSProperties } from 'react';
 import type { GallerySpeed, WallCategory, WallCategoryVerdict, WallPhoto } from '../api/types';
-import { compactColumns, verdictIndex } from './categories';
+import { compactColumns, verdictAlign, verdictIndex, type VerdictAlign } from './categories';
 import { GalleryEngine } from './galleryEngine';
 import { aspectOf } from './slide';
 import { SpotlightEngine, type SpotlightInput } from './spotlightEngine';
@@ -61,9 +61,9 @@ export function Gallery({
   return <div ref={stageRef} className="wall-gallery" data-testid="wall-gallery" />;
 }
 
-function Verdict({ verdict }: { verdict: WallCategoryVerdict }) {
+function Verdict({ verdict, align }: { verdict: WallCategoryVerdict; align?: VerdictAlign }) {
   return (
-    <p className="wall-cat-verdict" data-testid="wall-verdict">
+    <p className="wall-cat-verdict" data-testid="wall-verdict" data-align={align}>
       {verdict.emoji ? (
         <span className="wall-cat-verdict-emoji" aria-hidden="true">
           {verdict.emoji}
@@ -79,6 +79,7 @@ function WinnerPhoto({
   index,
   compact,
   verdict,
+  align,
 }: {
   winner: WallCategory['winners'][number];
   index: number;
@@ -86,6 +87,8 @@ function WinnerPhoto({
   compact: boolean;
   /** this photo is the one the AI's verdict is about */
   verdict: WallCategoryVerdict | null;
+  /** where the verdict sits under the photo: it may be wider than the photo */
+  align: VerdictAlign;
 }) {
   const [loaded, setLoaded] = useState(false);
   const { photo } = winner;
@@ -113,7 +116,7 @@ function WinnerPhoto({
       </div>
       <span className="wall-cat-value">{winner.label}</span>
       <figcaption className="wall-cat-by">von {photo.author}</figcaption>
-      {verdict && !compact ? <Verdict verdict={verdict} /> : null}
+      {verdict && !compact ? <Verdict verdict={verdict} align={align} /> : null}
     </figure>
   );
 }
@@ -147,6 +150,7 @@ function CategoryCard({ category }: { category: WallCategory }) {
               index={i}
               compact={compact}
               verdict={i === verdictAt ? verdict : null}
+              align={verdictAlign(i, count)}
             />
           ))}
         </div>

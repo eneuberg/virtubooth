@@ -268,7 +268,8 @@ class FakeWall:
     def handle(self, route: Route) -> None:
         req = route.request
         path = urlparse(req.url).path.removeprefix(PREFIX)
-        body = req.post_data_json if req.post_data else None
+        json_body = "application/json" in (req.headers.get("content-type") or "")
+        body = req.post_data_json if req.post_data and json_body else None
         self.requests.append((req.method, path, body))
         status, answer = self.answer(req.method, path, body)
         route.fulfill(status=status, json=answer)
@@ -653,7 +654,7 @@ def test_create_a_category_with_preview(
     page.get_by_test_id("category-new").click()
     dlg = sheet(page)
     expect(dlg.get_by_role("heading", name="Neue Kategorie")).to_be_visible()
-    dlg.get_by_role("textbox", name="Titel").fill("Hutträger")
+    dlg.get_by_role("textbox", name="Titel", exact=True).fill("Hutträger")
     expect(dlg.get_by_role("textbox", name="Kennung")).to_have_value("huttraeger")
     dlg.get_by_role("textbox", name="Emoji").fill("🎩")
     # a condition on the object list: „enthält“ Hut
@@ -753,7 +754,7 @@ def test_server_error_shows_at_the_field(
     goto(page, live, "/admin/manage?tab=livewall")
     page.get_by_test_id("category-new").click()
     dlg = sheet(page)
-    dlg.get_by_role("textbox", name="Titel").fill("Fehler")
+    dlg.get_by_role("textbox", name="Titel", exact=True).fill("Fehler")
     dlg.get_by_test_id("category-one").fill("Person")
     dlg.get_by_test_id("category-many").fill("Personen")
     dlg.get_by_test_id("category-save").click()

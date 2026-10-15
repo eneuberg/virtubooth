@@ -33,6 +33,19 @@ export function verdictIndex(category: Pick<WallCategory, 'winners' | 'verdict'>
   return at < 0 ? 0 : at;
 }
 
+export type VerdictAlign = 'start' | 'center' | 'end';
+
+/**
+ * The verdict under photo `index` of `count` (1–3 in a row) may be wider than the
+ * photo: under the first it starts at the photo's left edge, under the last it ends
+ * at its right edge, else it is centred, so it stays inside the winners' column.
+ */
+export function verdictAlign(index: number, count: number): VerdictAlign {
+  if (count <= 1) return 'center';
+  if (index === 0) return 'start';
+  return index === count - 1 ? 'end' : 'center';
+}
+
 /** Columns of the compact grid (more than 3 winners): 2 rows, TV-safe sizes. */
 export function compactColumns(count: number): number {
   return Math.max(2, Math.ceil(count / 2));

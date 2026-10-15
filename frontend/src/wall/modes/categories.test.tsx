@@ -2,7 +2,7 @@ import { render, screen } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
 import type { WallCategory } from '../api/types';
 import { photo } from '../fixtures.test-util';
-import { compactColumns, highlightIds, verdictIndex, visibleCategories } from './categories';
+import { compactColumns, highlightIds, verdictAlign, verdictIndex, visibleCategories } from './categories';
 import { Categories } from './Modes';
 
 function category(n: number, verdict: WallCategory['verdict'] = null, id = 'coolstes_objekt'): WallCategory {
@@ -42,6 +42,9 @@ describe('category winners and verdicts', () => {
     expect(verdictIndex(category(3, { ...VERDICT, photo_id: null }))).toBe(0);
     expect(verdictIndex(category(3, { ...VERDICT, photo_id: 'p77' }))).toBe(0);
     expect([1, 4, 5, 6, 7, 10].map(compactColumns)).toEqual([2, 2, 3, 3, 4, 5]);
+    expect(verdictAlign(0, 1)).toBe('center');
+    expect([0, 1, 2].map((i) => verdictAlign(i, 3))).toEqual(['start', 'center', 'end']);
+    expect([0, 1].map((i) => verdictAlign(i, 2))).toEqual(['start', 'end']);
   });
 
   it('renders the verdict text and emoji under the winning photo', () => {
@@ -50,6 +53,7 @@ describe('category winners and verdicts', () => {
     expect(verdict.textContent).toBe('🎩Der Hut von Gast 2 ist unschlagbar.');
     const figure = verdict.closest('figure');
     expect(figure?.dataset.index).toBe('1');
+    expect(verdict.dataset.align).toBe('center');
     expect(figure?.querySelector('img')?.getAttribute('alt')).toBe('Foto von Gast 1');
   });
 

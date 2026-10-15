@@ -177,7 +177,8 @@ def test_nav_item_opens_the_five_cards(desktop_page: Page, live: LiveServer, ml:
     ml.worker = {"processed": 1234, "rss_mb": 411.6, "load_errors": {"age": "Modell kaputt"}}
     goto(page, live, "/admin/manage")
     nav = page.get_by_role("navigation", name="Verwaltung")
-    links = nav.get_by_role("link").all_text_contents()
+    expect(nav.get_by_role("link", name="ML-Pipeline")).to_be_visible()
+    links = [t.strip() for t in nav.get_by_role("link").all_inner_texts()]
     # directly after Live-Wall
     assert [t for t in links if t.startswith(("Live-Wall", "ML-Pipeline"))] == [
         "Live-Wall",
