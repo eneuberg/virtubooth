@@ -50,9 +50,10 @@ export function splitPrompt(prompt: string): { label: string; help: string | nul
 export const WALL_ANALYSIS_TEXT =
   'Für die Live-Wall der Party werden Fotos automatisch auf dem Server ausgewertet: Gesichter und Hände zählen, Gesichtsausdruck und ungefähres Alter schätzen – nur zum Spaß, für Kategorien wie „Grinsekatzen“. Du kannst das für deine Fotos ausschalten.';
 
-/** The external AI (always under „Mehr dazu“; the server's own words). */
+/** The external AI (always under „Mehr dazu“). The server's text names the configured provider;
+ * this safety net cannot know it, so it names both. */
 export const EXTERNAL_AI_TEXT =
-  'Wenn der Gastgeber es einschaltet, können Fotos und erkannte Dinge (z. B. „Glas“, „Hut“) zusätzlich von einem externen KI-Dienst (Anthropic, USA) ausgewertet werden – für lustige Kategorien auf der Live-Wall. Mit „Keine Weitergabe an externe KI“ schließt du deine Fotos davon aus; das kannst du jederzeit unter „Du“ ändern.';
+  'Wenn der Gastgeber es einschaltet, können Fotos und erkannte Dinge (z. B. „Glas“, „Hut“) zusätzlich von einem externen KI-Dienst (je nach Einstellung Anthropic, USA, oder Mistral AI, EU) ausgewertet werden – für lustige Kategorien auf der Live-Wall. Mit „Keine Weitergabe an externe KI“ schließt du deine Fotos davon aus; das kannst du jederzeit unter „Du“ ändern.';
 
 /**
  * "Was passiert mit meinen Fotos?" before the session knows the server's join texts
