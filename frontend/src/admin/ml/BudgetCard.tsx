@@ -213,13 +213,13 @@ export function BudgetCard({ status }: { status: LlmStatus }) {
                 <th scope="col" className="py-1.5 font-semibold">
                   Wofür
                 </th>
-                <th scope="col" className="py-1.5 text-right font-semibold">
+                <th scope="col" className="py-1.5 pl-4 text-right font-semibold">
                   Aufrufe
                 </th>
-                <th scope="col" className="py-1.5 text-right font-semibold">
+                <th scope="col" className="py-1.5 pl-4 text-right font-semibold">
                   Tokens
                 </th>
-                <th scope="col" className="py-1.5 text-right font-semibold">
+                <th scope="col" className="py-1.5 pl-4 text-right font-semibold">
                   Kosten
                 </th>
               </tr>
@@ -230,9 +230,9 @@ export function BudgetCard({ status }: { status: LlmStatus }) {
                   <th scope="row" className="py-1.5 text-left font-normal">
                     {usageKindText(row)}
                   </th>
-                  <td className="py-1.5 text-right tabular">{formatNumber(row.calls)}</td>
-                  <td className="py-1.5 text-right tabular">{formatNumber(row.tokens)}</td>
-                  <td className="py-1.5 text-right tabular">{usdText(row.cost_usd)}</td>
+                  <td className="py-1.5 pl-4 text-right tabular">{formatNumber(row.calls)}</td>
+                  <td className="py-1.5 pl-4 text-right tabular">{formatNumber(row.tokens)}</td>
+                  <td className="py-1.5 pl-4 text-right tabular">{usdText(row.cost_usd)}</td>
                 </tr>
               ))}
             </tbody>
