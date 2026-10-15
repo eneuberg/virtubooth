@@ -770,7 +770,54 @@ obwohl es im Log stand (`grep -q` mit `pipefail` → SIGPIPE), und ein Theme-e2e
 8. **Docker lokal:** Die VPN-Firewall dieses Rechners (IVPN, „LAN erlauben“ aus) blockt
    Docker-Netzwerke; Docker-Smoke läuft darum nur in CI. Lösung beim Host:
    `ivpn firewall -lan_allow` oder eine Ausnahme für `172.16.0.0/12`.
-9. **Beim Deploy `VB_CONSENT_VERSION` erhöhen** (geänderte Beitrittstexte).
+9. **Beim Deploy `VB_CONSENT_VERSION` erhöhen** (geänderte Beitrittstexte; für eine neue Party-Datenbank egal).
+10. **Nach jedem frischen Server:** im Admin „Modelle herunterladen“ und ein Live-Wall-Passwort (≥ 12 Zeichen) setzen.
+11. **Firefox-e2e** zum Verlassen der Startseite ist gelegentlich rot (siehe Nachtrag Tag).
+
+## Nachtrag 15.10. (Tag): online, Härtung, Admin, Admin-Gast
+
+Alles in `main`, CI grün, ausgerollt auf dem Server des Hosts (Coolify, eigene Domain).
+
+- **Sicherheitsprüfung vor dem Online-Gang** (`.worktrees/_plans/online-review.md`): Raten
+  von Token, Passwörtern, Sessions und Foto-IDs aussichtslos; kein Weg zur
+  Code-Ausführung; gefälschte Proxy-Header wirkungslos. Gefunden und behoben
+  (`hardening/online`): kein Speicherlimit → Uploads stoppen unter `VB_MIN_FREE_MB`
+  (2048, 503 `storage_full`, das Foto bleibt im Handy-Ausgang) und höchstens
+  `VB_MAX_PHOTOS_PER_GUEST` (300, 403 `photo_limit`); CPU/RAM-Limits im Coolify-Compose
+  (2 Kerne, 1,5 GB); Scans ohne Cookie legen höchstens `VB_SCANS_PER_IP_PER_10MIN` (120)
+  Besucherzeilen an, lassen aber jeden rein; Live-Wall-Passwort mindestens 12 Zeichen.
+  Bekannt und akzeptiert: Mit ein paar IPs lässt sich der Admin-Login für alle sperren
+  (laufende Sessions bleiben gültig, vor der Party einloggen).
+- **Deploy auf Coolify:** Fehler war die Domain-Eingabe (Pfad `/` → Traefik-Regel
+  `PathPrefix("/:8000")`). Das Zertifikat kam nach wenigen Minuten.
+- **ML auf dem Server** (`fix/ml-deploy`): Das Coolify-Compose baute ohne `VB_ML`; jetzt
+  `VB_ML=1`, `VB_BAKE_MODELS=0` (Wunsch des Hosts), Modelle per „Modelle herunterladen“
+  nach `/data/wall/models` (143,6 MB, ~15 s, SHA256 geprüft). Image 427 MB komprimiert /
+  1,17 GB entpackt; RAM 143 MB ohne, 638 MB mit Modellen, Spitze 659 MB. Der
+  Analyse-Schalter ließ sich nicht wieder einschalten (UI-Sperre), behoben.
+  onnxruntime schickte Telemetrie an Microsoft: `ORT_DISABLE_TELEMETRY=1`.
+- **Responsiveness** (`fix/responsive`): überlappende Felder in der ML-Pipeline
+  (Textfelder konnten nicht schrumpfen), gedrückte Admin-Spalten (Karten richten sich
+  jetzt nach ihrer eigenen Breite), Ergebnisknöpfe nach dem Foto liefen auf Android aus
+  dem Bild, dazu Kleinkram; Regressionstests bei 320–1280 px.
+- **Admin neutral weiß** (`design/admin-neutral`): Login, Live, Foto-Betrachter,
+  Fehlerseiten im Stil der Verwaltung. Die Upload-Schalter gibt es nur noch einmal und
+  direkt sichtbar („Hochladen für alle stoppen“, „Anmeldung stoppen“, „Neue Gäste
+  pausieren“), gleich in Sidebar und Live. Live zeigt die Analyse (Chips, Rahmen im
+  geöffneten Foto, Schalter „Analyse zeigen“, Aktualisierung per Ereignis
+  `photo.analyzed`).
+- **Admin-Gast** (`feat/admin-guest`, Migration 12 `users.is_host`): „Als Gast
+  teilnehmen“ öffnet die Gäste-App als markierter Gast, ohne QR-Code (`code_id` NULL,
+  zählt bei keinem Code mit; Zugang über das signierte Gast-Cookie dieses Nutzers). Ein
+  Admin-Gast pro Party; ausgenommen von Foto-Limit, Neue-Gäste-Pause und Anmeldestopp,
+  nicht sperrbar; „Hochladen stoppen“ gilt auch für ihn. Gäste sehen nichts davon.
+- **Nach dem Foto** (`ux/uploaded-state`): große Upload-Zeile („Wird hochgeladen…“ →
+  „Hochgeladen“, Gründe bei Problemen), „Herunterladen“ statt „Speichern“. Kamera-Fehler
+  raten zu einem anderen Browser und dazu, den QR-Code dort nochmal zu scannen (ein
+  kopierter Link hätte keinen Zugang).
+- **Tests:** volle Suite vor jedem Merge (zuletzt 1313 Backend, 701 Vitest, 299 e2e
+  Chromium), CI grün. Ein Firefox-e2e (`test_leaving_start_while_its_cards_load_goes_where_asked`)
+  war einmal rot und im zweiten Lauf grün; zeitabhängig, im Auge behalten.
 
 ## Starten
 
