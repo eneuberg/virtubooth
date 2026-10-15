@@ -195,7 +195,7 @@ def test_service_port(core, guest):
 
 
 def test_an_analyzer_that_cannot_run_switches_both_ways(admin):
-    """No models here: `faces` is unavailable, yet the switch is the stored wish
+    """No models (or no ML packages) here: `faces` is unavailable, yet the switch is the stored wish
     in both directions (the UI keeps it usable and shows the reason)."""
     for enabled in (False, True, False, True):
         r = admin.put(f"{BASE}/analysis/analyzers/faces", json={"enabled": enabled},
@@ -203,7 +203,9 @@ def test_an_analyzer_that_cannot_run_switches_both_ways(admin):
         assert r.status_code == 200, r.text
         faces = {a["name"]: a for a in r.json()["analyzers"]}["faces"]
         assert faces["enabled"] is enabled and faces["available"] is False
-        assert "Modelle herunterladen" in faces["reason"]
+        # the reason says what's missing: the models (with the ML packages) or
+        # the packages themselves (a test venv without the `ml` extra)
+        assert "Modelle herunterladen" in faces["reason"] or "VB_ML=1" in faces["reason"]
 
 
 # ------------------------------------------------------- Modelle herunterladen
