@@ -224,7 +224,7 @@ def test_settings_need_the_admin(client):
 
 
 def test_healthz_probe(client, core):
-    assert client.get("/healthz").json() == {"ok": True, "probe_mac": None}
+    assert client.get("/healthz").json() == {"ok": True}
     body = client.get("/healthz?probe=abc_DEF-123").json()
     assert body == {"ok": True, "probe_mac": hs.probe_mac(core.signer, "abc_DEF-123")}
     assert len(body["probe_mac"]) == 16

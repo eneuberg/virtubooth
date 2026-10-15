@@ -14,7 +14,7 @@ from ..schemas.guest import HealthOut
 router = APIRouter(tags=["health"])
 
 
-@router.get("/healthz")
+@router.get("/healthz", response_model_exclude_none=True)
 def healthz(
     core: CoreDep,
     probe: Annotated[str | None, Query(max_length=64, pattern=PROBE_PATTERN)] = None,

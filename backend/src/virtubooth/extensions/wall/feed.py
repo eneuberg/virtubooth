@@ -163,7 +163,9 @@ def wall_photos(
                 taken_at=p.created_at,
                 width=p.width,
                 height=p.height,
-                author=p.user_name,
+                author=p.user_shown_name
+                if config.show_instagram or p.user_display_name
+                else p.user_name,
                 instagram=p.user_instagram if config.show_instagram else None,
                 author_key=author_key(core, p.user_id),
                 urls=WallPhotoUrls(

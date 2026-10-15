@@ -18,6 +18,17 @@ def is_auto_banned(banned: bool, ban_reason: str | None) -> bool:
     return bool(banned) and ban_reason == AUTO_BAN_REASON
 
 
+def shown_name(display_name: str | None, instagram: str | None, pseudonym: str) -> str:
+    """How a guest is named to other people (wall, verdicts, the guest pass):
+    the display name they chose, else „@<instagram>“, else the pseudonym. The
+    pseudonym stays the internal name (admin, exports, audit)."""
+    if display_name:
+        return display_name
+    if instagram:
+        return f"@{instagram}"
+    return pseudonym
+
+
 def new_public_id() -> str:
     # never a leading "-": spreadsheets read "-abc" as a formula, and some CLIs as a flag
     while (public_id := secrets.token_urlsafe(12)).startswith("-"):
@@ -57,6 +68,14 @@ class User:
     # „Meine Fotos nicht automatisch auswerten“: the Live-Wall analysis runs
     # only the basic image values on this guest's photos
     analysis_opt_out: bool = False
+    # the name the guest chose (None: the default, see `shown_name`)
+    display_name: str | None = None
+    # „Keine Weitergabe an externe KI“: nothing of this guest goes to an external AI
+    ai_opt_out: bool = False
+
+    @property
+    def shown_name(self) -> str:
+        return shown_name(self.display_name, self.instagram, self.name)
 
     @property
     def banned(self) -> bool:
@@ -108,6 +127,11 @@ class Photo:
     user_banned: bool = False
     user_uploads_paused: bool = False
     user_ban_reason: str | None = None
+    user_display_name: str | None = None
+
+    @property
+    def user_shown_name(self) -> str:
+        return shown_name(self.user_display_name, self.user_instagram, self.user_name)
 
     @property
     def hidden(self) -> bool:

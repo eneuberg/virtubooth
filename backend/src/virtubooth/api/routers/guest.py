@@ -2,16 +2,18 @@
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Annotated, Any
 
-from fastapi import APIRouter, Request, Response
+from fastapi import APIRouter, Path, Request, Response
 
 from ...core.errors import error_responses
 from ...core.security import GUEST_COOKIE_MAX_AGE, client_ip, set_cookie, uid_cookie_name
+from ...domain.constants import PHOTO_ID_PATTERN
 from ...domain.models import User
 from ...runtime import Core
 from ..deps import AccessDep, CoreDep, MeDep, guest_from_cookie
 from ..schemas.guest import (
+    DeletedOut,
     ExtensionsOut,
     GuestPhoto,
     GuestUser,
@@ -23,6 +25,7 @@ from ..schemas.guest import (
     JoinIn,
     JoinOut,
     MeAnalysisIn,
+    MeExternalAiIn,
     MeIn,
     MeOut,
     MyPhotosOut,
@@ -98,6 +101,7 @@ def join(body: JoinIn, request: Request, response: Response, core: CoreDep) -> J
         user_agent=_user_agent(request),
         code_id=core.services.codes.code_of_request(request),
         analysis_opt_out=body.analysis_opt_out,
+        ai_opt_out=body.ai_opt_out,
     )
     if not result.created:
         response.status_code = 200
@@ -110,19 +114,33 @@ def join(body: JoinIn, request: Request, response: Response, core: CoreDep) -> J
     )
 
 
-@router.patch("/me", responses=error_responses(400, 401))
+@router.patch("/me", responses=error_responses(400, 401, 409))
 def update_me(body: MeIn, user: MeDep, core: CoreDep) -> MeOut:
-    """Set or clear (null/blank) the guest's Instagram handle. Paused guests may;
-    banned ones get 403 `banned`."""
-    updated = core.services.identity.set_instagram(user, body.instagram)
+    """Set or clear (null/blank) the guest's Instagram handle and/or display
+    name. Paused guests may; banned ones get 403 `banned`. 400
+    `invalid_instagram` / `invalid_display_name`, 409 `display_name_taken`."""
+    identity = core.services.identity
+    sent = body.model_fields_set
+    if "display_name" in sent:
+        user = identity.set_display_name(user, body.display_name)
+    if "instagram" in sent or not sent:
+        user = identity.set_instagram(user, body.instagram)
+    return MeOut(user=GuestUser.of(user))
+
+
+@router.put("/me/external-ai", responses=error_responses(401))
+def update_my_external_ai(body: MeExternalAiIn, user: MeDep, core: CoreDep) -> MeOut:
+    """„Keine Weitergabe an externe KI“ on or off. Checked live before every
+    external call; local analysis keeps running."""
+    updated = core.services.identity.set_ai_opt_out(user, body.opt_out)
     return MeOut(user=GuestUser.of(updated))
 
 
 @router.put("/me/analysis", responses=error_responses(400, 401))
 def update_my_analysis(body: MeAnalysisIn, user: MeDep, core: CoreDep) -> MeOut:
-    """„Meine Fotos nicht automatisch auswerten“ on or off. The guest's photos
-    are analysed again: with it on, only image values (no faces, hands,
-    expressions), and they never win a category that needs more."""
+    """„Meine Fotos nicht automatisch auswerten“ on or off. Only the flag
+    flips (analyses are frozen): new photos taken with it on get only image
+    values, and while it is on none of the guest's photos is evaluated."""
     updated = core.services.identity.set_analysis_opt_out(user, body.opt_out)
     return MeOut(user=GuestUser.of(updated))
 
@@ -133,6 +151,16 @@ def my_photos(user: MeDep, core: CoreDep) -> MyPhotosOut:
     newest first, at most 60."""
     photos = core.services.identity.my_photos(user)
     return MyPhotosOut(photos=[GuestPhoto.of(p) for p in photos])
+
+
+@router.delete("/me/photos/{public_id}", responses=error_responses(401))
+def delete_my_photo(
+    public_id: Annotated[str, Path(pattern=PHOTO_ID_PATTERN)], user: MeDep, core: CoreDep
+) -> DeletedOut:
+    """Delete one of the guest's own photos for good (the admin's delete:
+    files gone, analysis purged). 404 for any other photo."""
+    core.services.identity.delete_my_photo(user, public_id)
+    return DeletedOut(ok=True)
 
 
 @router.post("/here", dependencies=[AccessDep])

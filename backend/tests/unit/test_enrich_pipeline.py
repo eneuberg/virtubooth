@@ -210,7 +210,8 @@ def test_the_worker_recycles_after_max_photos(data_dir):
 
 def test_an_opted_out_guest_gets_only_the_basic_values(data_dir):
     """„Meine Fotos nicht automatisch auswerten“: the ML analyzers (by their
-    registry names) are skipped; switching back requeues the photo."""
+    registry names) are skipped. Switching back only flips the flag: the
+    analysis is frozen (PLAN-NIGHT N4), nothing is requeued."""
     data, repos, photo_id = data_dir
     user_id = repos.db.one("SELECT user_id FROM photos WHERE id=?", (photo_id,))[0]
 
@@ -221,15 +222,11 @@ def test_an_opted_out_guest_gets_only_the_basic_values(data_dir):
     Worker(data, analyzers=analyzers()).run(once=True)
     assert jobs.facts(repos.db, photo_id) == {"basic": 1.0}
 
-    rev = jobs.get(repos.db, photo_id).rev
-    assert repos.users.set_analysis_opt_out(user_id, False)
-    assert not repos.users.set_analysis_opt_out(user_id, False)  # unchanged: nothing requeued
     row = jobs.get(repos.db, photo_id)
-    assert (row.state, row.data, row.versions) == ("pending", {}, {}) and row.rev > rev
-    assert jobs.facts(repos.db, photo_id) == {}
-    Worker(data, analyzers=analyzers()).run(once=True)
-    facts = jobs.facts(repos.db, photo_id)
-    assert facts == {"basic": 1.0, "faces": 1.0, "emotion": 1.0, "people": 1.0}
+    assert repos.users.set_analysis_opt_out(user_id, False)
+    assert not repos.users.set_analysis_opt_out(user_id, False)  # unchanged
+    assert jobs.get(repos.db, photo_id) == row
+    assert jobs.facts(repos.db, photo_id) == {"basic": 1.0}
 
 
 def _versions(repos: Repositories, photo_id: int) -> tuple[str, dict[str, str]]:
@@ -282,44 +279,25 @@ def test_a_model_that_fails_to_load_does_not_requeue_forever(data_dir):
     assert broken.loads == 1 and not broken.seen
 
 
-def test_an_opt_out_inside_the_requeue_limit_is_redone_by_the_sweep(data_dir):
+def test_switching_the_opt_out_keeps_the_frozen_analysis(data_dir):
     data, repos, photo_id = data_dir
     user_id = repos.db.one("SELECT user_id FROM photos WHERE id=?", (photo_id,))[0]
-
-    def worker() -> Worker:
-        return Worker(data, analyzers=[Fake("basic"), Fake("faces")])
-
-    worker().run(once=True)
-    # off without a requeue: the findings are gone at once, the state stays
-    assert repos.users.set_analysis_opt_out(user_id, True, requeue=False)
-    assert _versions(repos, photo_id) == ("done", {})
-    assert jobs.facts(repos.db, photo_id) == {}
-    w = worker()
-    w.run(once=True)  # the sweep at start queues it: basic values only
-    assert _versions(repos, photo_id) == ("done", {"basic": "7"})
-    assert jobs.facts(repos.db, photo_id) == {"basic": 1.0}
-    # on again without a requeue: nothing happens until the sweep runs
-    assert repos.users.set_analysis_opt_out(user_id, False, requeue=False)
-    assert _versions(repos, photo_id) == ("done", {"basic": "7"})
-    # and switched off and on again before it ran: still just one pass
-    assert repos.users.set_analysis_opt_out(user_id, True, requeue=False)
-    assert repos.users.set_analysis_opt_out(user_id, False, requeue=False)
-    assert w.sweep(repos) == 0  # within SWEEP_S and nothing else changed
-    assert w.sweep(repos, force=True) == 1
-    w.run(once=True)
-    assert _versions(repos, photo_id) == ("done", {"basic": "7", "faces": "7"})
+    Worker(data, analyzers=[Fake("basic"), Fake("faces")]).run(once=True)
+    before = (jobs.get(repos.db, photo_id), jobs.facts(repos.db, photo_id))
+    for flag in (True, False, True, False):
+        assert repos.users.set_analysis_opt_out(user_id, flag)
+        assert (jobs.get(repos.db, photo_id), jobs.facts(repos.db, photo_id)) == before
 
 
-def test_an_opt_out_during_an_analysis_never_stores_its_ml_result(data_dir):
+def test_an_opt_out_during_an_analysis_only_flips_the_flag(data_dir):
+    """The result is stored (frozen); the live flag keeps it out of every use."""
     _data, repos, photo_id = data_dir
     user_id = repos.db.one("SELECT user_id FROM photos WHERE id=?", (photo_id,))[0]
     claimed = jobs.claim(repos.db)
     assert claimed is not None and not claimed.opt_out
-    assert repos.users.set_analysis_opt_out(user_id, True, requeue=False)
-    assert not jobs.finish(repos.db, photo_id, facts={"faces": 2}, data={},
-                           versions={"faces": "7"})  # fmt: skip
-    assert jobs.get(repos.db, photo_id).state == "pending"
-    assert jobs.facts(repos.db, photo_id) == {}
+    assert repos.users.set_analysis_opt_out(user_id, True)
+    assert jobs.get(repos.db, photo_id).state == "running"
+    assert repos.users.get(user_id).analysis_opt_out is True
 
 
 def test_the_worker_names_the_source_from_the_stored_labels(data_dir):

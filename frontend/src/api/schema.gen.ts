@@ -583,7 +583,8 @@ export interface paths {
         };
         /**
          * Get Settings
-         * @description The event name and where the admin password comes from.
+         * @description The event name, where the admin password comes from, and the public
+         *     address with its last check.
          */
         get: operations["get_settings_api_admin_settings_get"];
         put?: never;
@@ -631,6 +632,48 @@ export interface paths {
          *     current one is wrong); 429 `rate_limited` / `login_locked` (the login's limits).
          */
         post: operations["change_password_api_admin_settings_password_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/settings/public-address": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Set Public Address
+         * @description Set the public address (null or blank: VB_PUBLIC_BASE_URL, else
+         *     automatic) and check it at once. 400 `invalid_public_address`. A failed
+         *     check never blocks saving.
+         */
+        put: operations["set_public_address_api_admin_settings_public_address_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/settings/public-address/check": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Check Public Address
+         * @description Check the public address now: does `<address>/healthz` reach this server?
+         */
+        post: operations["check_public_address_api_admin_settings_public_address_check_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -751,6 +794,26 @@ export interface paths {
          */
         post: operations["ban_user_api_admin_users__user_id__ban_post"];
         delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/users/{user_id}/display-name": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Reset Display Name
+         * @description Take the guest's display name back to the default (moderation).
+         */
+        delete: operations["reset_display_name_api_admin_users__user_id__display_name_delete"];
         options?: never;
         head?: never;
         patch?: never;
@@ -922,8 +985,9 @@ export interface paths {
         head?: never;
         /**
          * Update Me
-         * @description Set or clear (null/blank) the guest's Instagram handle. Paused guests may;
-         *     banned ones get 403 `banned`.
+         * @description Set or clear (null/blank) the guest's Instagram handle and/or display
+         *     name. Paused guests may; banned ones get 403 `banned`. 400
+         *     `invalid_instagram` / `invalid_display_name`, 409 `display_name_taken`.
          */
         patch: operations["update_me_api_me_patch"];
         trace?: never;
@@ -938,11 +1002,32 @@ export interface paths {
         get?: never;
         /**
          * Update My Analysis
-         * @description „Meine Fotos nicht automatisch auswerten“ on or off. The guest's photos
-         *     are analysed again: with it on, only image values (no faces, hands,
-         *     expressions), and they never win a category that needs more.
+         * @description „Meine Fotos nicht automatisch auswerten“ on or off. Only the flag
+         *     flips (analyses are frozen): new photos taken with it on get only image
+         *     values, and while it is on none of the guest's photos is evaluated.
          */
         put: operations["update_my_analysis_api_me_analysis_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/me/external-ai": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Update My External Ai
+         * @description „Keine Weitergabe an externe KI“ on or off. Checked live before every
+         *     external call; local analysis keeps running.
+         */
+        put: operations["update_my_external_ai_api_me_external_ai_put"];
         post?: never;
         delete?: never;
         options?: never;
@@ -966,6 +1051,27 @@ export interface paths {
         put?: never;
         post?: never;
         delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/me/photos/{public_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Delete My Photo
+         * @description Delete one of the guest's own photos for good (the admin's delete:
+         *     files gone, analysis purged). 404 for any other photo.
+         */
+        delete: operations["delete_my_photo_api_me_photos__public_id__delete"];
         options?: never;
         head?: never;
         patch?: never;
@@ -1236,7 +1342,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Healthz */
+        /**
+         * Healthz
+         * @description `probe`: a nonce; the answer's `probe_mac` proves this server answered.
+         */
         get: operations["healthz_healthz_get"];
         put?: never;
         post?: never;
@@ -1374,6 +1483,34 @@ export interface components {
             photos: number;
         };
         /**
+         * AddressCheck
+         * @description Whether the public address reaches THIS server: it fetched
+         *     `<address>/healthz?probe=<nonce>` and compared the answer's `probe_mac`.
+         */
+        AddressCheck: {
+            /**
+             * At
+             * @description When it was checked; null: never.
+             */
+            at: string | null;
+            /**
+             * Message
+             * @description German detail for the admin, e.g. „Zeitüberschreitung“.
+             */
+            message: string;
+            /**
+             * Status
+             * @description ok: reaches this server; unreachable: no answer (DNS, refused, timeout, TLS); mismatch: something else answers (another server, a redirect, an error page); auto: no address set, the QR codes use the address the admin is open on; unchecked: not checked since the address changed.
+             * @enum {string}
+             */
+            status: "ok" | "unreachable" | "mismatch" | "auto" | "unchecked";
+            /**
+             * Url
+             * @description The address that was checked.
+             */
+            url: string | null;
+        };
+        /**
          * AdminCode
          * @description One QR code, also when revoked („gelöscht“: `active` false).
          */
@@ -1501,12 +1638,23 @@ export interface components {
         AdminSettingsOut: {
             event: components["schemas"]["EventSettings"];
             password: components["schemas"]["PasswordState"];
+            public_address: components["schemas"]["PublicAddress"];
         };
         /**
          * AdminUser
          * @description Everything about a guest. The same shape in every response and event.
          */
         AdminUser: {
+            /**
+             * Ai Opt Out
+             * @description „Keine externe KI“.
+             */
+            ai_opt_out: boolean;
+            /**
+             * Analysis Opt Out
+             * @description „Gast möchte keine Auswertung“.
+             */
+            analysis_opt_out: boolean;
             auto_ban: components["schemas"]["AutoBan"] | null;
             /** Auto Banned */
             auto_banned: boolean;
@@ -1524,6 +1672,11 @@ export interface components {
             consent_version: string;
             /** Created At */
             created_at: string;
+            /**
+             * Display Name
+             * @description The name the guest chose; null: default.
+             */
+            display_name: string | null;
             /** First Ip */
             first_ip: string;
             /** Fp Components */
@@ -1540,7 +1693,10 @@ export interface components {
             last_ip: string;
             /** Last Seen At */
             last_seen_at: string;
-            /** Name */
+            /**
+             * Name
+             * @description The pseudonym (internal name, never changes).
+             */
             name: string;
             /**
              * Online Now
@@ -1562,6 +1718,11 @@ export interface components {
              * @description Non-deleted photos.
              */
             photo_count: number;
+            /**
+             * Shown Name
+             * @description How other guests see them: display name, else „@<instagram>“, else the pseudonym.
+             */
+            shown_name: string;
             /** Uploads Lock Period */
             uploads_lock_period: number | null;
             /** Uploads Paused */
@@ -1988,7 +2149,7 @@ export interface components {
             active: number;
             /**
              * Base Url
-             * @description VB_PUBLIC_BASE_URL, or null.
+             * @description The public address (Allgemeines, else VB_PUBLIC_BASE_URL), or null.
              */
             base_url: string | null;
             /**
@@ -2008,6 +2169,11 @@ export interface components {
              * @default false
              */
             analysis: boolean;
+            /**
+             * External Ai
+             * @default false
+             */
+            external_ai: boolean;
             /** Instagram Account */
             instagram_account: string;
             /** Instagram Prompt */
@@ -2025,6 +2191,14 @@ export interface components {
         DeletePhotoOut: {
             /** Id */
             id: string;
+            /**
+             * Ok
+             * @constant
+             */
+            ok: true;
+        };
+        /** DeletedOut */
+        DeletedOut: {
             /**
              * Ok
              * @constant
@@ -2073,6 +2247,12 @@ export interface components {
             /** Users Unbanned */
             users_unbanned: components["schemas"]["UserRef"][];
         };
+        /** DisplayNameResetOut */
+        DisplayNameResetOut: {
+            /** Changed */
+            changed: boolean;
+            user: components["schemas"]["AdminUser"];
+        };
         /**
          * ErrorBody
          * @description Every error response.
@@ -2083,7 +2263,7 @@ export interface components {
              * @description Machine-readable error code.
              * @enum {string}
              */
-            error: "scan_qr" | "needs_consent" | "banned" | "consent_outdated" | "invalid_instagram" | "join_closed" | "wall_login_required" | "wall_no_password" | "wall_password_too_short" | "invalid_wall_config" | "uploads_paused" | "uploads_stopped" | "unsupported_type" | "too_large" | "invalid_meta" | "empty_upload" | "invalid_image" | "invalid_pdf" | "invalid_layout" | "no_template" | "admin_required" | "wrong_password" | "login_locked" | "invalid_filter" | "unknown_analyzer" | "invalid_cursor" | "no_fingerprint" | "restore_required" | "invalid_event_name" | "password_too_short" | "password_unchanged" | "no_filter_enabled" | "unknown_filter" | "export_not_ready" | "export_running" | "base_url_required" | "invalid_base_url" | "invalid_token" | "token_taken" | "code_revoked" | "invalid_target" | "invalid_note" | "bad_origin" | "length_required" | "rate_limited" | "invalid_request" | "not_found" | "http_404" | "http_405";
+            error: "scan_qr" | "needs_consent" | "banned" | "consent_outdated" | "invalid_instagram" | "join_closed" | "invalid_display_name" | "display_name_taken" | "wall_login_required" | "wall_no_password" | "wall_password_too_short" | "invalid_wall_config" | "uploads_paused" | "uploads_stopped" | "unsupported_type" | "too_large" | "invalid_meta" | "empty_upload" | "invalid_image" | "invalid_pdf" | "invalid_layout" | "no_template" | "admin_required" | "wrong_password" | "login_locked" | "invalid_filter" | "unknown_analyzer" | "invalid_cursor" | "no_fingerprint" | "restore_required" | "invalid_event_name" | "invalid_public_address" | "password_too_short" | "password_unchanged" | "no_filter_enabled" | "unknown_filter" | "export_not_ready" | "export_running" | "base_url_required" | "invalid_base_url" | "invalid_token" | "token_taken" | "code_revoked" | "invalid_target" | "invalid_note" | "bad_origin" | "length_required" | "rate_limited" | "invalid_request" | "not_found" | "http_404" | "http_405";
             /**
              * Message
              * @description German text for the guest or admin, shown as-is.
@@ -2206,7 +2386,7 @@ export interface components {
          * ExportIn
          * @description Start an export: `kind` plus its `options` (all optional).
          */
-        ExportIn: components["schemas"]["ArchiveExportIn"] | components["schemas"]["TimelapseExportIn"] | components["schemas"]["QrExportIn"];
+        ExportIn: components["schemas"]["ArchiveExportIn"] | components["schemas"]["TimelapseExportIn"];
         /** ExportJob */
         ExportJob: {
             /**
@@ -2239,12 +2419,12 @@ export interface components {
              * Kind
              * @enum {string}
              */
-            kind: "archive" | "timelapse" | "qr";
+            kind: "archive" | "timelapse";
             /**
              * Options
-             * @description The options it runs with (defaults filled in; qr: the URL used).
+             * @description The options it runs with (defaults filled in).
              */
-            options: components["schemas"]["ArchiveOptions"] | components["schemas"]["TimelapseOptions"] | components["schemas"]["QrOptions"];
+            options: components["schemas"]["ArchiveOptions"] | components["schemas"]["TimelapseOptions"];
             /**
              * Progress
              * @description 0..1 while running, 1 when done, null while queued; a failed job keeps the last value.
@@ -2272,7 +2452,7 @@ export interface components {
             jobs: components["schemas"]["ExportJob"][];
             /**
              * Public Base Url
-             * @description VB_PUBLIC_BASE_URL (the QR codes' default), null when unset.
+             * @description The public address (Allgemeines, else VB_PUBLIC_BASE_URL); null: automatic from the request.
              */
             public_base_url: string | null;
         };
@@ -2441,16 +2621,36 @@ export interface components {
          * @description What the guest's own browser may see about itself (exactly these keys).
          */
         GuestUser: {
+            /** Ai Opt Out */
+            ai_opt_out: boolean;
             /** Analysis Opt Out */
             analysis_opt_out: boolean;
             /** Banned */
             banned: boolean;
+            /**
+             * Display Name
+             * @description The name the guest chose; null: default.
+             */
+            display_name: string | null;
             /** Instagram */
             instagram: string | null;
-            /** Name */
+            /**
+             * Name
+             * @description The pseudonym (internal; never changes).
+             */
             name: string;
+            /**
+             * Shown Name
+             * @description How others see the guest: display name, else „@<instagram>“, else the pseudonym.
+             */
+            shown_name: string;
             /** Uploads Paused */
             uploads_paused: boolean;
+        };
+        /** HTTPValidationError */
+        HTTPValidationError: {
+            /** Detail */
+            detail?: components["schemas"]["ValidationError"][];
         };
         /** HealthOut */
         HealthOut: {
@@ -2459,6 +2659,11 @@ export interface components {
              * @constant
              */
             ok: true;
+            /**
+             * Probe Mac
+             * @description With `?probe=<nonce>`: proof that this server answered (the admin's public-address check); otherwise null.
+             */
+            probe_mac?: string | null;
         };
         /**
          * HereIn
@@ -2597,6 +2802,11 @@ export interface components {
              */
             accept: true;
             /**
+             * Ai Opt Out
+             * @default false
+             */
+            ai_opt_out: boolean;
+            /**
              * Analysis Opt Out
              * @default false
              */
@@ -2665,10 +2875,26 @@ export interface components {
             opt_out: boolean;
         };
         /**
+         * MeExternalAiIn
+         * @description „Keine Weitergabe an externe KI“: true = none of my photos, labels or my
+         *     name ever go to an external AI service.
+         */
+        MeExternalAiIn: {
+            /** Opt Out */
+            opt_out: boolean;
+        };
+        /**
          * MeIn
-         * @description null or blank clears the handle.
+         * @description Change what is sent; a field left out stays. null or blank clears it
+         *     (`display_name`: back to the default). A body with neither field clears
+         *     the handle (as before display names).
          */
         MeIn: {
+            /**
+             * Display Name
+             * @description 2–24 characters after normalising (NFKC, spaces collapsed); no invisible or bidi characters, no leading „@“, not another guest's name.
+             */
+            display_name?: string | null;
             /** Instagram */
             instagram?: string | null;
         };
@@ -3195,6 +3421,36 @@ export interface components {
             /** Uploaded At */
             uploaded_at: string;
         };
+        /**
+         * PublicAddress
+         * @description The address QR codes, posters and the Live-Wall's code point to.
+         */
+        PublicAddress: {
+            /**
+             * Address
+             * @description Set in Allgemeines; null: not set.
+             */
+            address: string | null;
+            check: components["schemas"]["AddressCheck"];
+            /**
+             * Effective
+             * @description What the codes use: `address`, else VB_PUBLIC_BASE_URL, else the origin this request came in on.
+             */
+            effective: string | null;
+            /**
+             * Source
+             * @enum {string}
+             */
+            source: "setting" | "env" | "auto";
+        };
+        /** PublicAddressIn */
+        PublicAddressIn: {
+            /**
+             * Address
+             * @description http(s)://host[:port][/path], no query or fragment; null or blank: back to VB_PUBLIC_BASE_URL / automatic.
+             */
+            address: string | null;
+        };
         /** PublicExtension */
         PublicExtension: {
             /** Emoji */
@@ -3209,31 +3465,6 @@ export interface components {
             uploads: boolean;
             /** Url */
             url: string;
-        };
-        /** QrExportIn */
-        QrExportIn: {
-            /**
-             * @description discriminator enum property added by openapi-typescript
-             * @enum {string}
-             */
-            kind: "qr";
-            options?: components["schemas"]["QrOptions"];
-        };
-        /**
-         * QrOptions
-         * @description A zip of the party QR codes (SVG + PNG) and the printable qr-sheet.html.
-         */
-        QrOptions: {
-            /**
-             * Base Url
-             * @description Public URL guests open, e.g. https://party.example.com. Default: VB_PUBLIC_BASE_URL. In a job: the URL that was used.
-             */
-            base_url?: string | null;
-            /**
-             * Code Id
-             * @description The QR code whose token the sheet carries. Default: the active code with the lowest number. In a job: the code that was used.
-             */
-            code_id?: number | null;
         };
         /** RerunIn */
         RerunIn: {
@@ -3638,6 +3869,19 @@ export interface components {
             /** Changed */
             changed: boolean;
             user: components["schemas"]["AdminUser"];
+        };
+        /** ValidationError */
+        ValidationError: {
+            /** Context */
+            ctx?: Record<string, never>;
+            /** Input */
+            input?: unknown;
+            /** Location */
+            loc: (string | number)[];
+            /** Message */
+            msg: string;
+            /** Error Type */
+            type: string;
         };
         /** WallAdminCategoriesOut */
         WallAdminCategoriesOut: {
@@ -5643,7 +5887,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description The file as an attachment: archive and qr are a zip, timelapse an mp4. */
+            /** @description The file as an attachment: archive is a zip, timelapse an mp4. */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -7944,6 +8188,194 @@ export interface operations {
             };
         };
     };
+    set_public_address_api_admin_settings_public_address_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PublicAddressIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PublicAddress"];
+                };
+            };
+            /** @description Invalid input (see `error`) */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Needs consent or an admin session */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Forbidden: banned, paused, stopped, joining closed or a foreign Origin (CSRF) */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Not found, or no party access (`scan_qr`) */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Content-Length required */
+            411: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Request too large */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Request validation failed (`invalid_request`) */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Rate limited (`Retry-After` header) */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    check_public_address_api_admin_settings_public_address_check_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AddressCheck"];
+                };
+            };
+            /** @description Invalid input (see `error`) */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Needs consent or an admin session */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Forbidden: banned, paused, stopped, joining closed or a foreign Origin (CSRF) */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Not found, or no party access (`scan_qr`) */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Content-Length required */
+            411: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Request too large */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Request validation failed (`invalid_request`) */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Rate limited (`Retry-After` header) */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
     stats_api_admin_stats_get: {
         parameters: {
             query?: never;
@@ -8631,6 +9063,100 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["BanOut"];
+                };
+            };
+            /** @description Invalid input (see `error`) */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Needs consent or an admin session */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Forbidden: banned, paused, stopped, joining closed or a foreign Origin (CSRF) */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Not found, or no party access (`scan_qr`) */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Content-Length required */
+            411: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Request too large */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Request validation failed (`invalid_request`) */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Rate limited (`Retry-After` header) */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    reset_display_name_api_admin_users__user_id__display_name_delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                user_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DisplayNameResetOut"];
                 };
             };
             /** @description Invalid input (see `error`) */
@@ -9484,6 +10010,15 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorBody"];
                 };
             };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
             /** @description Content-Length required */
             411: {
                 headers: {
@@ -9618,6 +10153,93 @@ export interface operations {
             };
         };
     };
+    update_my_external_ai_api_me_external_ai_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MeExternalAiIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MeOut"];
+                };
+            };
+            /** @description Needs consent or an admin session */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Forbidden: banned, paused, stopped, joining closed or a foreign Origin (CSRF) */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Not found, or no party access (`scan_qr`) */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Content-Length required */
+            411: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Request too large */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Request validation failed (`invalid_request`) */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Rate limited (`Retry-After` header) */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
     my_photos_api_me_photos_get: {
         parameters: {
             query?: never;
@@ -9634,6 +10256,91 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["MyPhotosOut"];
+                };
+            };
+            /** @description Needs consent or an admin session */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Forbidden: banned, paused, stopped, joining closed or a foreign Origin (CSRF) */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Not found, or no party access (`scan_qr`) */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Content-Length required */
+            411: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Request too large */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Request validation failed (`invalid_request`) */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Rate limited (`Retry-After` header) */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    delete_my_photo_api_me_photos__public_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                public_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DeletedOut"];
                 };
             };
             /** @description Needs consent or an admin session */
@@ -10779,7 +11486,9 @@ export interface operations {
     };
     healthz_healthz_get: {
         parameters: {
-            query?: never;
+            query?: {
+                probe?: string | null;
+            };
             header?: never;
             path?: never;
             cookie?: never;
@@ -10793,6 +11502,15 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HealthOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };

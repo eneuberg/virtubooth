@@ -1,4 +1,5 @@
-"""Admin guests: list, detail, ban, unban, pause one guest's uploads."""
+"""Admin guests: list, detail, ban, unban, pause one guest's uploads, reset a
+display name."""
 
 from __future__ import annotations
 
@@ -12,6 +13,7 @@ from ...deps import AdminDep, CoreDep
 from ...schemas.admin import (
     BanIn,
     BanOut,
+    DisplayNameResetOut,
     FingerprintOut,
     UnbanIn,
     UnbanOut,
@@ -117,6 +119,13 @@ def unban_user(
         users_unbanned=result.users_unbanned,
         photos=result.photos,
     )
+
+
+@router.delete("/users/{user_id}/display-name")
+def reset_display_name(user_id: UserId, core: CoreDep, admin: AdminDep) -> DisplayNameResetOut:
+    """Take the guest's display name back to the default (moderation)."""
+    user, changed = core.services.identity.reset_display_name(user_id, actor=admin.actor)
+    return DisplayNameResetOut(user=core.services.views.user(user), changed=changed)
 
 
 @router.post("/users/{user_id}/uploads")
