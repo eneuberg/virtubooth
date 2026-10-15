@@ -126,12 +126,19 @@ as they arrive, with the connection state ("verbunden"). A 44 px toggle per
 photo hides or unhides it ("Ausblenden", with "Rückgängig" in a toast). There
 is **no delete** here, so an accidental tap never deletes anything.
 
-**One-tap stops.** The Live header and the Verwaltung header have "Hochladen
-stoppen" (nobody can upload) and "Anmeldung stoppen" (nobody new can join;
-guests who joined carry on): side by side on Live, stacked in the sidebar on a
-laptop. One tap, no confirmation. While a stop is on, its button gives way to a red or
-amber status strip ("Hochladen gestoppt", "Anmeldung gestoppt") with the
-resume button, the same on every open admin screen.
+**Three switches, always in sight.** Live and the Verwaltung (sidebar on a
+laptop, top of the page on a phone) carry the same three switches: "Hochladen
+für alle stoppen" (nobody can upload), "Anmeldung stoppen" (nobody new can
+join; guests who joined carry on) and "Neue Gäste pausieren". One tap, no
+confirmation (only ending the new-guest pause asks what happens to the guests
+who joined during it). A stop that is on turns its row red or amber, on every
+open admin screen at once.
+
+**Analysis on Live.** With the Live Wall loaded, every tile carries short
+chips from the photo analysis ("3 Personen", "2 lächeln", "Flasche, Becher",
+category wins, the guest's opt-outs), and the opened photo shows the full
+analysis with frames. Finished analyses arrive through the event stream;
+"Analyse zeigen" switches it all off (remembered per browser).
 
 **Live overview.** Under the Live header, and in full in the "Übersicht" tab:
 active now, uploading now (both the last 5 minutes), photos in the last 15 and
@@ -164,11 +171,11 @@ Also in the admin:
   (online time and visits, photos per activity, the QR code), the guest's
   photos, "Hochladen pausieren" for this guest, and the ban in a sheet
   ("Gerätemerkmal auch sperren"). Technical details are collapsed.
-- **Upload controls**: the status pill opens the "Hochladen" sheet.
-  "Hochladen für alle stoppen" is a short emergency stop. "Neue Gäste
-  pausieren" holds back whoever joins from now on; ending that pause asks, if
-  anyone joined during it, whether to free exactly those guests or keep them
-  paused. The list of paused guests has "Freigeben" for each.
+- **Upload controls**: "Hochladen für alle stoppen" is a short emergency
+  stop. "Neue Gäste pausieren" holds back whoever joins from now on; ending
+  that pause asks, if anyone joined during it, whether to free exactly those
+  guests or keep them paused. "3 Gäste pausiert" under the switches leads to
+  the guest list filtered to paused guests.
 - **Login and sessions**: the login is rate limited and says so in words
   ("Zu viele Fehlversuche"). Logging out ends the live screens of that login
   at once. One browser keeps at most 4 live tabs; a fifth reconnects the

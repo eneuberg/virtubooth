@@ -89,6 +89,10 @@ class ExtensionSettingsData(BaseModel):
     id: str = Field(description="The extension whose settings changed.")
 
 
+class PhotoAnalyzedData(BaseModel):
+    ids: list[str] = Field(description="Public ids of the photos whose analysis changed.")
+
+
 class UploadPauseData(BaseModel):
     upload_pause: PauseState
     restored: list[int]
@@ -210,6 +214,16 @@ class SettingsEventEvent(BaseModel):
     data: SettingsEventData
 
 
+class PhotoAnalyzedEvent(BaseModel):
+    """The Live Wall's analysis of these photos changed (finished, failed, or an
+    external AI added objects): refetch their analysis. Only with the wall
+    extension loaded; batched (the wall polls the analysis every 2 s)."""
+
+    type: Literal["photo.analyzed"]
+    id: EventId
+    data: PhotoAnalyzedData
+
+
 class ExtensionSettingsEvent(BaseModel):
     """An extension's admin settings changed (e.g. the Fotobox filters): refetch them."""
 
@@ -262,6 +276,7 @@ AnyAdminEvent = Annotated[
     | PhotoHiddenEvent
     | PhotoUnhiddenEvent
     | PhotoDeletedEvent
+    | PhotoAnalyzedEvent
     | UserCreatedEvent
     | UserBannedEvent
     | UserUnbannedEvent
@@ -291,6 +306,7 @@ ADMIN_EVENT_TYPES: tuple[str, ...] = (
     "photo.hidden",
     "photo.unhidden",
     "photo.deleted",
+    "photo.analyzed",
     "user.created",
     "user.banned",
     "user.unbanned",

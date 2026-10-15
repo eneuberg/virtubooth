@@ -4,8 +4,8 @@
  * below; colours from Allgemeines → Erscheinungsbild via /api/theme.css).
  *
  * Two surfaces, chosen per app or area (never a user toggle):
- *   data-surface="dark"  "Rotlicht"/camera: guest pages, admin live (default on :root)
- *   data-surface="light" "Leuchttisch":     admin manage, user page, login
+ *   data-surface="dark"  "Rotlicht"/camera: guest pages (default on :root)
+ *   data-surface="light" "Leuchttisch":     the whole admin (admin.html), neutral white
  * Components only use the semantic colours (surface, ink, line, accent, danger, …),
  * so the same component reads right on both.
  *

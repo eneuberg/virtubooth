@@ -55,7 +55,7 @@ function ViewerImage({ photo, overlay }: { photo: AdminPhoto; overlay?: ReactNod
         )}
       />
       {photo.hidden ? (
-        <GreaseX className="pointer-events-none absolute inset-[8%] size-[84%] text-fettstift-hell" />
+        <GreaseX className="pointer-events-none absolute inset-[8%] size-[84%] text-mark" />
       ) : null}
       {overlay}
     </FittedPhoto>
@@ -64,7 +64,8 @@ function ViewerImage({ photo, overlay }: { photo: AdminPhoto; overlay?: ReactNod
 
 /**
  * A photo, big: on phones the whole screen, on desktop with an info panel. Arrow keys
- * and swipes go to the newer / older photo, Esc and the back button close it.
+ * and swipes go to the newer / older photo, Esc and the back button close it. Light like
+ * the manage area's inspector: the photo lies on the sunk grey, the details on white.
  */
 export function PhotoViewer({
   photo,
@@ -109,10 +110,9 @@ export function PhotoViewer({
         if (!open) onClose();
       }}
       isDismissable
-      data-surface="dark"
       className={({ isEntering, isExiting }) =>
         cx(
-          'vb-scrim fixed top-0 left-0 z-(--z-sheet) h-(--visual-viewport-height) w-full bg-kamera',
+          'vb-scrim fixed top-0 left-0 z-(--z-sheet) h-(--visual-viewport-height) w-full bg-surface',
           isEntering && 'animate-fade-in',
           isExiting && 'animate-fade-out',
         )
@@ -123,7 +123,7 @@ export function PhotoViewer({
           aria-label={name}
           data-testid="lightbox"
           className={cx(
-            'grid size-full grid-rows-[auto_minmax(0,1fr)_auto] text-papier outline-none',
+            'grid size-full grid-rows-[auto_minmax(0,1fr)_auto] text-ink outline-none',
             'lg:grid-cols-[minmax(0,1fr)_22rem] lg:grid-rows-[auto_minmax(0,1fr)]',
           )}
         >
@@ -131,7 +131,7 @@ export function PhotoViewer({
             <>
               <div
                 {...toastAvoid}
-                className="flex items-center gap-2 px-2 pt-[max(0.5rem,env(safe-area-inset-top))] pb-2 lg:col-span-2"
+                className="flex items-center gap-2 border-b border-line bg-surface-raised px-2 pt-[max(0.5rem,env(safe-area-inset-top))] pb-2 lg:col-span-2"
               >
                 <Button
                   variant="quiet"
@@ -143,7 +143,7 @@ export function PhotoViewer({
                 >
                   Schließen
                 </Button>
-                <span className="ml-auto text-sm text-papier-muted tabular" aria-live="polite">
+                <span className="ml-auto text-sm text-ink-muted tabular" aria-live="polite">
                   {index >= 0 ? `${index + 1} / ${list.length}` : ''}
                 </span>
                 <IconButton
@@ -160,7 +160,7 @@ export function PhotoViewer({
                 />
               </div>
               <div
-                className="relative min-h-0 touch-pan-y"
+                className="relative min-h-0 touch-pan-y bg-surface-sunk"
                 onPointerDown={(e) => {
                   swipe.current = { x: e.clientX, y: e.clientY };
                 }}
@@ -181,7 +181,7 @@ export function PhotoViewer({
               <section
                 aria-label="Details"
                 {...toastAvoid}
-                className="grid max-h-[42dvh] content-start gap-3 overflow-y-auto overscroll-contain border-t border-white/10 px-4 pt-3 pb-[max(1rem,env(safe-area-inset-bottom))] lg:max-h-none lg:border-t-0 lg:border-l lg:pt-1"
+                className="grid max-h-[42dvh] content-start gap-3 overflow-y-auto overscroll-contain border-t border-line bg-surface-raised px-4 pt-3 pb-[max(1rem,env(safe-area-inset-bottom))] lg:max-h-none lg:border-t-0 lg:border-l lg:px-5 lg:pt-4"
               >
                 <div className="flex flex-wrap items-center gap-2">
                   <h2 className="text-lg font-bold tabular">{label}</h2>
@@ -192,14 +192,14 @@ export function PhotoViewer({
                   ) : null}
                 </div>
                 <dl className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-4 gap-y-1 text-sm">
-                  <dt className="text-papier-muted">Gast</dt>
+                  <dt className="text-ink-muted">Gast</dt>
                   <dd translate="no" className="truncate">
                     {photo.user.name}
                     {photo.user.instagram ? (
-                      <span className="text-papier-muted"> @{photo.user.instagram}</span>
+                      <span className="text-ink-muted"> @{photo.user.instagram}</span>
                     ) : null}
                   </dd>
-                  <dt className="text-papier-muted">Aufgenommen</dt>
+                  <dt className="text-ink-muted">Aufgenommen</dt>
                   <dd>
                     <time dateTime={photo.created_at} title={formatDateTime(photo.created_at)}>
                       {formatRelative(photo.created_at)}
@@ -207,7 +207,7 @@ export function PhotoViewer({
                   </dd>
                   {metaRows(photo, ext).map(([k, v]) => (
                     <div key={k} className="contents">
-                      <dt className="text-papier-muted">{k}</dt>
+                      <dt className="text-ink-muted">{k}</dt>
                       <dd>{v}</dd>
                     </div>
                   ))}

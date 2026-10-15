@@ -258,3 +258,57 @@ def test_photo_analysis_shows_objects_runs_and_opt_outs(settings, demo_extension
             assert body["durations_ms"] == {"objects": 81}
     finally:
         app.state.core.db.close()
+
+
+def test_photo_analysis_summaries_for_the_live_screen(settings, demo_extension):
+    """GET /admin/photos/analysis?ids=…: a batch of tiles' state, key facts, object
+    labels and opt-outs (unknown ids left out); the poller announces new analyses
+    to the admin stream as `photo.analyzed`."""
+    app = create_app(settings, extensions=[demo_extension, make_extension()])
+    try:
+        with TestClient(app, base_url=BASE_URL, follow_redirects=False) as admin:
+            core = app.state.core
+            admin.post("/api/admin/login", json={"password": ADMIN_PASSWORD}, headers=ORIGIN)
+            scan(admin)
+            accept_consent(admin)
+            first, second = upload(admin), upload(admin)
+            from virtubooth.extensions.wall.enrich import jobs
+            from virtubooth.extensions.wall.enrich.objects import DetectedObject
+
+            seen: list[tuple[str, dict]] = []
+            core.bus.publish = lambda type_, data: seen.append((type_, data))  # type: ignore[method-assign]
+            claimed = jobs.claim(core.db)
+            assert claimed is not None
+            pid = claimed.id
+            done, waiting = (first, second) if pid == internal_id(core, first) else (second, first)
+            jobs.finish(core.db, pid, facts={"people": 3, "smiles": 2, "brightness": 0.4},
+                        versions={"objects": "2"}, data={"boxes": [], "details": []},
+                        objects_found=[DetectedObject("bottle", "Flasche", 0.9, (0.1, 0.2, 0.3, 0.4))],
+                        objects_model="efficientdet_lite2@2")  # fmt: skip
+            with core.db.tx() as c:
+                c.execute("UPDATE users SET analysis_opt_out=1")
+
+            r = admin.get("/api/x/wall/admin/photos/analysis",
+                          params=[("ids", waiting), ("ids", "nope"), ("ids", done)])  # fmt: skip
+            assert r.status_code == 200, r.text
+            items = r.json()["items"]
+            assert [i["photo_id"] for i in items] == [waiting, done]
+            assert items[0]["state"] in {"pending", "running"} and items[0]["facts"] == {}
+            assert items[1]["state"] == "done"
+            # only the key values, not every raw fact
+            assert items[1]["facts"] == {"people": 3.0, "smiles": 2.0}
+            assert items[1]["objects"] == [{"label_de": "Flasche", "source": "local"}]
+            assert items[1]["opt_out"] == {"analysis": True, "external_ai": False}
+            assert items[1]["wins"] == []
+
+            too_many = [("ids", f"x{i}") for i in range(101)]
+            r = admin.get("/api/x/wall/admin/photos/analysis", params=too_many)
+            assert r.status_code == 400
+
+            # the poller (a fresh hub from rev 0) announces the finished analysis
+            from virtubooth.extensions.wall.hub import WallHub
+
+            WallHub(core, EnrichmentService.of(core))._poll_once()
+            assert ("photo.analyzed", {"ids": [done]}) in seen
+    finally:
+        app.state.core.db.close()

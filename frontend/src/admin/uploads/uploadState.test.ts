@@ -3,13 +3,11 @@ import type { PauseState, StopState } from '@/api/types';
 import {
   endPausePlan,
   endPauseResult,
+  partyControlsCopy,
+  partySummary,
   pauseDescription,
   pauseSource,
   pauseSourceShort,
-  pillLabel,
-  pillState,
-  stopDescription,
-  uploadSummary,
 } from './uploadState';
 
 const NOW = new Date('2026-10-13T22:50:00');
@@ -34,23 +32,31 @@ const pause = (affected: number): PauseState => ({
 });
 
 describe('upload state', () => {
-  it('the pill: stop wins over the pause, unknown while loading', () => {
-    expect(pillState(undefined, noPause)).toBeNull();
-    expect(pillState(off, noPause)).toBe('on');
-    expect(pillState(off, pause(0))).toBe('paused-new');
-    expect(pillState(on, pause(2))).toBe('stopped');
-    expect(pillLabel('on')).toBe('Hochladen an');
-    expect(pillLabel('paused-new', true)).toBe('Hochladen: neue pausiert');
-    expect(pillLabel('stopped')).toBe('Gestoppt');
+  it('says each switch state in one line, "Lädt…" while unknown', () => {
+    expect(partyControlsCopy(undefined, undefined, undefined, NOW)).toEqual({
+      uploads: 'Lädt…',
+      join: 'Lädt…',
+      pause: 'Lädt…',
+    });
+    expect(partyControlsCopy(off, off, noPause, NOW)).toEqual({
+      uploads: 'Alle können hochladen.',
+      join: 'Neue Gäste können beitreten.',
+      pause: 'Neue Gäste laden sofort hoch.',
+    });
+    expect(partyControlsCopy(on, on, pause(3), NOW)).toEqual({
+      uploads: 'Gestoppt seit 22:41.',
+      join: 'Gestoppt seit 22:41.',
+      pause: 'Seit 22:41, 3\u00a0Gäste betroffen.',
+    });
+    expect(pauseDescription(pause(0), NOW)).toBe('Seit 22:41, noch niemand betroffen.');
   });
 
-  it('says each state once, in one line', () => {
-    expect(stopDescription(on, NOW)).toBe('Gestoppt seit 22:41. Niemand kann hochladen.');
-    expect(stopDescription(off, NOW)).toBe('Niemand kann hochladen, solange das an ist.');
-    expect(pauseDescription(pause(0), NOW)).toBe('Seit 22:41, noch niemand betroffen.');
-    expect(pauseDescription(pause(3), NOW)).toBe('Seit 22:41, 3 Gäste betroffen.');
-    expect(uploadSummary(on, pause(1), NOW)).toBe('Hochladen für alle gestoppt seit 22:41.');
-    expect(uploadSummary(off, noPause, NOW)).toBe('Alle können hochladen.');
+  it('sums the three switches up for screen readers', () => {
+    expect(partySummary(undefined, off, noPause, NOW)).toBe('');
+    expect(partySummary(off, off, noPause, NOW)).toBe('Hochladen läuft. Anmeldung offen.');
+    expect(partySummary(on, on, pause(1), NOW)).toBe(
+      'Hochladen für alle gestoppt seit 22:41. Anmeldung gestoppt seit 22:41. Neue Gäste pausiert seit 22:41.',
+    );
   });
 
   it('switching the new-guest pause off asks only when someone joined meanwhile', () => {

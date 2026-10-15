@@ -20,6 +20,7 @@ from ..api.schemas.events import (
     FingerprintUnbannedData,
     InstagramDoneData,
     JoinStopData,
+    PhotoAnalyzedData,
     PhotoDeletedData,
     PhotoEventData,
     SettingsEventData,
@@ -59,6 +60,11 @@ class AdminEvents:
 
     def photo_deleted(self, public_id: str, photo: AdminPhoto | None) -> None:
         self._emit("photo.deleted", PhotoDeletedData(id=public_id, photo=photo))
+
+    def photo_analyzed(self, public_ids: list[str]) -> None:
+        """The analysis of these photos changed (the Live Wall's poller)."""
+        if public_ids:
+            self._emit("photo.analyzed", PhotoAnalyzedData(ids=public_ids))
 
     def user_created(self, user: User) -> None:
         self._emit(

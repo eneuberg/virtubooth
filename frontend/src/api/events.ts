@@ -28,6 +28,7 @@ export const ADMIN_EVENT_TYPES = [
   'photo.hidden',
   'photo.unhidden',
   'photo.deleted',
+  'photo.analyzed',
   'user.created',
   'user.banned',
   'user.unbanned',

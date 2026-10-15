@@ -308,7 +308,7 @@ Laptop und Handy.
 
 ### Live
 
-Die Party-Ansicht für das Handy des Hosts (`/admin/live`), dunkel.
+Die Party-Ansicht für das Handy des Hosts (`/admin/live`), hell wie die Verwaltung.
 
 - Die neuesten Fotos in einem dichten Raster, sie erscheinen sofort.
   - Oben angekommen, rutschen neue Fotos von selbst hinein. Weiter unten erscheint
@@ -322,34 +322,49 @@ Die Party-Ansicht für das Handy des Hosts (`/admin/live`), dunkel.
   Details (Gast, Zeit, Gefäß, Filter, Kamera), „Ausblenden“ bzw. „Einblenden“, „Gast
   öffnen“.
 - Kopfzeile: „Live“, die Verbindungsanzeige, die Zahl der Fotos und der ausgeblendeten.
-- Darunter die [Schnellschalter, die Statusleiste](#schnellschalter-und-statusleiste)
-  und die [Live-Zahlen](#übersicht-und-live-zahlen).
-- Die Status-Pille „Hochladen an“ / „Neue pausiert“ / „Gestoppt“ öffnet das Sheet
-  [„Hochladen“](#hochladen-steuern).
-- Handy: Leiste unten mit „Live“, „Hochladen“, „Verwaltung“. Desktop: Knopf
-  „Verwaltung“ oben.
+- Darunter die [drei Schalter](#die-drei-schalter) und die
+  [Live-Zahlen](#übersicht-und-live-zahlen). Auf dem Handy scrollen die Schalter mit;
+  ein eingeschalteter Stopp steht dann als Abzeichen in der Kopfzeile.
+- [Analyse](#analyse-auf-live) unter jeder Kachel und im großen Foto, mit dem Schalter
+  „Analyse zeigen“ in der Kopfzeile.
+- Handy: Leiste unten mit „Live“ und „Verwaltung“. Desktop: Knopf „Verwaltung“ oben.
 
-### Schnellschalter und Statusleiste
+### Die drei Schalter
 
-- Zwei Knöpfe: **„Hochladen stoppen“** (rot) und **„Anmeldung stoppen“** (bernstein).
-  Nebeneinander, in der Seitenleiste untereinander.
-- Ein Tipp schaltet sofort, ohne Rückfrage. Schlägt es fehl, kommt ein Toast und der
-  Zustand bleibt.
-- Wo: auf Live (Desktop in der Kopfzeile, Handy darunter) und in der Verwaltung
-  (Desktop unten in der Seitenleiste, Handy in der Kopfzeile).
-- **Solange ein Stopp an ist, verschwindet sein Knopf.** Die Statusleiste zeigt dann
-  eine Zeile für diesen Stopp. Ihr Knopf ist auf dem Dashboard die einzige Bedienung
-  dafür. Hochladen lässt sich außerdem im Sheet „Hochladen“ fortsetzen.
+- **„Hochladen für alle stoppen“** (rot, wenn an), **„Anmeldung stoppen“** (bernstein,
+  wenn an) und **„Neue Gäste pausieren“** (bernstein getönt, wenn an): drei echte
+  Schalter, immer sichtbar, nie hinter einem Menü.
+- Ein Tipp (oder die Leertaste) schaltet sofort, ohne Rückfrage; derselbe Schalter
+  schaltet zurück. Schlägt es fehl, kommt ein Toast und der Zustand bleibt.
+- Nur das Beenden von „Neue Gäste pausieren“ fragt, falls in der Pause jemand
+  beigetreten ist (siehe [Hochladen steuern](#hochladen-steuern)).
+- Unter jedem Schalter steht sein Zustand („Alle können hochladen.“, „Gestoppt seit
+  22:41.“, „Seit 22:41, 2 Gäste betroffen.“). Sind Gäste pausiert, führt „3 Gäste
+  pausiert“ zur gefilterten Gästeliste.
+- Wo: auf Live (Desktop in der Kopfzeile nebeneinander, Handy darunter) und in der
+  Verwaltung (Desktop unten in der Seitenleiste, Handy oben). Nirgends doppelt, die
+  Übersicht hat keine eigene Kopie; sie erklärt die drei unter „Hochladen und
+  Anmeldung: was passiert dabei?“.
+- Schaltet ein anderes Gerät um, ändern sich alle offenen Admin-Seiten sofort;
+  Screenreader sagen es an.
 
-| Stopp | Zeile in der Statusleiste | Knopf |
-|---|---|---|
-| Hochladen | „Hochladen gestoppt“, „Für alle, seit 22:41.“, auf breiten Bildschirmen auch „Niemand kann hochladen, auch bekannte Gäste nicht.“ | „Fortsetzen“ |
-| Anmeldung | „Anmeldung gestoppt“, „Seit 22:41.“, auf breiten Bildschirmen auch „Niemand Neues kann beitreten. Wer dabei ist, macht weiter.“ | „Wieder öffnen“ |
+### Analyse auf Live
 
-- Die Statusleiste bleibt oben sichtbar. Ohne Stopp ist sie leer.
-- Schaltet ein anderes Gerät um, ändert sie sich sofort; Screenreader sagen es an.
-- „Hochladen stoppen“ ist derselbe Schalter wie „Hochladen für alle stoppen“ im Sheet
-  „Hochladen“.
+Nur mit der Live-Wall (sie bringt die Analyse mit).
+
+- Unter jeder Kachel kurze Chips: „3 Personen“, „2 lächeln“, „fröhlich“, „4 Hände“,
+  Gesten, Brillen, Hüte, die erkannten Objekte („Flasche, Becher +2“), die Kategorien,
+  die das Foto gerade gewinnt, und die Wünsche des Gasts („Keine Auswertung (Gast)“,
+  „Keine externe KI“). Solange nichts fertig ist: „Analyse wartet“ bzw. „Analyse
+  läuft…“, sonst „Analyse fehlgeschlagen“ oder „Nicht ausgewertet“.
+- Das große Foto zeigt die volle Analyse wie in der Verwaltung: Rahmen für Objekte,
+  Gesichter und Hände auf dem Foto, die Objektliste mit Wert und Quelle (Zeigen auf
+  ein Objekt hebt seinen Rahmen hervor), Details, Eigenschaftswerte, Kategorien.
+- Fertige Analysen kommen über den Ereignisstrom (`photo.analyzed`): die Kachel ändert
+  sich ohne Neuladen und ohne Abfragen im Takt. Die Chips laden gebündelt (bis zu 100
+  Fotos pro Anfrage), die volle Analyse erst beim Öffnen.
+- „Analyse zeigen“ in der Kopfzeile blendet Chips, Rahmen und Analyse aus; der Browser
+  merkt es sich.
 
 ### Übersicht und Live-Zahlen
 
@@ -398,11 +413,10 @@ Die Party-Ansicht für das Handy des Hosts (`/admin/live`), dunkel.
 Der Leuchttisch (`/admin/manage`), hell, für den Desktop gedacht, geht aber auch am
 Handy.
 
-- Desktop: Seitenleiste mit den Tabs und ihren Zahlen, Verbindungsanzeige,
-  Schnellschaltern, Status-Pille („Hochladen: an“ usw.), „Live öffnen“ und
-  „Abmelden“.
-- Handy: Kopfzeile mit Status-Pille, „Abmelden“, Schnellschaltern, Statusleiste und
-  Tab-Leiste. Unten dieselbe Leiste wie auf Live.
+- Desktop: Seitenleiste mit den Tabs und ihren Zahlen, Verbindungsanzeige, den
+  [drei Schaltern](#die-drei-schalter), „Live öffnen“ und „Abmelden“.
+- Handy: Kopfzeile mit „Verwaltung“, „Abmelden“ und den drei Schaltern, darunter die
+  Tab-Leiste (sie bleibt oben stehen). Unten dieselbe Leiste wie auf Live.
 - Reihenfolge: Übersicht · Allgemeines · Fotos · Gäste · Instagram · Fotobox ·
   Live-Wall · ML-Pipeline · Sperren · Protokoll · QR-Codes · Plakat · Export.
 - Der Tab steht in der Adresse (`?tab=…`), alte Lesezeichen funktionieren weiter.
@@ -504,29 +518,29 @@ Instagram, Sperren und dem Protokoll.
 
 ### Hochladen steuern
 
-Das Sheet „Hochladen“ öffnet sich über die Status-Pille oder „Hochladen“ in der
-Handy-Leiste. Drei Hebel, unabhängig voneinander und von Sperren:
+Die Hebel, unabhängig voneinander und von Sperren (die ersten beiden sind
+[Schalter](#die-drei-schalter) auf Live und in der Verwaltung):
 
 - **„Hochladen für alle stoppen“** (Notschalter): Niemand kann hochladen, auch bekannte
   Gäste nicht. Für kurze Pausen, etwa bei einer Flut unpassender Fotos. Einzelne Pausen
   bleiben, wie sie sind.
 - **„Neue Gäste pausieren“:** Wer ab jetzt beitritt, kann erst hochladen, wenn ihr
   freigebt. Bekannte Gäste laden weiter hoch.
-  - Beim Ausschalten fragt das Sheet, falls jemand in der Pause beigetreten ist:
+  - Beim Ausschalten fragt ein Dialog, falls jemand in der Pause beigetreten ist:
     „Freischalten“ bzw. „Alle … freischalten“, „Pausiert lassen“ bzw. „Alle …
-    pausiert lassen“, oder „Zurück“.
+    pausiert lassen“, oder „Pause weiterlaufen lassen“.
   - Freischalten gilt nur für die Gäste aus dieser Pause. Von Hand pausierte bleiben
     pausiert.
 - **Einzelne Gäste:** auf der Gästeseite mit „Hochladen pausieren“.
-- Liste „Pausierte Gäste“ im Sheet, mit „Freigeben“ pro Gast und einem Link zur
-  gefilterten Gästeliste.
+- „3 Gäste pausiert“ unter den Schaltern führt zur Gästeliste, gefiltert auf
+  „Hochladen pausiert“; freigegeben wird auf der Gästeseite.
 - Pausierte Gäste können sich weiter umsehen und ihren Instagram-Namen ändern.
 - Ein Gast, der selbst pausiert ist, hört von seiner Pause, nicht vom allgemeinen Stopp.
 - Alles bleibt über einen Neustart erhalten.
 
 ### Anmeldung stoppen
 
-- „Anmeldung stoppen“ in den Schnellschaltern: Niemand Neues kann beitreten.
+- Der Schalter „Anmeldung stoppen“: Niemand Neues kann beitreten.
 - Wer schon dabei ist, macht weiter: Fotos, Hochladen, „Deine Bilder“, ein zweiter
   Tab. Hochladen folgt nur den Hochladen-Schaltern.
 - Neue Geräte sehen im Beitritts-Sheet statt des Knopfs „Gerade kann niemand neu
@@ -534,7 +548,7 @@ Handy-Leiste. Drei Hebel, unabhängig voneinander und von Sperren:
   Knopf von selbst.“ mit „Nochmal versuchen“.
 - Das Sheet prüft alle 15 s und bei jedem Zurückkehren zur Seite neu. Ist die
   Anmeldung wieder offen, erscheint der Knopf ohne Neuladen.
-- „Wieder öffnen“ in der Statusleiste beendet den Stopp. Der Zustand bleibt über einen
+- Derselbe Schalter beendet den Stopp. Der Zustand bleibt über einen
   Neustart erhalten und steht im Protokoll („Anmeldung gestoppt“, „Anmeldung wieder
   offen“).
 

@@ -49,8 +49,8 @@ export async function setJoinStop(qc: QueryClient, enabled: boolean): Promise<St
 
 export type QuickSwitch = 'uploads' | 'join';
 
-/** Which switch has a request running (shared by the toggles and the status strip). */
-export const useSwitchBusy = create<{ busy: QuickSwitch | null }>(() => ({ busy: null }));
+/** Which of the party switches has a request running (PartyControls: one at a time). */
+export const useSwitchBusy = create<{ busy: QuickSwitch | 'pause' | null }>(() => ({ busy: null }));
 
 /**
  * Flip one switch, no confirmation (it must be instant at a party). The answer goes
@@ -70,22 +70,3 @@ export async function flipSwitch(qc: QueryClient, which: QuickSwitch, enabled: b
     useSwitchBusy.setState({ busy: null });
   }
 }
-
-/**
- * The control that was pressed goes away (a stop button once it is on, a strip row once
- * it is off): hand the focus to its counterpart, unless the focus already went elsewhere.
- */
-export function handFocus(testId: string): void {
-  window.setTimeout(() => {
-    // the page (or a test's DOM) may be gone by now
-    if (typeof document === 'undefined') return;
-    const active = document.activeElement;
-    if (active && active !== document.body && active.isConnected) return;
-    document.querySelector<HTMLElement>(`[data-testid="${testId}"]`)?.focus();
-  }, 60);
-}
-
-export const QUICK_TEST_ID: Record<QuickSwitch, string> = {
-  uploads: 'quick-upload-stop',
-  join: 'quick-join-stop',
-};

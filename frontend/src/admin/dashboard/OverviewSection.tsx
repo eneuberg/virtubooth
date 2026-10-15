@@ -114,7 +114,7 @@ function Groups({ o }: { o: Overview }) {
   );
 }
 
-/** Übersicht (manage): every live counter, grouped (the switches are in the header). */
+/** Übersicht (manage): every live counter, grouped (the party switches are in the sidebar / header). */
 export function OverviewSection() {
   const { data, isError } = useOverview();
   const [, navigate] = useLocation();
@@ -182,6 +182,26 @@ export function OverviewSection() {
         <p>
           <strong className="text-ink">Fotos der letzten Minuten</strong> zählen jeden Upload, auch später
           ausgeblendete oder gelöschte.
+        </p>
+      </HelpDisclosure>
+      <HelpDisclosure summary="Hochladen und Anmeldung: was passiert dabei?" variant="section">
+        <p>
+          <strong className="text-ink">Hochladen für alle stoppen:</strong> Niemand kann hochladen, auch
+          bekannte Gäste nicht. Für kurze Pausen, etwa bei einer Flut unpassender Fotos. Einzelne Pausen
+          bleiben dabei, wie sie sind.
+        </p>
+        <p>
+          <strong className="text-ink">Anmeldung stoppen:</strong> Niemand Neues kann beitreten. Wer schon
+          dabei ist, macht weiter.
+        </p>
+        <p>
+          <strong className="text-ink">Neue Gäste pausieren:</strong> Wer ab jetzt beitritt, kann erst
+          hochladen, wenn ihr freigebt. Bekannte Gäste laden weiter hoch. Beim Ausschalten entscheidest du, ob
+          die Betroffenen freigeschaltet werden.
+        </p>
+        <p>
+          Einzelne Gäste pausierst du auf ihrer Seite, alle Pausierten findest du unter Gäste (Status
+          „Hochladen pausiert“). Pausieren ist keine Sperre: Ihre Fotos bleiben sichtbar.
         </p>
       </HelpDisclosure>
     </section>

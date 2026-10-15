@@ -19,7 +19,7 @@ export interface SidebarNavProps {
   currentId: string | null;
   /** top of the sidebar: party name, connection */
   header?: ReactNode;
-  /** bottom of the sidebar: status pill, "Live öffnen", "Abmelden" */
+  /** bottom of the sidebar: the party switches, "Live öffnen", "Abmelden" */
   footer?: ReactNode;
   className?: string;
 }
@@ -37,7 +37,8 @@ export function SidebarNav({ label, items, currentId, header, footer, className 
       )}
     >
       {header ? <div className="px-2">{header}</div> : null}
-      <nav aria-label={label}>
+      {/* a short window scrolls the sections, the footer (switches, Abmelden) stays */}
+      <nav aria-label={label} className="-mx-3 min-h-0 overflow-y-auto px-3">
         <ul className="grid gap-0.5">
           {items.map(({ id, label: itemLabel, icon: Icon, href, count }) => {
             const current = id === currentId;

@@ -191,6 +191,40 @@ class PhotoAnalysis(BaseModel):
     durations_ms: dict[str, int]
 
 
+class SummaryObject(BaseModel):
+    label_de: str
+    source: str = Field(description="local | claude | mistral")
+
+
+class CategoryWin(BaseModel):
+    id: str = Field(description="The category's id.")
+    emoji: str
+    title: str
+    verdict: bool = Field(description="Named by the external AI's verdict, not by a ranking.")
+
+
+class PhotoAnalysisSummary(BaseModel):
+    """What the Live screen shows under a photo tile: the state, the key facts,
+    the object labels, the guest's opt-outs and the categories it currently wins.
+    The full analysis (boxes, details, scores) is `/admin/photos/{id}/analysis`."""
+
+    photo_id: str
+    state: AnalysisState
+    facts: dict[str, float] = Field(
+        description="Only the key values: people, faces, smiles, happy_max, hands, "
+        "thumbs_up, peace, rock, glasses, hats, age_groups (those measured)."
+    )
+    objects: list[SummaryObject]
+    opt_out: OptOutState
+    wins: list[CategoryWin]
+
+
+class AnalysisSummariesOut(BaseModel):
+    items: list[PhotoAnalysisSummary] = Field(
+        description="In request order; unknown or deleted photos are left out."
+    )
+
+
 # ------------------------------------------------- categories (PLAN-NIGHT §4.2)
 
 CategoryOp = Literal[

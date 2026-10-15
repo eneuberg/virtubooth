@@ -1,37 +1,42 @@
 /**
  * Upload controls as words and states (pure; uploadState.test.ts).
  *
- * Three levers, from the BRIEF: "Hochladen für alle stoppen" (emergency switch, nobody
- * uploads), "Neue Gäste pausieren" (who joins from now on waits for approval; switching
- * it off asks: release those guests, or keep them paused) and the per-guest pause.
+ * The levers, from the BRIEF: "Hochladen für alle stoppen" (emergency switch, nobody
+ * uploads), "Anmeldung stoppen", "Neue Gäste pausieren" (who joins from now on waits for
+ * approval; switching it off asks: release those guests, or keep them paused) and the
+ * per-guest pause.
  */
 import type { AdminUser, PauseState, StopState } from '@/api/types';
 import { formatDateTime } from '@/lib/format';
 import { clock, guestCount } from '../lib/labels';
 
-export type PillState = 'on' | 'paused-new' | 'stopped';
-
-/** The status pill in every header; null while unknown. Stop wins over pause. */
-export function pillState(stop: StopState | undefined, pause: PauseState | undefined): PillState | null {
-  if (!stop || !pause) return null;
-  if (stop.enabled) return 'stopped';
-  if (pause.enabled) return 'paused-new';
-  return 'on';
+export interface PartyControlsCopy {
+  uploads: string;
+  join: string;
+  pause: string;
 }
 
-/** Pill words; `long` for the roomy desktop sidebar. */
-export function pillLabel(state: PillState | null, long = false): string {
-  if (state === null) return long ? 'Hochladen: …' : 'Hochladen …';
-  const word = { on: 'an', 'paused-new': 'neue pausiert', stopped: 'gestoppt' }[state];
-  if (long) return `Hochladen: ${word}`;
-  return { on: 'Hochladen an', 'paused-new': 'Neue pausiert', stopped: 'Gestoppt' }[state];
-}
-
-/** One line under "Hochladen für alle stoppen": its state, or what it does. */
-export function stopDescription(stop: StopState, now?: Date): string {
-  return stop.enabled
-    ? `Gestoppt seit ${clock(stop.since, now)}. Niemand kann hochladen.`
-    : 'Niemand kann hochladen, solange das an ist.';
+/** The state line under each of the three switches (PartyControls). */
+export function partyControlsCopy(
+  stop: StopState | undefined,
+  join: StopState | undefined,
+  pause: PauseState | undefined,
+  now?: Date,
+): PartyControlsCopy {
+  const loading = 'Lädt…';
+  return {
+    uploads: !stop
+      ? loading
+      : stop.enabled
+        ? `Gestoppt seit ${clock(stop.since, now)}.`
+        : 'Alle können hochladen.',
+    join: !join
+      ? loading
+      : join.enabled
+        ? `Gestoppt seit ${clock(join.since, now)}.`
+        : 'Neue Gäste können beitreten.',
+    pause: !pause ? loading : pause.enabled ? pauseDescription(pause, now) : 'Neue Gäste laden sofort hoch.',
+  };
 }
 
 /** One line under "Neue Gäste pausieren". */
@@ -104,14 +109,18 @@ export function pauseSource(
   return `von Hand pausiert seit ${clock(user.uploads_paused_at, now)}`;
 }
 
-/** The status line of the upload controls sheet, for screen readers and the live header. */
-export function uploadSummary(
+/** The three switches in one sentence, for screen readers (a polite live region). */
+export function partySummary(
   stop: StopState | undefined,
+  join: StopState | undefined,
   pause: PauseState | undefined,
   now?: Date,
 ): string {
-  if (!stop || !pause) return 'Lädt…';
-  if (stop.enabled) return `Hochladen für alle gestoppt seit ${clock(stop.since, now)}.`;
-  if (pause.enabled) return `Neue Gäste pausiert seit ${clock(pause.since, now)}.`;
-  return 'Alle können hochladen.';
+  if (!stop || !join || !pause) return '';
+  const parts = [
+    stop.enabled ? `Hochladen für alle gestoppt seit ${clock(stop.since, now)}.` : 'Hochladen läuft.',
+    join.enabled ? `Anmeldung gestoppt seit ${clock(join.since, now)}.` : 'Anmeldung offen.',
+  ];
+  if (pause.enabled) parts.push(`Neue Gäste pausiert seit ${clock(pause.since, now)}.`);
+  return parts.join(' ');
 }

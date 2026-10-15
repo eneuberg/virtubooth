@@ -13,7 +13,6 @@ import { UiProvider } from '@/ui/UiProvider';
 import { guardedNavigate } from './lib/leaveGuard';
 import { LivePage } from './live/LivePage';
 import { LoginPage } from './login/LoginPage';
-import { useDocumentSurface } from './surface';
 
 // the manage area and the user page load on demand: the party phone needs live only
 const ManagePage = lazy(() => import('./manage/ManagePage').then((m) => ({ default: m.ManagePage })));
@@ -31,7 +30,6 @@ function Loading() {
 const APP_ROUTE = /^\/(?:live|manage|user|login)(?:[/?#]|$)/;
 
 function NotFound() {
-  useDocumentSurface('dark');
   return (
     <Notice
       icon={CircleQuestionMark}

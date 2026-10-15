@@ -1,6 +1,6 @@
-"""The dashboard: "Hochladen stoppen" and "Anmeldung stoppen" in one tap on every admin
-screen, the status strip in sync across screens, the live overview, and the guest's join
-sheet while joining is closed."""
+"""The dashboard: "Hochladen für alle stoppen" and "Anmeldung stoppen" as switches in one
+tap on every admin screen, in sync across screens, the live overview, and the guest's
+join sheet while joining is closed."""
 
 from __future__ import annotations
 
@@ -30,6 +30,14 @@ def join(c: httpx.Client, version: str) -> httpx.Response:
     return c.post("/api/join", json={"accept": True, "version": version, "fp": {"hash": "cd" * 32}})
 
 
+def switch(page: Page, label: str):
+    return page.get_by_test_id("party-controls").get_by_role("switch", name=re.compile(label))
+
+
+def row(page: Page, test_id: str):
+    return page.get_by_test_id("party-controls").get_by_test_id(test_id)
+
+
 def test_one_tap_stops_on_every_screen(
     admin_page: Page, desktop_page: Page, live: LiveServer, guests: Callable[..., Guest]
 ) -> None:
@@ -39,51 +47,47 @@ def test_one_tap_stops_on_every_screen(
     screens = (admin_page, desktop_page)
     for p in screens:
         wait_live(p)
-        expect(p.get_by_test_id("status-strip")).to_have_attribute("data-state", "off")
+        # one set of switches per screen, no second copy anywhere
+        expect(p.get_by_test_id("party-controls")).to_have_count(1)
+        expect(row(p, "upload-stop-switch")).to_have_attribute("data-state", "off")
+        expect(row(p, "join-stop-switch")).to_have_attribute("data-state", "off")
 
     # the phone: one tap stops every upload, no question asked
-    stop = admin_page.get_by_test_id("quick-upload-stop")
-    expect(stop).to_have_text("Hochladen stoppen")
-    stop.click()
-    # its button is gone while it is on: the strip's resume is the one control (and has the focus)
-    expect(admin_page.get_by_role("button", name="Hochladen fortsetzen")).to_be_focused()
+    row(admin_page, "upload-stop-switch").click()
+    expect(switch(admin_page, "Hochladen für alle stoppen")).to_be_checked()
     expect(admin_page.get_by_role("dialog")).to_have_count(0)
     expect(admin_page.get_by_role("alertdialog")).to_have_count(0)
     for p in screens:
-        strip = p.get_by_test_id("status-strip-uploads")
-        expect(strip).to_be_visible()
-        expect(strip).to_contain_text("Hochladen gestoppt")
-        expect(strip).to_contain_text(re.compile(r"Für alle, seit \d\d:\d\d"))
-        expect(p.get_by_test_id("uploads-chip")).to_have_attribute("data-state", "stopped")
-        expect(p.get_by_test_id("quick-upload-stop")).to_have_count(0)
-        expect(p.get_by_test_id("quick-join-stop")).to_be_visible()
+        stop_row = row(p, "upload-stop-switch")
+        expect(stop_row).to_have_attribute("data-state", "on")
+        expect(stop_row).to_contain_text(re.compile(r"Gestoppt seit \d\d:\d\d"))
+        expect(row(p, "join-stop-switch")).to_have_attribute("data-state", "off")
+    # the phone's sticky header keeps the state in sight while scrolling the photos
+    expect(admin_page.get_by_test_id("party-badges")).to_contain_text("Hochladen gestoppt")
     assert known.upload_response().json()["error"] == "uploads_stopped"
 
     # the laptop: joining stops right next to it
-    desktop_page.get_by_test_id("quick-join-stop").click()
+    row(desktop_page, "join-stop-switch").click()
     for p in screens:
-        expect(p.get_by_test_id("status-strip-join")).to_contain_text("Anmeldung gestoppt")
-        # both on: no stop buttons at all, only the two strip rows
-        expect(p.get_by_test_id("quick-controls")).to_have_count(0)
+        expect(row(p, "join-stop-switch")).to_have_attribute("data-state", "on")
+        expect(row(p, "join-stop-switch")).to_contain_text("Gestoppt seit")
     client, answer = newcomer(live)
     assert answer["state"] == "needs_consent" and answer["join_closed"] is True
     refused = join(client, answer["consent"]["version"])
     assert refused.status_code == 403 and refused.json()["error"] == "join_closed"
 
-    # resume uploads from the strip on the phone: the join stop stays
-    admin_page.get_by_role("button", name="Hochladen fortsetzen").click()
+    # resume uploads with the same switch on the phone: the join stop stays
+    row(admin_page, "upload-stop-switch").click()
     for p in screens:
-        expect(p.get_by_test_id("status-strip-uploads")).to_have_count(0)
-        expect(p.get_by_test_id("quick-upload-stop")).to_be_visible()
-        expect(p.get_by_test_id("quick-join-stop")).to_have_count(0)
-        expect(p.get_by_test_id("status-strip-join")).to_be_visible()
+        expect(row(p, "upload-stop-switch")).to_have_attribute("data-state", "off")
+        expect(row(p, "join-stop-switch")).to_have_attribute("data-state", "on")
     assert known.upload_response().status_code == 201
 
-    # and joining opens again from the laptop's strip
-    desktop_page.get_by_role("button", name="Anmeldung wieder öffnen").click()
+    # and joining opens again from the laptop
+    row(desktop_page, "join-stop-switch").click()
     for p in screens:
-        expect(p.get_by_test_id("status-strip")).to_have_attribute("data-state", "off")
-        expect(p.get_by_test_id("quick-join-stop")).to_be_visible()
+        expect(switch(p, "Anmeldung stoppen")).not_to_be_checked()
+    expect(admin_page.get_by_test_id("party-badges")).to_have_count(0)
     assert join(client, answer["consent"]["version"]).status_code == 201
     client.close()
 

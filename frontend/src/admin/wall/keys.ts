@@ -8,4 +8,6 @@ export const wk = {
   llm: ['admin', 'wall', 'llm'] as const,
   properties: ['admin', 'wall', 'llm', 'properties'] as const,
   photoAnalysis: (id: string) => ['admin', 'wall', 'photo-analysis', id] as const,
+  /** one tile's summary (fetched in batches, see summaryBatch.ts) */
+  photoSummary: (id: string) => ['admin', 'wall', 'photo-summary', id] as const,
 };

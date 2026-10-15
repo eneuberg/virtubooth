@@ -188,6 +188,7 @@
             "fingerprint.banned": "#/components/schemas/FingerprintBannedEvent",
             "fingerprint.unbanned": "#/components/schemas/FingerprintUnbannedEvent",
             "instagram.done": "#/components/schemas/InstagramDoneEvent",
+            "photo.analyzed": "#/components/schemas/PhotoAnalyzedEvent",
             "photo.created": "#/components/schemas/PhotoCreatedEvent",
             "photo.deleted": "#/components/schemas/PhotoDeletedEvent",
             "photo.hidden": "#/components/schemas/PhotoHiddenEvent",
@@ -216,6 +217,9 @@
           },
           {
             "$ref": "#/components/schemas/PhotoDeletedEvent"
+          },
+          {
+            "$ref": "#/components/schemas/PhotoAnalyzedEvent"
           },
           {
             "$ref": "#/components/schemas/UserCreatedEvent"
@@ -988,6 +992,23 @@
           "models"
         ],
         "title": "AnalysisStatus",
+        "type": "object"
+      },
+      "AnalysisSummariesOut": {
+        "properties": {
+          "items": {
+            "description": "In request order; unknown or deleted photos are left out.",
+            "items": {
+              "$ref": "#/components/schemas/PhotoAnalysisSummary"
+            },
+            "title": "Items",
+            "type": "array"
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "title": "AnalysisSummariesOut",
         "type": "object"
       },
       "AnalyzerIn": {
@@ -2140,6 +2161,36 @@
           "prompt"
         ],
         "title": "CategoryVerdictSpec",
+        "type": "object"
+      },
+      "CategoryWin": {
+        "properties": {
+          "emoji": {
+            "title": "Emoji",
+            "type": "string"
+          },
+          "id": {
+            "description": "The category's id.",
+            "title": "Id",
+            "type": "string"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          },
+          "verdict": {
+            "description": "Named by the external AI's verdict, not by a ranking.",
+            "title": "Verdict",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "id",
+          "emoji",
+          "title",
+          "verdict"
+        ],
+        "title": "CategoryWin",
         "type": "object"
       },
       "CategoryWinnerOut": {
@@ -5516,6 +5567,103 @@
         "title": "PhotoAnalysis",
         "type": "object"
       },
+      "PhotoAnalysisSummary": {
+        "description": "What the Live screen shows under a photo tile: the state, the key facts,\nthe object labels, the guest's opt-outs and the categories it currently wins.\nThe full analysis (boxes, details, scores) is `/admin/photos/{id}/analysis`.",
+        "properties": {
+          "facts": {
+            "additionalProperties": {
+              "type": "number"
+            },
+            "description": "Only the key values: people, faces, smiles, happy_max, hands, thumbs_up, peace, rock, glasses, hats, age_groups (those measured).",
+            "title": "Facts",
+            "type": "object"
+          },
+          "objects": {
+            "items": {
+              "$ref": "#/components/schemas/SummaryObject"
+            },
+            "title": "Objects",
+            "type": "array"
+          },
+          "opt_out": {
+            "$ref": "#/components/schemas/OptOutState"
+          },
+          "photo_id": {
+            "title": "Photo Id",
+            "type": "string"
+          },
+          "state": {
+            "enum": [
+              "pending",
+              "running",
+              "done",
+              "failed",
+              "skipped"
+            ],
+            "title": "State",
+            "type": "string"
+          },
+          "wins": {
+            "items": {
+              "$ref": "#/components/schemas/CategoryWin"
+            },
+            "title": "Wins",
+            "type": "array"
+          }
+        },
+        "required": [
+          "photo_id",
+          "state",
+          "facts",
+          "objects",
+          "opt_out",
+          "wins"
+        ],
+        "title": "PhotoAnalysisSummary",
+        "type": "object"
+      },
+      "PhotoAnalyzedData": {
+        "properties": {
+          "ids": {
+            "description": "Public ids of the photos whose analysis changed.",
+            "items": {
+              "type": "string"
+            },
+            "title": "Ids",
+            "type": "array"
+          }
+        },
+        "required": [
+          "ids"
+        ],
+        "title": "PhotoAnalyzedData",
+        "type": "object"
+      },
+      "PhotoAnalyzedEvent": {
+        "description": "The Live Wall's analysis of these photos changed (finished, failed, or an\nexternal AI added objects): refetch their analysis. Only with the wall\nextension loaded; batched (the wall polls the analysis every 2 s).",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/PhotoAnalyzedData"
+          },
+          "id": {
+            "description": "`<epoch>-<n>`: the SSE `id:` line.",
+            "title": "Id",
+            "type": "string"
+          },
+          "type": {
+            "const": "photo.analyzed",
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "type",
+          "id",
+          "data"
+        ],
+        "title": "PhotoAnalyzedEvent",
+        "type": "object"
+      },
       "PhotoChangeOut": {
         "properties": {
           "changed": {
@@ -6701,6 +6849,25 @@
           "data"
         ],
         "title": "StreamResyncEvent",
+        "type": "object"
+      },
+      "SummaryObject": {
+        "properties": {
+          "label_de": {
+            "title": "Label De",
+            "type": "string"
+          },
+          "source": {
+            "description": "local | claude | mistral",
+            "title": "Source",
+            "type": "string"
+          }
+        },
+        "required": [
+          "label_de",
+          "source"
+        ],
+        "title": "SummaryObject",
         "type": "object"
       },
       "TestImageOut": {
@@ -19438,6 +19605,104 @@
           }
         },
         "summary": "Set Password",
+        "tags": [
+          "extension:wall"
+        ]
+      }
+    },
+    "/api/x/wall/admin/photos/analysis": {
+      "get": {
+        "description": "The Live screen's analysis chips for a batch of photos: state, key\nfacts, object labels, the guest's opt-outs and current category wins.",
+        "operationId": "photo_analysis_summaries_api_x_wall_admin_photos_analysis_get",
+        "parameters": [
+          {
+            "description": "Photo public ids (repeat the parameter), at most 100.",
+            "in": "query",
+            "name": "ids",
+            "required": true,
+            "schema": {
+              "description": "Photo public ids (repeat the parameter), at most 100.",
+              "items": {
+                "type": "string"
+              },
+              "title": "Ids",
+              "type": "array"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AnalysisSummariesOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Invalid input (see `error`)"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Needs consent or an admin session"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Forbidden: banned, paused, stopped, joining closed or a foreign Origin (CSRF)"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Not found, or no party access (`scan_qr`)"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Request validation failed (`invalid_request`)"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Rate limited (`Retry-After` header)"
+          }
+        },
+        "summary": "Photo Analysis Summaries",
         "tags": [
           "extension:wall"
         ]

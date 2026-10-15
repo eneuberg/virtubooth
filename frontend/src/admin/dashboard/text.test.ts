@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { Overview } from '@/api/types';
-import { freshness, liveStats, minutes, scansSince, switchCopy } from './text';
+import { freshness, liveStats, minutes, scansSince } from './text';
 
 const NOW = new Date('2026-10-13T22:50:00.000+02:00');
 const SINCE = '2026-10-13T20:41:00.000+00:00'; // 22:41 in Berlin
@@ -23,23 +23,6 @@ const overview: Overview = {
 };
 
 describe('dashboard text', () => {
-  it('names the switches with the glossary words and says since when they are on', () => {
-    const off = switchCopy('uploads', { enabled: false, since: null, by: null }, NOW);
-    expect(off.toggle).toBe('Hochladen stoppen');
-    expect(off.detail).toBe('Für alle, seit –.');
-    const on = switchCopy('uploads', { enabled: true, since: SINCE, by: 'admin:1' }, NOW);
-    expect(on.title).toBe('Hochladen gestoppt');
-    expect(on.detail).toMatch(/^Für alle, seit \d\d:\d\d\.$/);
-    expect(on.effect).toBe('Niemand kann hochladen, auch bekannte Gäste nicht.');
-    expect(on.resumeLabel).toBe('Hochladen fortsetzen');
-    const join = switchCopy('join', { enabled: true, since: SINCE, by: 'admin:1' }, NOW);
-    expect(join.toggle).toBe('Anmeldung stoppen');
-    expect(join.title).toBe('Anmeldung gestoppt');
-    expect(join.detail).toMatch(/^Seit \d\d:\d\d\.$/);
-    expect(join.effect).toContain('Wer dabei ist, macht weiter.');
-    expect(join.resume).toBe('Wieder öffnen');
-  });
-
   it('puts a no-break space before units', () => {
     expect(minutes(5)).toBe('5\u00a0min');
     expect(freshness(overview, NOW)).toMatch(/^„Jetzt“: letzte 5\u00a0min, Stand \d\d:\d\d\.$/);

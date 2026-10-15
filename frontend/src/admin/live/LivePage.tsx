@@ -1,10 +1,13 @@
 /**
- * /admin/live: the party screen on the host's phone (dark Rotlicht). The newest photos
+ * /admin/live: the party screen on the host's phone (the manage area's light look). The newest photos
  * in a dense grid, arriving live; one tap hides one. This screen can only hide and
  * unhide: deleting, bans and everything else live in the manage area on purpose
- * (BRIEF invariant; live.test.ts checks this folder for any delete path).
+ * (BRIEF invariant; live.test.ts checks this folder for any delete path). With the Live
+ * Wall's analysis on, each tile carries its chips and the viewer the full analysis with
+ * frames („Analyse zeigen“ in the header turns it off).
  */
-import { ArrowUp, Eye, EyeOff, Images, LayoutGrid, RotateCw, Upload } from 'lucide-react';
+import { ArrowUp, Eye, EyeOff, Images, LayoutGrid, RotateCw } from 'lucide-react';
+import { useState } from 'react';
 import type { AdminPhoto } from '@/api/types';
 import { formatNumber, NBSP } from '@/lib/format';
 import { t } from '@/lib/messages.de';
@@ -22,8 +25,6 @@ import { PhotoViewer } from '../common/PhotoViewer';
 import { usePhotoParam } from '../common/usePhotoParam';
 import { useHideToggle } from '../common/usePhotoActions';
 import { OverviewStrip } from '../dashboard/OverviewStrip';
-import { QuickControls } from '../dashboard/QuickControls';
-import { StatusStrip } from '../dashboard/StatusStrip';
 import { DESKTOP, focusLater, useMediaQuery } from '../lib/browser';
 import { photoLabel } from '../lib/labels';
 import { arrivedLive } from '../store/applyEvent';
@@ -37,9 +38,10 @@ import {
   useStats,
 } from '../store/hooks';
 import { ALL_PHOTOS } from '../store/types';
-import { useDocumentSurface } from '../surface';
-import { openUploadSheet } from '../uploads/sheetStore';
-import { UploadStatusPill } from '../uploads/UploadStatusPill';
+import { PartyControls, PartyStateBadges } from '../uploads/PartyControls';
+import { AnalysisBoxes, AnalysisPanel } from '../wall/AnalysisPanel';
+import { AnalysisChips, AnalysisToggle, AnalysisWins } from '../wall/LiveAnalysis';
+import { useLiveAnalysis } from '../wall/liveAnalysisState';
 
 const isAtTop = () => window.scrollY < AT_TOP;
 
@@ -47,7 +49,6 @@ const TOAST_ABOVE_BAR =
   'bottom-[calc(4.75rem+env(safe-area-inset-bottom))] landscape-phone:bottom-3 landscape-phone:pl-19 lg:bottom-6';
 
 export function LivePage() {
-  useDocumentSurface('dark');
   return (
     <AdminFrame toastClassName={TOAST_ABOVE_BAR}>
       <LiveScreen />
@@ -64,6 +65,8 @@ function LiveHeader({ desktop }: { desktop: boolean }) {
           <h1 className="text-lg font-bold">Live</h1>
           <ConnectionBadge />
         </div>
+        {/* phones: the switches scroll away with the page, their state stays in sight */}
+        {desktop ? null : <PartyStateBadges className="my-0.5" />}
         <p className="truncate text-sm text-ink-muted tabular max-[380px]:text-xs" aria-live="off">
           {stats ? (
             <>
@@ -78,8 +81,7 @@ function LiveHeader({ desktop }: { desktop: boolean }) {
           )}
         </p>
       </div>
-      {desktop ? <QuickControls /> : null}
-      <UploadStatusPill />
+      <AnalysisToggle className="shrink-0" />
       {desktop ? (
         <LinkButton href="/manage" variant="secondary" size="sm" icon={LayoutGrid}>
           Verwaltung
@@ -98,6 +100,8 @@ function LiveScreen() {
   const atTop = useAtTop();
   const grid = useGridKeys<HTMLUListElement>();
   const desktop = useMediaQuery(DESKTOP);
+  const analysis = useLiveAnalysis();
+  const [showBoxes, setShowBoxes] = useState(true);
   useAutoMerge('live', ALL_PHOTOS, isAtTop);
 
   const photos = listedPhotos(list.data);
@@ -125,11 +129,10 @@ function LiveScreen() {
       >
         Zu den Fotos
       </a>
-      {/* the header, the two switches and their status strip stay on screen */}
+      {/* the header stays on screen; on desktop with the three party switches */}
       <div className="sticky top-0 z-(--z-sticky) bg-surface">
         <LiveHeader desktop={desktop} />
-        {desktop ? null : <QuickControls className="border-b border-line px-3 py-2" />}
-        <StatusStrip />
+        {desktop ? <PartyControls layout="row" className="border-b border-line px-4 py-2.5" /> : null}
         {incoming.length > 0 && !atTop ? (
           <div className="pointer-events-none absolute inset-x-0 top-full flex justify-center pt-3">
             <Button
@@ -148,6 +151,7 @@ function LiveScreen() {
           </div>
         ) : null}
       </div>
+      {desktop ? null : <PartyControls className="border-b border-line px-3 py-2.5" />}
       <OverviewStrip />
       <main id="live-photos" tabIndex={-1} className="px-2 pt-2 pb-6 outline-none">
         {list.isPending ? (
@@ -204,6 +208,7 @@ function LiveScreen() {
                     />
                   }
                 />
+                <AnalysisChips photoId={photo.id} className="mt-1.5" />
               </li>
             ))}
           </ul>
@@ -227,6 +232,17 @@ function LiveScreen() {
         extensions={extensions}
         onNavigate={(id) => openPhoto(id, 'replace')}
         onClose={closeViewer}
+        renderOverlay={analysis ? (photo) => <AnalysisBoxes photo={photo} visible={showBoxes} /> : undefined}
+        renderDetails={
+          analysis
+            ? (photo) => (
+                <>
+                  <AnalysisWins photoId={photo.id} />
+                  <AnalysisPanel photo={photo} showBoxes={showBoxes} onShowBoxesChange={setShowBoxes} />
+                </>
+              )
+            : undefined
+        }
         renderActions={(photo) => (
           <Button
             variant={photo.hidden ? 'primary' : 'secondary'}
@@ -246,7 +262,6 @@ function LiveScreen() {
           currentId="live"
           items={[
             { id: 'live', label: 'Live', icon: Images, href: '/live' },
-            { id: 'upload', label: t.upload, icon: Upload, onPress: openUploadSheet },
             { id: 'manage', label: 'Verwaltung', icon: LayoutGrid, href: '/manage' },
           ]}
         />

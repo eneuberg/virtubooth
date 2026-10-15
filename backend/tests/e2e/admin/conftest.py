@@ -3,7 +3,7 @@ browser per guest), an admin on a desktop (1440x900) next to the phone `admin_pa
 and small helpers for the new admin markup.
 
 Selectors: the pre-overhaul test ids where the concept still exists (conn, photo-card,
-photo-tile, toggle, lightbox, confirm, bulkbar, bulk-*, guest-search, uploads-chip,
+photo-tile, toggle, lightbox, confirm, bulkbar, bulk-*, guest-search, party-controls,
 pause-end-*, user-name, user-status, ban, unban-fp, unban-user, fingerprints, …), React
 Aria roles for the rest (switch, checkbox, grid, row, dialog).
 """
