@@ -1,4 +1,4 @@
-"""Export jobs: the admin starts an archive, a timelapse or the QR codes; one
+"""Export jobs: the admin starts an archive or a timelapse; one
 worker thread runs them one at a time and writes the files to <data>/exports/.
 
 - State lives in the `export_jobs` table (migration v3): a job survives a
@@ -28,18 +28,23 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 from ..api.schemas.exports import ExportJob as ExportJobOut
-from ..api.schemas.exports import ExportOptions, QrOptions
+from ..api.schemas.exports import ExportOptions
 from ..core import errors
 from ..core.clock import local_now, now_iso
 from ..db.database import Database
-from ..domain.exports import KEEP_DONE, KEEP_FAILED, RESTART_ERROR, ExportJob, ExportKind
+from ..domain.exports import (
+    EXPORT_KINDS,
+    KEEP_DONE,
+    KEEP_FAILED,
+    RESTART_ERROR,
+    ExportJob,
+    ExportKind,
+)
 from ..domain.models import new_public_id
 from ..repositories.container import Repositories
-from ..tools import qr as qr_tool
 from ..tools._common import EXPORTS_DIR, ToolError
 from .events import AdminEvents
 from .export_runners import (
-    NO_ACTIVE_CODE,
     RUNNERS,
     JobCancelled,
     JobContext,
@@ -103,11 +108,13 @@ class ExportService:
     # ------------------------------------------------------------ queries
 
     def jobs(self) -> list[ExportJob]:
-        """Every job, newest first."""
-        return self.repos.exports.list()
+        """Every job, newest first. Records of a removed kind (the old `qr`
+        sheet) are hidden."""
+        return [j for j in self.repos.exports.list() if j.kind in EXPORT_KINDS]
 
     def get(self, job_id: str) -> ExportJob | None:
-        return self.repos.exports.get(job_id)
+        job = self.repos.exports.get(job_id)
+        return job if job is not None and job.kind in EXPORT_KINDS else None
 
     @staticmethod
     def ffmpeg_available() -> bool:
@@ -120,11 +127,6 @@ class ExportService:
     ) -> tuple[ExportJob, bool]:
         """Queue a job; (job, True). When one of this kind is already queued or
         running: (that job, False), nothing new."""
-        if isinstance(options, QrOptions):
-            options = QrOptions(
-                base_url=self._qr_base_url(options.base_url),
-                code_id=self._qr_code_id(options.code_id),
-            )
         values = options.model_dump(mode="json")
         with self.db.tx():
             existing = self.repos.exports.active(kind)
@@ -141,45 +143,11 @@ class ExportService:
             self.db.on_commit(self._wake)
         return job, True
 
-    def _qr_base_url(self, raw: str | None) -> str:
-        value = (raw or "").strip() or self.core.settings.public_base_url
-        if not value:
-            raise errors.bad_request(
-                "Für die QR-Codes fehlt die Adresse der Party: bitte angeben "
-                "(z. B. https://party.example.com) oder VB_PUBLIC_BASE_URL setzen.",
-                "base_url_required",
-            )
-        try:
-            return qr_tool.normalize_base_url(value)
-        except ToolError:
-            raise errors.bad_request(
-                "Die Adresse muss mit http:// oder https:// beginnen und darf kein ? und "
-                "kein # enthalten, z. B. https://party.example.com.",
-                "invalid_base_url",
-            ) from None
-
-    def _qr_code_id(self, code_id: int | None) -> int:
-        """The QR code the sheet carries: the chosen one (must be active), else
-        the active code with the lowest number."""
-        if code_id is None:
-            lowest = self.repos.codes.lowest_active()
-            if lowest is None:
-                raise errors.ApiError(409, "code_revoked", NO_ACTIVE_CODE)
-            return lowest.id
-        code = self.repos.codes.get(code_id)
-        if code is None:
-            raise errors.not_found("QR-Code nicht gefunden.")
-        if not code.active:
-            raise errors.ApiError(
-                409, "code_revoked", f"{code.name} ist gelöscht. Wähl einen aktiven QR-Code."
-            )
-        return code.id
-
     def delete(self, job_id: str, *, actor: str) -> None:
         """Remove a job and its file. A queued job is cancelled this way; a
         running one can't be deleted (409 export_running)."""
         with self.db.tx():
-            job = self.repos.exports.get(job_id)
+            job = self.get(job_id)
             if job is None:
                 raise _not_found()
             if job.status == "running":
@@ -203,7 +171,7 @@ class ExportService:
 
     def download(self, job_id: str) -> Download:
         """The finished file, only from inside <data>/exports/."""
-        job = self.repos.exports.get(job_id)
+        job = self.get(job_id)
         if job is None:
             raise _not_found()
         if job.status != "done":
@@ -255,7 +223,7 @@ class ExportService:
         if job.kind == "timelapse":
             extension = str(job.options.get("extension") or "fotos")
             return f"zeitraffer-{extension}-{suffix}.mp4"
-        return f"qr-codes-{suffix}.zip"
+        return f"export-{suffix}.zip"
 
     # ------------------------------------------------------------- worker
 
@@ -368,7 +336,7 @@ class ExportService:
             self._publish(job_id)
 
     def _publish(self, job_id: str) -> None:
-        job = self.repos.exports.get(job_id)
+        job = self.get(job_id)
         if job is not None:
             self.events.export_updated(ExportJobOut.of(job))
 

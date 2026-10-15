@@ -1,4 +1,4 @@
-"""Admin exports: start an archive, timelapse or QR-code job, list them, download
+"""Admin exports: start an archive or timelapse job, list them, download
 the file, delete them (see services/exports.py)."""
 
 from __future__ import annotations
@@ -29,7 +29,7 @@ JobId = Annotated[str, Path(pattern=PHOTO_ID_PATTERN)]
 _BINARY = {"schema": {"type": "string", "format": "binary"}}
 DOWNLOAD_RESPONSES: dict[int | str, dict[str, Any]] = {
     200: {
-        "description": "The file as an attachment: archive and qr are a zip, timelapse an mp4.",
+        "description": "The file as an attachment: archive is a zip, timelapse an mp4.",
         "content": {"application/zip": _BINARY, "video/mp4": _BINARY},
     },
     # errors are JSON, not the file's type (overrides the admin router's entries)
