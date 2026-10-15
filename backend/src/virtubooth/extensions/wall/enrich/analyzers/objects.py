@@ -17,7 +17,6 @@ from typing import Any
 from ..objects import DetectedObject
 from ..pipeline import Frame, Result
 from . import OBJECTS, settings_defaults
-from ._ml import mp_image, rgb_array
 
 MODEL = "efficientdet_lite2"
 # the detector's own floor; the admin's `score_min` filters above it
@@ -99,6 +98,10 @@ class ObjectsAnalyzer:
         )
 
     def run(self, frame: Frame, prior: Mapping[str, Result]) -> Result:
+        # the ml extra (cv2, numpy) only here: the labels and helpers above are
+        # importable without it (tests, the values catalogue)
+        from ._ml import mp_image, rgb_array
+
         rgb = rgb_array(frame)
         h, w = rgb.shape[:2]
         res = self._detector.detect(mp_image(rgb))
