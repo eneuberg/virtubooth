@@ -152,9 +152,9 @@ jobs:
           VB_E2E_BROWSER: ${{ matrix.browser }}
         run: |
           # DEBUG: dump the stacks of every pytest process if the run hangs
-          (sleep 480; echo "=== WATCHDOG: still running after 8 min"; ps -ef --forest | grep -E "pytest|firefox|chrom|xvfb" | grep -v grep | cut -c1-200;
+          (sleep 480; echo "=== WATCHDOG: still running after 8 min"; ps -ef --forest | grep -E "pytest|firefox|xvfb|node|driver" | grep -v grep | cut -c1-250;
            for pid in $(pgrep -f "pytest|xdist|execnet|python"); do echo "=== py-spy $pid"; sudo "$HOME/.local/bin/py-spy" dump --pid "$pid" 2>&1 | head -120; done) &
-          ${{ matrix.browser == 'firefox' && 'xvfb-run -a ' || '' }}uv run pytest -m e2e -v -n 4 --dist worksteal -o faulthandler_timeout=150
+          ${{ matrix.browser == 'firefox' && 'xvfb-run -a ' || '' }}uv run pytest -m e2e -v -s -n 4 --dist worksteal -o faulthandler_timeout=120
 
   docker:
     name: docker (build + smoke)
