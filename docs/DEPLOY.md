@@ -304,12 +304,28 @@ steps above.
    `VB_EXTENSIONS`, `VB_TIMEZONE`, the per-IP limits, `VB_MIN_FREE_MB`,
    `VB_MAX_PHOTOS_PER_GUEST` and `VB_FORWARDED_ALLOW_IPS` (default: Docker's
    private ranges) are editable too.
+
+   Two of them are **build** variables for the Live-Wall's photo analysis
+   (a change needs a redeploy, which rebuilds the image):
+   - `VB_ML` (default `1`): installs the ML packages (MediaPipe, ONNX
+     Runtime, OpenCV). `0` builds the small image with only the basic image
+     values (brightness, colour, sharpness); Admin → ML-Pipeline then says
+     what is missing.
+   - `VB_BAKE_MODELS` (default `0`): the model files (144 MB) are not in the
+     image. After the first deploy press **Admin → ML-Pipeline → „Modelle
+     herunterladen“** once: the server fetches them (SHA256-checked) into the
+     volume (`/data/wall/models`), where they survive redeploys. `1` downloads
+     them during the build instead: no button press, but every image is
+     144 MB bigger and a build without cache downloads them again.
+
+   Sizes and memory: [Live-Wall and photo analysis](#live-wall-and-photo-analysis).
 5. **Persistent storage:** the volume `virtubooth-data` at `/data` holds the
    database, every photo and the exports. Keep it: deleting it deletes the
    party. Uploads stop while less than `VB_MIN_FREE_MB` (2 GB) is free on its
-   disk. The container is limited to 2 CPUs and 1.5 GB RAM (`cpus`,
-   `mem_limit` in the compose file; `cpus` must not exceed the server's CPU
-   count).
+   disk. The volume also keeps the downloaded analysis models. The container
+   is limited to 2 CPUs and 1.5 GB RAM (`cpus`, `mem_limit` in the compose
+   file; `cpus` must not exceed the server's CPU count). With the analysis it
+   uses about 0.65 GB at its peak (measured below).
 6. **Deploy.** Coolify builds the image on the server (about 1 GB of free RAM
    for the frontend build), and the status turns healthy about 15 s after the
    start. Then:
@@ -319,6 +335,8 @@ steps above.
    - QR codes: admin → Verwaltung → QR-Codes (a code's sheet has "QR als
      PNG", "QR groß (PDF)" and "Plakat (PDF)"), or Coolify's Terminal for
      service `app`: `python -m virtubooth.tools.qr`.
+   - Admin → Verwaltung → ML-Pipeline: „Modelle herunterladen“ (about 15 s on
+     a fast line); a test image in „Testbild“ shows that every analysis runs.
 
 The compose file trusts all private ranges for `X-Forwarded-For` by default.
 To narrow it, set `VB_FORWARDED_ALLOW_IPS` to Coolify's proxy network:
@@ -399,8 +417,10 @@ app starts and supervises (nice 10, one photo at a time, restarted after a
 crash, recycled after 200 photos or 900 MB RSS, it exits with the app). Without
 extras it computes only image values (brightness, colour, sharpness: two
 categories). Faces, expressions, hands, glasses and the like need the `ml`
-extra (MediaPipe, ONNX Runtime, OpenCV; about +400 MB image size) and the
-model files (about 145 MB, 230 MB with the optional FairFace age model):
+extra (MediaPipe, ONNX Runtime, OpenCV) and the model files (144 MB, 231 MB
+with the optional FairFace age model). `docker-compose.coolify.yaml` builds
+with the extra by default ([Coolify](#coolify), `VB_ML`, `VB_BAKE_MODELS`);
+`compose.yaml` and a plain `docker build` without it:
 
 ```bash
 docker build --build-arg VB_ML=1 -t virtubooth:ml .        # the ML image
@@ -414,8 +434,70 @@ docker compose run --rm app virtubooth wall models list
 (`virtubooth wall …` is short for `python -m virtubooth.extensions.wall.enrich …`,
 which keeps working.)
 
+**„Modelle herunterladen“** in Admin → ML-Pipeline → „Modelle“ does the same
+as `models fetch` from the browser: shown while the ML packages are installed
+and a needed model is missing (the standard ones, plus FairFace once „Alter“ is
+switched on). The server alone picks the files (versioned URLs, pinned SHA256),
+downloads them in the background with progress into `$VB_WALL_MODELS_DIR` or
+`/data/wall/models`, and refuses to start while that would leave less than
+`VB_MIN_FREE_MB` free. The worker picks them up with its next photo, no
+restart. It needs outgoing https to `huggingface.co` and
+`storage.googleapis.com`; without it, bake the models into the image
+(`VB_BAKE_MODELS=1`). Without the ML packages the card explains how to rebuild
+instead (a download would not help).
+
 `models fetch` writes to `$VB_WALL_MODELS_DIR` or `/data/wall/models`;
 `--with-age` adds FairFace (switched off in the admin until you turn it on).
+Analyzers that cannot run (models missing) keep their switch: it stores the
+host's choice in both directions and the analyzer starts once its models are
+there.
+
+The worker runs fine on the read-only root filesystem of
+`docker-compose.coolify.yaml`: the image points the ML libraries' caches
+(fontconfig, matplotlib's font list, about 100 KB) at the `/tmp` tmpfs
+(`XDG_CACHE_HOME`, `MPLCONFIGDIR`) and sets `ORT_DISABLE_TELEMETRY=1` (ONNX
+Runtime 1.31 would otherwise store a device id and send usage events to
+Microsoft; the worker sets it too outside Docker). Models are only read; only
+the download folder in `/data` must be writable.
+
+Measured on an x86-64 build of this repository (Docker with the containerd
+image store), the container run with the hardening of
+`docker-compose.coolify.yaml` (read-only, tmpfs `/tmp`, no capabilities,
+`pids_limit` 512, `mem_limit` 1536m, 2 CPUs):
+
+| Image | compressed (pull) | unpacked | `docker image ls` |
+|---|---|---|---|
+| `VB_ML=0` | 248 MB | 667 MB | 967 MB |
+| `VB_ML=1` (Coolify default) | 427 MB | 1,173 MB | 1.66 GB |
+| `VB_ML=1`, `VB_BAKE_MODELS=1` | 535 MB | 1,317 MB | 1.92 GB |
+
+The ML extra grows `/opt/venv` from 120 MB to 638 MB: OpenCV 153 MB (`cv2`
+plus its bundled libraries), MediaPipe 122 MB, numpy 70 MB, ONNX Runtime
+68 MB, and MediaPipe's matplotlib with fontTools and kiwisolver 72 MB.
+`libegl1`/`libgles2` add about 1 MB to the 457 MB ffmpeg layer.
+
+| Model | File | Size |
+|---|---|---|
+| CLIP ViT-B/32 vision, int8 (`tags`) | `clip_vision_model_int8.onnx` | 88.6 MB |
+| FER+ (`emotion`) | `emotion-ferplus-8.onnx` | 35.0 MB |
+| MediaPipe gesture recogniser (`gestures`) | `gesture_recognizer.task` | 8.4 MB |
+| EfficientDet-Lite2 int8 (`objects`) | `efficientdet_lite2.tflite` | 7.5 MB |
+| MediaPipe face landmarker (`faces`) | `face_landmarker.task` | 3.8 MB |
+| YuNet (`faces`) | `face_detection_yunet_2023mar.onnx` | 0.2 MB |
+| **standard set** (the download, `/data` grows by this) | | **143.6 MB** |
+| FairFace age, int8 (`age`, only when switched on) | `fairface_age_model_int8.onnx` | 87.3 MB |
+
+| Memory (container: `docker stats`; app, worker: RSS) | Container | App | Worker |
+|---|---|---|---|
+| idle, no models | 143 MiB | 123 MiB | 33 MiB |
+| during „Modelle herunterladen“ | 158 MiB | | |
+| idle, models loaded (after the first photo) | 638 MiB | 134 MiB | 502 MiB |
+| peak, 20 photos and 3 test images | 659 MiB | 135 MiB | 583 MiB |
+
+The six standard analyzers took about 0.3 s per photo there (objects 150 ms,
+faces 55 ms, gestures 37 ms). The 1.5 GB limit leaves room for the worker's
+900 MB recycling threshold, FairFace (about +0.1 GB) and an export's ffmpeg; the
+container never needs swap.
 The models: YuNet (MIT), MediaPipe face landmarker, gesture recogniser and
 EfficientDet-Lite2 (Apache-2.0), FER+ emotion (MIT), CLIP ViT-B/32 int8 (MIT),
 FairFace age (Apache-2.0, data CC BY 4.0).

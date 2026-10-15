@@ -256,3 +256,34 @@ def test_the_worker_names_the_source_from_the_stored_labels(data_dir):
     Worker(data, analyzers=[BasicAnalyzer()]).run(once=True)
     details = {d["label"]: d["value"] for d in jobs.get(repos.db, photo_id).data["details"]}
     assert details["Quelle"] == "Fotobox"
+
+
+def test_the_worker_picks_up_models_downloaded_into_the_data_dir(data_dir, monkeypatch):
+    """„Modelle herunterladen“ writes to <data>/wall/models while the worker
+    runs: the next photo uses them, no restart (a missing model is not a load
+    error that sticks), and the next heartbeat no longer reports it."""
+    from virtubooth.extensions.wall.enrich import models
+
+    data, repos, photo_id = data_dir
+    monkeypatch.delenv(models.MODELS_ENV, raising=False)
+    monkeypatch.setattr(models, "BAKED_DIR", data / "no-baked-models")
+    faces = Fake("faces", models=("yunet",))
+    worker = Worker(data, analyzers=[Fake("basic"), faces])
+    worker.run(once=True)
+    assert jobs.facts(repos.db, photo_id) == {"basic": 1.0}
+    assert "yunet" in repos.app_settings.get(jobs.WORKER_KEY)["models_missing"]
+    assert faces.loads == 0
+
+    yunet = models.BY_NAME["yunet"]
+    (data / "wall" / "models").mkdir(parents=True)
+    (data / "wall" / "models" / yunet.file).write_bytes(b"x" * yunet.size)
+    second = new_public_id()
+    repos.photos.insert(public_id=second, extension="booth",
+                        user_id=repos.db.one("SELECT user_id FROM photos")[0], filename="p.jpg",
+                        thumb_filename="p.jpg", width=120, height=90, size=1, meta={},
+                        created_at=now_iso())  # fmt: skip
+    worker.run(once=True)
+    pid = repos.photos.internal_id(second) or 0
+    assert jobs.facts(repos.db, pid)["faces"] == 1.0
+    assert faces.loads == 1
+    assert "yunet" not in repos.app_settings.get(jobs.WORKER_KEY)["models_missing"]

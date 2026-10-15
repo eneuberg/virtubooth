@@ -18,7 +18,7 @@ from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any, cast
 
 from ....core.clock import now_iso
-from . import jobs, models, objects
+from . import downloads, jobs, models, objects
 from .analyzers import ALWAYS_ON, BY_NAME, INFOS, SETTINGS, ml_installed
 from .engine import PhotoFilter
 from .schemas import (
@@ -32,6 +32,8 @@ from .schemas import (
     AnalyzerStatus,
     DetailLine,
     DetectionRun,
+    ModelDownload,
+    ModelsStatus,
     ObjectBox,
     OptOutState,
     PhotoAnalysis,
@@ -89,6 +91,10 @@ def _float_or_none(value: Any) -> float | None:
 
 class InvalidSettings(ValueError):
     """Analyzer settings outside their schema (German message)."""
+
+
+class MlMissing(RuntimeError):
+    """The ML packages are not installed: downloading models would not help."""
 
 
 class EnrichmentService:
@@ -185,7 +191,9 @@ class EnrichmentService:
             if info.kind == "ml" and not ml:
                 reason = "Braucht das KI-Paket (Docker-Image mit VB_ML=1)."
             elif lacking := [m for m in info.models if m in missing]:
-                reason = f"Modell fehlt: {', '.join(lacking)} (Befehl „models fetch“)."
+                reason = (
+                    f"Modell fehlt: {', '.join(lacking)}. Oben „Modelle herunterladen“ drücken."
+                )
             elif info.name in load_errors:
                 reason = "Konnte nicht geladen werden (siehe Server-Log)."
             else:
@@ -243,7 +251,7 @@ class EnrichmentService:
         elif not ml:
             message = "Ohne KI-Paket: nur Bildwerte (Helligkeit, Farbe, Schärfe)."
         elif fresh and self._missing_for_enabled(beat):
-            message = "Modelle fehlen – auf dem Server „models fetch“ ausführen."
+            message = "Modelle fehlen – oben „Modelle herunterladen“ drücken."
         # the worker's own numbers only while it beats (a stale beat is a dead process)
         live: Mapping[str, Any] = beat if fresh else {}
         errors = live.get("load_errors")
@@ -266,7 +274,65 @@ class EnrichmentService:
         return AnalysisStatus(
             worker=self.worker(), counts=AnalysisCounts(**counts),
             queue=AnalysisQueue(**jobs.queue(self.core.db)), analyzers=self.analyzers(),
+            models=self.models_status(),
         )  # fmt: skip
+
+    # -------------------------------------------------------------- models
+
+    def _ml(self) -> bool:
+        beat = self._fresh_beat()
+        return bool(beat["ml"]) if beat else ml_installed()
+
+    def needed_models(self) -> list[models.ModelFile]:
+        """The standard models plus those of every enabled analyzer (FairFace
+        only once the admin switched „age“ on)."""
+        disabled = self.disabled()
+        wanted = {m for i in INFOS if i.name not in disabled for m in i.models}
+        return [m for m in models.REGISTRY if not m.optional or m.name in wanted]
+
+    def missing_models(self) -> list[models.ModelFile]:
+        """Needed models not found in any model folder of this app's data dir."""
+        lacking = set(
+            models.missing([m.name for m in self.needed_models()], self.core.settings.data_dir)
+        )
+        return [m for m in self.needed_models() if m.name in lacking]
+
+    def _downloader(self) -> downloads.Downloader:
+        return downloads.for_dest(models.default_dest(self.core.settings.data_dir))
+
+    def models_status(self) -> ModelsStatus:
+        ml = self._ml()
+        missing = self.missing_models()
+        dl = self._downloader()
+        p = dl.progress()
+        return ModelsStatus(
+            ml=ml, missing=[m.name for m in missing],
+            missing_mb=round(sum(m.size for m in missing) / 1e6, 1), dest=str(dl.dest),
+            can_download=ml and bool(missing) and p.state != "running",
+            download=ModelDownload(
+                state=p.state, current=p.current, models=list(p.models),
+                done_bytes=p.done_bytes, total_bytes=p.total_bytes, error=p.error,
+                finished_at=p.finished_at,
+            ),
+        )  # fmt: skip
+
+    def download_models(self, *, actor: str, wait: bool = False) -> bool:
+        """Start downloading the missing models (registry URLs, SHA256-checked)
+        into the data volume. False: nothing to do or one is running already.
+        Raises MlMissing without the ML packages."""
+        if not self._ml():
+            raise MlMissing
+        missing = self.missing_models()
+        if not missing:
+            return False
+        min_free = max(0, self.core.settings.min_free_mb) * 1024 * 1024
+        started = self._downloader().start(missing, min_free_bytes=min_free, wait=wait)
+        if started:
+            self.core.repos.audit.log(
+                actor, "wall.models.download", "", {"models": [m.name for m in missing]},
+                at=now_iso(),
+            )  # fmt: skip
+        return started
 
     def set_disabled(self, names: Collection[str], *, actor: str) -> set[str]:
         """Store the complete disabled set (unknown names must be rejected first)."""

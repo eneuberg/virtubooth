@@ -11,6 +11,13 @@ export function sizeText(mb: number): string {
   return `${formatNumber(n)}${NBSP}MB`;
 }
 
+const mb = (bytes: number) => Math.round(bytes / 1e6);
+
+/** "45 von 145 MB" (the model download) */
+export function downloadProgressText(download: { done_bytes: number; total_bytes: number }): string {
+  return `${mb(download.done_bytes)} von ${sizeText(mb(download.total_bytes))}`;
+}
+
 const ms = (n: number) => `${formatNumber(Math.round(n))}${NBSP}ms`;
 const photos = (n: number) => `${formatNumber(n)}${NBSP}${n === 1 ? 'Foto' : 'Fotos'}`;
 

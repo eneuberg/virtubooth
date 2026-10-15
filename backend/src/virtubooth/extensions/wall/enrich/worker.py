@@ -70,6 +70,8 @@ def tune_process(*, nice: bool = True) -> None:
     if threads := thread_limit():
         os.environ.setdefault("OMP_NUM_THREADS", str(threads))
     os.environ.setdefault("MPLBACKEND", "Agg")
+    # onnxruntime >= 1.31 sends usage events to Microsoft unless told not to
+    os.environ.setdefault("ORT_DISABLE_TELEMETRY", "1")
     if nice:
         try:
             os.nice(NICE)

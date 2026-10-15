@@ -8,6 +8,39 @@ import { analysisStatus } from '../wall/fixtures';
 import { llmStatus, properties, testResult } from './fixtures';
 import { MlSection } from './MlSection';
 import type { LlmStatus } from './types';
+import type { AnalysisStatus, Analyzer } from '../wall/types';
+
+const MB = 1_000_000;
+
+/** The fixture with some changes to its model state and analyzers. */
+function withModels(
+  models: Partial<AnalysisStatus['models']>,
+  change: (a: Analyzer) => Analyzer = (a) => a,
+): AnalysisStatus {
+  return {
+    ...analysisStatus,
+    analyzers: analysisStatus.analyzers.map(change),
+    models: { ...analysisStatus.models, ...models },
+  };
+}
+
+const MISSING = withModels(
+  { missing: ['yunet', 'face_landmarker'], missing_mb: 4, can_download: true },
+  (a) =>
+    a.kind === 'ml'
+      ? { ...a, available: false, reason: 'Modell fehlt: yunet. Oben „Modelle herunterladen“ drücken.' }
+      : a,
+);
+
+const facesSwitch = () =>
+  within(must(document.querySelector<HTMLElement>('[data-analyzer=faces]'))).getByRole('switch');
+
+const analyzerRow = (name: string) =>
+  waitFor(() => {
+    const el = document.querySelector<HTMLElement>(`[data-analyzer=${name}]`);
+    if (!el) throw new Error('no row');
+    return el;
+  });
 
 const WALL: AdminExtension = {
   id: 'wall',
@@ -195,5 +228,96 @@ describe('ML-Pipeline section', () => {
     fireEvent.change(input, { target: { files: [new File(['x'], 'a.png', { type: 'image/png' })] } });
     fireEvent.click(screen.getByTestId('ml-test-run'));
     expect((await screen.findByTestId('ml-test-error')).textContent).toBe('Die Analyse läuft gerade nicht.');
+  });
+
+  it('explains missing ML packages instead of offering a download', async () => {
+    renderSection({
+      [`GET ${A}/analysis`]: () =>
+        withModels({ ml: false, missing: ['yunet'], missing_mb: 0.2, can_download: false }),
+    });
+    const box = await screen.findByTestId('ml-packages-missing');
+    expect(box.textContent).toContain('KI-Pakete fehlen');
+    expect(box.textContent).toContain('VB_ML');
+    expect(box.textContent).toContain('Redeploy');
+    expect(screen.queryByRole('button', { name: 'Modelle herunterladen' })).toBeNull();
+  });
+
+  it('downloads missing models and shows the progress', async () => {
+    let status = MISSING;
+    const { requests } = renderSection({
+      [`GET ${A}/analysis`]: () => status,
+      [`POST ${A}/analysis/models/download`]: () => {
+        status = withModels({
+          ...MISSING.models,
+          can_download: false,
+          download: {
+            state: 'running',
+            current: 'face_landmarker',
+            models: ['yunet', 'face_landmarker'],
+            done_bytes: 1.5 * MB,
+            total_bytes: 4 * MB,
+            error: null,
+            finished_at: null,
+          },
+        });
+        return status;
+      },
+    });
+    const box = await screen.findByTestId('ml-models-missing');
+    expect(box.textContent).toContain('2 Modelle fehlen (4\u00a0MB)');
+    // the analyzers say why they don't run, and they stay switchable
+    expect(within(await analyzerRow('faces')).getByTestId('ml-analyzer-reason').textContent).toContain(
+      'Modell fehlt',
+    );
+    expect(within(await analyzerRow('faces')).getByText('läuft nicht')).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'Modelle herunterladen' }));
+    expect((await screen.findByTestId('ml-models-progress')).textContent).toBe('2 von 4\u00a0MB');
+    expect(screen.getByTestId('ml-models-download').textContent).toContain('Gerade: face_landmarker');
+    const posts = requests.filter((r) => r.method === 'POST');
+    expect(posts).toHaveLength(1);
+    // no body: the server alone decides what is downloaded from where
+    expect(await must(posts[0]).text()).toBe('');
+  });
+
+  it('shows a failed download with its reason and lets the host try again', async () => {
+    renderSection({
+      [`GET ${A}/analysis`]: () =>
+        withModels({
+          ...MISSING.models,
+          download: {
+            ...MISSING.models.download,
+            state: 'failed',
+            error: 'Herunterladen fehlgeschlagen (yunet: download failed).',
+          },
+        }),
+    });
+    expect((await screen.findByTestId('ml-models-error')).textContent).toContain('fehlgeschlagen');
+    expect(screen.getByRole('button', { name: 'Modelle herunterladen' })).toHaveProperty('disabled', false);
+  });
+
+  it('switches an analyzer that cannot run off and on again', async () => {
+    let status = withModels(MISSING.models, (a) =>
+      a.name === 'faces' ? { ...a, available: false, reason: 'Modell fehlt: yunet.' } : a,
+    );
+    const { requests } = renderSection({
+      [`GET ${A}/analysis`]: () => status,
+      [`PUT ${A}/analysis/analyzers/faces`]: async (req) => {
+        const enabled = (await bodyField(req, 'enabled')) === true;
+        status = withModels(status.models, (a) =>
+          a.name === 'faces' ? { ...a, enabled, available: false, reason: 'Modell fehlt: yunet.' } : a,
+        );
+        return status;
+      },
+    });
+    await analyzerRow('faces');
+    expect(facesSwitch()).toHaveProperty('checked', true);
+    expect(facesSwitch()).toHaveProperty('disabled', false);
+    fireEvent.click(facesSwitch());
+    await waitFor(() => expect(facesSwitch()).toHaveProperty('checked', false));
+    expect(facesSwitch()).toHaveProperty('disabled', false);
+    fireEvent.click(facesSwitch());
+    await waitFor(() => expect(facesSwitch()).toHaveProperty('checked', true));
+    const puts = requests.filter((r) => r.method === 'PUT');
+    expect(await Promise.all(puts.map((r) => bodyField(r, 'enabled')))).toEqual([false, true]);
   });
 });

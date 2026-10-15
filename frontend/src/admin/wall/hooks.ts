@@ -1,6 +1,6 @@
 /**
  * Live Wall admin queries. No admin events for the wall (D11): the config refetches on
- * focus and every 15 s while the section is open (the open-walls count), the analysis status polls every 5 s while its card is on screen, a photo's
+ * focus and every 15 s while the section is open (the open-walls count), the analysis status polls every 5 s while its card is on screen (1 s during a model download), a photo's
  * analysis every 2 s while it waits or runs.
  */
 import { useQuery } from '@tanstack/react-query';
@@ -62,7 +62,8 @@ export function useAnalysisStatus(enabled = true) {
     queryFn: fetchAnalysisStatus,
     enabled,
     staleTime: 0,
-    refetchInterval: 5000,
+    // every second while „Modelle herunterladen“ runs (its progress bar)
+    refetchInterval: (query) => (query.state.data?.models.download.state === 'running' ? 1000 : 5000),
     retry: false,
   });
 }

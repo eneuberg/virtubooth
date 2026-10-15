@@ -7,13 +7,30 @@
 # Coolify builds the image on the server from the root Dockerfile (Node stage
 # for the frontend, Python runtime): give the build about 1 GB of free RAM.
 #
+# Live-Wall photo analysis (faces, gestures, objects, ...): two build
+# variables, editable in Coolify under Environment Variables (redeploy after a
+# change; sizes measured in docs/DEPLOY.md "Live-Wall"):
+#   VB_ML=1 (default)  installs the ML packages (MediaPipe, onnxruntime,
+#       OpenCV): unpacked image 1.17 GB instead of 0.67 GB; the analysis
+#       worker holds ~0.5 GB RAM once its models are loaded. VB_ML=0: only
+#       the basic image values (brightness, colours, sharpness), no ML.
+#   VB_BAKE_MODELS=0 (default)  the models (144 MB) are not in the image:
+#       Admin → ML-Pipeline → „Modelle herunterladen“ fetches them once
+#       (SHA256-checked) into the data volume, where they survive redeploys.
+#       1: the build downloads them into the image instead (no button press,
+#       +144 MB per image, downloaded again by every build without cache).
+#
 # Coolify generates the secrets below on the first deploy and shows them under
 # Environment Variables. No ports are published: only Coolify's proxy reaches
 # the app, which is what makes trusting its X-Forwarded-* headers safe.
 
 services:
   app:
-    build: .
+    build:
+      context: .
+      args:
+        VB_ML: ${VB_ML:-1}
+        VB_BAKE_MODELS: ${VB_BAKE_MODELS:-0}
     init: true
     restart: unless-stopped
     environment:
@@ -61,8 +78,10 @@ services:
     # bounded resources (like compose.yaml's deploy.resources.limits): a flood
     # of uploads or a runaway export can't starve the rest of the server. A
     # party needs far less; the headroom is for image re-encoding bursts, the
-    # Live-Wall's analysis worker and ffmpeg (timelapse). cpus must not exceed
-    # the server's CPU count (Docker refuses to start the container).
+    # Live-Wall's analysis worker and ffmpeg (timelapse). Measured with VB_ML=1
+    # and the standard models loaded: ~640 MiB, peak 660 MiB while analysing
+    # (app ~135 MiB + worker ~0.5-0.6 GiB; it restarts itself above 900 MB).
+    # cpus must not exceed the server's CPU count (Docker refuses to start).
     cpus: "2"
     mem_limit: 1536m
     # one process on purpose (in-memory rate limits + live events):

@@ -125,9 +125,13 @@ def sha256_of(path: Path) -> str:
     return h.hexdigest()
 
 
-def download(model: ModelFile, dest: Path, *, log: Callable[[str], None] = print) -> Path:
+def download(
+    model: ModelFile, dest: Path, *, log: Callable[[str], None] = print,
+    progress: Callable[[int], None] | None = None,
+) -> Path:  # fmt: skip
     """Download, verify the SHA256 while streaming, then rename into place
-    (atomic: a broken download never leaves a file under the final name)."""
+    (atomic: a broken download never leaves a file under the final name).
+    `progress` gets the size of every chunk written (the admin's progress bar)."""
     dest.mkdir(parents=True, exist_ok=True)
     final = dest / model.file
     part = dest / f".{model.file}.part"
@@ -138,6 +142,8 @@ def download(model: ModelFile, dest: Path, *, log: Callable[[str], None] = print
             while chunk := resp.read(CHUNK):
                 h.update(chunk)
                 out.write(chunk)
+                if progress is not None:
+                    progress(len(chunk))
         if h.hexdigest() != model.sha256:
             raise FetchError(
                 f"{model.name}: SHA256 mismatch (got {h.hexdigest()}, want {model.sha256})"

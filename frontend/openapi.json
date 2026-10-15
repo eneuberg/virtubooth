@@ -970,6 +970,9 @@
           "counts": {
             "$ref": "#/components/schemas/AnalysisCounts"
           },
+          "models": {
+            "$ref": "#/components/schemas/ModelsStatus"
+          },
           "queue": {
             "$ref": "#/components/schemas/AnalysisQueue"
           },
@@ -981,7 +984,8 @@
           "worker",
           "counts",
           "queue",
-          "analyzers"
+          "analyzers",
+          "models"
         ],
         "title": "AnalysisStatus",
         "type": "object"
@@ -2821,6 +2825,7 @@
               "category_exists",
               "invalid_analyzer_settings",
               "worker_off",
+              "ml_missing",
               "uploads_paused",
               "uploads_stopped",
               "unsupported_type",
@@ -4585,6 +4590,83 @@
         "title": "MeOut",
         "type": "object"
       },
+      "ModelDownload": {
+        "description": "„Modelle herunterladen“: the app's download of the missing model files.",
+        "properties": {
+          "current": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The model being downloaded right now.",
+            "title": "Current"
+          },
+          "done_bytes": {
+            "title": "Done Bytes",
+            "type": "integer"
+          },
+          "error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Why it failed (German).",
+            "title": "Error"
+          },
+          "finished_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Finished At"
+          },
+          "models": {
+            "description": "The models this download fetches.",
+            "items": {
+              "type": "string"
+            },
+            "title": "Models",
+            "type": "array"
+          },
+          "state": {
+            "enum": [
+              "idle",
+              "running",
+              "done",
+              "failed"
+            ],
+            "title": "State",
+            "type": "string"
+          },
+          "total_bytes": {
+            "title": "Total Bytes",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "state",
+          "current",
+          "models",
+          "done_bytes",
+          "total_bytes",
+          "error",
+          "finished_at"
+        ],
+        "title": "ModelDownload",
+        "type": "object"
+      },
       "ModelOut": {
         "properties": {
           "id": {
@@ -4616,6 +4698,52 @@
           "usd_out_mtok"
         ],
         "title": "ModelOut",
+        "type": "object"
+      },
+      "ModelsStatus": {
+        "description": "The model files the enabled and the standard analyzers need, as the app\nsees them in its data dir (the worker reports its own view per analyzer).",
+        "properties": {
+          "can_download": {
+            "description": "POST /admin/analysis/models/download would fetch something now.",
+            "title": "Can Download",
+            "type": "boolean"
+          },
+          "dest": {
+            "description": "Where downloads go (persistent: in the data volume).",
+            "title": "Dest",
+            "type": "string"
+          },
+          "download": {
+            "$ref": "#/components/schemas/ModelDownload"
+          },
+          "missing": {
+            "description": "Needed models that are not on the server.",
+            "items": {
+              "type": "string"
+            },
+            "title": "Missing",
+            "type": "array"
+          },
+          "missing_mb": {
+            "description": "Their download size (MB).",
+            "title": "Missing Mb",
+            "type": "number"
+          },
+          "ml": {
+            "description": "The ML packages are installed (image built with VB_ML=1).",
+            "title": "Ml",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "ml",
+          "missing",
+          "missing_mb",
+          "dest",
+          "can_download",
+          "download"
+        ],
+        "title": "ModelsStatus",
         "type": "object"
       },
       "MyPhotosOut": {
@@ -16940,6 +17068,99 @@
           }
         },
         "summary": "Set Analyzer",
+        "tags": [
+          "extension:wall",
+          "wall"
+        ]
+      }
+    },
+    "/api/x/wall/admin/analysis/models/download": {
+      "post": {
+        "description": "„Modelle herunterladen“: fetch the missing model files (the standard\nones plus those of enabled analyzers) from the built-in registry, SHA256-\nchecked, into the data volume, in the background. The progress is in\n`models.download` of the status. Idempotent: while one runs, or with\nnothing missing, nothing happens. 409 `ml_missing` without the ML packages.",
+        "operationId": "download_models_api_x_wall_admin_analysis_models_download_post",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AnalysisStatus"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Invalid input (see `error`)"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Needs consent or an admin session"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Forbidden: banned, paused, stopped, joining closed or a foreign Origin (CSRF)"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Not found, or no party access (`scan_qr`)"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Request validation failed (`invalid_request`)"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Rate limited (`Retry-After` header)"
+          }
+        },
+        "summary": "Download Models",
         "tags": [
           "extension:wall",
           "wall"

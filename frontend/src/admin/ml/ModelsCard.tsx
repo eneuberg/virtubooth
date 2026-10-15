@@ -22,6 +22,7 @@ import { ANALYZER_KIND_LABELS, WORKER_LABELS } from '../wall/labels';
 import { countsText, lastBeatText, memoryText, processedText } from '../wall/text';
 import type { Analyzer, AnalysisStatus, WorkerState } from '../wall/types';
 import { parseDecimal, numberText } from '../wall/categories/spec';
+import { ModelsSetup } from './ModelsSetup';
 import { queueText, sizeText, statsText } from './text';
 
 const WORKER_TONE: Record<WorkerState, 'ok' | 'amber' | 'neutral' | 'mark'> = {
@@ -204,6 +205,7 @@ function AnalyzerRow({
           <p className="flex flex-wrap items-center gap-2 font-semibold">
             {a.title}
             <Badge tone={a.kind === 'ml' ? 'new' : 'neutral'}>{ANALYZER_KIND_LABELS[a.kind]}</Badge>
+            {a.enabled && !a.available ? <Badge tone="amber">läuft nicht</Badge> : null}
             {a.size_mb !== null ? (
               <span className="text-sm font-normal text-ink-muted tabular" data-testid="ml-analyzer-size">
                 {sizeText(a.size_mb)}
@@ -215,8 +217,10 @@ function AnalyzerRow({
         <Switch
           isSelected={a.enabled}
           isPending={busy}
-          // the image values always run (the server never switches them off)
-          isDisabled={a.kind === 'basic' || (!a.available && !a.enabled)}
+          // the image values always run (the server never switches them off). Every other
+          // switch works both ways, also while the analyzer can't run (models missing): it
+          // is the stored wish, the reason below says why it does not run yet
+          isDisabled={a.kind === 'basic'}
           onChange={onToggle}
           aria-label={`${a.title} an`}
         >
@@ -224,7 +228,9 @@ function AnalyzerRow({
         </Switch>
       </div>
       {a.reason || a.kind === 'basic' ? (
-        <p className="text-xs text-ink-muted">{a.reason ?? 'Läuft immer.'}</p>
+        <p className="text-xs text-ink-muted" data-testid="ml-analyzer-reason">
+          {a.reason ?? 'Läuft immer.'}
+        </p>
       ) : null}
       <p
         className="text-xs text-ink-muted tabular"
@@ -270,6 +276,7 @@ export function ModelsCard() {
         <p className="text-sm text-danger">{errorText(status.error)}</p>
       ) : (
         <>
+          <ModelsSetup status={data} />
           <WorkerStatus status={data} />
           <ul className="grid border-t border-line" aria-label="Modelle">
             {data.analyzers.map((a) => (
