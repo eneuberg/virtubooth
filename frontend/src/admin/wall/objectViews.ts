@@ -3,23 +3,25 @@
  * local detector's own list), „KI“ (the external AI's own list) and „Zusammengeführt“
  * (the merged list the poll rates and the categories count). Object detection is
  * either/or since v15, so a new photo's merged list is just its one source's list;
- * older photos may have both, duplicates linked. Rows and frames per view, each view with its own frame colour
- * (objectViews.test.ts).
+ * older photos may have both, duplicates linked. Rows and frames per view
+ * (objectViews.test.ts). A frame's colour is the thing's (labelColors.ts: the same
+ * thing has the same colour as on the Live tiles); where it came from is the outline:
+ * the local model solid, an AI dashed, a merged entry both found double.
  */
 import { sourceText } from '../ml/text';
 import type { MergedTestObject, TestImageResult } from '../ml/types';
-import { boxOf, type FrameBox } from './text';
+import { labelColor } from './labelColors';
+import { boxOf, type FrameBox, type FrameOutline } from './text';
 import type { PhotoAnalysis } from './types';
 
 export const OBJECT_VIEWS = ['local', 'ai', 'merged'] as const;
 export type ObjectView = (typeof OBJECT_VIEWS)[number];
 
-/** Frame colours per view (CSSOM, so the CSP allows them). */
-export const OBJECT_VIEW_COLORS: Record<ObjectView, string> = {
-  local: '#38bdf8',
-  ai: '#c084fc',
-  merged: '#ff4fa3',
-};
+/** The outline of a row's frame: who found it (the colour says what it is). */
+export function rowOutline(row: Pick<ObjectRow, 'sources'>): FrameOutline {
+  if (fromBoth(row)) return 'double';
+  return row.sources.includes('local') ? 'solid' : 'dashed';
+}
 
 type Box = { x: number; y: number; w: number; h: number };
 
@@ -162,8 +164,8 @@ export function testViews(r: TestImageResult): ObjectViews {
   };
 }
 
-/** The view's objects with a box as frames in its colour; a merged entry both found
- * is labelled so („Weinglas · beide“). */
+/** The view's objects with a box as frames in the thing's colour, outlined by who
+ * found it; a merged entry both found is labelled so („Weinglas · beide“). */
 export function viewFrames(rows: readonly ObjectRow[], view: ObjectView): FrameBox[] {
   const out: FrameBox[] = [];
   for (const r of rows) {
@@ -175,7 +177,9 @@ export function viewFrames(rows: readonly ObjectRow[], view: ObjectView): FrameB
       label: both ? `${r.label_de} · beide` : r.label_de,
       score: r.score,
       objectIndex: r.key,
-      color: OBJECT_VIEW_COLORS[view],
+      key: r.label,
+      color: labelColor(r.label).color,
+      outline: both ? 'double' : rowOutline(r),
       sources: r.sources.join(','),
       both,
     });

@@ -253,11 +253,14 @@ describe('ML-Pipeline section', () => {
         .map((o) => o.textContent),
     ).toEqual([expect.stringContaining('Sektglas'), expect.stringContaining('Hut')]);
     await waitFor(() => expect(objectFrames().map((b) => b.textContent)).toEqual(['Sektglas', 'Hut']));
-    expect(objectFrames()[0]?.style.borderColor).toBe('#c084fc');
+    // an AI's frame is dashed (who found it); its colour is the thing's, as on Live
+    expect(objectFrames()[0]?.dataset.outline).toBe('dashed');
     // the local model's: one object
     fireEvent.click(within(result).getByRole('tab', { name: /Lokales Modell/ }));
     await waitFor(() => expect(objectFrames().map((b) => b.textContent)).toEqual(['Weinglas']));
-    expect(objectFrames()[0]?.style.borderColor).toBe('#38bdf8');
+    // the local model's solid, in the wine glass's colour everywhere (labelColors.ts)
+    expect(objectFrames()[0]?.dataset.outline).toBe('solid');
+    expect(objectFrames()[0]?.style.borderColor).toBe('#a855f7');
   });
 
   it('object detection is either/or: one choice over the local and the AI row', async () => {

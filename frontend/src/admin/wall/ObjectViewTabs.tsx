@@ -1,8 +1,9 @@
 /**
  * The three object views as tabs: „Lokales Modell“, „KI (Claude)“ with provider and
- * model, „Zusammengeführt (für Eigenschaften)“. Each lists its objects; the frames of
- * the chosen view lie on the photo (the caller draws them, objectViews.ts). Used by
- * the photo inspector's analysis and the ML-Pipeline's test image.
+ * model, „Zusammengeführt (für Eigenschaften)“. Each lists its objects with the
+ * thing's colour (labelColors.ts, as on the Live tiles); the frames of the chosen view
+ * lie on the photo (the caller draws them, objectViews.ts), outlined by who found it.
+ * Used by the photo inspector's analysis and the ML-Pipeline's test image.
  */
 import { Sparkles } from 'lucide-react';
 import { TabPanel, type Key } from 'react-aria-components';
@@ -10,10 +11,11 @@ import { Badge } from '@/ui/Badge';
 import { cx } from '@/ui/cx';
 import { TabList, Tabs } from '@/ui/Tabs';
 import { scoreText, sourceText } from '../ml/text';
+import { labelColor } from './labelColors';
 import {
   fromBoth,
-  OBJECT_VIEW_COLORS,
   OBJECT_VIEWS,
+  rowOutline,
   type ObjectRow,
   type ObjectView,
   type ObjectViews,
@@ -59,13 +61,29 @@ function ScoreLine({ idx, properties }: { idx: number; properties: ReadonlyArray
   );
 }
 
-const Swatch = ({ view }: { view: ObjectView }) => (
-  <span
-    aria-hidden="true"
-    className="inline-block size-2.5 shrink-0 rounded-full"
-    style={{ backgroundColor: OBJECT_VIEW_COLORS[view] }}
-  />
-);
+/** The thing's frame colour with its outline (who found it), before its row. */
+const Swatch = ({ row }: { row: ObjectRow }) => {
+  const outline = rowOutline(row);
+  return (
+    <span
+      aria-hidden="true"
+      data-testid="analysis-object-swatch"
+      className={cx(
+        'inline-block size-3 shrink-0 rounded-[2px]',
+        outline === 'double' ? 'border-[3px] border-double' : 'border-2',
+        outline === 'dashed' && 'border-dashed',
+      )}
+      style={{ borderColor: labelColor(row.label).color }}
+    />
+  );
+};
+
+/** The outline a view's frames have, as words. */
+const OUTLINE_TEXT: Record<ObjectView, string> = {
+  local: 'Rahmen durchgezogen.',
+  ai: 'Rahmen gestrichelt.',
+  merged: 'Rahmen: lokal durchgezogen, KI gestrichelt, beide doppelt.',
+};
 
 function Rows({
   view,
@@ -97,6 +115,7 @@ function Rows({
           >
             <div className="flex min-w-0 items-center gap-2">
               <span className="w-6 shrink-0 text-ink-muted tabular">{o.key}</span>
+              <Swatch row={o} />
               <span className="min-w-0 flex-1 truncate font-semibold" title={o.label}>
                 {o.label_de}
               </span>
@@ -173,17 +192,17 @@ export function ObjectViewTabs({
             data-testid={`object-view-${view}`}
           >
             <p className="flex flex-wrap items-center gap-2 text-xs text-ink-muted">
-              <Swatch view={view} />
               {view === 'local'
                 ? 'Was das Modell auf dem Server erkannt hat.'
                 : view === 'ai'
                   ? `Was ${views.aiTitle} erkannt hat${views.aiModel ? '' : '.'}`
-                  : 'Beide Listen ohne Doppelte: das bewertet die Abfrage der Eigenschaften.'}
+                  : 'Das bewertet die Abfrage der Eigenschaften (neue Fotos: nur eine Quelle; ältere mit beiden ohne Doppelte).'}
               {view === 'ai' && views.aiModel ? (
                 <span>
                   (<span className="font-mono">{views.aiModel}</span>).
                 </span>
               ) : null}
+              <span>{OUTLINE_TEXT[view]}</span>
             </p>
             {rows === null || rows.length === 0 ? (
               <p className="text-sm text-ink-muted" data-testid={`object-view-${view}-empty`}>

@@ -80,10 +80,16 @@ export function boxOf(box: Box | [number, number, number, number] | null): Box |
 
 /** A frame on the photo; object frames know the object's idx (hover highlight), and
  * the object views (objectViews.ts) give theirs a colour of their own. */
+/** who found a frame's object: the local model solid, an AI dashed, both double */
+export type FrameOutline = 'solid' | 'dashed' | 'double';
+
 export type FrameBox = AnalysisBox & {
   objectIndex?: number;
-  /** outline colour; default: the kind's */
+  /** what it is (the English label; faces and hands: their kind): its colour, labelColors.ts */
+  key?: string;
+  /** outline colour; default: the key's (labelColors.ts) */
   color?: string;
+  outline?: FrameOutline;
   /** the sources that found the object („local,claude“) */
   sources?: string;
   /** a merged entry both the local model and an AI found */
@@ -93,6 +99,7 @@ export type FrameBox = AnalysisBox & {
 /** Objects with a box as frames of kind "object", labelled in German. */
 export function objectBoxes(
   objects: ReadonlyArray<{
+    label?: string;
     label_de: string;
     score: number;
     box: Box | [number, number, number, number] | null;
@@ -102,7 +109,15 @@ export function objectBoxes(
   const out: FrameBox[] = [];
   objects.forEach((o, i) => {
     const b = boxOf(o.box);
-    if (b) out.push({ kind: 'object', ...b, label: o.label_de, score: o.score, objectIndex: o.idx ?? i });
+    if (b)
+      out.push({
+        kind: 'object',
+        ...b,
+        key: o.label,
+        label: o.label_de,
+        score: o.score,
+        objectIndex: o.idx ?? i,
+      });
   });
   return out;
 }

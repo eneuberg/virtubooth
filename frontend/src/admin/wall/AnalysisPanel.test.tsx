@@ -174,7 +174,8 @@ describe('AnalysisPanel', () => {
     // a source's row says which merged entry it is
     expect(rows[0]?.textContent).toContain('→ 0');
     await waitFor(() => expect(objectFrames().map((b) => b.textContent)).toEqual(['Sektglas']));
-    expect(objectFrames()[0]?.style.borderColor).toBe('#c084fc');
+    // an AI's frame is dashed (who found it); its colour is the thing's, as on Live
+    expect(objectFrames()[0]?.dataset.outline).toBe('dashed');
     // hovering a row of this list lights its frame
     fireEvent.pointerEnter(must(rows[0]));
     await waitFor(() => expect(objectFrames()[0]?.dataset.lit).toBe('true'));
@@ -182,7 +183,9 @@ describe('AnalysisPanel', () => {
 
     fireEvent.click(must(screen.getAllByRole('tab')[0]));
     await waitFor(() => expect(objectFrames().map((b) => b.textContent)).toEqual(['Weinglas']));
-    expect(objectFrames()[0]?.style.borderColor).toBe('#38bdf8');
+    // the local model's solid, in the wine glass's colour everywhere (labelColors.ts)
+    expect(objectFrames()[0]?.dataset.outline).toBe('solid');
+    expect(objectFrames()[0]?.style.borderColor).toBe('#a855f7');
     // back to the merged list for the other tests (the choice is shared)
     fireEvent.click(must(screen.getAllByRole('tab')[2]));
     await waitFor(() => expect(objectFrames()[0]?.dataset.both).toBe('true'));

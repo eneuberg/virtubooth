@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { testResult } from '../ml/fixtures';
-import { analysisFrames, analysisViews, OBJECT_VIEW_COLORS, testViews, viewFrames } from './objectViews';
+import { labelColor } from './labelColors';
+import { analysisFrames, analysisViews, testViews, viewFrames } from './objectViews';
 import { photoAnalysis } from './fixtures';
 
 describe('object views', () => {
@@ -26,13 +27,22 @@ describe('object views', () => {
     expect(analysisViews(ran).local).toEqual([]);
   });
 
-  it('frames each view in its colour; merged entries both found are marked', () => {
+  it("frames in the thing's colour (as on Live), outlined by who found it", () => {
     const v = analysisViews(photoAnalysis());
     const merged = viewFrames(v.merged, 'merged');
-    expect(merged.map((f) => [f.label, f.both, f.color])).toEqual([
-      ['Weinglas · beide', true, OBJECT_VIEW_COLORS.merged],
+    expect(merged.map((f) => [f.label, f.both, f.color, f.outline])).toEqual([
+      ['Weinglas · beide', true, labelColor('wine glass').color, 'double'],
     ]);
-    expect(viewFrames(v.local ?? [], 'local')[0]?.both).toBe(false);
+    const local = viewFrames(v.local ?? [], 'local')[0];
+    expect([local?.both, local?.outline, local?.color]).toEqual([
+      false,
+      'solid',
+      labelColor('wine glass').color,
+    ]);
+    // the same thing has the same colour in every view; an AI's frame is dashed
+    const ai = viewFrames(v.ai ?? [], 'ai');
+    expect(ai.every((f) => f.outline === 'dashed')).toBe(true);
+    expect(ai.map((f) => f.color)).toEqual(ai.map((f) => labelColor(f.key ?? '').color));
     // faces and hands stay whatever the view
     expect(analysisFrames(photoAnalysis(), 'ai').map((f) => f.kind)).toEqual(['face', 'hand', 'object']);
   });
