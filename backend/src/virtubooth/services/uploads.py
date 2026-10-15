@@ -189,7 +189,8 @@ class UploadService:
             if not limiter.available(key):
                 raise errors.rate_limited(limiter.retry_after(key))
         cap = core.settings.max_photos_per_guest
-        if cap > 0 and self.repos.photos.count(user_id=user.id) >= cap:
+        # the admin guest is the host: no photo cap (the rate limits still apply)
+        if cap > 0 and not user.is_host and self.repos.photos.count(user_id=user.id) >= cap:
             raise errors.photo_limit()
 
         max_bytes = policy.max_bytes or core.settings.max_upload_bytes

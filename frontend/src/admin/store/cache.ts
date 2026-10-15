@@ -130,6 +130,7 @@ function photoUser(user: AdminUser): PhotoUser {
     banned: user.banned,
     auto_banned: user.auto_banned,
     uploads_paused: user.uploads_paused,
+    is_host: user.is_host,
   };
 }
 

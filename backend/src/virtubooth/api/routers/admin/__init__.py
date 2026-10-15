@@ -19,6 +19,7 @@ from . import (
     dashboard,
     events,
     exports,
+    host_guest,
     host_settings,
     instagram,
     overview,
@@ -38,6 +39,7 @@ router = APIRouter(
 router.include_router(codes.router)
 for _module in (
     photos, users, bans, overview, events, upload_controls, exports, instagram, dashboard,
+    host_guest,
 ):  # fmt: skip
     router.include_router(_module.router)
 router.include_router(host_settings.router)

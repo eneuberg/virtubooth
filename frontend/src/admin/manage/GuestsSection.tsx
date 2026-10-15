@@ -14,6 +14,8 @@ import { TextField } from '@/ui/TextField';
 import { fetchCodes } from '../codes/api';
 import { codesKey, type CodesList } from '../codes/keys';
 import { GuestBadges } from '../common/GuestBadges';
+import { HostGuestButton } from '../hostGuest/HostGuestButton';
+import { HOST_CODE } from '../hostGuest/marks';
 import { sortedCopy } from '../lib/browser';
 import { describeUA, guestCount } from '../lib/labels';
 import { quoted } from '@/lib/messages.de';
@@ -121,7 +123,11 @@ const COLUMNS: ReadonlyArray<DataColumn<AdminUser>> = [
     allowsSorting: true,
     hideBelow: 'md',
     render: (u) =>
-      u.code ? (
+      u.is_host ? (
+        <span className="text-ink-muted" data-testid="guest-code">
+          {HOST_CODE}
+        </span>
+      ) : u.code ? (
         <span
           translate="no"
           className={u.code.active ? undefined : 'text-ink-muted'}
@@ -259,6 +265,7 @@ export function GuestsSection() {
           className="min-w-0"
         />
       </div>
+      <HostGuestButton hint variant="secondary" size="sm" />
       <DataTable
         aria-label="Gäste"
         columns={COLUMNS}

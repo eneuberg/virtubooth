@@ -75,8 +75,13 @@ class PresenceService:
     ) -> str:
         """The browser opened the party (QR link, identify, join): give it a
         visitor id when it has none, note it as seen, and link it to `user`.
-        `code_id`: it scanned that QR code (counted for the code)."""
+        `code_id`: it scanned that QR code (counted for the code).
+        The admin guest (`user.is_host`) is never noted: it came in through
+        the admin, not a QR code, so it stays out of „Gescannt“/„Beigetreten“
+        and every code's statistics."""
         vid = self.visitor_id(request)
+        if user is not None and user.is_host:
+            return vid or ""
         if vid is None:
             vid = secrets.token_urlsafe(12)
             set_cookie(

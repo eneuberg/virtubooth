@@ -100,6 +100,10 @@ class GuestUser(BaseModel):
     uploads_paused: bool
     analysis_opt_out: bool
     ai_opt_out: bool
+    is_host: bool = Field(
+        description="This browser is the admin guest (the host, signed in from the admin). "
+        "Only ever sent to that browser itself."
+    )
 
     @classmethod
     def of(cls, user: User) -> GuestUser:

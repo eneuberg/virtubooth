@@ -49,6 +49,7 @@ class PhotoUser(BaseModel):
     banned: bool
     auto_banned: bool
     uploads_paused: bool
+    is_host: bool = Field(description="The admin guest („Als Gast teilnehmen“).")
 
 
 class AdminPhoto(BaseModel):
@@ -92,6 +93,7 @@ class AdminPhoto(BaseModel):
                 banned=p.user_banned,
                 auto_banned=p.user_auto_banned,
                 uploads_paused=p.user_uploads_paused,
+                is_host=p.user_is_host,
             ),
         )
 
@@ -209,7 +211,14 @@ class AdminUser(BaseModel):
     online_now: bool = Field(
         description="The page is open and visible right now (a beat within 150 s)."
     )
-    code: CodeRef | None = Field(description="The QR code it joined through; null: unknown.")
+    code: CodeRef | None = Field(
+        description="The QR code it joined through; null: unknown, or the admin guest."
+    )
+    is_host: bool = Field(
+        description="The admin guest: the host's own guest identity, signed in from the admin "
+        "(POST /api/admin/guest), never through a QR code. Can't be banned; no photo cap, "
+        "new-guest lock or join stop."
+    )
 
     @classmethod
     def of(
@@ -246,6 +255,7 @@ class AdminUser(BaseModel):
             online_sessions=u.online_sessions,
             online_now=is_online(u.online_at),
             code=code,
+            is_host=u.is_host,
         )
 
 
@@ -334,6 +344,35 @@ class UserUploadsIn(BaseModel):
 class UserUploadsOut(BaseModel):
     user: AdminUser
     changed: bool
+
+
+# --------------------------------------------------------------- admin guest
+
+
+class HostGuestState(BaseModel):
+    """The admin guest („Als Gast teilnehmen“) and this browser's guest identity."""
+
+    user: AdminUser | None = Field(description="The admin guest; null: not created yet.")
+    browser_is_host: bool = Field(
+        description="This browser is signed in to the guest app as the admin guest."
+    )
+    browser_guest: str | None = Field(
+        description="The pseudonym of the other guest this browser is signed in as "
+        "(signing in as the admin guest replaces it); null: none, or the admin guest."
+    )
+
+
+class HostGuestOut(BaseModel):
+    """This browser is now signed in to the guest app as the admin guest (the guest
+    id cookie is set; it needs no QR code and no party token)."""
+
+    user: AdminUser
+    created: bool = Field(description="The admin guest was created by this request.")
+    url: str = Field(description="Where the guest app starts (same origin, no token).")
+    replaced: str | None = Field(
+        description="The pseudonym of the guest identity this browser had before (it is "
+        "signed out of it); null: none, or it was the admin guest already."
+    )
 
 
 # --------------------------------------------------------------- device bans

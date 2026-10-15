@@ -36,7 +36,15 @@ function photo(over: Partial<AdminPhoto> = {}): AdminPhoto {
     deleted: false,
     url: `/media/${id}`,
     thumb_url: `/media/${id}?thumb=1`,
-    user: { id: 1, name: 'Ente', instagram: null, banned: false, auto_banned: false, uploads_paused: false },
+    user: {
+      id: 1,
+      name: 'Ente',
+      instagram: null,
+      banned: false,
+      auto_banned: false,
+      uploads_paused: false,
+      is_host: false,
+    },
     ...over,
   };
 }
@@ -73,6 +81,7 @@ function user(over: Partial<AdminUser> = {}): AdminUser {
     online_sessions: 0,
     online_now: false,
     code: null,
+    is_host: false,
     ...over,
   };
 }

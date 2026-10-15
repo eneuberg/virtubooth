@@ -46,6 +46,9 @@ export function GuestPass({ compact = false, className }: GuestPassProps) {
   const name = passName(user);
   // second line: the handle (unless it is the name already), else the invitation
   const second = handle && handle !== name ? handle : handle ? 'Name wählen' : t.addInstagram;
+  // the admin guest („Als Gast teilnehmen“ in the admin) sees its role; only this
+  // browser gets `is_host`, other guests never learn who the host is
+  const role = user.is_host ? 'Admin-Gast · nur du siehst das' : null;
   return (
     <>
       <AriaButton
@@ -75,7 +78,11 @@ export function GuestPass({ compact = false, className }: GuestPassProps) {
           <span translate="no" className="truncate text-sm font-semibold" title={user.shown_name}>
             {name}
           </span>
-          {compact ? null : (
+          {compact ? null : role ? (
+            <span className="truncate text-xs text-ink-muted" data-testid="guest-pass-host">
+              {role}
+            </span>
+          ) : (
             <span
               translate={second === handle ? 'no' : undefined}
               className={cx('truncate text-xs', second === handle ? 'text-ink-muted' : 'text-accent-ink')}

@@ -657,7 +657,7 @@
                 "type": "null"
               }
             ],
-            "description": "The QR code it joined through; null: unknown."
+            "description": "The QR code it joined through; null: unknown, or the admin guest."
           },
           "consent_at": {
             "title": "Consent At",
@@ -717,6 +717,11 @@
               }
             ],
             "title": "Instagram"
+          },
+          "is_host": {
+            "description": "The admin guest: the host's own guest identity, signed in from the admin (POST /api/admin/guest), never through a QR code. Can't be banned; no photo cap, new-guest lock or join stop.",
+            "title": "Is Host",
+            "type": "boolean"
           },
           "last_ip": {
             "title": "Last Ip",
@@ -832,7 +837,8 @@
           "online_seconds",
           "online_sessions",
           "online_now",
-          "code"
+          "code",
+          "is_host"
         ],
         "title": "AdminUser",
         "type": "object"
@@ -2846,6 +2852,7 @@
               "invalid_cursor",
               "no_fingerprint",
               "restore_required",
+              "host_guest",
               "invalid_event_name",
               "invalid_public_address",
               "invalid_theme",
@@ -3697,6 +3704,11 @@
             ],
             "title": "Instagram"
           },
+          "is_host": {
+            "description": "This browser is the admin guest (the host, signed in from the admin). Only ever sent to that browser itself.",
+            "title": "Is Host",
+            "type": "boolean"
+          },
           "name": {
             "description": "The pseudonym (internal; never changes).",
             "title": "Name",
@@ -3720,7 +3732,8 @@
           "banned",
           "uploads_paused",
           "analysis_opt_out",
-          "ai_opt_out"
+          "ai_opt_out",
+          "is_host"
         ],
         "title": "GuestUser",
         "type": "object"
@@ -3788,6 +3801,84 @@
           "ok"
         ],
         "title": "HereOut",
+        "type": "object"
+      },
+      "HostGuestOut": {
+        "description": "This browser is now signed in to the guest app as the admin guest (the guest\nid cookie is set; it needs no QR code and no party token).",
+        "properties": {
+          "created": {
+            "description": "The admin guest was created by this request.",
+            "title": "Created",
+            "type": "boolean"
+          },
+          "replaced": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The pseudonym of the guest identity this browser had before (it is signed out of it); null: none, or it was the admin guest already.",
+            "title": "Replaced"
+          },
+          "url": {
+            "description": "Where the guest app starts (same origin, no token).",
+            "title": "Url",
+            "type": "string"
+          },
+          "user": {
+            "$ref": "#/components/schemas/AdminUser"
+          }
+        },
+        "required": [
+          "user",
+          "created",
+          "url",
+          "replaced"
+        ],
+        "title": "HostGuestOut",
+        "type": "object"
+      },
+      "HostGuestState": {
+        "description": "The admin guest („Als Gast teilnehmen“) and this browser's guest identity.",
+        "properties": {
+          "browser_guest": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The pseudonym of the other guest this browser is signed in as (signing in as the admin guest replaces it); null: none, or the admin guest.",
+            "title": "Browser Guest"
+          },
+          "browser_is_host": {
+            "description": "This browser is signed in to the guest app as the admin guest.",
+            "title": "Browser Is Host",
+            "type": "boolean"
+          },
+          "user": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AdminUser"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The admin guest; null: not created yet."
+          }
+        },
+        "required": [
+          "user",
+          "browser_is_host",
+          "browser_guest"
+        ],
+        "title": "HostGuestState",
         "type": "object"
       },
       "IdentifiedOut": {
@@ -5797,6 +5888,11 @@
             ],
             "title": "Instagram"
           },
+          "is_host": {
+            "description": "The admin guest („Als Gast teilnehmen“).",
+            "title": "Is Host",
+            "type": "boolean"
+          },
           "name": {
             "title": "Name",
             "type": "string"
@@ -5812,7 +5908,8 @@
           "instagram",
           "banned",
           "auto_banned",
-          "uploads_paused"
+          "uploads_paused",
+          "is_host"
         ],
         "title": "PhotoUser",
         "type": "object"
@@ -11059,6 +11156,208 @@
           }
         },
         "summary": "Extensions",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/api/admin/guest": {
+      "get": {
+        "description": "The admin guest (null until „Als Gast teilnehmen“ was pressed once) and\nwhether this browser is signed in as it or as another guest.",
+        "operationId": "get_host_guest_api_admin_guest_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HostGuestState"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Invalid input (see `error`)"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Needs consent or an admin session"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Forbidden: banned, paused, stopped, joining closed or a foreign Origin (CSRF)"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Not found, or no party access (`scan_qr`)"
+          },
+          "411": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Content-Length required"
+          },
+          "413": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Request too large"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Request validation failed (`invalid_request`)"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Rate limited (`Retry-After` header)"
+          }
+        },
+        "summary": "Get Host Guest",
+        "tags": [
+          "admin"
+        ]
+      },
+      "post": {
+        "description": "Sign this browser in to the guest app as the admin guest (created on the\nfirst call, the same one on every later call). Sets the guest id cookie\nlike a join; a different guest identity this browser had is replaced\n(`replaced`). Not affected by the join stop or the new-guest lock. Audited\n(`host_guest.sign_in`).",
+        "operationId": "sign_in_host_guest_api_admin_guest_post",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HostGuestOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Invalid input (see `error`)"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Needs consent or an admin session"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Forbidden: banned, paused, stopped, joining closed or a foreign Origin (CSRF)"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Not found, or no party access (`scan_qr`)"
+          },
+          "411": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Content-Length required"
+          },
+          "413": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Request too large"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Request validation failed (`invalid_request`)"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Rate limited (`Retry-After` header)"
+          }
+        },
+        "summary": "Sign In Host Guest",
         "tags": [
           "admin"
         ]

@@ -64,6 +64,8 @@ ROUTES = [
     ("DELETE", f"/api/admin/exports/{PHOTO}", None),
     ("POST", "/api/admin/instagram/anna/done", {"done": True}),
     ("GET", "/api/admin/instagram/anna/photos.zip", None),
+    ("GET", "/api/admin/guest", None),
+    ("POST", "/api/admin/guest", None),
 ]
 
 

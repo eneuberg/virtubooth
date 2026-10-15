@@ -502,6 +502,41 @@ Instagram, Sperren und dem Protokoll.
   „Einwilligung“ (Zeit und Version), „Gast-Nr.“, „Gerätemerkmale“ mit den anderen
   Geräten, die dasselbe Merkmal haben, und „User-Agent“.
 
+### Als Gast teilnehmen (Admin-Gast)
+
+Der Host kann selbst als Gast mitmachen, ohne QR-Code: **„Als Gast teilnehmen“** in der
+Seitenleiste der Verwaltung (unter „Live öffnen“) und in „Gäste“ (unter den Filtern, mit
+Erklärung). Gibt es den Admin-Gast schon, heißt der Knopf **„Als Gast öffnen“**.
+
+- Der Knopf meldet diesen Browser in der Gäste-App als **Admin-Gast** an und öffnet sie in
+  einem neuen Tab; die Verwaltung bleibt offen (dieselbe Domain: dieselben Cookies).
+  Kein Token in der URL: Die Admin-Sitzung ist der Nachweis.
+- Es gibt **einen** Admin-Gast pro Party (das Admin-Passwort ist geteilt, es gibt keine
+  einzelnen Admins). Er wird beim ersten Druck angelegt; jeder weitere Druck, auch auf
+  einem anderen Gerät, meldet diesen Browser als denselben Gast an.
+- Er ist ein normaler Gast: Fotos, „Deine Bilder“, Live-Wall, Kategorien, Opt-outs.
+  Anzeigename „Gastgeber“ (für andere Gäste reserviert; er darf ihn ändern und
+  zurückholen), kein Instagram-Name. Auf der Live-Wall und für andere Gäste sieht er aus
+  wie jeder Gast; nur sein eigener Gästepass zeigt „Admin-Gast · nur du siehst das“.
+- Ausnahmen: kein Foto-Limit (`VB_MAX_PHOTOS_PER_GUEST`), nie von „Neue Gäste
+  pausieren“ erfasst, „Anmeldung stoppen“ hält ihn nicht auf. **„Hochladen stoppen“
+  gilt auch für ihn** (der Stopp ist für alle; der Hinweis unter dem Knopf sagt das).
+  Von Hand pausieren lässt er sich wie jeder Gast.
+- **Nicht sperrbar:** Auf seiner Gästeseite ist „Sperren…“ aus, daneben steht warum;
+  die API antwortet 409 `host_guest`.
+- **Kein QR-Code:** `code_id` bleibt leer, er bekommt kein Zugangs-Cookie und keine
+  Besucher-ID. Er zählt bei keinem Code (Gescannt, Personen, Beigetreten, Fotos) und
+  nicht bei „Gescannt“/„Beigetreten“ der Übersicht; bei „Gäste“ zählt er mit. Löschen
+  oder neue Tokens für QR-Codes sperren ihn nie aus: Die signierte Gast-ID genügt.
+- In der Verwaltung markiert: Abzeichen „Admin-Gast“ in der Gästeliste und auf der
+  Gästeseite, „über die Verwaltung (beigetreten)“ statt des QR-Codes, „<Name> ·
+  Admin-Gast“ an seinen Fotos (Live, Fotos, Inspektor, Großansicht), Spalte `is_host`
+  in `users.csv` des Exports.
+- War dieser Browser schon als anderer Gast angemeldet, wird diese Anmeldung ersetzt
+  (der andere Gast bleibt bestehen). Der Hinweis unter dem Knopf sagt das vorher, ein
+  Toast danach.
+- Protokoll: `host_guest.sign_in` mit „created“ und, wenn ersetzt, der vorherige Gast.
+
 ### Hochladen steuern
 
 Das Sheet „Hochladen“ öffnet sich über die Status-Pille oder „Hochladen“ in der
@@ -1108,7 +1143,10 @@ Jede Schicht im Detail: [ARCHITECTURE.md → Security model](ARCHITECTURE.md#sec
 
 - **Kein QR-Code, kein Zutritt.** Jede Gast-Seite und jede Gast-API braucht das
   Zugangs-Cookie aus dem QR-Link. Ohne gibt es nur das Gate und wenige feste Dateien
-  (Icons, `boot-check.js`, `gate-hint.js`, `robots.txt`).
+  (Icons, `boot-check.js`, `gate-hint.js`, `robots.txt`). Einzige Ausnahme: der
+  [Admin-Gast](#als-gast-teilnehmen-admin-gast). Seine signierte Gast-ID setzt nur eine
+  Admin-Sitzung (`POST /api/admin/guest`, mit CSRF-Prüfung), ein Gast kann nie zu ihm
+  werden.
 - Das Token wird im Zugriffslog maskiert (`?t=***`), und Seiten senden
   `Referrer-Policy: no-referrer`.
 - Fotos liegen außerhalb des Web-Ordners. Ein Foto bekommt nur der Gast, der es gemacht

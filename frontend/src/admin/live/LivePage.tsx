@@ -40,6 +40,7 @@ import { ALL_PHOTOS } from '../store/types';
 import { useDocumentSurface } from '../surface';
 import { openUploadSheet } from '../uploads/sheetStore';
 import { UploadStatusPill } from '../uploads/UploadStatusPill';
+import { guestName } from '../hostGuest/marks';
 
 const isAtTop = () => window.scrollY < AT_TOP;
 
@@ -189,7 +190,7 @@ function LiveScreen() {
                   src={photo.thumb_url}
                   alt={photoLabel(photo)}
                   label={photoLabel(photo)}
-                  sublabel={photo.user.name}
+                  sublabel={guestName(photo.user)}
                   isHidden={photo.hidden}
                   isNew={arrivedLive.has(photo)}
                   loading={i < 6 ? 'eager' : 'lazy'}

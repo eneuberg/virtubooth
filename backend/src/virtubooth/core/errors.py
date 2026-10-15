@@ -56,6 +56,7 @@ ErrorCode = Literal[
     "invalid_cursor",
     "no_fingerprint",
     "restore_required",
+    "host_guest",
     # admin settings
     "invalid_event_name",
     "invalid_public_address",
@@ -191,6 +192,16 @@ def join_closed() -> ApiError:
     """The host stopped new joins for a moment (already joined guests are not affected)."""
     return ApiError(
         403, "join_closed", "Gerade kann niemand neu beitreten. Versuch es gleich noch mal."
+    )
+
+
+def host_guest_protected() -> ApiError:
+    """The admin guest (`is_host`) can't be banned: it is the host's own identity."""
+    return ApiError(
+        409,
+        "host_guest",
+        "Das ist der Gastgeber-Gast (du selbst über „Als Gast teilnehmen“): "
+        "der lässt sich nicht sperren.",
     )
 
 

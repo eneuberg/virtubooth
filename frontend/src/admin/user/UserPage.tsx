@@ -241,7 +241,7 @@ function Guest({ detail }: { detail: UserDetail }) {
             </>
           ) : null}
         </p>
-        {user.analysis_opt_out || user.ai_opt_out ? (
+        {user.is_host || user.analysis_opt_out || user.ai_opt_out ? (
           <p className="flex flex-wrap gap-1.5" data-testid="user-opt-outs">
             <GuestBadges
               user={{
@@ -250,6 +250,7 @@ function Guest({ detail }: { detail: UserDetail }) {
                 uploads_paused: false,
                 analysis_opt_out: user.analysis_opt_out,
                 ai_opt_out: user.ai_opt_out,
+                is_host: user.is_host,
               }}
             />
           </p>
@@ -345,10 +346,22 @@ function Guest({ detail }: { detail: UserDetail }) {
               {t.unbanEllipsis}
             </Button>
           ) : (
-            <Button variant="danger-outline" icon={Ban} onPress={() => setSheet('ban')} data-testid="ban">
+            <Button
+              variant="danger-outline"
+              icon={Ban}
+              onPress={() => setSheet('ban')}
+              isDisabled={user.is_host}
+              aria-describedby={user.is_host ? 'host-ban-note' : undefined}
+              data-testid="ban"
+            >
               {t.banEllipsis}
             </Button>
           )}
+          {user.is_host ? (
+            <p id="host-ban-note" className="text-sm text-ink-muted" data-testid="host-ban-note">
+              Das ist dein Admin-Gast (über „Als Gast teilnehmen“): der lässt sich nicht sperren.
+            </p>
+          ) : null}
         </div>
       </header>
 

@@ -147,6 +147,8 @@ class ModerationService:
         `fingerprint`, their current device fingerprint is banned too, so new
         identities showing it start banned."""
         user = self._user_or_404(user_id)
+        if user.is_host:
+            raise errors.host_guest_protected()
         if fingerprint and not user.fp_hash:
             raise errors.bad_request(
                 "Für diesen Gast ist kein Fingerprint bekannt.", "no_fingerprint"
