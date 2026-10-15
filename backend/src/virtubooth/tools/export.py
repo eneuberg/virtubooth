@@ -98,7 +98,9 @@ SCRUBBED_TABLES = ("admin_sessions", "export_jobs", "visitors", "code_visitors")
 # in the admin, `admin.password`, and an extension's, e.g. the Live-Wall's
 # `x.wall.password`). An archive must not hand out something to crack offline;
 # restoring the copy falls back to VB_ADMIN_PASSWORD and a wall without one.
-SCRUBBED_SETTINGS_SQL = "key = 'admin.password' OR key LIKE 'x.%.password'"
+# Also the host's external-AI API key (`x.llm.key`): encrypted, but it never
+# leaves the server.
+SCRUBBED_SETTINGS_SQL = "key = 'admin.password' OR key LIKE 'x.%.password' OR key = 'x.llm.key'"
 
 
 def scrub_snapshot(path: Path) -> None:

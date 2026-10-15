@@ -1906,6 +1906,7 @@ dependencies = [
     { name = "anthropic" },
     { name = "cryptography" },
     { name = "fastapi" },
+    { name = "httpx2" },
     { name = "pillow" },
     { name = "pydantic" },
     { name = "pydantic-settings" },
@@ -1924,7 +1925,6 @@ ml = [
 
 [package.dev-dependencies]
 dev = [
-    { name = "httpx2" },
     { name = "mypy" },
     { name = "playwright" },
     { name = "pytest" },
@@ -1937,6 +1937,7 @@ requires-dist = [
     { name = "anthropic", specifier = "==1.11.0" },
     { name = "cryptography", specifier = "==50.0.2" },
     { name = "fastapi", specifier = "==0.143.0" },
+    { name = "httpx2", specifier = "==2.13.1" },
     { name = "mediapipe", marker = "extra == 'ml'", specifier = "==1.1.0" },
     { name = "numpy", marker = "extra == 'ml'", specifier = "==2.5.4" },
     { name = "onnxruntime", marker = "extra == 'ml'", specifier = "==1.31.0" },
@@ -1952,7 +1953,6 @@ provides-extras = ["ml"]
 
 [package.metadata.requires-dev]
 dev = [
-    { name = "httpx2", specifier = "==2.13.1" },
     { name = "mypy", specifier = "==2.4.0" },
     { name = "playwright", specifier = "==1.63.0" },
     { name = "pytest", specifier = "==9.1.1" },

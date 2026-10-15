@@ -16,6 +16,7 @@ dependencies = [
     "tzdata==2026.5",
     "anthropic==1.11.0",
     "cryptography==50.0.2",
+    "httpx2==2.13.1",
 ]
 
 [project.optional-dependencies]
@@ -35,7 +36,6 @@ virtubooth = "virtubooth.__main__:main"
 dev = [
     "pytest==9.1.1",
     "pytest-xdist==3.8.0",
-    "httpx2==2.13.1",
     "playwright==1.63.0",
     "ruff==0.17.0",
     "mypy==2.4.0",

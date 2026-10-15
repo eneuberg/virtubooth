@@ -51,8 +51,12 @@ log = logging.getLogger(__name__)
 
 UNSAFE_METHODS = {"POST", "PUT", "PATCH", "DELETE"}
 MAX_JSON_BODY = 64 * 1024
-# bodies that stream with their own cap: activity uploads and the poster template
-_STREAMED_PATH = re.compile(r"^(?:/api/x/[a-z][a-z0-9-]{1,30}/upload|/api/admin/poster/template)$")
+# bodies that stream with their own cap: activity uploads, the poster template
+# and the Live-Wall's test image (extensions/wall/llm/testimage.py)
+_STREAMED_PATH = re.compile(
+    r"^(?:/api/x/[a-z][a-z0-9-]{1,30}/upload|/api/admin/poster/template"
+    r"|/api/x/wall/admin/test-image)$"
+)
 # admin routes: the core's and an extension's own (/api/x/<id>/admin/..., e.g. the wall's)
 _ADMIN_API = re.compile(r"^/api/(?:admin/|x/[a-z][a-z0-9-]{1,30}/admin/)")
 # paths where ?t= is never interpreted as a party token

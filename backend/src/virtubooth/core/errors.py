@@ -63,6 +63,13 @@ ErrorCode = Literal[
     "code_revoked",
     "invalid_target",
     "invalid_note",
+    # external AI (LLM)
+    "invalid_llm_config",
+    "llm_not_configured",
+    "llm_key_invalid",
+    "llm_budget_exhausted",
+    "invalid_property",
+    "property_exists",
     # request guards
     "bad_origin",
     "length_required",

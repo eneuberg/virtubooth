@@ -16,7 +16,10 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
+    from collections.abc import Callable
+
     from virtubooth.extensions.sdk import Extension
+    from virtubooth.runtime import Core
 
     from .enrichment import Enrichment
 
@@ -34,12 +37,16 @@ def make_extension(enrichment: Enrichment | None = None) -> Extension:
     from . import admin_api, media, screen_api
     from .enrich import admin_api as analysis_admin_api
     from .hub import Wall
+    from .llm import admin_api as llm_admin_api
+    from .llm.service import LlmRuntime
 
     wall = Wall(enrichment)
+    llm = LlmRuntime()
     # /api/x/wall/admin/...: the wall's settings and the photo analysis
     router = APIRouter()
     router.include_router(admin_api.build_router(wall))
     router.include_router(analysis_admin_api.router)
+    router.include_router(llm_admin_api.router)
     return Extension(
         id=EXT_ID,
         title="Live-Wall",
@@ -48,8 +55,8 @@ def make_extension(enrichment: Enrichment | None = None) -> Extension:
         router=router,
         show_on_home=False,
         web_router=screen_api.build_router(wall),
-        on_start=wall.on_start,
-        on_stop=wall.on_stop,
+        on_start=_both(wall.on_start, llm.on_start),
+        on_stop=_both(llm.on_stop, wall.on_stop),
         derived_files=media.derived_files,
     )
 
@@ -61,3 +68,15 @@ def __getattr__(name: str) -> Extension:
         globals()["extension"] = ext
         return ext
     raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+
+
+def _both(first: Callable[[Core], None], second: Callable[[Core], None]) -> Callable[[Core], None]:
+    """Run two lifecycle hooks in order; the second runs even if the first fails."""
+
+    def run(core: Core) -> None:
+        try:
+            first(core)
+        finally:
+            second(core)
+
+    return run
