@@ -51,13 +51,13 @@ def web_dir(web_dir):
 
 def test_admin_only(client, admin):
     for method, path in ADMIN_ROUTES:
-        r = client.request(method, path, json={"password": "geheim-123"}, headers=ORIGIN)
+        r = client.request(method, path, json={"password": "geheim-123456"}, headers=ORIGIN)
         assert r.status_code == 401 and r.json()["error"] == "admin_required", path
     # CSRF: changes need a same-origin request, admin or not
     for method, path in ADMIN_ROUTES:
         if method == "GET":
             continue
-        r = admin.request(method, path, json={"password": "geheim-123"})
+        r = admin.request(method, path, json={"password": "geheim-123456"})
         assert r.status_code == 403 and r.json()["error"] == "bad_origin", path
         r = admin.request(method, path, json={}, headers={"Origin": "https://evil.example"})
         assert r.status_code == 403, path

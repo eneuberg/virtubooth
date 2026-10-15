@@ -4,7 +4,9 @@ GuardMiddleware, in order:
 1. `?t=<token of a QR code>` on a page URL: valid → set the access cookie
    (and a visitor id, if the browser has none), count the scan for that code
    and redirect to the same URL without the token; invalid → the "scan the
-   QR code" page. A well-formed token is always checked, so one device
+   QR code" page. Browsers without a visitor id get a new visitor row only
+   while their address is within limits.scan_ip (VB_SCANS_PER_IP_PER_10MIN);
+   over it they still get in, uncounted (it never turns a guest away). A well-formed token is always checked, so one device
    guessing on the venue Wi-Fi never locks its neighbours out. Wrong tokens
    are counted per IP; over the limit their gate answer is delayed
    (TOKEN_FAIL_DELAY) and the burst is logged once a minute.
@@ -155,9 +157,30 @@ class GuardMiddleware:
             max_age=GUEST_COOKIE_MAX_AGE,
         )
         # the dashboard's "Gescannt" and the code's statistics: a random
-        # visitor id, kept when it has one
-        core.services.presence.enter(request, response, code_id=code.id)
+        # visitor id, kept when it has one. Each new one is two rows, so they
+        # are rationed per address; over the limit the browser still gets in
+        # (the venue Wi-Fi shares one IP) and is counted once it joins.
+        if self._may_count_scan(request):
+            core.services.presence.enter(request, response, code_id=code.id)
         return response, False
+
+    def _may_count_scan(self, request: Request) -> bool:
+        """Whether a valid scan may note its visitor: always for a browser with a
+        visitor id, else while its address is within `limits.scan_ip`."""
+        core = self.core
+        if core.services.presence.visitor_id(request) is not None:
+            return True
+        limits, ip = core.limits, client_ip(request)
+        if limits.scan_ip.hit(ip):
+            return True
+        if limits.scan_log.hit(ip):
+            log.warning(
+                "QR scans without a visitor id: %s is over %s per 10 minutes; "
+                "letting them in without counting",
+                ip,
+                core.settings.scans_per_ip_per_10min,
+            )
+        return False
 
     def _token_failed(self, request: Request) -> bool:
         """Count a wrong token; True when its address is over the limit."""

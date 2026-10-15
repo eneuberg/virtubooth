@@ -100,6 +100,13 @@ class Settings(BaseSettings):
     uploads_per_ip_per_min: int = 180
     uploads_global_per_min: int = 300
     new_users_per_ip_per_10min: int = 120
+    # QR scans (?t=) from browsers without a visitor id, per IP: over it the
+    # browser still gets in, but no new visitor row is written
+    scans_per_ip_per_10min: int = 120
+    # photos a guest may keep (not deleted), over every activity; 0 = no limit
+    max_photos_per_guest: int = 300
+    # uploads are refused while the data dir's disk has less free space (MB)
+    min_free_mb: int = 2048
     # requests from identified guests count per device, the rest per IP
     api_requests_per_ip_per_min: int = 1200
     api_requests_per_guest_per_min: int = 300
@@ -117,6 +124,9 @@ class Settings(BaseSettings):
         "uploads_per_ip_per_min",
         "uploads_global_per_min",
         "new_users_per_ip_per_10min",
+        "scans_per_ip_per_10min",
+        "max_photos_per_guest",
+        "min_free_mb",
         "api_requests_per_ip_per_min",
         "api_requests_per_guest_per_min",
         "admin_session_hours",

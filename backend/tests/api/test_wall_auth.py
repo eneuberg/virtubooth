@@ -7,6 +7,7 @@ import time
 
 import pytest
 
+from virtubooth.core.passwords import hash_password
 from virtubooth.extensions.wall import make_extension
 from virtubooth.extensions.wall.auth import COOKIE, LOCK_SECONDS, PASSWORD_KEY
 
@@ -205,17 +206,31 @@ def test_clear_password(make_client, admin, core):
     assert modes == ["clear", "set"]
 
 
+def test_short_password_from_before_the_rule_still_works(client, core):
+    """A 6-character password stored before the 12-character minimum keeps
+    working (only setting a new one is refused); docs/DEPLOY.md says to change it."""
+    core.repos.app_settings.put(
+        PASSWORD_KEY,
+        {"hash": hash_password("sechs6"), "gen": 1, "changed_at": None, "by": "admin:1"},
+        at="2026-01-01T00:00:00Z",
+    )
+    assert wall_login(client, "sechs6").status_code == 200
+    assert client.get("/livewall/api/session").json()["via"] == "password"
+
+
 def test_set_password_rules(admin, core):
-    r = admin.put("/api/x/wall/admin/password", json={"password": "kurz"}, headers=ORIGIN)
-    assert r.status_code == 400
-    assert r.json() == {
-        "error": "wall_password_too_short",
-        "message": "Das Passwort braucht mindestens 6 Zeichen.",
-    }
-    body = set_wall_password(admin, "sechs6")
+    # online-review 1c: 12 characters, like the admin password (6 and 11 are refused)
+    for short in ("kurz", "sechs6", "elf-zeichen"):
+        r = admin.put("/api/x/wall/admin/password", json={"password": short}, headers=ORIGIN)
+        assert r.status_code == 400
+        assert r.json() == {
+            "error": "wall_password_too_short",
+            "message": "Das Passwort braucht mindestens 12 Zeichen.",
+        }
+    body = set_wall_password(admin, "zwoelf-12345")
     assert body["set"] is True and body["changed_at"]
     stored = core.repos.app_settings.get(PASSWORD_KEY)
-    assert stored["hash"].startswith("scrypt$15$8$1$") and "sechs6" not in str(stored)
+    assert stored["hash"].startswith("scrypt$15$8$1$") and "zwoelf-12345" not in str(stored)
     assert stored["by"].startswith("admin:")
     assert admin.get("/api/x/wall/admin/config").json()["password"] == {
         "set": True,

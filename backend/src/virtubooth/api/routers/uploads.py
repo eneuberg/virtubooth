@@ -33,7 +33,7 @@ def upload_model(extensions: Sequence[Extension]) -> type[UploadOutBase]:
 
 def build_router(extensions: Sequence[Extension]) -> APIRouter:
     router = APIRouter(
-        tags=["uploads"], responses=error_responses(400, 401, 403, 404, 413, 415, 422, 429)
+        tags=["uploads"], responses=error_responses(400, 401, 403, 404, 413, 415, 422, 429, 503)
     )
     out = upload_model(extensions)
 

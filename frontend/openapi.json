@@ -2828,6 +2828,8 @@
               "invalid_meta",
               "empty_upload",
               "invalid_image",
+              "photo_limit",
+              "storage_full",
               "invalid_pdf",
               "invalid_layout",
               "no_template",
@@ -19678,6 +19680,16 @@
               }
             },
             "description": "Rate limited (`Retry-After` header)"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "The server's disk is almost full (`storage_full`, `Retry-After` header)"
           }
         },
         "summary": "Upload",

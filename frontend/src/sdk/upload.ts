@@ -58,8 +58,17 @@ export function subscribeUploadAnswers(listener: (answer: UploadAnswer) => void)
   };
 }
 
-/** Codes that mean "this guest may not upload right now": the session state is stale. */
-export const GATE_CODES: ReadonlySet<string> = new Set(['uploads_paused', 'uploads_stopped', 'banned']);
+/**
+ * Codes that mean "this guest may not upload right now": the session state is stale,
+ * or (`photo_limit`) the guest has too many photos until they delete some. The photo
+ * is kept, automatic sending waits for "Erneut senden".
+ */
+export const GATE_CODES: ReadonlySet<string> = new Set([
+  'uploads_paused',
+  'uploads_stopped',
+  'banned',
+  'photo_limit',
+]);
 
 function noteAnswer(answer: UploadAnswer): void {
   try {

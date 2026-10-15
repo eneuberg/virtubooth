@@ -168,6 +168,25 @@ describe('a shot', () => {
     await expect(forced).resolves.toBe(1);
   });
 
+  it('holds a photo over the per-guest limit and waits out a full disk', async () => {
+    await addToOutbox({ id: 's6', ext: 'beer', meta: { vessel: 'bottle' }, blob: jpeg() });
+    const limited = settle(sendFromOutbox('s6'));
+    await answer(403, { error: 'photo_limit', message: 'Sehr viele Fotos.' });
+    expect(await limited).toMatchObject({ error: { code: 'photo_limit' } });
+    expect(getOutbox().items[0]?.state).toBe('held');
+    expect(store.records.has('s6')).toBe(true);
+    await expect(flushOutbox()).resolves.toBe(0); // no request until "Erneut senden"
+    expect(FakeXhr.all).toHaveLength(1);
+
+    const full = settle(flushOutbox({ force: true }));
+    await answer(503, { error: 'storage_full', message: 'Voll.' }, { 'Retry-After': '300' });
+    await full;
+    const item = getOutbox().items[0];
+    expect(item?.state).toBe('waiting');
+    expect(item?.waitUntil).toBeGreaterThan(Date.now() + 250_000);
+    expect(store.records.has('s6')).toBe(true);
+  });
+
   it('remembers a rate limit and skips the photo until then', async () => {
     await addToOutbox({ id: 's5', ext: 'beer', meta: { vessel: 'bottle' }, blob: jpeg() });
     const sent = settle(sendFromOutbox('s5'));

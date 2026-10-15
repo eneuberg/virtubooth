@@ -40,7 +40,7 @@ WALL_HTML = (
     '<!doctype html>\n<html lang="de"><head><meta charset="utf-8"><title>Live-Wall</title>'
     '</head><body><div id="root" data-testid="stub-wall"></div></body></html>\n'
 )
-WALL_PASSWORD = "geheim-123"
+WALL_PASSWORD = "geheim-123456"
 
 
 def with_wall_page(web_dir: Path) -> Path:

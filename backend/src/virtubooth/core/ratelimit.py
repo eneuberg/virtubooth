@@ -139,6 +139,8 @@ class Limits:
     login_lock: Lockout
     token_fail_ip: RateLimiter
     token_fail_log: RateLimiter
+    scan_ip: RateLimiter
+    scan_log: RateLimiter
 
     @classmethod
     def from_settings(cls, s: Settings) -> Limits:
@@ -159,6 +161,12 @@ class Limits:
             token_fail_ip=IpRateLimiter(TOKEN_FAILURES_PER_MIN, 60),
             # one log line per address and minute while it is over that limit
             token_fail_log=IpRateLimiter(1, 60),
+            # valid scans from browsers without a visitor id, per address: over
+            # it the browser still gets in, only no visitor row is written
+            # (middleware.py), so a script can't fill the database
+            scan_ip=IpRateLimiter(s.scans_per_ip_per_10min, 600),
+            # one log line per address and minute while it is over that limit
+            scan_log=IpRateLimiter(1, 60),
         )
 
     def reset(self) -> None:

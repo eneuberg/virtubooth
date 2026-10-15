@@ -710,8 +710,9 @@ Die Fotos der Party auf einem großen Bildschirm: ein Fernseher oder Beamer öff
 Aktivität; sie steht nicht auf Start. Einstellungen im Tab „Live-Wall“ der Verwaltung
 (`/admin/manage?tab=livewall`).
 
-- **Zugang:** Unter „Zugang“ setzt der Host ein Live-Wall-Passwort (mindestens 6
-  Zeichen). Der Bildschirm fragt einmal danach („Live-Wall starten“) und merkt sich das
+- **Zugang:** Unter „Zugang“ setzt der Host ein Live-Wall-Passwort (mindestens 12
+  Zeichen; ein früher gesetztes kürzeres gilt weiter, sollte aber vor einer Party im
+  Internet geändert werden). Der Bildschirm fragt einmal danach („Live-Wall starten“) und merkt sich das
   30 Tage (Cookie nur für `/livewall`). Ohne Passwort zeigt `/livewall` „Für die
   Live-Wall ist noch kein Passwort gesetzt.“ Ein eingeloggter Admin sieht die Wall auch
   ohne Passwort. Passwort ändern, entfernen oder „Alle Wände abmelden“ meldet jede
@@ -1026,7 +1027,7 @@ startet der Server nicht und nennt die Variable. Die Limits stehen unter
 | `VB_HOST`, `VB_PORT` | `127.0.0.1`, `8000` | Adresse von `virtubooth serve`. Docker: `0.0.0.0`, `8000` |
 | `VB_PUBLISH_PORT` | `127.0.0.1:8000` | nur `compose.yaml`: Port auf dem Host |
 | `VB_IMAGE` | `virtubooth:local` | nur `compose.yaml`: Name des Images |
-| `VB_CPU_LIMIT`, `VB_MEM_LIMIT` | `1.0`, `1g` | nur `compose.yaml`: Grenzen des Containers |
+| `VB_CPU_LIMIT`, `VB_MEM_LIMIT` | `1.0`, `1g` | nur `compose.yaml`: Grenzen des Containers (`docker-compose.coolify.yaml`: fest 2 CPUs, 1536 MB) |
 | `VB_WALL_WORKER` | an | `off`: der Server startet den Analyse-Prozess der Live-Wall nicht (z. B. weil er in einem anderen Container läuft) |
 | `VB_WALL_MODELS_DIR` | leer | Ordner der Analyse-Modelle; sonst `<data>/wall/models` und `/opt/vb-models` (im KI-Image) |
 | `VB_WALL_THREADS` | `3` | Threads je Analyse (0 = alle Kerne) |
@@ -1141,6 +1142,9 @@ IPv6-Adressen pro /64 zusammen.
 | Uploads pro IP | 180 pro Minute, nur gültige Fotos | `VB_UPLOADS_PER_IP_PER_MIN` |
 | Uploads der ganzen Party | 300 pro Minute, nur gültige Fotos | `VB_UPLOADS_GLOBAL_PER_MIN` |
 | Neue Gäste pro IP | 120 pro 10 Minuten | `VB_NEW_USERS_PER_IP_PER_10MIN` |
+| Gezählte QR-Scans ohne Besucher-ID pro IP | 120 pro 10 Minuten; darüber kommt der Browser trotzdem rein, nur ohne neue Besucher-Zeile (gezählt erst beim Beitritt), kein 429 | `VB_SCANS_PER_IP_PER_10MIN` |
+| Fotos pro Gast | 300, nicht gelöschte über alle Aktivitäten; darüber 403 `photo_limit` („Du hast schon sehr viele Fotos gemacht …“), das Foto wartet auf dem Handy; 0 = keine Grenze | `VB_MAX_PHOTOS_PER_GUEST` |
+| Freier Speicher | Uploads nur bei mindestens 2048 MB frei unter `VB_DATA_DIR`; sonst 503 `storage_full` mit `Retry-After: 300` und eine Warnung im Log (höchstens einmal pro Minute); 0 = aus | `VB_MIN_FREE_MB` |
 | API-Anfragen pro beigetretenem Gerät | 300 pro Minute | `VB_API_REQUESTS_PER_GUEST_PER_MIN` |
 | API-Anfragen pro IP, nicht beigetreten | 1200 pro Minute | `VB_API_REQUESTS_PER_IP_PER_MIN` |
 | Admin-API mit Sitzung | keine Grenze | fest |

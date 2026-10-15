@@ -40,6 +40,8 @@ ErrorCode = Literal[
     "invalid_meta",
     "empty_upload",
     "invalid_image",
+    "photo_limit",
+    "storage_full",
     # poster
     "invalid_pdf",
     "invalid_layout",
@@ -163,6 +165,27 @@ def uploads_stopped() -> ApiError:
     )
 
 
+def photo_limit() -> ApiError:
+    """The guest keeps VB_MAX_PHOTOS_PER_GUEST photos already (deleted ones don't count)."""
+    return ApiError(
+        403,
+        "photo_limit",
+        "Du hast schon sehr viele Fotos gemacht – mehr passen leider nicht. "
+        "Lösche ein paar unter „Deine Bilder“, dann geht's weiter.",
+    )
+
+
+def storage_full() -> ApiError:
+    """The server's disk is almost full (VB_MIN_FREE_MB): no upload is stored.
+    503 with Retry-After: the guest's outbox keeps the photo and tries again later."""
+    return ApiError(
+        503,
+        "storage_full",
+        "Der Speicher auf dem Server ist fast voll. Sag bitte den Gastgebern Bescheid.",
+        headers={"Retry-After": "300"},
+    )
+
+
 def join_closed() -> ApiError:
     """The host stopped new joins for a moment (already joined guests are not affected)."""
     return ApiError(
@@ -213,6 +236,7 @@ _DESCRIPTIONS = {
     415: "Unsupported media type",
     422: "Request validation failed (`invalid_request`)",
     429: "Rate limited (`Retry-After` header)",
+    503: "The server's disk is almost full (`storage_full`, `Retry-After` header)",
 }
 
 

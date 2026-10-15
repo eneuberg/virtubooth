@@ -158,6 +158,8 @@ describe('which failures are for good', () => {
     [401, 'needs_consent', false],
     [403, 'uploads_paused', false],
     [403, 'banned', false],
+    [403, 'photo_limit', false], // held: deleting photos makes room again
+    [503, 'storage_full', false], // waits for the host to free disk space
     [429, 'rate_limited', false],
     [500, 'http_500', false],
     [0, 'network', false],

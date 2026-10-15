@@ -301,12 +301,15 @@ steps above.
    start; after that, QR codes and their tokens are managed in Admin →
    QR-Codes, and editing the variable changes nothing. Set `VB_PARTY_NAME`
    (or the event name in the admin) and `VB_INSTAGRAM_ACCOUNT`;
-   `VB_EXTENSIONS`, `VB_TIMEZONE`, the two per-IP limits and
-   `VB_FORWARDED_ALLOW_IPS` (default: Docker's private ranges) are editable
-   too.
+   `VB_EXTENSIONS`, `VB_TIMEZONE`, the per-IP limits, `VB_MIN_FREE_MB`,
+   `VB_MAX_PHOTOS_PER_GUEST` and `VB_FORWARDED_ALLOW_IPS` (default: Docker's
+   private ranges) are editable too.
 5. **Persistent storage:** the volume `virtubooth-data` at `/data` holds the
    database, every photo and the exports. Keep it: deleting it deletes the
-   party.
+   party. Uploads stop while less than `VB_MIN_FREE_MB` (2 GB) is free on its
+   disk. The container is limited to 2 CPUs and 1.5 GB RAM (`cpus`,
+   `mem_limit` in the compose file; `cpus` must not exceed the server's CPU
+   count).
 6. **Deploy.** Coolify builds the image on the server (about 1 GB of free RAM
    for the frontend build), and the status turns healthy about 15 s after the
    start. Then:
@@ -361,6 +364,9 @@ naming the variable when one is missing or invalid.
 | `VB_UPLOADS_PER_IP_PER_MIN` | `180` | Valid uploads per IP per minute (venue Wi-Fi shares one IP). |
 | `VB_UPLOADS_GLOBAL_PER_MIN` | `300` | Uploads per minute for the whole party. |
 | `VB_NEW_USERS_PER_IP_PER_10MIN` | `120` | New guests per IP per 10 minutes. |
+| `VB_SCANS_PER_IP_PER_10MIN` | `120` | Counted QR scans per IP per 10 minutes from browsers without a visitor id (each writes two rows). Over it the browser still gets in; it is counted under „Gescannt“ once it joins. Logged once a minute per IP. |
+| `VB_MAX_PHOTOS_PER_GUEST` | `300` | Photos one guest may keep (not deleted), over every activity; then uploads answer 403 `photo_limit` and the photo waits on the phone. `0` = no limit. |
+| `VB_MIN_FREE_MB` | `2048` | Uploads answer 503 `storage_full` (the photo waits on the phone, retried after 5 min) while the disk under `VB_DATA_DIR` has less free space; logged once a minute. A full disk would break SQLite. `0` = off. |
 | `VB_API_REQUESTS_PER_GUEST_PER_MIN` | `300` | API requests per joined guest device per minute. |
 | `VB_API_REQUESTS_PER_IP_PER_MIN` | `1200` | API requests per IP per minute from devices that have not joined. |
 | `VB_ADMIN_SESSION_HOURS` | `12` | Admin login lifetime. |
@@ -370,7 +376,7 @@ naming the variable when one is missing or invalid.
 | `VB_HOST` / `VB_PORT` | `127.0.0.1` / `8000` | Listen address of `virtubooth serve`. Docker pins `0.0.0.0` / `8000`. |
 | `VB_PUBLISH_PORT` | `127.0.0.1:8000` | *compose.yaml only*: the host address and port. `8000` alone publishes on all interfaces. |
 | `VB_IMAGE` | `virtubooth:local` | *compose.yaml only*: the image the build produces and `up` runs. |
-| `VB_CPU_LIMIT` / `VB_MEM_LIMIT` | `1.0` / `1g` | *compose.yaml only*: container limits. The CPU limit must not exceed the host's CPU count. |
+| `VB_CPU_LIMIT` / `VB_MEM_LIMIT` | `1.0` / `1g` | *compose.yaml only*: container limits. The CPU limit must not exceed the host's CPU count. `docker-compose.coolify.yaml` has fixed `cpus: "2"` / `mem_limit: 1536m` (edit them in the file for a 1-CPU server). |
 | `VB_WALL_WORKER` | on | `off`: the app does not spawn the Live-Wall's analysis worker (tests, or a worker running in another container on the same `/data`). |
 | `VB_WALL_MODELS_DIR` | empty | Where the analysis models are looked up first (then `<data>/wall/models`, then `/opt/vb-models`), and where `models fetch` writes. |
 | `VB_WALL_THREADS` | `3` | Threads per inference in the worker (`0` = all cores). |
@@ -468,10 +474,12 @@ verwenden“ on and picks what it does: object detection at upload, properties
   (not the generated one from `.env` or Coolify).
 - Admin logged in on a laptop or tablet; the password is on no printout.
   Sessions last `VB_ADMIN_SESSION_HOURS` (12 h): log in shortly before.
-- Live-Wall: password set, `/livewall` open on the TV in full screen,
+- Live-Wall: password set (at least 12 characters; a shorter one set before
+  that rule still works, so change it), `/livewall` open on the TV in full screen,
   ML-Pipeline → „Modelle“ says the worker runs (ML image only).
 - External AI (if used): key „gesetzt“, a budget set, a test image run.
-- Enough disk space: `df -h /var/lib/docker`.
+- Enough disk space: `df -h /var/lib/docker`, well above `VB_MIN_FREE_MB`
+  (2 GB; below it uploads stop).
 - No updates or rebuilds on party night.
 
 ## Exports

@@ -7,16 +7,23 @@ POST /api/x/<id>/upload   (403 uploads_paused / uploads_stopped while uploads ar
   → 201 {"photo": {...}, ...whatever extension.on_upload returned}
 
 Checks run in this order (architecture.md §2.5): extension, pause, stop,
-content type, the guest's own rate limit (charged on every attempt), the shared
-IP/global budgets (only checked), declared size, meta, the body (streamed with
-a cap), decode + re-encode, then the shared budgets are charged.
+free disk space (503 storage_full below VB_MIN_FREE_MB), content type, the
+guest's own rate limit (charged on every attempt), the shared IP/global budgets
+(only checked), the guest's photo cap (403 photo_limit at
+VB_MAX_PHOTOS_PER_GUEST photos that are not deleted), declared size, meta, the
+body (streamed with a cap), decode + re-encode, then the shared budgets are
+charged.
 """
 
 from __future__ import annotations
 
 import json
+import logging
 import os
 import secrets
+import shutil
+import threading
+import time
 from collections.abc import AsyncIterator
 from dataclasses import dataclass
 from pathlib import Path
@@ -38,7 +45,11 @@ from .images import ProcessedImage, process_jpeg
 if TYPE_CHECKING:
     from ..runtime import Core
 
+log = logging.getLogger(__name__)
+
 MAX_META_HEADER = 2048
+# at most one "disk almost full" log line per this many seconds
+DISK_WARN_EVERY = 60.0
 
 
 def too_large() -> errors.ApiError:
@@ -120,6 +131,35 @@ class UploadService:
         self.db = db
         self.repos = repos
         self.events = events
+        self._disk_warned_at: float | None = None
+        self._disk_lock = threading.Lock()
+
+    def free_bytes(self) -> int:
+        """Free space on the disk of the data dir (tests replace it)."""
+        return shutil.disk_usage(self.core.settings.data_dir).free
+
+    def check_disk(self) -> None:
+        """Refuse the upload while the data dir's disk has less than
+        VB_MIN_FREE_MB free: a full disk would break SQLite and the server."""
+        min_free = self.core.settings.min_free_mb * 1024 * 1024
+        if min_free <= 0:
+            return
+        free = self.free_bytes()
+        if free >= min_free:
+            return
+        now = time.monotonic()
+        with self._disk_lock:
+            warn = self._disk_warned_at is None or now - self._disk_warned_at >= DISK_WARN_EVERY
+            if warn:
+                self._disk_warned_at = now
+        if warn:
+            log.warning(
+                "uploads refused: %d MB free under %s, below VB_MIN_FREE_MB=%d",
+                free // (1024 * 1024),
+                self.core.settings.data_dir,
+                self.core.settings.min_free_mb,
+            )
+        raise errors.storage_full()
 
     async def upload(self, ext_id: str, user: User, req: UploadRequest) -> UploadResult:
         core = self.core
@@ -132,6 +172,7 @@ class UploadService:
             raise errors.uploads_paused()
         if self.repos.app_settings.upload_stop().enabled:
             raise errors.uploads_stopped()
+        self.check_disk()
 
         if req.content_type.split(";")[0].strip().lower() != "image/jpeg":
             raise errors.ApiError(415, "unsupported_type", "Nur JPEG-Bilder sind erlaubt.")
@@ -147,6 +188,9 @@ class UploadService:
         for limiter, key in shared:
             if not limiter.available(key):
                 raise errors.rate_limited(limiter.retry_after(key))
+        cap = core.settings.max_photos_per_guest
+        if cap > 0 and self.repos.photos.count(user_id=user.id) >= cap:
+            raise errors.photo_limit()
 
         max_bytes = policy.max_bytes or core.settings.max_upload_bytes
         if req.content_length.isdigit() and int(req.content_length) > max_bytes:
