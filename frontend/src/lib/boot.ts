@@ -20,6 +20,13 @@ export function markReady(): void {
  * entry script; any other failure goes on to the error boundary ("Seite neu laden").
  */
 export function installPreloadRecovery(): void {
+  window.addEventListener('beforeunload', () => {
+    leavingSince = Date.now();
+  });
+  // back from the back/forward cache: the page is here again
+  window.addEventListener('pageshow', () => {
+    leavingSince = null;
+  });
   window.addEventListener('vite:preloadError', () => {
     void newBuildDeployed().then((deployed) => {
       if (deployed) reloadOnce();
@@ -34,6 +41,37 @@ export function installPreloadRecovery(): void {
       // ignore
     }
   }, 30_000);
+}
+
+/** When the page last started to leave (`beforeunload`), null while it stays. */
+let leavingSince: number | null = null;
+
+/** How long a page that started to leave may take to go (the next server's answer);
+ * after that, a navigation that was cancelled or turned into a download left it here. */
+export const LEAVE_GRACE_MS = 10_000;
+
+function isLeaving(): boolean {
+  return leavingSince !== null && Date.now() - leavingSince < LEAVE_GRACE_MS;
+}
+
+/**
+ * A lazy chunk's loader (for React's `lazy`) that keeps quiet while the page leaves.
+ * Firefox aborts the chunks a page still loads as soon as a navigation to another
+ * document starts, well before the next page replaces this one. Rejecting then shows
+ * the error boundary ("Etwas ist schiefgelaufen") and logs the error for the moment
+ * the page has left. So a chunk that fails while the page is leaving waits for the
+ * page to go, and fails as usual only if it is still here after LEAVE_GRACE_MS.
+ */
+export function quietWhileLeaving<T>(load: () => Promise<T>): () => Promise<T> {
+  return () =>
+    load().catch((error: unknown) => {
+      if (!isLeaving()) throw error;
+      return new Promise<T>((_, reject) => {
+        setTimeout(() => {
+          reject(error instanceof Error ? error : new Error(String(error)));
+        }, LEAVE_GRACE_MS);
+      });
+    });
 }
 
 async function newBuildDeployed(): Promise<boolean> {

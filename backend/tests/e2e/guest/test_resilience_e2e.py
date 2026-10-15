@@ -7,6 +7,7 @@ the pre-overhaul test_core_e2e.py and test_core_ui_e2e.py (same behaviours, new 
 from __future__ import annotations
 
 import json
+import time
 from typing import Any
 
 import pytest
@@ -180,7 +181,10 @@ def fresh_tab(page: Page, live: LiveServer) -> tuple[Page, list[str]]:
 def test_leaving_start_while_its_cards_load_goes_where_asked(page: Page, live: LiveServer):
     """Firefox and WebKit abort the lazy modules of a page that starts to leave, and
     Vite reports that like a chunk a deploy removed (vite:preloadError). A reload then
-    would cancel the navigation: the guest would stay on Start (lib/boot.ts)."""
+    would cancel the navigation: the guest would stay on Start (lib/boot.ts). Firefox
+    aborts them as soon as the navigation starts, while Start is still up until the next
+    page's answer: the failed cards must not reach the error boundary (which logs the
+    error and shows "Etwas ist schiefgelaufen") meanwhile (quietWhileLeaving)."""
     tab, documents = fresh_tab(page, live)
     beer, booth = (f"**/{built_file(source)}" for source in CARDS)
     held: list[Route] = []  # never answered: the cards are still loading when Start leaves
@@ -191,6 +195,13 @@ def test_leaving_start_while_its_cards_load_goes_where_asked(page: Page, live: L
     # the rest of Start is in (an aborted fetch or font is an error of its own)
     expect(tab.get_by_test_id("my-photos")).not_to_have_attribute("data-state", "loading")
     tab.evaluate("() => document.fonts.ready.then(() => null)")
+
+    def slow_answer(route: Route) -> None:
+        # a busy server (CI): Start stays up a while after its cards were aborted
+        time.sleep(0.5)
+        route.continue_()
+
+    tab.route(live.url("/x/beer/"), slow_answer)
     tab.goto(live.url("/x/beer/"), wait_until=LOADED)
     expect(tab.get_by_test_id("beer-app")).to_be_visible()
     assert tab.url == live.url("/x/beer/")
