@@ -143,9 +143,13 @@ Installation.
 - Ein gerade gesendetes Foto erscheint sofort. Die Liste lädt außerdem jede Minute neu.
 - Ein Tipp öffnet „Dein Bild“ groß, mit „Vorheriges Bild“ und „Nächstes Bild“ (auch
   Pfeiltasten).
-  - „Speichern“: auf iOS das Teilen-Menü, über das man das Bild in die Fotos sichert,
+  - „Herunterladen“: auf iOS das Teilen-Menü, über das man das Bild in die Fotos sichert,
     sonst ein Download wie `beer-00032.jpg`.
   - „Teilen“: zusätzlich, wenn der Browser Dateien teilen kann und es kein iOS ist.
+  - **„Filter zeigen“** (Fotobox-Fotos; an, das Gerät merkt sich die Wahl): aus zeigt
+    das Original ohne Filter, und „Herunterladen“/„Teilen“ nehmen dann dieses
+    (`booth-00018-original.jpg`). Derselbe Schalter steht über dem Raster, sobald ein
+    Foto ein Original hat, und gilt für die Kacheln mit.
 - Ohne Fotos: leere Rahmen und eine Einladung zu den Aktivitäten.
 - Fotos anderer Gäste sieht ein Gast nie.
 
@@ -187,6 +191,13 @@ Selfies mit Live-Filtern. Adresse: `/x/booth/`.
   - Die Filter sind WebGL-Shader. Ohne WebGL läuft eine Canvas2D-Variante; Filter, die
     dort nicht gehen, fehlen dann in der Leiste.
   - Das gespeicherte Foto ist genau das Vorschaubild, mit Filter, in 1080 × 1440 px.
+  - **Original ohne Filter:** Mit jedem Filter außer „Normal“ lädt die Fotobox im
+    selben Upload auch dasselbe Bild ohne Filter und ohne Rahmen/Emojis hoch (gleicher
+    Ausschnitt, gleiche Größe, gleich gespiegelt). Die Analyse läuft auf diesem
+    Original; im Admin und unter „Deine Bilder“ zeigt der Schalter „Filter zeigen“ es
+    an, Exporte können es mitnehmen. Bei „Normal“ ist das Foto selbst das Original
+    (keine zweite Datei); die Beer Cam speichert ohnehin ohne Filter. Fotos von vor
+    diesem Update haben kein Original: der Schalter ist bei ihnen aus und sagt, warum.
   - Der Host kann einzelne Filter unter [Fotobox-Filter](#fotobox-filter) ausschalten,
     mindestens einer bleibt an. Sie verschwinden spätestens nach 30 s aus der Leiste;
     war einer davon gewählt, gilt der erste Filter.
@@ -327,6 +338,11 @@ Die Party-Ansicht für das Handy des Hosts (`/admin/live`), hell wie die Verwalt
   ein eingeschalteter Stopp steht dann als Abzeichen in der Kopfzeile.
 - [Analyse](#analyse-auf-live) unter jeder Kachel und im großen Foto, mit dem Schalter
   „Analyse zeigen“ in der Kopfzeile.
+- **„Filter zeigen“** (Desktop: in der Kopfzeile, Handy: über dem Raster; an, der
+  Browser merkt es sich, und es gilt in der ganzen Verwaltung): aus zeigt Kacheln und
+  großes Foto als Original ohne Filter. Im großen Foto steht derselbe Schalter; bei
+  Fotos ohne Original ist er gesperrt, mit Grund („Ohne Filter aufgenommen.“ bzw.
+  „Kein Original ohne Filter gespeichert …“). Die Rahmen der Analyse passen auf beide.
 - Handy: Leiste unten mit „Live“ und „Verwaltung“. Desktop: Knopf „Verwaltung“ oben.
 
 ### Die drei Schalter
@@ -441,7 +457,8 @@ Handy.
 
 - Alle Fotos als dichtes Raster. Fettstift-X = ausgeblendet, Kreis = ausgewählt.
 - Filter „Aktivität“, „Gast“ (mit Fotozahl) und „Sichtbarkeit“ („Alle“, „Sichtbar“,
-  „Ausgeblendet“). Sie stehen in der Adresse.
+  „Ausgeblendet“). Sie stehen in der Adresse. Daneben „Filter zeigen“ (wie auf
+  [Live](#live)): aus zeigt den Bogen und den Inspektor ohne Fotobox-Filter.
 - Neue Fotos: „1 neues Foto anzeigen“ bzw. „… neue Fotos anzeigen“. „Mehr laden“ für
   ältere.
 - **Auswahl:** „Alle auswählen“, Kästchen, Leertaste, Shift-Klick für einen Bereich,
@@ -451,8 +468,9 @@ Handy.
 - **Tastatur:** Pfeiltasten bewegen, Enter öffnet, X blendet aus oder ein, Entf
   löscht (mit Rückfrage), Esc hebt die Auswahl auf.
 - **Inspektor** (Desktop, rechts): großes Foto, Gast als Link, Instagram,
-  „Aufgenommen“, Gefäß, Filter und Kamera, dazu „Ausblenden“/„Einblenden“,
-  „Herunterladen“, „Instagram-Namen kopieren“, „Löschen…“. Am Handy öffnet das Foto
+  „Aufgenommen“, Gefäß, Filter und Kamera, der Schalter „Filter zeigen“, dazu
+  „Ausblenden“/„Einblenden“, „Herunterladen“ (bei Fotos mit Original „Herunterladen
+  (mit Filter)“ und „Original ohne Filter“), „Instagram-Namen kopieren“, „Löschen…“. Am Handy öffnet das Foto
   groß, mit „Ausblenden“/„Einblenden“, „Löschen…“ und „Gast öffnen“.
 - **Löschen** fragt immer nach (Knopf „Endgültig löschen“). Die Dateien sind dann weg,
   die Nummer bleibt vergeben.
@@ -689,9 +707,18 @@ dem anderen. Man kann die Seite verlassen.
 
 | Export | Optionen | Ergebnis |
 |---|---|---|
-| „Archiv erstellen“ | „Ausgeblendete Fotos mitnehmen“, „Datenbank mitnehmen (für ein Backup)“ | ZIP: Fotos pro Aktivität (ausgeblendete im Unterordner `hidden/`), `photos.csv`, `users.csv`, `instagram.csv`, `manifest.json`, `README.txt`, optional eine Kopie der Datenbank |
+| „Archiv erstellen“ | „Fotobox-Filter“: „Eingebrannt“ (Standard), „Ohne Filter“, „Beides“; „Ausgeblendete Fotos mitnehmen“, „Datenbank mitnehmen (für ein Backup)“ | ZIP: Fotos pro Aktivität (ausgeblendete im Unterordner `hidden/`), `photos.csv`, `users.csv`, `instagram.csv`, `manifest.json`, `README.txt`, optional eine Kopie der Datenbank |
 | „Zeitraffer erstellen“ | „Aktivität“, „Fotos pro Sekunde“ (6, 8, 12, 15, 24, 30; Standard 12), „Weich überblenden“, „Ausgeblendete Fotos mitnehmen“ | MP4 (H.264), 1080 × 1440, Fotos in Upload-Reihenfolge, das letzte 2 s lang. Gelöschte Fotos nie |
 
+- **Fotobox-Filter im Archiv:** „Eingebrannt“ packt die Fotos, wie die Gäste sie
+  gesehen haben. „Ohne Filter“ packt stattdessen die Originale (gleicher Dateiname);
+  Fotos ohne Original (Beer Cam, „Normal“, vor dem Update) kommen, wie sie sind.
+  „Beides“ legt die Originale zusätzlich in `photos/<Aktivität>/raw/` (ausgeblendete
+  in `hidden/raw/`). `photos.csv` und `manifest.json` sagen pro Foto `has_original`
+  und `original_file`. Der Titel des Jobs nennt die Wahl („Archiv (ohne Filter
+  (Originale)) vom …“).
+- Der **Zeitraffer** nimmt die gespeicherten Fotos (Beer Cam: ohnehin ohne Filter; ein
+  Fotobox-Zeitraffer zeigt die Filter, wie die Live-Wall).
 - Liste „Erstellte Exporte“ mit Status („Wartet…“, Fortschrittsbalken „Wird
   erstellt…“, Fehler in Worten), „Herunterladen“, „Abbrechen“ (solange er wartet) und
   Löschen (mit Rückfrage; nicht, solange er läuft).
@@ -758,6 +785,10 @@ Die Fotos der Party auf einem großen Bildschirm: ein Fernseher oder Beamer öff
 `/livewall` im Browser. Die Live-Wall ist eine Erweiterung (`wall`) ohne eigene
 Aktivität; sie steht nicht auf Start. Einstellungen im Tab „Live-Wall“ der Verwaltung
 (`/admin/manage?tab=livewall`).
+
+- **Immer mit Filter:** Die Wand ist die Party-Show und zeigt Fotobox-Fotos so, wie die
+  Gäste sie gemacht haben. Die Originale ohne Filter verlassen nie die Verwaltung und
+  das Gerät des Gasts.
 
 - **Zugang:** Unter „Zugang“ setzt der Host ein Live-Wall-Passwort (mindestens 12
   Zeichen; ein früher gesetztes kürzeres gilt weiter, sollte aber vor einer Party im
@@ -834,6 +865,12 @@ Server.
   ihre Einstellungen (z. B. beim Objekt-Detektor „Mindest-Sicherheit“ und „Höchstens
   Objekte“) gelten nur für danach analysierte Fotos. Dazukommen kann nur etwas: Objekte
   der externen KI werden an die Liste angehängt.
+- **Auf dem Original:** Hat ein Fotobox-Foto ein Original ohne Filter, analysieren die
+  lokale Pipeline und die externe KI dieses (Wärmebild, Kaleidoskop, Rahmen und Emojis
+  stören dann nicht). Ausschnitt und Größe sind gleich, die Rahmen passen also auch auf
+  das Foto mit Filter (außer bei Filtern, die das Bild verschieben, wie dem
+  Kaleidoskop). Fotos von vor dem Update wurden auf dem Bild mit Filter analysiert;
+  eingefroren bleibt das so.
 - **Analyse im Foto-Inspektor** (Verwaltung): Zustand, gefundene Werte, die Objektliste
   mit Quelle („lokal“ oder der KI-Dienst), die Rahmen, die Details und die Werte der
   [Eigenschaften](#ml-pipeline-und-externe-ki) pro Objekt. Die aktuellen Wünsche des
@@ -1101,7 +1138,7 @@ startet der Server nicht und nennt die Variable. Die Limits stehen unter
 | `virtubooth export-openapi -o <Datei>` | schreibt das OpenAPI-Schema (für den typisierten Frontend-Client) |
 | `python -m virtubooth.tools.qr` | QR-Codes und Druckbogen. `--base-url`, `--code <Nr.>` (Token dieses QR-Codes), `--token` (ein bestimmtes Token), `--extensions`, `--party-name` (Standard: der Eventname aus der Datenbank, ohne Datenbank `VB_PARTY_NAME`), `--no-home`, `--out`. Ohne `--code` und `--token`: der aktive QR-Code mit der kleinsten Nummer aus der Datenbank von `--data-dir`, ohne Datenbank `VB_PARTY_TOKEN` |
 | `python -m virtubooth.tools.timelapse` | Zeitraffer. `--extension`, `--fps`, `--crossfade`, `--fade`, `--out-fps`, `--size`, `--hold-last`, `--crf`, `--preset`, `--include-hidden`, `--limit` (Vorschau), `--dry-run`, `--out` |
-| `python -m virtubooth.tools.export` | alles als `.tar.gz`, auch im laufenden Betrieb. `--no-hidden`, `--no-db`, `--out` |
+| `python -m virtubooth.tools.export` | alles als `.tar.gz`, auch im laufenden Betrieb. `--no-hidden`, `--no-db`, `--out`, `--filters baked\|raw\|both` (Fotobox-Filter wie im Admin) |
 | `virtubooth wall` (lang: `python -m virtubooth.extensions.wall.enrich`) | Fotoanalyse der Live-Wall: `models fetch` (Modelle laden, SHA256-geprüft; `--with-age` auch FairFace), `models list`, `status`, `run-once` (wartende Fotos jetzt auswerten), `worker`, `bench <Ordner>` |
 
 - Alle Werkzeuge haben `--data-dir` und `--help`. Sie schreiben nach `<data>/exports/`

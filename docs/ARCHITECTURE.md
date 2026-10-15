@@ -107,7 +107,7 @@ sequenceDiagram
   R->>S: upload(ext, user, request)
   S->>S: paused? stopped? JPEG? per-guest limit, IP/global limits, size cap
   S->>S: meta keys + validate_meta, size from the header, decode (≤ 100 scans), re-encode (no metadata), thumbnail
-  S->>DB: write photo + thumbnail atomically, then insert the photos row (seq)
+  S->>DB: write photo + thumbnail (+ original) atomically, then insert the photos row (seq)
   S->>S: the extension's on_upload(ctx): extra answer fields
   S-->>B: photo.created
   B-->>A: event: photo.created
@@ -136,6 +136,33 @@ sequenceDiagram
 4. **The service** owns the work and the transaction (next section).
 5. Errors anywhere become `ApiError` → `ErrorBody` JSON. A 404 outside `/api`
    becomes the gate or not-found page.
+
+### Photos and their unfiltered originals
+
+A Fotobox photo has its filter and overlays baked in: the stored JPEG is exactly the
+preview (WYSIWYG). With a filter other than „Normal“, the booth also sends the same
+frozen frame rendered without shader and overlay (`renderShot` in
+`sdk/camera/session.ts`: same crop, size and mirroring, so analysis boxes fit both),
+in the same request: the body is the photo followed by the original, whose length is
+in `X-VB-Raw-Bytes` (`UploadPolicy.accepts_raw`; other activities answer 400
+`raw_not_allowed`). Each part passes the photo's checks (JPEG, exactly 1080×1440,
+`VB_MAX_UPLOAD_BYTES` each, re-encoded, 400 `invalid_raw` for a bad original); an
+original identical to the photo, or one sent for `normal` (`raw_differs`), is dropped.
+One request, so a photo never arrives without its original, and an old client (or an
+old server, which re-encodes the first JPEG and ignores the rest) keeps working.
+
+| | photo | original |
+|---|---|---|
+| files | `<ext>/<stem>.jpg`, `<ext>/thumbs/<stem>.jpg` | `<ext>/raw/<stem>.jpg`, `<ext>/raw/thumbs/<stem>.jpg` |
+| row (v13) | `filename`, `thumb_filename`, `bytes` | `raw_filename`, `raw_thumb_filename` (NULL: none) |
+| served | `/media/{id}[?thumb=1]` | `/media/{id}?variant=raw[&thumb=1]`, same access rules; the photo when there is none |
+| API | `url`, `thumb_url` | `raw_url`, `raw_thumb_url` (null: none) on `AdminPhoto` and `GuestPhoto` |
+
+The photo counts once (guest cap, `bytes`, statistics); deleting it removes all four
+files; the Live-Wall serves only the photo. The enrich worker and the external
+detection read `COALESCE(raw_filename, filename)`. The views show the photo unless
+„Filter zeigen“ is off (`lib/photoFilter.ts`, a remembered preference: one for the
+admin, one for the guest); the archive export takes `filters: baked | raw | both`.
 
 ## Transactions, audit, events
 
@@ -622,8 +649,8 @@ What every activity page builds on:
 | Module | Gives you |
 |---|---|
 | `session.ts` | `useSession()`: `loading → needs_join → ready ⇄ banned` (or `error`), a zustand store. `canUpload(state)` says whether this guest may upload right now and why not ("Hochladen pausiert", "Hochladen ist kurz angehalten", "Gesperrt"). It re-identifies on focus, every 30 s while blocked, and after a refused upload |
-| `camera/` | `useCameraSession()` wraps a `CameraSession`: getUserMedia with the iOS quirks handled, a WebGL1 renderer with a Canvas2D fallback, `capture()` that renders the 3:4 preview at exactly 1080×1440 (preview == photo), `switchFacing()`, mirroring only for the front camera. `CameraStage` (the `<video>` + canvas mount), `CameraErrorScreen` (German texts per camera error), `filters.ts` (the Fotobox shaders), `overlays.ts` (the Beer Cam outlines), `keys.ts` (Space = shutter, Esc) |
-| `upload.ts` | `uploadPhoto(ext, blob, {meta, onProgress})`: XHR with progress, `X-VB-Meta`, German errors, `Retry-After` |
+| `camera/` | `useCameraSession()` wraps a `CameraSession`: getUserMedia with the iOS quirks handled, a WebGL1 renderer with a Canvas2D fallback, `capture()` that renders the 3:4 preview at exactly 1080×1440 (preview == photo), `captureShot()` that adds the same frame without filter and overlay (the Fotobox's original), `switchFacing()`, mirroring only for the front camera. `CameraStage` (the `<video>` + canvas mount), `CameraErrorScreen` (German texts per camera error), `filters.ts` (the Fotobox shaders), `overlays.ts` (the Beer Cam outlines), `keys.ts` (Space = shutter, Esc) |
+| `upload.ts` | `uploadPhoto(ext, blob, {meta, raw, onProgress})`: XHR with progress, `X-VB-Meta`, the appended original (`X-VB-Raw-Bytes`), German errors, `Retry-After` |
 | `outbox.ts` | the shared IndexedDB outbox (`vb-booth`, store `outbox`): `addToOutbox`, `flushOutbox`, `useOutbox()`. Photos wait on the device until the server has them |
 | `camera/useShot.ts` | `useShot(ext)`: one photo's life, from capture → outbox → upload with progress → result (`uploading`, `done`, `waiting`, `held`, `failed`), with `take`, `retry`, `dismiss` |
 | `components/` | `ActivityShell` (the camera page frame: title, guest pass, 3:4 stage, film edge, hint, controls, the toast slot), `ActivityMenu` (the switcher), `GuestPass` + `GuestSheet` (the "Du" sheet), `StatusSlot` |
