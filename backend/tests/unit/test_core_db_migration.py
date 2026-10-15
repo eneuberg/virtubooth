@@ -77,7 +77,7 @@ def dump(path: Path) -> dict[str, list[tuple]]:
                 c
                 for c in cols
                 if not c.startswith(("uploads_", "online_"))
-                and c not in ("code_id", "analysis_opt_out")
+                and c not in ("code_id", "analysis_opt_out", "display_name", "ai_opt_out")
             ]
             out[table] = conn.execute(
                 f"SELECT {', '.join(v1_cols)} FROM {table} ORDER BY rowid"
@@ -90,7 +90,7 @@ def dump(path: Path) -> dict[str, list[tuple]]:
 def test_fresh_database_is_current(tmp_path):
     db = Database(tmp_path / "new.db")
     try:
-        assert db.one("PRAGMA user_version")[0] == SCHEMA_VERSION == 10
+        assert db.one("PRAGMA user_version")[0] == SCHEMA_VERSION == 11
         cols = {r[1] for r in db.all("PRAGMA table_info(users)")}
         assert {"uploads_paused_at", "uploads_paused_source", "uploads_lock_period"} <= cols
         assert db.one("SELECT COUNT(*) FROM settings")[0] == 0

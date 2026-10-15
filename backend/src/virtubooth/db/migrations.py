@@ -234,6 +234,111 @@ SCHEMA_V10 = """
 ALTER TABLE users ADD COLUMN analysis_opt_out INTEGER NOT NULL DEFAULT 0;
 """
 
+# v11 (night batch): frozen object lists, rule-based wall categories, guest display
+# names and the external-AI opt-out, LLM properties/scores/verdicts/usage. "Frozen"
+# = never UPDATEd (triggers); rows only go when their photo is deleted (purge).
+SCHEMA_V11 = """
+-- guests (UI2 writes, D1/D2 read)
+ALTER TABLE users ADD COLUMN display_name TEXT;                       -- NULL = default: @instagram, else pseudonym
+ALTER TABLE users ADD COLUMN ai_opt_out INTEGER NOT NULL DEFAULT 0;   -- 1 = never send anything to an external AI
+
+-- the frozen object list (D1 owns; D2 appends source 'claude'/'mistral' via D1's objects.append)
+CREATE TABLE photo_objects (
+    photo_id   INTEGER NOT NULL REFERENCES photos(id),
+    idx        INTEGER NOT NULL,          -- 0-based position in the photo's list; append-only
+    label      TEXT    NOT NULL,          -- canonical lower-case English, singular ("wine glass")
+    label_de   TEXT    NOT NULL,          -- German display label ("Weinglas")
+    score      REAL    NOT NULL,          -- 0..1
+    x REAL, y REAL, w REAL, h REAL,       -- 0..1, top-left origin; all NULL = no box
+    source     TEXT    NOT NULL,          -- local | claude | mistral
+    model      TEXT    NOT NULL,          -- e.g. "dfine_s_obj365@1", "claude-haiku-5-5"
+    created_at TEXT    NOT NULL,
+    PRIMARY KEY (photo_id, idx)
+);
+CREATE INDEX photo_objects_label ON photo_objects(label);
+CREATE TABLE photo_detection_runs (      -- a source runs at most once per photo
+    photo_id   INTEGER NOT NULL REFERENCES photos(id),
+    source     TEXT    NOT NULL,          -- local | claude | mistral
+    state      TEXT    NOT NULL,          -- done | failed | skipped
+    model      TEXT,
+    error      TEXT,                      -- short, never contains secrets
+    objects    INTEGER NOT NULL DEFAULT 0,
+    created_at TEXT    NOT NULL,
+    PRIMARY KEY (photo_id, source)
+);
+CREATE TRIGGER photo_objects_frozen BEFORE UPDATE ON photo_objects
+BEGIN SELECT RAISE(ABORT, 'photo_objects are frozen'); END;
+CREATE TRIGGER photo_detection_runs_frozen BEFORE UPDATE ON photo_detection_runs
+BEGIN SELECT RAISE(ABORT, 'detection runs are frozen'); END;
+CREATE TRIGGER wall_facts_frozen BEFORE UPDATE ON wall_facts
+BEGIN SELECT RAISE(ABORT, 'wall_facts are frozen'); END;
+
+-- rule-based categories (D1)
+CREATE TABLE wall_categories (
+    id         TEXT    PRIMARY KEY,       -- ^[a-z][a-z0-9_]{1,40}$
+    position   INTEGER NOT NULL,
+    enabled    INTEGER NOT NULL DEFAULT 1,
+    preset     TEXT,                      -- preset id it came from; NULL = made by the host
+    spec       TEXT    NOT NULL,          -- JSON CategorySpec (PLAN-NIGHT §4.2)
+    updated_at TEXT    NOT NULL,
+    updated_by TEXT
+);
+
+-- LLM (D2 writes; D1 reads property_scores, wall_category_verdicts, llm_polls)
+CREATE TABLE llm_properties (
+    id          INTEGER PRIMARY KEY,
+    name        TEXT    NOT NULL UNIQUE,  -- ^[a-z][a-z0-9_]{1,30}$
+    prompt      TEXT    NOT NULL,         -- 1..2000 chars
+    created_at  TEXT    NOT NULL,
+    created_by  TEXT,
+    archived_at TEXT                      -- NULL = active (polled)
+);
+CREATE TRIGGER llm_properties_immutable BEFORE UPDATE OF name, prompt ON llm_properties
+BEGIN SELECT RAISE(ABORT, 'property name and prompt are immutable'); END;
+CREATE TRIGGER llm_properties_no_delete BEFORE DELETE ON llm_properties
+BEGIN SELECT RAISE(ABORT, 'properties are archived, never deleted'); END;
+CREATE TABLE llm_polls (
+    id          INTEGER PRIMARY KEY,
+    started_at  TEXT    NOT NULL,
+    finished_at TEXT,
+    state       TEXT    NOT NULL,         -- running | done | failed | skipped
+    model       TEXT,
+    photos      INTEGER NOT NULL DEFAULT 0,
+    error       TEXT
+);
+CREATE TABLE property_scores (           -- latest scores only; overwritten by each poll
+    property_id INTEGER NOT NULL REFERENCES llm_properties(id),
+    photo_id    INTEGER NOT NULL REFERENCES photos(id),
+    scores      TEXT    NOT NULL,         -- JSON [number 0..1 | null], index = photo_objects.idx
+    poll_id     INTEGER NOT NULL,
+    updated_at  TEXT    NOT NULL,
+    PRIMARY KEY (property_id, photo_id)
+);
+CREATE TABLE wall_category_verdicts (    -- latest verdict per category
+    category_id TEXT    PRIMARY KEY,
+    text        TEXT    NOT NULL,         -- ≤ 160 chars, German, shown on the wall
+    emoji       TEXT,
+    photo_id    INTEGER REFERENCES photos(id),
+    object_idx  INTEGER,
+    poll_id     INTEGER NOT NULL,
+    created_at  TEXT    NOT NULL
+);
+CREATE TABLE llm_usage (
+    id             INTEGER PRIMARY KEY,
+    at             TEXT    NOT NULL,
+    day            TEXT    NOT NULL,      -- local date YYYY-MM-DD (party time zone) for the daily limit
+    kind           TEXT    NOT NULL,      -- detect | property | verdict | test
+    ref            TEXT,                  -- property name, category id or photo public_id
+    provider       TEXT    NOT NULL,      -- anthropic | mistral
+    model          TEXT    NOT NULL,
+    input_tokens   INTEGER NOT NULL DEFAULT 0,
+    output_tokens  INTEGER NOT NULL DEFAULT 0,
+    cost_micro_usd INTEGER NOT NULL DEFAULT 0,
+    ok             INTEGER NOT NULL DEFAULT 1
+);
+CREATE INDEX llm_usage_day ON llm_usage(day);
+"""
+
 # (version, script): each step upgrades the database from the version before.
 MIGRATIONS: tuple[tuple[int, str], ...] = (
     (1, SCHEMA),
@@ -244,6 +349,7 @@ MIGRATIONS: tuple[tuple[int, str], ...] = (
     (6, SCHEMA_V6),
     (9, SCHEMA_V9),
     (10, SCHEMA_V10),
+    (11, SCHEMA_V11),
 )
 SCHEMA_VERSION = MIGRATIONS[-1][0]
 
