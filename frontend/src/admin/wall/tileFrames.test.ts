@@ -11,6 +11,7 @@ const near = (x: number, y: number, w: number, h: number) => ({
 const o = (label_de: string, box: { x: number; y: number; w: number; h: number } | null) => ({
   label_de,
   source: 'local',
+  sources: ['local'],
   score: 0.9,
   box,
 });

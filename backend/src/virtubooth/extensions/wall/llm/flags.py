@@ -12,12 +12,14 @@ from .config import load_config
 
 def external_ai_active(repos: Repositories) -> bool:
     """Switched on, and something would actually be sent: detection at upload,
-    an active property or an enabled category with an LLM verdict."""
+    or the poll with an active property or an enabled category with an LLM verdict."""
     config = load_config(repos.app_settings)
     if not config.enabled:
         return False
     if config.detect.external:
         return True
+    if not config.poll:
+        return False
     if repos.db.one("SELECT 1 FROM llm_properties WHERE archived_at IS NULL LIMIT 1"):
         return True
     for row in repos.db.all("SELECT spec FROM wall_categories WHERE enabled = 1"):

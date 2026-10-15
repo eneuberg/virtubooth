@@ -1,13 +1,15 @@
 /**
  * The photo inspector's (and the phone viewer's) "Analyse" block: what the analysis
- * found on this photo (state, the guest's opt-outs, details, the frozen object list
- * with its detection runs and property scores, raw facts) and the switch for the
- * frames. The frames themselves ({@link AnalysisBoxes}) lie on the big photo of the
- * screen; hovering an object in the list highlights its frame. Analyses are made once
+ * found on this photo (state, the guest's opt-outs, details, the frozen object lists
+ * — „Lokales Modell“, „KI (Claude)“ and the merged list the properties are rated on,
+ * as tabs — with the detection runs and property scores, raw facts) and the switch for
+ * the frames. The frames themselves ({@link AnalysisBoxes}) lie on the big photo of the
+ * screen, those of the chosen tab in its colour; hovering an object in the list
+ * highlights its frame. Analyses are made once
  * and never redone, so there is no "Neu analysieren". Both render nothing when the
  * wall extension is off here.
  */
-import { ShieldOff, Sparkles } from 'lucide-react';
+import { ShieldOff } from 'lucide-react';
 import { create } from 'zustand';
 import type { AdminPhoto } from '@/api/types';
 import { Badge } from '@/ui/Badge';
@@ -15,11 +17,13 @@ import { cx } from '@/ui/cx';
 import { HelpDisclosure } from '@/ui/HelpDisclosure';
 import { Spinner } from '@/ui/Spinner';
 import { Switch } from '@/ui/Switch';
-import { durationsText, scoreText, sourceText } from '../ml/text';
+import { durationsText, sourceText } from '../ml/text';
 import { isNoAnalysis, isRouteMissing } from './api';
 import { usePhotoAnalysis, useWallEnabled } from './hooks';
 import { ANALYSIS_STATE_LABELS, BOX_KIND_COLORS, BOX_KIND_LABELS } from './labels';
-import { boxStyle, factValue, framesOf, type FrameBox } from './text';
+import { analysisFrames, analysisViews, type ObjectView } from './objectViews';
+import { ObjectViewTabs } from './ObjectViewTabs';
+import { boxStyle, factValue, type FrameBox } from './text';
 import type { AnalysisState, PhotoAnalysis } from './types';
 
 const STATE_TONE: Record<AnalysisState, 'neutral' | 'ok' | 'mark' | 'amber'> = {
@@ -30,10 +34,16 @@ const STATE_TONE: Record<AnalysisState, 'neutral' | 'ok' | 'mark' | 'amber'> = {
   skipped: 'neutral',
 };
 
-/** The object the pointer is on in the list (photo id + idx), for its frame. */
+/** The object the pointer is on in the list (photo id + view + key), for its frame. */
 const useHovered = create<{ key: string | null; set: (key: string | null) => void }>((set) => ({
   key: null,
   set: (key) => set({ key }),
+}));
+
+/** The object list whose frames lie on the photo (the tab chosen in the panel). */
+const useObjectView = create<{ view: ObjectView; set: (view: ObjectView) => void }>((set) => ({
+  view: 'merged',
+  set: (view) => set({ view }),
 }));
 
 export interface AnalysisPanelProps {
@@ -81,17 +91,20 @@ export function BoxLayer({
             data-testid="analysis-box"
             data-kind={box.kind}
             data-object={box.objectIndex}
+            data-sources={box.sources}
+            data-both={box.both || undefined}
             data-lit={lit || undefined}
             className={cx(
               'absolute rounded-[2px] transition-opacity duration-(--duration-quick)',
-              lit ? 'border-[3px]' : 'border-2',
+              // a merged entry both sources found: a double outline
+              box.both ? 'border-4 border-double' : lit ? 'border-[3px]' : 'border-2',
               dim && 'opacity-30',
             )}
-            style={{ ...boxStyle(box), borderColor: BOX_KIND_COLORS[box.kind] }}
+            style={{ ...boxStyle(box), borderColor: box.color ?? BOX_KIND_COLORS[box.kind] }}
           >
             <span
               className="absolute -top-px -left-px max-w-[12rem] truncate px-1 text-[0.6875rem] leading-4 font-semibold text-black"
-              style={{ backgroundColor: BOX_KIND_COLORS[box.kind] }}
+              style={{ backgroundColor: box.color ?? BOX_KIND_COLORS[box.kind] }}
             >
               {box.label || BOX_KIND_LABELS[box.kind]}
             </span>
@@ -105,10 +118,11 @@ export function BoxLayer({
 function Boxes({ photoId }: { photoId: string }) {
   const { data } = usePhotoAnalysis(photoId);
   const hovered = useHovered((s) => s.key);
+  const view = useObjectView((s) => s.view);
   if (!data) return null;
-  const prefix = `${photoId}:`;
+  const prefix = `${photoId}:${view}:`;
   const highlight = hovered?.startsWith(prefix) ? Number(hovered.slice(prefix.length)) : null;
-  return <BoxLayer boxes={framesOf(data)} highlight={highlight} />;
+  return <BoxLayer boxes={analysisFrames(data, view)} highlight={highlight} />;
 }
 
 function Panel({ photo, showBoxes, onShowBoxesChange }: AnalysisPanelProps) {
@@ -177,8 +191,16 @@ const RUN_STATE: Record<PhotoAnalysis['runs'][number]['state'], string> = {
   skipped: 'übersprungen',
 };
 
+const EMPTY: Record<ObjectView, string> = {
+  local: 'Das lokale Modell lief für dieses Foto nicht (aus oder übersprungen).',
+  ai: 'Keine KI-Erkennung für dieses Foto (aus, noch nicht dran oder fehlgeschlagen).',
+  merged: 'Keine Objekte erkannt.',
+};
+
 function Objects({ photoId, analysis }: { photoId: string; analysis: PhotoAnalysis }) {
   const setHovered = useHovered((s) => s.set);
+  const view = useObjectView((s) => s.view);
+  const setView = useObjectView((s) => s.set);
   const props = analysis.properties;
   return (
     <div className="grid gap-2" data-testid="analysis-objects">
@@ -190,45 +212,14 @@ function Objects({ photoId, analysis }: { photoId: string; analysis: PhotoAnalys
             : 'Keine Objekte erkannt.'}
         </p>
       ) : (
-        <ol className="grid border-t border-line text-sm" aria-label="Erkannte Objekte">
-          {analysis.objects.map((o) => (
-            <li
-              key={o.idx}
-              data-testid="analysis-object"
-              data-idx={o.idx}
-              className={cx('grid gap-0.5 border-b border-line py-1.5', o.box && 'hover:bg-surface-hover')}
-              onPointerEnter={o.box ? () => setHovered(`${photoId}:${o.idx}`) : undefined}
-              onPointerLeave={o.box ? () => setHovered(null) : undefined}
-            >
-              <div className="flex min-w-0 items-center gap-2">
-                <span className="w-6 shrink-0 text-ink-muted tabular">{o.idx}</span>
-                <span className="min-w-0 flex-1 truncate font-semibold" title={o.label}>
-                  {o.label_de}
-                </span>
-                <span className="tabular">{scoreText(o.score)}</span>
-                <Badge
-                  tone={o.source === 'local' ? 'neutral' : 'new'}
-                  icon={o.source === 'local' ? undefined : Sparkles}
-                >
-                  {sourceText(o.source)}
-                </Badge>
-              </div>
-              {props.length > 0 ? (
-                <p className="pl-8 text-xs text-ink-muted tabular">
-                  {props.map((p) => {
-                    const score = p.scores[o.idx];
-                    return (
-                      <span key={p.name} className={cx('mr-3', p.archived && 'line-through')}>
-                        <span className="font-mono">{p.name}</span>{' '}
-                        {score === null || score === undefined ? '–' : score.toFixed(2).replace('.', ',')}
-                      </span>
-                    );
-                  })}
-                </p>
-              ) : null}
-            </li>
-          ))}
-        </ol>
+        <ObjectViewTabs
+          views={analysisViews(analysis)}
+          value={view}
+          onChange={setView}
+          onHover={(v, key) => setHovered(key === null ? null : `${photoId}:${v}:${key}`)}
+          empty={EMPTY}
+          properties={props}
+        />
       )}
       {analysis.runs.length > 0 ? (
         <ul
@@ -266,7 +257,7 @@ function Result({
     <>
       <OptOutMarks optOut={analysis.opt_out} />
       {analysis.error ? <p className="text-sm text-danger">{analysis.error}</p> : null}
-      {framesOf(analysis).length > 0 ? (
+      {analysisFrames(analysis, 'merged').length > 0 || analysis.objects_local.length > 0 ? (
         <Switch isSelected={showBoxes} onChange={onShowBoxesChange} data-testid="analysis-boxes-switch">
           Rahmen auf dem Foto zeigen
         </Switch>

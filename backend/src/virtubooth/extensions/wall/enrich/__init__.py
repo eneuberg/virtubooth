@@ -8,7 +8,8 @@ categories and the admin's „Analyse“ panel.
                                `ml` extra and downloaded models)
 - `models`                     model registry, download with SHA256 pins
 - `engine`, `values`, `presets` rule-based wall categories (specs in `wall_categories`)
-- `objects`                    the frozen object list (`photo_objects`)
+- `objects`, `merge`          the frozen object lists: each source's own
+                               (`photo_source_objects`) and the merged one (`photo_objects`)
 - `testjobs`                   test images through the worker, nothing stored
 - `admin_api`                  `/admin/analysis…` under the wall router
 

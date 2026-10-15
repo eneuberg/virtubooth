@@ -500,6 +500,22 @@ Was die externe KI tut, wenn sie an ist:
   Gästen sowie ausgeblendete und gelöschte Fotos, geprüft direkt vor jedem
   Aufruf. Gastnamen sind für die KI als Daten markiert, nie als Anweisung.
 
+### Externe KI: zwei Teile, drei Objektlisten
+
+- Unter „Externe KI verwenden“ zwei eigene Schalter, jeder mit Stand, letztem
+  Fehler und Kosten: **„Objekterkennung mit KI (beim Hochladen)“** (verkleinertes
+  Foto, Objekte mit Rahmen) und **„Eigenschaften abfragen“** (nur Text, alle …
+  Minuten, mit den Urteilen). Ein Teil aus: er schickt nichts. Der Hauptschalter
+  aus: nichts verlässt den Server.
+- Pro Foto drei eingefrorene Listen: lokales Modell, KI (mit Anbieter und Modell)
+  und die **zusammengeführte Liste**, mit der Abfrage, Kategorien und Wall
+  arbeiten. Ein Objekt, das beide gefunden haben (gleiche Klasse, auch über
+  Synonyme, Rahmen-Überlappung IoU ≥ 0,5), wird verknüpft, der Rest angehängt.
+  Kein Eintrag rückt nach, die Werte der Eigenschaften bleiben gültig.
+- Im Foto-Inspektor und beim Testbild als Reiter „Lokales Modell“, „KI (Claude)“
+  und „Zusammengeführt“, je mit eigenen Rahmen; Live zeigt die zusammengeführte
+  Liste.
+
 ## Was über Gäste gespeichert wird
 
 | Daten | Wozu |

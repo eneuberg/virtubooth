@@ -22,7 +22,11 @@ class DetectConfig(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     local: bool = Field(True, description="The local object detector runs (D1's `objects`).")
-    external: bool = Field(False, description="The external AI also lists objects per photo.")
+    external: bool = Field(
+        False,
+        description="„Objekterkennung mit KI“: the external AI also lists the objects of "
+        "each photo at upload (its own list, merged into the photo's object list).",
+    )
 
 
 class BudgetConfig(BaseModel):
@@ -42,6 +46,13 @@ class LlmConfig(BaseModel):
     enabled: bool = Field(False, description="Master switch: nothing is sent while off.")
     provider: ProviderId = "anthropic"
     model: str = pricing.DEFAULT_MODEL
+    poll: bool = Field(
+        True,
+        description="„Eigenschaften abfragen“: every `poll_interval_s` the external AI rates "
+        "the properties and writes the category verdicts. Independent of `detect.external`; "
+        "a stored config from before this switch reads as on (the poll ran then whenever "
+        "external AI was on).",
+    )
     poll_interval_s: int = Field(180, ge=60, le=3600)
     detect: DetectConfig = Field(default_factory=DetectConfig)
     image_max_px: int = Field(1024, ge=256, le=2048, description="Long edge sent for detection.")
@@ -67,6 +78,7 @@ class LlmConfigIn(BaseModel):
     enabled: bool | None = None
     provider: ProviderId | None = None
     model: str | None = None
+    poll: bool | None = None
     poll_interval_s: int | None = None
     detect: DetectConfig | None = None
     image_max_px: int | None = None

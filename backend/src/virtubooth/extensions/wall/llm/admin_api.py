@@ -106,7 +106,10 @@ def status_of(svc: LlmService) -> LlmStatus:
         )
     }
     poller = svc.poller
-    last_error = poller.last_error or svc.detector.last_error
+    detector = svc.detector
+    last_run = db.one(
+        "SELECT MAX(created_at) AS at FROM photo_detection_runs WHERE source=?", (source,)
+    )
     return LlmStatus(
         config=cfg,
         key=_key(svc.keys.status()),
@@ -128,12 +131,15 @@ def status_of(svc: LlmService) -> LlmStatus:
             state=poller.state(),
             last_poll_at=poller.last_poll_at or _last_poll(svc.core),
             next_poll_at=poller.next_poll_at,
-            last_error=last_error,
+            last_error=poller.last_error,
         ),
         detection=DetectionOut(
+            state=detector.state(),
             pending=ports.count_eligible(db, source) if cfg.detect.external else 0,
             done=runs.get("done", 0),
             failed=runs.get("failed", 0),
+            last_run_at=last_run["at"] if last_run else None,
+            last_error=detector.last_error or detector.blocked,
         ),
         usage=usage_of(svc),
     )

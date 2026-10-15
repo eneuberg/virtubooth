@@ -287,6 +287,7 @@ def analysis_summaries(core: Core, hub: WallHub, public_ids: list[str]) -> Analy
                     SummaryObject(
                         label_de=o.label_de,
                         source=o.source,
+                        sources=list(o.sources),
                         score=round(o.score, 2),
                         box=_object_box(o.box),
                     )

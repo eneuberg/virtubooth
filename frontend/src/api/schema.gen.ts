@@ -3103,7 +3103,7 @@ export interface components {
         DetectConfig: {
             /**
              * External
-             * @description The external AI also lists objects per photo.
+             * @description „Objekterkennung mit KI“: the external AI also lists the objects of each photo at upload (its own list, merged into the photo's object list).
              * @default false
              */
             external: boolean;
@@ -3114,17 +3114,36 @@ export interface components {
              */
             local: boolean;
         };
-        /** DetectionOut */
+        /**
+         * DetectionOut
+         * @description „Objekterkennung mit KI“ (at upload): its own state and error.
+         */
         DetectionOut: {
             /** Done */
             done: number;
             /** Failed */
             failed: number;
             /**
+             * Last Error
+             * @description The detection's last error (provider trouble).
+             */
+            last_error: string | null;
+            /**
+             * Last Run At
+             * @description When the detector last finished a photo.
+             */
+            last_run_at: string | null;
+            /**
              * Pending
              * @description Photos the external detector will still look at.
              */
             pending: number;
+            /**
+             * State
+             * @description off: switched off (or external AI off, no key); running: a photo is out.
+             * @enum {string}
+             */
+            state: "off" | "idle" | "running" | "blocked";
         };
         /** DetectionRun */
         DetectionRun: {
@@ -3456,8 +3475,15 @@ export interface components {
         ExternalTestOut: {
             /** Error */
             error: string | null;
+            /** Model */
+            model: string;
             /** Objects */
             objects: components["schemas"]["ObjectOut"][];
+            /**
+             * Source
+             * @description claude | mistral
+             */
+            source: string;
             usage: components["schemas"]["UsageTotals"] | null;
         };
         /**
@@ -3933,6 +3959,12 @@ export interface components {
              */
             model: string;
             /**
+             * Poll
+             * @description „Eigenschaften abfragen“: every `poll_interval_s` the external AI rates the properties and writes the category verdicts. Independent of `detect.external`; a stored config from before this switch reads as on (the poll ran then whenever external AI was on).
+             * @default true
+             */
+            poll: boolean;
+            /**
              * Poll Interval S
              * @default 180
              */
@@ -3968,6 +4000,8 @@ export interface components {
             image_max_px?: number | null;
             /** Model */
             model?: string | null;
+            /** Poll */
+            poll?: boolean | null;
             /** Poll Interval S */
             poll_interval_s?: number | null;
             /** Provider */
@@ -4026,6 +4060,36 @@ export interface components {
         /** MeOut */
         MeOut: {
             user: components["schemas"]["GuestUser"];
+        };
+        /**
+         * MergedObjectOut
+         * @description An entry of the merged list (what the poll would rate).
+         */
+        MergedObjectOut: {
+            /**
+             * Ai Pos
+             * @description Its object in `external.objects`, if any.
+             */
+            ai_pos: number | null;
+            box: components["schemas"]["BoxOut"] | null;
+            /** Idx */
+            idx: number;
+            /** Label */
+            label: string;
+            /** Label De */
+            label_de: string;
+            /**
+             * Local Pos
+             * @description Its object in `local.objects`, if any.
+             */
+            local_pos: number | null;
+            /** Score */
+            score: number;
+            /**
+             * Sources
+             * @description local and/or the AI's source (claude | mistral).
+             */
+            sources: string[];
         };
         /**
          * ModelDownload
@@ -4439,8 +4503,21 @@ export interface components {
             };
             /** Finished At */
             finished_at: string | null;
-            /** Objects */
+            /**
+             * Objects
+             * @description The merged list (local and AI, deduplicated): what the poll rates and the categories count.
+             */
             objects: components["schemas"]["PhotoObject"][];
+            /**
+             * Objects Ai
+             * @description The external AI's own list (Claude, Mistral; source and model per object).
+             */
+            objects_ai: components["schemas"]["SourceObject"][];
+            /**
+             * Objects Local
+             * @description The local model's own list.
+             */
+            objects_local: components["schemas"]["SourceObject"][];
             opt_out: components["schemas"]["OptOutState"];
             /**
              * Opt Out At Analysis
@@ -4598,7 +4675,10 @@ export interface components {
             /** Total */
             total?: number | null;
         };
-        /** PhotoObject */
+        /**
+         * PhotoObject
+         * @description An entry of the photo's MERGED object list (what the poll rates).
+         */
         PhotoObject: {
             box: components["schemas"]["ObjectBox"] | null;
             /**
@@ -4622,9 +4702,14 @@ export interface components {
             score: number;
             /**
              * Source
-             * @description local | claude | mistral
+             * @description The source that added it: local | claude | mistral
              */
             source: string;
+            /**
+             * Sources
+             * @description Every source whose object is this entry (local and an AI: both found it).
+             */
+            sources: string[];
         };
         /** PhotoOut */
         PhotoOut: {
@@ -4674,9 +4759,15 @@ export interface components {
             /** Started */
             started: boolean;
         };
-        /** PollerOut */
+        /**
+         * PollerOut
+         * @description „Eigenschaften abfragen“ (properties and verdicts): its own state and error.
+         */
         PollerOut: {
-            /** Last Error */
+            /**
+             * Last Error
+             * @description The poll's last error (not the detection's).
+             */
             last_error: string | null;
             /** Last Poll At */
             last_poll_at: string | null;
@@ -4972,6 +5063,39 @@ export interface components {
              */
             type: "settings.event";
         };
+        /**
+         * SourceObject
+         * @description An object as one source found it (its own list, frozen).
+         */
+        SourceObject: {
+            box: components["schemas"]["ObjectBox"] | null;
+            /**
+             * Label
+             * @description As the source named it.
+             */
+            label: string;
+            /** Label De */
+            label_de: string;
+            /**
+             * Merged Idx
+             * @description The entry of `objects` (merged) it became or is.
+             */
+            merged_idx: number;
+            /** Model */
+            model: string;
+            /**
+             * Pos
+             * @description Position in this source's own list (0-based).
+             */
+            pos: number;
+            /** Score */
+            score: number;
+            /**
+             * Source
+             * @description local | claude | mistral
+             */
+            source: string;
+        };
         /** StatsOut */
         StatsOut: {
             /** Banned */
@@ -5072,7 +5196,10 @@ export interface components {
             /** Y */
             y: number;
         };
-        /** SummaryObject */
+        /**
+         * SummaryObject
+         * @description An entry of the merged object list.
+         */
         SummaryObject: {
             /** @description On the full photo (0..1, to 3 places); null when the source gives none. */
             box: components["schemas"]["ObjectBox"] | null;
@@ -5085,9 +5212,14 @@ export interface components {
             score: number;
             /**
              * Source
-             * @description local | claude | mistral
+             * @description The source that added it: local | claude | mistral
              */
             source: string;
+            /**
+             * Sources
+             * @description Every source that found it.
+             */
+            sources: string[];
         };
         /** TestImageOut */
         TestImageOut: {
@@ -5095,6 +5227,11 @@ export interface components {
             /** Height */
             height: number;
             local: components["schemas"]["TestRunOut"] | null;
+            /**
+             * Merged
+             * @description Both lists merged as a photo's would be (local first, the AI's linked or appended).
+             */
+            merged: components["schemas"]["MergedObjectOut"][];
             /** Width */
             width: number;
         };

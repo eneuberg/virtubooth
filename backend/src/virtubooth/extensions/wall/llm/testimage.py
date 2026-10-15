@@ -24,8 +24,17 @@ from ....services.images import process_jpeg
 from ....services.uploads import read_limited, too_large
 from . import ports, pricing
 from .detect import downscale
+from .providers import BY_ID as PROVIDERS
 from .providers.base import ProviderError, TokenUsage
-from .schemas import BoxOut, ExternalTestOut, ObjectOut, TestImageOut, TestRunOut, UsageTotals
+from .schemas import (
+    BoxOut,
+    ExternalTestOut,
+    MergedObjectOut,
+    ObjectOut,
+    TestImageOut,
+    TestRunOut,
+    UsageTotals,
+)
 
 if TYPE_CHECKING:
     from .service import LlmService
@@ -188,16 +197,56 @@ def run(svc: LlmService, form: TestForm) -> TestImageOut:
 
     external: ExternalTestOut | None = None
     if form.external:
+        source = PROVIDERS[cfg.provider].source
         small = downscale(image.data, cfg.image_max_px)
         try:
             objs, usage = svc.call("test", None, lambda p, m: p.detect(small, model=m), config=cfg)
             external = ExternalTestOut(
-                objects=_objects(objs), usage=_usage(cfg.model, usage), error=None
-            )
+                source=source, model=cfg.model, objects=_objects(objs),
+                usage=_usage(cfg.model, usage), error=None,
+            )  # fmt: skip
         except Unavailable as exc:
             raise unavailable(exc.code, exc.message) from None
         except ProviderError as exc:
             external = ExternalTestOut(
-                objects=[], usage=_usage(cfg.model, exc.usage), error=exc.message
-            )
-    return TestImageOut(width=image.width, height=image.height, local=local, external=external)
+                source=source, model=cfg.model, objects=[], usage=_usage(cfg.model, exc.usage),
+                error=exc.message,
+            )  # fmt: skip
+    return TestImageOut(
+        width=image.width, height=image.height, local=local, external=external,
+        merged=_merged(local, external),
+    )  # fmt: skip
+
+
+def _detected(objs: list[ObjectOut]) -> list[ports.DetectedObject]:
+    return [
+        ports.DetectedObject(
+            o.label, o.label_de, o.score, (o.box.x, o.box.y, o.box.w, o.box.h) if o.box else None
+        )
+        for o in objs
+    ]
+
+
+def _merged(local: TestRunOut | None, external: ExternalTestOut | None) -> list[MergedObjectOut]:
+    """The merged list a photo with these results would get (local first)."""
+    from ..enrich.merge import merge_lists
+
+    lists: list[tuple[str, list[ports.DetectedObject]]] = []
+    if local is not None:
+        lists.append(("local", _detected(local.objects)))
+    if external is not None:
+        lists.append((external.source, _detected(external.objects)))
+    ai = external.source if external is not None else None
+    return [
+        MergedObjectOut(
+            idx=m.idx,
+            label=m.label,
+            label_de=m.label_de,
+            score=m.score,
+            box=BoxOut(x=m.box[0], y=m.box[1], w=m.box[2], h=m.box[3]) if m.box else None,
+            sources=list(m.parts),
+            local_pos=m.parts.get("local"),
+            ai_pos=m.parts.get(ai) if ai else None,
+        )
+        for m in merge_lists(lists)
+    ]

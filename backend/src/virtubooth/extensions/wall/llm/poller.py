@@ -71,8 +71,9 @@ _ALLOWED_SQL = (
 
 
 def eligible_photos(db: Database) -> list[PolledPhoto]:
-    """Photos the poll may send, oldest first, with their objects (photos
-    without objects have nothing to rate and are left out)."""
+    """Photos the poll may send, oldest first, with their MERGED object list
+    (local and AI objects, deduplicated; property scores index into it).
+    Photos without objects have nothing to rate and are left out."""
     from .. import config as wall_config
 
     show_instagram = wall_config.load_config(AppSettingsRepo(db)).show_instagram
@@ -173,14 +174,15 @@ def _finish_row(db: Database, poll_id: int, state: str, error: str | None) -> No
 
 
 def poll_once(svc: LlmService, *, force: bool = False) -> PollResult | None:
-    """One poll. None when there is nothing to do (switched off, no key,
-    neither properties nor verdict categories): no row is written then."""
+    """One poll. None when there is nothing to do (external AI or the poll
+    switched off, no key, neither properties nor verdict categories): no row
+    is written then."""
     from .service import Unavailable
     from .verdicts import run_verdicts
 
     db = svc.core.db
     cfg = svc.config()
-    if not cfg.enabled or svc.keys.load(cfg.provider) is None:
+    if not (cfg.enabled and cfg.poll) or svc.keys.load(cfg.provider) is None:
         return None
     props = properties.active(db)
     cats = verdict_categories(db)
@@ -325,7 +327,7 @@ class Poller:
             return "running"
         svc = self.service
         cfg = svc.config()
-        if not cfg.enabled or svc.keys.load(cfg.provider) is None:
+        if not (cfg.enabled and cfg.poll) or svc.keys.load(cfg.provider) is None:
             return "off"
         if not properties.active(svc.core.db) and not verdict_categories(svc.core.db):
             return "off"
@@ -341,6 +343,8 @@ class Poller:
         cfg = svc.config()
         if not cfg.enabled:
             return False, "Externe KI ist ausgeschaltet."
+        if not cfg.poll:
+            return False, "„Eigenschaften abfragen“ ist ausgeschaltet."
         if svc.keys.load(cfg.provider) is None:
             return False, "Kein gültiger API-Schlüssel gespeichert."
         if not properties.active(svc.core.db) and not verdict_categories(svc.core.db):

@@ -39,6 +39,7 @@ from .schemas import (
     PhotoAnalysis,
     PhotoObject,
     PropertyScores,
+    SourceObject,
     WorkerState,
     WorkerStatus,
 )
@@ -388,6 +389,7 @@ class EnrichmentService:
         flags = db.one("SELECT analysis_opt_out, ai_opt_out FROM users WHERE id=?",
                        (photo.user_id,))  # fmt: skip
         objs = objects.objects_of(db, [photo.id]).get(photo.id, [])
+        by_source = objects.source_objects_of(db, photo.id)
         props = [
             PropertyScores(
                 name=r["name"], archived=r["archived_at"] is not None, scores=_scores(r["scores"])
@@ -420,9 +422,14 @@ class EnrichmentService:
                     else None,
                     source=o.source,
                     model=o.model,
+                    sources=list(o.sources),
                 )
                 for o in objs
             ],
+            objects_local=_source_objects(by_source.get("local", [])),
+            objects_ai=_source_objects(
+                [o for src, found in by_source.items() if src != "local" for o in found]
+            ),
             runs=[DetectionRun.model_validate(r) for r in objects.runs_of(db, photo.id)],
             opt_out=OptOutState(
                 analysis=bool(flags and flags[0]), external_ai=bool(flags and flags[1])
@@ -433,6 +440,22 @@ class EnrichmentService:
             if isinstance(durations, dict)
             else {},
         )
+
+
+def _source_objects(found: list[objects.SourceObject]) -> list[SourceObject]:
+    return [
+        SourceObject(
+            pos=o.pos,
+            label=o.label,
+            label_de=o.label_de,
+            score=o.score,
+            box=ObjectBox(x=o.box[0], y=o.box[1], w=o.box[2], h=o.box[3]) if o.box else None,
+            source=o.source,
+            model=o.model,
+            merged_idx=o.merged_idx,
+        )
+        for o in found
+    ]
 
 
 def _scores(raw: str) -> list[float | None]:

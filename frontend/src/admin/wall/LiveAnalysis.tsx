@@ -34,9 +34,10 @@ export function AnalysisToggle({ className }: { className?: string }) {
 }
 
 const LEGEND = [
-  { kind: 'object', label: 'Objekte' },
-  { kind: 'face', label: 'Gesichter' },
-  { kind: 'hand', label: 'Hände' },
+  // the merged list: the local model's objects and the AI's, each thing once
+  { kind: 'object', label: 'Objekte', title: 'Lokales Modell und KI zusammengeführt (✨ = von der KI)' },
+  { kind: 'face', label: 'Gesichter', title: undefined },
+  { kind: 'hand', label: 'Hände', title: undefined },
 ] as const;
 
 /** What the frames' colours mean (next to the switch, while the analysis shows). */
@@ -49,8 +50,8 @@ export function AnalysisLegend({ className }: { className?: string }) {
       className={cx('flex gap-2 text-[0.6875rem] leading-4 text-ink-muted', className)}
       data-testid="analysis-legend"
     >
-      {LEGEND.map(({ kind, label }) => (
-        <li key={kind} className="inline-flex items-center gap-1" data-kind={kind}>
+      {LEGEND.map(({ kind, label, title }) => (
+        <li key={kind} className="inline-flex items-center gap-1" data-kind={kind} title={title}>
           <span
             aria-hidden="true"
             className="size-2.5 rounded-[2px] border-2"
@@ -128,7 +129,7 @@ export function AnalysisChips({ photoId, className }: { photoId: string; classNa
             CHIP[chip.tone],
           )}
         >
-          {chip.id === 'objects' && data.objects.some((o) => o.source !== 'local') ? (
+          {chip.id === 'objects' && data.objects.some((o) => o.sources.some((s) => s !== 'local')) ? (
             <Sparkles aria-hidden="true" className="size-3 shrink-0" strokeWidth={2.25} />
           ) : null}
           <span className="truncate">{chip.text}</span>

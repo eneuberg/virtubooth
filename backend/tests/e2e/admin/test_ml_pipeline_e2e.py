@@ -35,6 +35,7 @@ class MlFake(FakeWall):
             "enabled": True,
             "provider": "anthropic",
             "model": "claude-haiku-5-5",
+            "poll": True,
             "poll_interval_s": 180,
             "detect": {"local": True, "external": False},
             "image_max_px": 1024,
@@ -75,7 +76,9 @@ class MlFake(FakeWall):
             ],
             "poller": {"state": "blocked" if self.blocked else "idle", "last_poll_at": None,
                        "next_poll_at": None, "last_error": None},
-            "detection": {"pending": 0, "done": 4, "failed": 0},
+            "detection": {"state": "idle" if self.llm["detect"]["external"] else "off",
+                          "pending": 0, "done": 4, "failed": 0, "last_run_at": None,
+                          "last_error": None},
             "usage": {
                 "party": {"calls": 12, "input_tokens": 30000, "output_tokens": 4000,
                           "cost_usd": 5.0 if self.blocked else 1.25},
@@ -148,6 +151,9 @@ TEST_RESULT = {
         "skipped": {},
     },
     "external": None,
+    "merged": [{"idx": 0, "label": "wine glass", "label_de": "Weinglas", "score": 0.87,
+                "box": {"x": 0.5, "y": 0.5, "w": 0.1, "h": 0.2}, "sources": ["local"],
+                "local_pos": 0, "ai_pos": None}],
 }  # fmt: skip
 
 
@@ -264,7 +270,15 @@ def test_claude_settings_properties_and_budget(
     assert cfg["model"] == "claude-sonnet-5-5"
     assert cfg["poll_interval_s"] == 300
     assert cfg["detect"] == {"local": True, "external": True}
+    assert cfg["poll"] is True
     assert "rev" not in cfg
+    # the two parts: each its own switch and state
+    expect(page.get_by_test_id("ml-detection-state")).to_have_text("bereit")
+    page.get_by_test_id("ml-llm-poll").click()
+    page.get_by_test_id("ml-llm-save").click()
+    expect(toast(page)).to_contain_text("KI-Einstellungen gespeichert.")
+    cfg = ml.sent("PUT", "/llm/config")[-1]
+    assert cfg["poll"] is False and cfg["detect"]["external"] is True
 
     # a property: the warning, create, archive (no edit, no delete)
     page.get_by_test_id("ml-property-new").click()

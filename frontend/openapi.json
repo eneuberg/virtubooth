@@ -2695,7 +2695,7 @@
         "properties": {
           "external": {
             "default": false,
-            "description": "The external AI also lists objects per photo.",
+            "description": "„Objekterkennung mit KI“: the external AI also lists the objects of each photo at upload (its own list, merged into the photo's object list).",
             "title": "External",
             "type": "boolean"
           },
@@ -2710,6 +2710,7 @@
         "type": "object"
       },
       "DetectionOut": {
+        "description": "„Objekterkennung mit KI“ (at upload): its own state and error.",
         "properties": {
           "done": {
             "title": "Done",
@@ -2719,16 +2720,54 @@
             "title": "Failed",
             "type": "integer"
           },
+          "last_error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The detection's last error (provider trouble).",
+            "title": "Last Error"
+          },
+          "last_run_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "When the detector last finished a photo.",
+            "title": "Last Run At"
+          },
           "pending": {
             "description": "Photos the external detector will still look at.",
             "title": "Pending",
             "type": "integer"
+          },
+          "state": {
+            "description": "off: switched off (or external AI off, no key); running: a photo is out.",
+            "enum": [
+              "off",
+              "idle",
+              "running",
+              "blocked"
+            ],
+            "title": "State",
+            "type": "string"
           }
         },
         "required": [
+          "state",
           "pending",
           "done",
-          "failed"
+          "failed",
+          "last_run_at",
+          "last_error"
         ],
         "title": "DetectionOut",
         "type": "object"
@@ -3533,12 +3572,21 @@
             ],
             "title": "Error"
           },
+          "model": {
+            "title": "Model",
+            "type": "string"
+          },
           "objects": {
             "items": {
               "$ref": "#/components/schemas/ObjectOut"
             },
             "title": "Objects",
             "type": "array"
+          },
+          "source": {
+            "description": "claude | mistral",
+            "title": "Source",
+            "type": "string"
           },
           "usage": {
             "anyOf": [
@@ -3552,6 +3600,8 @@
           }
         },
         "required": [
+          "source",
+          "model",
           "objects",
           "usage",
           "error"
@@ -4551,6 +4601,12 @@
             "title": "Model",
             "type": "string"
           },
+          "poll": {
+            "default": true,
+            "description": "„Eigenschaften abfragen“: every `poll_interval_s` the external AI rates the properties and writes the category verdicts. Independent of `detect.external`; a stored config from before this switch reads as on (the poll ran then whenever external AI was on).",
+            "title": "Poll",
+            "type": "boolean"
+          },
           "poll_interval_s": {
             "default": 180,
             "maximum": 3600.0,
@@ -4657,6 +4713,17 @@
               }
             ],
             "title": "Model"
+          },
+          "poll": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Poll"
           },
           "poll_interval_s": {
             "anyOf": [
@@ -4816,6 +4883,81 @@
           "user"
         ],
         "title": "MeOut",
+        "type": "object"
+      },
+      "MergedObjectOut": {
+        "description": "An entry of the merged list (what the poll would rate).",
+        "properties": {
+          "ai_pos": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Its object in `external.objects`, if any.",
+            "title": "Ai Pos"
+          },
+          "box": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/BoxOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "idx": {
+            "title": "Idx",
+            "type": "integer"
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "label_de": {
+            "title": "Label De",
+            "type": "string"
+          },
+          "local_pos": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Its object in `local.objects`, if any.",
+            "title": "Local Pos"
+          },
+          "score": {
+            "title": "Score",
+            "type": "number"
+          },
+          "sources": {
+            "description": "local and/or the AI's source (claude | mistral).",
+            "items": {
+              "type": "string"
+            },
+            "title": "Sources",
+            "type": "array"
+          }
+        },
+        "required": [
+          "label",
+          "label_de",
+          "score",
+          "box",
+          "idx",
+          "sources",
+          "local_pos",
+          "ai_pos"
+        ],
+        "title": "MergedObjectOut",
         "type": "object"
       },
       "ModelDownload": {
@@ -5672,10 +5814,27 @@
             "title": "Finished At"
           },
           "objects": {
+            "description": "The merged list (local and AI, deduplicated): what the poll rates and the categories count.",
             "items": {
               "$ref": "#/components/schemas/PhotoObject"
             },
             "title": "Objects",
+            "type": "array"
+          },
+          "objects_ai": {
+            "description": "The external AI's own list (Claude, Mistral; source and model per object).",
+            "items": {
+              "$ref": "#/components/schemas/SourceObject"
+            },
+            "title": "Objects Ai",
+            "type": "array"
+          },
+          "objects_local": {
+            "description": "The local model's own list.",
+            "items": {
+              "$ref": "#/components/schemas/SourceObject"
+            },
+            "title": "Objects Local",
             "type": "array"
           },
           "opt_out": {
@@ -5735,6 +5894,8 @@
           "boxes",
           "details",
           "objects",
+          "objects_local",
+          "objects_ai",
           "runs",
           "opt_out",
           "opt_out_at_analysis",
@@ -6017,6 +6178,7 @@
         "type": "object"
       },
       "PhotoObject": {
+        "description": "An entry of the photo's MERGED object list (what the poll rates).",
         "properties": {
           "box": {
             "anyOf": [
@@ -6052,9 +6214,17 @@
             "type": "number"
           },
           "source": {
-            "description": "local | claude | mistral",
+            "description": "The source that added it: local | claude | mistral",
             "title": "Source",
             "type": "string"
+          },
+          "sources": {
+            "description": "Every source whose object is this entry (local and an AI: both found it).",
+            "items": {
+              "type": "string"
+            },
+            "title": "Sources",
+            "type": "array"
           }
         },
         "required": [
@@ -6064,7 +6234,8 @@
           "score",
           "box",
           "source",
-          "model"
+          "model",
+          "sources"
         ],
         "title": "PhotoObject",
         "type": "object"
@@ -6183,6 +6354,7 @@
         "type": "object"
       },
       "PollerOut": {
+        "description": "„Eigenschaften abfragen“ (properties and verdicts): its own state and error.",
         "properties": {
           "last_error": {
             "anyOf": [
@@ -6193,6 +6365,7 @@
                 "type": "null"
               }
             ],
+            "description": "The poll's last error (not the detection's).",
             "title": "Last Error"
           },
           "last_poll_at": {
@@ -6834,6 +7007,65 @@
         "title": "SettingsEventEvent",
         "type": "object"
       },
+      "SourceObject": {
+        "description": "An object as one source found it (its own list, frozen).",
+        "properties": {
+          "box": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ObjectBox"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "label": {
+            "description": "As the source named it.",
+            "title": "Label",
+            "type": "string"
+          },
+          "label_de": {
+            "title": "Label De",
+            "type": "string"
+          },
+          "merged_idx": {
+            "description": "The entry of `objects` (merged) it became or is.",
+            "title": "Merged Idx",
+            "type": "integer"
+          },
+          "model": {
+            "title": "Model",
+            "type": "string"
+          },
+          "pos": {
+            "description": "Position in this source's own list (0-based).",
+            "title": "Pos",
+            "type": "integer"
+          },
+          "score": {
+            "title": "Score",
+            "type": "number"
+          },
+          "source": {
+            "description": "local | claude | mistral",
+            "title": "Source",
+            "type": "string"
+          }
+        },
+        "required": [
+          "pos",
+          "label",
+          "label_de",
+          "score",
+          "box",
+          "source",
+          "model",
+          "merged_idx"
+        ],
+        "title": "SourceObject",
+        "type": "object"
+      },
       "StatsOut": {
         "properties": {
           "banned": {
@@ -7082,6 +7314,7 @@
         "type": "object"
       },
       "SummaryObject": {
+        "description": "An entry of the merged object list.",
         "properties": {
           "box": {
             "anyOf": [
@@ -7104,14 +7337,23 @@
             "type": "number"
           },
           "source": {
-            "description": "local | claude | mistral",
+            "description": "The source that added it: local | claude | mistral",
             "title": "Source",
             "type": "string"
+          },
+          "sources": {
+            "description": "Every source that found it.",
+            "items": {
+              "type": "string"
+            },
+            "title": "Sources",
+            "type": "array"
           }
         },
         "required": [
           "label_de",
           "source",
+          "sources",
           "score",
           "box"
         ],
@@ -7144,6 +7386,14 @@
               }
             ]
           },
+          "merged": {
+            "description": "Both lists merged as a photo's would be (local first, the AI's linked or appended).",
+            "items": {
+              "$ref": "#/components/schemas/MergedObjectOut"
+            },
+            "title": "Merged",
+            "type": "array"
+          },
           "width": {
             "title": "Width",
             "type": "integer"
@@ -7153,7 +7403,8 @@
           "width",
           "height",
           "local",
-          "external"
+          "external",
+          "merged"
         ],
         "title": "TestImageOut",
         "type": "object"

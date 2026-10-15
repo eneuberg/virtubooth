@@ -144,13 +144,31 @@ class ObjectBox(BaseModel):
 
 
 class PhotoObject(BaseModel):
+    """An entry of the photo's MERGED object list (what the poll rates)."""
+
     idx: int = Field(description="Position in the photo's object list (0-based).")
     label: str = Field(description="Canonical English label, e.g. „wine glass“.")
     label_de: str = Field(description="German label, e.g. „Weinglas“.")
     score: float
     box: ObjectBox | None
+    source: str = Field(description="The source that added it: local | claude | mistral")
+    model: str
+    sources: list[str] = Field(
+        description="Every source whose object is this entry (local and an AI: both found it)."
+    )
+
+
+class SourceObject(BaseModel):
+    """An object as one source found it (its own list, frozen)."""
+
+    pos: int = Field(description="Position in this source's own list (0-based).")
+    label: str = Field(description="As the source named it.")
+    label_de: str
+    score: float
+    box: ObjectBox | None
     source: str = Field(description="local | claude | mistral")
     model: str
+    merged_idx: int = Field(description="The entry of `objects` (merged) it became or is.")
 
 
 class DetectionRun(BaseModel):
@@ -181,7 +199,14 @@ class PhotoAnalysis(BaseModel):
     facts: dict[str, float]
     boxes: list[AnalysisBox]
     details: list[DetailLine]
-    objects: list[PhotoObject]
+    objects: list[PhotoObject] = Field(
+        description="The merged list (local and AI, deduplicated): what the poll rates and "
+        "the categories count."
+    )
+    objects_local: list[SourceObject] = Field(description="The local model's own list.")
+    objects_ai: list[SourceObject] = Field(
+        description="The external AI's own list (Claude, Mistral; source and model per object)."
+    )
     runs: list[DetectionRun]
     opt_out: OptOutState
     opt_out_at_analysis: bool = Field(
@@ -192,8 +217,11 @@ class PhotoAnalysis(BaseModel):
 
 
 class SummaryObject(BaseModel):
+    """An entry of the merged object list."""
+
     label_de: str
-    source: str = Field(description="local | claude | mistral")
+    source: str = Field(description="The source that added it: local | claude | mistral")
+    sources: list[str] = Field(description="Every source that found it.")
     score: float = Field(description="0..1, to 2 places.")
     box: ObjectBox | None = Field(
         description="On the full photo (0..1, to 3 places); null when the source gives none."

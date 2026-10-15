@@ -162,7 +162,7 @@ def properties_of(db: Database) -> dict[str, bool]:
 
 
 def has_external_objects(db: Database) -> bool:
-    return db.one("SELECT 1 FROM photo_objects WHERE source != 'local' LIMIT 1") is not None
+    return db.one("SELECT 1 FROM photo_source_objects WHERE source != 'local' LIMIT 1") is not None
 
 
 # ------------------------------------------------------------- catalogue

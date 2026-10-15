@@ -1,4 +1,9 @@
-"""Object detection by the external AI (PLAN-NIGHT N9).
+"""Object detection by the external AI (PLAN-NIGHT N9), „Objekterkennung mit KI“.
+
+Independent of the poll (poller.py): its own switch (`detect.external`, under
+the master switch `enabled`), its own state for the admin, its own usage kind
+(`detect`). The AI's objects are stored as its own list and merged into the
+photo's object list (enrich/merge.py), which the poll then rates.
 
 A thread in the main process, one photo at a time, while `enabled` and
 `detect.external` are on and a key is stored: the newest photo the local
@@ -16,7 +21,7 @@ from __future__ import annotations
 import io
 import logging
 from dataclasses import dataclass
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Literal
 
 from PIL import Image, ImageOps
 
@@ -54,6 +59,9 @@ def downscale(raw: bytes, max_px: int) -> bytes:
     return out.getvalue()
 
 
+DetectorState = Literal["off", "idle", "running", "blocked"]
+
+
 class DetectionRunner:
     def __init__(self, service: LlmService) -> None:
         from .service import Ticker
@@ -61,7 +69,21 @@ class DetectionRunner:
         self.service = service
         self.last_error: str | None = None
         self.blocked: str | None = None
+        self.running = False
         self._ticker = Ticker("llm-detect", self.step)
+
+    def state(self) -> DetectorState:
+        """For `GET /llm`: off (switched off or no key), running (a photo is out),
+        blocked (budget) or idle."""
+        svc = self.service
+        cfg = svc.config()
+        if not (cfg.enabled and cfg.detect.external) or svc.keys.load(cfg.provider) is None:
+            return "off"
+        if self.running:
+            return "running"
+        if self.blocked or svc.blocked_reason(cfg):
+            return "blocked"
+        return "idle"
 
     def start(self) -> None:
         self._ticker.start()
@@ -126,6 +148,7 @@ class DetectionRunner:
             log.warning("llm detect: photo %s unreadable: %s", photo.public_id, exc)
             self._record(photo.id, source, "failed", None, "Foto nicht lesbar.")
             return "done"
+        self.running = True
         try:
             objs, _ = svc.call(
                 "detect", photo.public_id, lambda p, m: p.detect(image, model=m), config=cfg
@@ -140,6 +163,8 @@ class DetectionRunner:
                 return "backoff"
             self._record(photo.id, source, "failed", cfg.model, exc.message[:200])
             return "done"
+        finally:
+            self.running = False
         self.last_error = None
         try:
             ports.append(db, photo.id, source, cfg.model, objs)

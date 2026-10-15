@@ -1,7 +1,13 @@
-"""A photo's object list (`photo_objects`, migration 11): frozen, append-only.
+"""A photo's object lists (migrations 11, 14): frozen, append-only.
 
-The local detector writes idx 0..n-1 when the worker finishes the photo; an
-external source (Claude, an EU provider) appends later, idx continuing. Each
+Each source keeps its own list as it found it (`photo_source_objects`: the
+local model's, the external AI's), and the photo has ONE merged list
+(`photo_objects`, idx 0, 1, 2, …) that the poller, the categories and the wall
+work on (merge.py): the first source's objects become its entries; a later
+source's object that is the same thing as an entry (label, frame overlap)
+links to it, any other is appended — so an idx never changes and the property
+scores (indexed by it) stay valid. The local detector writes when the worker
+finishes the photo; an external source (Claude, an EU provider) later. Each
 source runs at most once per photo: `photo_detection_runs` holds one row per
 (photo, source) — `done` (with its objects), `failed` or `skipped`. A second
 run of the same source raises `FrozenError`; UPDATEs abort in the database
@@ -17,10 +23,13 @@ from __future__ import annotations
 import sqlite3
 from collections.abc import Sequence
 from dataclasses import dataclass
-from typing import Literal
+from typing import TYPE_CHECKING, Literal
 
 from ....core.clock import now_iso
 from ....db.database import Database
+
+if TYPE_CHECKING:
+    from .merge import Entry
 
 RunState = Literal["done", "failed", "skipped"]
 SOURCES = ("local", "claude", "mistral")
@@ -37,9 +46,23 @@ class DetectedObject:
 
 @dataclass(frozen=True)
 class StoredObject(DetectedObject):
+    """An entry of the merged list. `source`/`model`: the source that added it;
+    `sources`: every source whose object is (linked to) this entry."""
+
     idx: int
     source: str
     model: str
+    sources: tuple[str, ...] = ()
+
+
+@dataclass(frozen=True)
+class SourceObject(DetectedObject):
+    """An object as its source found it, and the merged entry it is."""
+
+    pos: int
+    source: str
+    model: str
+    merged_idx: int
 
 
 class FrozenError(Exception):
@@ -67,51 +90,78 @@ def _clip01(v: float) -> float:
     return min(1.0, max(0.0, float(v)))
 
 
+def _box(o: DetectedObject) -> tuple[float | None, ...]:
+    return tuple(_clip01(v) for v in o.box) if o.box is not None else (None,) * 4
+
+
 def append(
     db: Database, photo_id: int, source: str, model: str, objs: Sequence[DetectedObject]
 ) -> list[int]:
-    """Append `objs` (in this order) to the photo's list and record the source's
-    `done` run. Returns the new idx values. FrozenError when the source ran."""
+    """Store `objs` (in this order) as the source's list, merge them into the
+    photo's merged list and record the source's `done` run. Returns, per object,
+    the merged idx it became or was linked to. FrozenError when the source ran."""
+    from . import merge
+
     with db.tx() as c:
         _check_new(c, photo_id, source)
-        start = int(
-            c.execute(
-                "SELECT COALESCE(MAX(idx) + 1, 0) FROM photo_objects WHERE photo_id=?",
-                (photo_id,),
-            ).fetchone()[0]
-        )
+        entries = _entries(c, photo_id)
+        links = merge.plan(entries, objs, source)
+        start = len(entries)
         at = now_iso()
-        rows = []
-        for i, o in enumerate(objs):
-            x, y, w, h = (_clip01(v) for v in o.box) if o.box is not None else (None,) * 4
-            rows.append(
-                (
-                    photo_id,
-                    start + i,
-                    o.label,
-                    o.label_de,
-                    _clip01(o.score),
-                    x,
-                    y,
-                    w,
-                    h,
-                    source,
-                    model,
-                    at,
-                )
-            )
+        merged_rows: list[tuple[object, ...]] = []
+        source_rows: list[tuple[object, ...]] = []
+        out: list[int] = []
+        for pos, (o, link) in enumerate(zip(objs, links, strict=True)):
+            if link is None:
+                link = start + len(merged_rows)
+                label, label_de = merge.canonical(o.label, o.label_de)
+                merged_rows.append(
+                    (photo_id, link, label, label_de, _clip01(o.score), *_box(o), source,
+                     model, at)
+                )  # fmt: skip
+            out.append(link)
+            source_rows.append(
+                (photo_id, source, pos, o.label, o.label_de, _clip01(o.score), *_box(o), model,
+                 link, at)
+            )  # fmt: skip
         c.executemany(
             "INSERT INTO photo_objects (photo_id, idx, label, label_de, score, x, y, w, h, "
             "source, model, created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
-            rows,
+            merged_rows,
+        )
+        c.executemany(
+            "INSERT INTO photo_source_objects (photo_id, source, pos, label, label_de, score, "
+            "x, y, w, h, model, merged_idx, created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)",
+            source_rows,
         )
         c.execute(
             "INSERT INTO photo_detection_runs (photo_id, source, state, model, error, objects, "
             "created_at) VALUES (?, ?, 'done', ?, NULL, ?, ?)",
-            (photo_id, source, model, len(rows), at),
+            (photo_id, source, model, len(source_rows), at),
         )
         _bump_rev(c, photo_id)
-    return [start + i for i in range(len(objs))]
+    return out
+
+
+def _entries(c: sqlite3.Connection, photo_id: int) -> list[Entry]:
+    """The photo's merged list as the merge sees it (with the linked sources)."""
+    from .merge import Entry
+
+    linked: dict[int, set[str]] = {}
+    for r in c.execute(
+        "SELECT merged_idx, source FROM photo_source_objects WHERE photo_id=?", (photo_id,)
+    ):
+        linked.setdefault(int(r[0]), set()).add(r[1])
+    out = []
+    for r in c.execute(
+        "SELECT idx, label, label_de, x, y, w, h, source FROM photo_objects WHERE photo_id=? "
+        "ORDER BY idx",
+        (photo_id,),
+    ):
+        box = None if r[3] is None else (r[3], r[4], r[5], r[6])
+        sources = frozenset(linked.get(int(r[0]), {r[7]}))
+        out.append(Entry(int(r[0]), r[1], r[2], box, sources))
+    return out
 
 
 def record_run(
@@ -141,30 +191,67 @@ def has_run(db: Database, photo_id: int, source: str) -> bool:
     )
 
 
+def _chunks(ids: Sequence[int]) -> list[list[int]]:
+    unique = list(dict.fromkeys(int(i) for i in ids))
+    return [unique[i : i + _CHUNK] for i in range(0, len(unique), _CHUNK)]
+
+
 def objects_of(db: Database, photo_ids: Sequence[int]) -> dict[int, list[StoredObject]]:
-    """Each photo's objects in idx order (photos without any are left out)."""
-    ids = list(dict.fromkeys(int(i) for i in photo_ids))
+    """Each photo's MERGED list in idx order, with the sources of each entry
+    (photos without any are left out)."""
     out: dict[int, list[StoredObject]] = {}
-    for start in range(0, len(ids), _CHUNK):
-        chunk = ids[start : start + _CHUNK]
+    for chunk in _chunks(photo_ids):
         marks = ", ".join("?" for _ in chunk)
+        linked: dict[tuple[int, int], list[str]] = {}
+        for r in db.all(
+            "SELECT photo_id, merged_idx, source FROM photo_source_objects "
+            f"WHERE photo_id IN ({marks}) ORDER BY photo_id, merged_idx, rowid",
+            chunk,
+        ):
+            linked.setdefault((int(r[0]), int(r[1])), []).append(r[2])
         for r in db.all(
             "SELECT photo_id, idx, label, label_de, score, x, y, w, h, source, model "
             f"FROM photo_objects WHERE photo_id IN ({marks}) ORDER BY photo_id, idx",
             chunk,
         ):
             box = None if r["x"] is None else (r["x"], r["y"], r["w"], r["h"])
-            out.setdefault(int(r["photo_id"]), []).append(
+            pid, idx = int(r["photo_id"]), int(r["idx"])
+            out.setdefault(pid, []).append(
                 StoredObject(
                     label=r["label"],
                     label_de=r["label_de"],
                     score=float(r["score"]),
                     box=box,
-                    idx=int(r["idx"]),
+                    idx=idx,
                     source=r["source"],
                     model=r["model"],
+                    sources=tuple(linked.get((pid, idx), [r["source"]])),
                 )
             )
+    return out
+
+
+def source_objects_of(db: Database, photo_id: int) -> dict[str, list[SourceObject]]:
+    """The photo's list per source (source → objects in its own order)."""
+    out: dict[str, list[SourceObject]] = {}
+    for r in db.all(
+        "SELECT source, pos, label, label_de, score, x, y, w, h, model, merged_idx "
+        "FROM photo_source_objects WHERE photo_id=? ORDER BY rowid",
+        (photo_id,),
+    ):
+        box = None if r["x"] is None else (r["x"], r["y"], r["w"], r["h"])
+        out.setdefault(r["source"], []).append(
+            SourceObject(
+                label=r["label"],
+                label_de=r["label_de"],
+                score=float(r["score"]),
+                box=box,
+                pos=int(r["pos"]),
+                source=r["source"],
+                model=r["model"],
+                merged_idx=int(r["merged_idx"]),
+            )
+        )
     return out
 
 

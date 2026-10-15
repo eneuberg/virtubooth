@@ -7,6 +7,7 @@
  */
 import type {
   LlmDetection,
+  MergedTestObject,
   LlmKeyState,
   LlmModel,
   LlmPoller,
@@ -19,6 +20,7 @@ import type { AnalysisBox } from '../wall/types';
 
 export type {
   LlmKeyState,
+  MergedTestObject,
   LlmModel,
   LlmPollResponse,
   LlmProperty,
@@ -39,9 +41,11 @@ export interface LlmConfig {
   enabled: boolean;
   provider: string;
   model: string;
+  /** „Eigenschaften abfragen“: the poll (properties, verdicts) runs every poll_interval_s */
+  poll: boolean;
   /** 60–3600 */
   poll_interval_s: number;
-  /** „Erkennung beim Hochladen“: both may be on */
+  /** local: the local detector; external: „Objekterkennung mit KI“ at upload (both may be on) */
   detect: { local: boolean; external: boolean };
   image_max_px: number;
   budget: LlmBudget;
@@ -97,8 +101,13 @@ export interface TestImageResult {
   height: number;
   local: TestRun | null;
   external: {
+    /** claude | mistral */
+    source: string;
+    model: string;
     objects: TestObject[];
     usage: LlmUsageTotals | null;
     error: string | null;
   } | null;
+  /** both lists merged as a photo's would be (what the poll would rate) */
+  merged: MergedTestObject[];
 }

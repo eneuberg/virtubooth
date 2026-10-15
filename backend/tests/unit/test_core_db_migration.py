@@ -95,7 +95,7 @@ def dump(path: Path) -> dict[str, list[tuple]]:
 def test_fresh_database_is_current(tmp_path):
     db = Database(tmp_path / "new.db")
     try:
-        assert db.one("PRAGMA user_version")[0] == SCHEMA_VERSION == 13
+        assert db.one("PRAGMA user_version")[0] == SCHEMA_VERSION == 14
         cols = {r[1] for r in db.all("PRAGMA table_info(users)")}
         assert {"uploads_paused_at", "uploads_paused_source", "uploads_lock_period"} <= cols
         assert db.one("SELECT COUNT(*) FROM settings")[0] == 0
@@ -228,13 +228,13 @@ def test_v13_adds_the_original_columns_to_v12_photos(tmp_path, monkeypatch):
     afterwards can have an original, and deleting it lists the original's files."""
     path = tmp_path / "virtubooth.db"
     make_v1_db(path)
-    monkeypatch.setattr(dbmod, "MIGRATIONS", dbmod.MIGRATIONS[:-1])
+    monkeypatch.setattr(dbmod, "MIGRATIONS", tuple(m for m in dbmod.MIGRATIONS if m[0] <= 12))
     monkeypatch.setattr(dbmod, "SCHEMA_VERSION", 12)
     Database(path).close()
     monkeypatch.undo()
     db = Database(path)
     try:
-        assert db.one("PRAGMA user_version")[0] == 13
+        assert db.one("PRAGMA user_version")[0] == SCHEMA_VERSION
         cols = {r[1] for r in db.all("PRAGMA table_info(photos)")}
         assert {"raw_filename", "raw_thumb_filename"} <= cols
         assert db.one("SELECT COUNT(*) FROM photos WHERE raw_filename IS NOT NULL")[0] == 0
