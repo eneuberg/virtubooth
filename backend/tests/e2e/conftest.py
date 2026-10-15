@@ -122,6 +122,27 @@ def _settle_new_pages_in_firefox() -> None:
 if BROWSER_NAME == "firefox":
     _settle_new_pages_in_firefox()
 
+
+def _unroute_before_close() -> None:
+    """Playwright 1.63: closing a context while one of its route handlers is called
+    (a test that aborts a request the page asks for again, e.g. the Fotobox catalogue
+    after its retry) could hang context.close() for good, in Chromium and in Firefox;
+    on CI it stopped the run until the job's timeout. Unrouting first, without waiting
+    for handlers that already run and ignoring their errors, lets every request after
+    that go to the server as usual."""
+    close = BrowserContext.close
+
+    def close_unrouted(self: BrowserContext, reason: str | None = None) -> None:
+        for page in self.pages:
+            page.unroute_all(behavior="ignoreErrors")
+        self.unroute_all(behavior="ignoreErrors")
+        close(self, reason=reason)
+
+    BrowserContext.close = close_unrouted  # type: ignore[method-assign]
+
+
+_unroute_before_close()
+
 MOBILE = {
     "viewport": {"width": 390, "height": 844},
     "device_scale_factor": 2,
