@@ -146,6 +146,6 @@ if { [ "$code" != 0 ] && [ "$code" != 143 ]; } || [ "$took" -ge 15 ]; then
   exit 1
 fi
 docker logs "$NAME" 2>&1 | grep -q "Application shutdown complete" \
-  || { echo "FAIL  no clean shutdown in the log" >&2; exit 1; }
+  || { docker logs --tail 40 "$NAME" >&2; echo "FAIL  no clean shutdown in the log" >&2; exit 1; }
 echo "  ok  stopped cleanly in ${took}s (exit code $code, application shutdown complete)"
 echo "docker-smoke: all checks passed"
