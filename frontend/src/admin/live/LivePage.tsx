@@ -3,8 +3,9 @@
  * in a dense grid, arriving live; one tap hides one. This screen can only hide and
  * unhide: deleting, bans and everything else live in the manage area on purpose
  * (BRIEF invariant; live.test.ts checks this folder for any delete path). With the Live
- * Wall's analysis on, each tile carries its chips and the viewer the full analysis with
- * frames („Analyse zeigen“ in the header turns it off).
+ * Wall's analysis on, each tile carries the frames of its objects, faces and hands and
+ * its chips, and the viewer the full analysis with frames („Analyse zeigen“ in the
+ * header, with the frames' legend, turns it off).
  */
 import { ArrowUp, Eye, EyeOff, Images, LayoutGrid, RotateCw } from 'lucide-react';
 import { useState } from 'react';
@@ -40,7 +41,13 @@ import {
 import { ALL_PHOTOS } from '../store/types';
 import { PartyControls, PartyStateBadges } from '../uploads/PartyControls';
 import { AnalysisBoxes, AnalysisPanel } from '../wall/AnalysisPanel';
-import { AnalysisChips, AnalysisToggle, AnalysisWins } from '../wall/LiveAnalysis';
+import {
+  AnalysisChips,
+  AnalysisLegend,
+  AnalysisTileFrames,
+  AnalysisToggle,
+  AnalysisWins,
+} from '../wall/LiveAnalysis';
 import { useLiveAnalysis } from '../wall/liveAnalysisState';
 import { guestName } from '../hostGuest/marks';
 
@@ -82,7 +89,10 @@ function LiveHeader({ desktop }: { desktop: boolean }) {
           )}
         </p>
       </div>
-      <AnalysisToggle className="shrink-0" />
+      <div className="grid shrink-0 justify-items-end gap-0.5">
+        <AnalysisToggle />
+        <AnalysisLegend />
+      </div>
       {desktop ? (
         <LinkButton href="/manage" variant="secondary" size="sm" icon={LayoutGrid}>
           Verwaltung
@@ -201,6 +211,7 @@ function LiveScreen() {
                   onOpen={() => openPhoto(photo.id)}
                   openLabel={`${photoLabel(photo)} groß anzeigen`}
                   hiddenLabel={photo.hidden_reason === 'ban' ? 'Ausgeblendet, Gast gesperrt' : 'Ausgeblendet'}
+                  photoLayer={<AnalysisTileFrames photoId={photo.id} aspect={photo.width / photo.height} />}
                   overlay={
                     <HideToggle
                       photo={photo}

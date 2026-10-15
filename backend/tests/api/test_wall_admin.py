@@ -261,8 +261,8 @@ def test_photo_analysis_shows_objects_runs_and_opt_outs(settings, demo_extension
 
 
 def test_photo_analysis_summaries_for_the_live_screen(settings, demo_extension):
-    """GET /admin/photos/analysis?ids=…: a batch of tiles' state, key facts, object
-    labels and opt-outs (unknown ids left out); the poller announces new analyses
+    """GET /admin/photos/analysis?ids=…: a batch of tiles' state, key facts, objects
+    with score and frame, face and hand frames, and opt-outs (unknown ids left out); the poller announces new analyses
     to the admin stream as `photo.analyzed`."""
     app = create_app(settings, extensions=[demo_extension, make_extension()])
     try:
@@ -281,9 +281,35 @@ def test_photo_analysis_summaries_for_the_live_screen(settings, demo_extension):
             assert claimed is not None
             pid = claimed.id
             done, waiting = (first, second) if pid == internal_id(core, first) else (second, first)
+            frames = [
+                {
+                    "kind": "face",
+                    "x": 0.123456,
+                    "y": 0.2,
+                    "w": 0.1,
+                    "h": 0.15,
+                    "label": "lächelt",
+                    "score": 0.9,
+                },
+                {
+                    "kind": "hand",
+                    "x": 0.6,
+                    "y": 0.5,
+                    "w": 0.1,
+                    "h": 0.1,
+                    "label": "Daumen hoch",
+                    "score": 0.8,
+                },
+                # persons and objects come from the object list, never twice
+                {"kind": "person", "x": 0, "y": 0, "w": 1, "h": 1, "label": "Person", "score": 0.7},
+                {"kind": "face", "x": "broken"},
+            ]
             jobs.finish(core.db, pid, facts={"people": 3, "smiles": 2, "brightness": 0.4},
-                        versions={"objects": "2"}, data={"boxes": [], "details": []},
-                        objects_found=[DetectedObject("bottle", "Flasche", 0.9, (0.1, 0.2, 0.3, 0.4))],
+                        versions={"objects": "2"}, data={"boxes": frames, "details": []},
+                        objects_found=[
+                            DetectedObject("bottle", "Flasche", 0.9071, (0.1, 0.2, 0.30004, 0.4)),
+                            DetectedObject("cake", "Kuchen", 0.5, None),
+                        ],
                         objects_model="efficientdet_lite2@2")  # fmt: skip
             with core.db.tx() as c:
                 c.execute("UPDATE users SET analysis_opt_out=1")
@@ -297,7 +323,17 @@ def test_photo_analysis_summaries_for_the_live_screen(settings, demo_extension):
             assert items[1]["state"] == "done"
             # only the key values, not every raw fact
             assert items[1]["facts"] == {"people": 3.0, "smiles": 2.0}
-            assert items[1]["objects"] == [{"label_de": "Flasche", "source": "local"}]
+            # objects with score and frame (3 places), faces and hands as frames
+            assert items[1]["objects"] == [
+                {"label_de": "Flasche", "source": "local", "score": 0.91,
+                 "box": {"x": 0.1, "y": 0.2, "w": 0.3, "h": 0.4}},
+                {"label_de": "Kuchen", "source": "local", "score": 0.5, "box": None},
+            ]  # fmt: skip
+            assert items[1]["boxes"] == [
+                {"kind": "face", "x": 0.123, "y": 0.2, "w": 0.1, "h": 0.15},
+                {"kind": "hand", "x": 0.6, "y": 0.5, "w": 0.1, "h": 0.1},
+            ]
+            assert items[0]["objects"] == [] and items[0]["boxes"] == []
             assert items[1]["opt_out"] == {"analysis": True, "external_ai": False}
             assert items[1]["wins"] == []
 

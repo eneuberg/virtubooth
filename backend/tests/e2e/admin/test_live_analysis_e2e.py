@@ -1,7 +1,7 @@
-"""The analysis on the Live screen: chips under each tile, updated through the event
-stream when the worker finishes (`photo.analyzed`, no polling), the full analysis
-with frames in the viewer, and „Analyse zeigen“ (remembered in the browser) to switch
-it all off. The worker itself is off here: the test does what it does
+"""The analysis on the Live screen: frames on each tile's thumbnail and chips under
+it, updated through the event stream when the worker finishes (`photo.analyzed`, no
+polling), the full analysis with frames in the viewer, and „Analyse zeigen“
+(remembered in the browser, with the frames' legend) to switch it all off. The worker itself is off here: the test does what it does
 (`jobs.claim/finish`, like test_ml_live_e2e.py)."""
 
 from __future__ import annotations
@@ -14,27 +14,33 @@ from playwright.sync_api import Page, expect
 from virtubooth.extensions.wall.enrich import jobs
 from virtubooth.extensions.wall.enrich.objects import DetectedObject
 
-from ..conftest import LiveServer
+from ..conftest import LiveServer, shot
 from .conftest import Guest, card, errors, goto, wait_live
 
 pytestmark = pytest.mark.e2e
 
 FACE = {"kind": "face", "x": 0.55, "y": 0.2, "w": 0.2, "h": 0.25, "label": "lächelt", "score": 0.9}
+OBJECTS = [
+    DetectedObject("bottle", "Flasche", 0.81, (0.1, 0.5, 0.4, 0.3)),
+    DetectedObject("cup", "Becher", 0.66, (0.6, 0.6, 0.15, 0.2)),
+]
 
 
-def analyse(live: LiveServer, public_id: str) -> None:
+def analyse(
+    live: LiveServer,
+    public_id: str,
+    objs: list[DetectedObject] = OBJECTS,
+    frames: list[dict] | None = None,
+) -> None:
     """What the worker does for a photo: claim it, store facts, frames and objects."""
     db = live.core.db
     pid = live.core.repos.photos.internal_id(public_id)
     assert pid is not None
     claimed = jobs.claim(db)
     assert claimed is not None and claimed.id == pid
-    objs = [
-        DetectedObject("bottle", "Flasche", 0.81, (0.1, 0.5, 0.2, 0.3)),
-        DetectedObject("cup", "Becher", 0.66, (0.4, 0.6, 0.15, 0.2)),
-    ]
     assert jobs.finish(db, pid, facts={"people": 2.0, "faces": 2.0, "smiles": 1.0},
-                       data={"boxes": [FACE], "details": [{"label": "Gesichter", "value": "2"}]},
+                       data={"boxes": [FACE] if frames is None else frames,
+                             "details": [{"label": "Gesichter", "value": "2"}]},
                        versions={"basic": "1"}, objects_found=objs,
                        objects_model="e2e@1")  # fmt: skip
 
@@ -60,8 +66,21 @@ def test_analysis_chips_frames_and_the_switch(
     expect(chips.locator("[data-chip=smiles]")).to_have_text("1 lächeln")
     expect(chips.locator("[data-chip=objects]")).to_have_text("Flasche, Becher")
     assert len(seen) == 1  # one refetch for the one photo the event named
+    # the frames lie on the tile too: 2 objects + 1 face, the big bottle with its name
+    frames = tile.get_by_test_id("tile-frame")
+    expect(frames).to_have_count(3)
+    expect(tile.locator("[data-testid=tile-frame][data-kind=face]")).to_have_count(1)
+    expect(frames.first).to_have_text("Flasche")
+    expect(tile.locator("[data-testid=tile-frame][data-kind=object]").last).to_have_text("")
+    # a 3:4 photo fills the 3:4 tile: the frame sits where the box says
+    pic = tile.locator("figure > div").first.bounding_box()
+    bottle = frames.first.bounding_box()
+    assert pic and bottle
+    assert abs((bottle["x"] - pic["x"]) / pic["width"] - 0.1) < 0.02
+    assert abs(bottle["width"] / pic["width"] - 0.4) < 0.02
+    expect(page.get_by_test_id("analysis-legend")).to_contain_text("Objekte")
 
-    # open it: the frames lie on the photo, the object list says label, score, source
+    # open it (the frames never catch the tap): the frames lie on the photo, the object list says label, score, source
     tile.locator("figure button").first.click()
     viewer = page.get_by_test_id("lightbox")
     expect(viewer.get_by_test_id("analysis-state")).to_have_text("fertig")
@@ -81,6 +100,8 @@ def test_analysis_chips_frames_and_the_switch(
     # „Analyse zeigen“ off: no chips, no frames, no analysis block; remembered
     page.get_by_test_id("analysis-toggle").click()
     expect(page.get_by_test_id("analysis-chips")).to_have_count(0)
+    expect(page.get_by_test_id("tile-frame")).to_have_count(0)
+    expect(page.get_by_test_id("analysis-legend")).to_have_count(0)
     tile.locator("figure button").first.click()
     expect(viewer).to_be_visible()
     expect(viewer.get_by_test_id("analysis")).to_have_count(0)
@@ -93,6 +114,59 @@ def test_analysis_chips_frames_and_the_switch(
     expect(page.get_by_test_id("analysis-chips")).to_have_count(0)
     page.get_by_test_id("analysis-toggle").click()
     expect(card(page, photo).get_by_test_id("analysis-chips")).to_contain_text("Flasche")
+    expect(card(page, photo).get_by_test_id("tile-frame")).to_have_count(3)
+    assert errors(page) == []
+
+
+# a few different scenes for the screenshots (objects, faces, hands)
+SCENES: list[tuple[list[DetectedObject], list[dict]]] = [
+    (
+        [DetectedObject("person", "Person", 0.92, (0.05, 0.08, 0.6, 0.9)),
+         DetectedObject("bottle", "Flasche", 0.81, (0.55, 0.45, 0.2, 0.4))],
+        [FACE | {"x": 0.2, "y": 0.12, "w": 0.22, "h": 0.17},
+         {"kind": "hand", "x": 0.5, "y": 0.5, "w": 0.12, "h": 0.1, "label": "", "score": 0.8}],
+    ),
+    (
+        [DetectedObject("cup", "Becher", 0.66, (0.3, 0.55, 0.18, 0.2)),
+         DetectedObject("wine glass", "Weinglas", 0.7, (0.6, 0.35, 0.15, 0.3))],
+        [FACE, FACE | {"x": 0.15, "y": 0.25, "w": 0.18, "h": 0.15}],
+    ),
+    ([DetectedObject("cake", "Kuchen", 0.88, (0.1, 0.6, 0.8, 0.35))], []),
+]  # fmt: skip
+
+
+@pytest.mark.parametrize("view", ["desktop", "phone"])
+def test_frames_on_every_tile(
+    request: pytest.FixtureRequest, live: LiveServer, guests: Callable[..., Guest], view: str
+) -> None:
+    """Every analysed tile carries its frames (from the one batch of summaries); the
+    pending ones none. Screenshots of the grid for the review (VB_SCREENSHOT_DIR)."""
+    page: Page = request.getfixturevalue("desktop_page" if view == "desktop" else "admin_page")
+    g = guests()
+    pending, *photos = [g.upload() for _ in range(7)]
+    # the worker takes the newest first
+    for i, photo in reversed(list(enumerate(photos))):
+        objs, frames = SCENES[i % len(SCENES)]
+        analyse(live, photo, objs, frames)
+    goto(page, live, "/admin/live")
+    wait_live(page)
+    for i, photo in enumerate(photos):
+        objs, frames = SCENES[i % len(SCENES)]
+        expect(card(page, photo).get_by_test_id("tile-frame")).to_have_count(
+            len(objs) + len(frames)
+        )
+    expect(card(page, pending).get_by_test_id("tile-frame")).to_have_count(0)
+    expect(page.get_by_test_id("analysis-legend")).to_be_visible()
+    page.evaluate(
+        "() => Promise.all([...document.images].map((i) => i.decode().catch(() => null)))"
+    )
+    if view == "phone":  # the grid under the sticky header
+        page.evaluate("""() => {
+            const feed = document.querySelector('[data-testid=feed]');
+            const head = document.querySelector('header').getBoundingClientRect().bottom;
+            scrollTo(0, feed.getBoundingClientRect().top + scrollY - head - 8);
+        }""")
+    shot(page, f"live-frames-{view}", 600)
     assert errors(page) == []
 
 

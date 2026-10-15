@@ -1,12 +1,12 @@
 import { QueryClientProvider } from '@tanstack/react-query';
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { AdminExtension } from '@/api/types';
 import { NBSP } from '@/lib/format';
 import { UiProvider } from '@/ui/UiProvider';
 import { applyAdminEvent } from '../store/applyEvent';
 import { stubApi, testClient } from '../testing';
-import { AnalysisChips, AnalysisToggle } from './LiveAnalysis';
+import { AnalysisChips, AnalysisLegend, AnalysisTileFrames, AnalysisToggle } from './LiveAnalysis';
 import { useShowAnalysis } from './liveAnalysisState';
 import { analysisChips, chipsLabel } from './summaryText';
 import type { PhotoAnalysisSummary } from './types';
@@ -28,11 +28,20 @@ function summary(id: string, over: Partial<PhotoAnalysisSummary> = {}): PhotoAna
     state: 'done',
     facts: {},
     objects: [],
+    boxes: [],
     opt_out: { analysis: false, external_ai: false },
     wins: [],
     ...over,
   };
 }
+
+type SummaryObject = PhotoAnalysisSummary['objects'][number];
+const obj = (
+  label_de: string,
+  source = 'local',
+  box: SummaryObject['box'] = null,
+  score = 0.8,
+): SummaryObject => ({ label_de, source, box, score });
 
 const texts = (s: PhotoAnalysisSummary) => analysisChips(s).map((c) => c.text);
 
@@ -41,12 +50,12 @@ describe('analysisChips', () => {
     const s = summary('p', {
       facts: { people: 3, smiles: 2, happy_max: 0.8, hands: 4, thumbs_up: 1, glasses: 1, hats: 2 },
       objects: [
-        { label_de: 'Person', source: 'local' },
-        { label_de: 'Flasche', source: 'local' },
-        { label_de: 'Becher', source: 'local' },
-        { label_de: 'Flasche', source: 'claude' },
-        { label_de: 'Hut', source: 'claude' },
-        { label_de: 'Kuchen', source: 'claude' },
+        obj('Person', 'local'),
+        obj('Flasche', 'local'),
+        obj('Becher', 'local'),
+        obj('Flasche', 'claude'),
+        obj('Hut', 'claude'),
+        obj('Kuchen', 'claude'),
       ],
     });
     expect(texts(s)).toEqual([
@@ -86,7 +95,11 @@ describe('analysisChips', () => {
   });
 });
 
-function renderTiles(ids: string[], answer: (ids: string[]) => PhotoAnalysisSummary[]) {
+function renderTiles(
+  ids: string[],
+  answer: (ids: string[]) => PhotoAnalysisSummary[],
+  aspect: Record<string, number> = {},
+) {
   const qc = testClient();
   const requests = stubApi({
     'GET /api/admin/extensions': () => ({ extensions: [WALL] }),
@@ -98,9 +111,15 @@ function renderTiles(ids: string[], answer: (ids: string[]) => PhotoAnalysisSumm
     <QueryClientProvider client={qc}>
       <UiProvider>
         <AnalysisToggle />
+        <AnalysisLegend />
         {ids.map((id) => (
-          <div key={id} data-testid={`tile-${id}`}>
-            <AnalysisChips photoId={id} />
+          <div key={id}>
+            <div data-testid={`photo-${id}`} className="relative">
+              <AnalysisTileFrames photoId={id} aspect={aspect[id] ?? 3 / 4} />
+            </div>
+            <div data-testid={`tile-${id}`}>
+              <AnalysisChips photoId={id} />
+            </div>
           </div>
         ))}
       </UiProvider>
@@ -137,7 +156,7 @@ describe('AnalysisChips', () => {
     const { qc, batches } = renderTiles(['a', 'b'], (ids) =>
       ids.map((id) =>
         id === 'b' && done
-          ? summary(id, { objects: [{ label_de: 'Flasche', source: 'local' }] })
+          ? summary(id, { objects: [obj('Flasche', 'local')] })
           : summary(id, { state: id === 'b' ? 'running' : 'done', facts: { people: 1 } }),
       ),
     );
@@ -162,5 +181,80 @@ describe('AnalysisChips', () => {
     await waitFor(() => expect(screen.queryByTestId('analysis-chips')).toBeNull());
     expect(localStorage.getItem('vb.admin.live.analysis')).toBe('off');
     expect(batches()).toHaveLength(1);
+  });
+});
+
+const frames = (id: string) => within(screen.getByTestId(`photo-${id}`)).queryAllByTestId('tile-frame');
+
+describe('AnalysisTileFrames', () => {
+  const bottle = obj('Flasche', 'local', { x: 0.1, y: 0.2, w: 0.5, h: 0.5 });
+  const cup = obj('Becher', 'local', { x: 0.7, y: 0.7, w: 0.1, h: 0.1 });
+  const face = { kind: 'face' as const, x: 0.4, y: 0.1, w: 0.2, h: 0.2 };
+
+  it('draws objects, faces and hands on every tile, labels only the big ones, from the same batch', async () => {
+    const { batches } = renderTiles(['a', 'b'], (ids) =>
+      ids.map((id) =>
+        id === 'a'
+          ? summary(id, {
+              objects: [bottle, cup, obj('Kuchen', 'claude')],
+              boxes: [face, { kind: 'hand', x: 0.05, y: 0.8, w: 0.1, h: 0.1 }],
+            })
+          : summary(id),
+      ),
+    );
+    await waitFor(() => expect(frames('a')).toHaveLength(4)); // the cake has no box
+    expect(frames('b')).toHaveLength(0);
+    expect(batches()).toEqual([['a', 'b']]);
+    // biggest first; the bottle carries its name, the small cup only its outline
+    const [big, ...rest] = frames('a');
+    expect(big!.getAttribute('data-kind')).toBe('object');
+    expect(big!.textContent).toBe('Flasche');
+    expect(big!.style.left).toBe('10.00%');
+    expect(big!.style.width).toBe('50.00%');
+    expect(rest.map((f) => f.getAttribute('data-kind') ?? '').toSorted((a, b) => a.localeCompare(b))).toEqual(
+      ['face', 'hand', 'object'],
+    );
+    expect(rest.every((f) => f.textContent === '')).toBe(true);
+    expect(
+      within(screen.getByTestId('analysis-legend'))
+        .getAllByRole('listitem')
+        .map((li) => li.textContent),
+    ).toEqual(['Objekte', 'Gesichter', 'Hände']);
+  });
+
+  it('maps the frames onto a cropped thumbnail (a landscape photo in the 3:4 tile)', async () => {
+    // 4:3 photo in a 3:4 tile: the picture is 16/9 of the tile wide, centred
+    renderTiles(['w'], (ids) => ids.map((id) => summary(id, { objects: [bottle], boxes: [face] })), {
+      w: 4 / 3,
+    });
+    await waitFor(() => expect(frames('w')).toHaveLength(2));
+    const geometry = frames('w').map((f) => [f.style.left, f.style.width]);
+    // bottle: x 0.1 → -0.389 + 0.1·1.778 = -0.211 (cut at the left edge), right edge 0.678
+    // face: x 0.4 → 0.322, w 0.2 → 0.356
+    expect(geometry).toEqual([
+      ['0.00%', '67.78%'],
+      ['32.22%', '35.56%'],
+    ]);
+  });
+
+  it('follows photo.analyzed and goes away with „Analyse zeigen“', async () => {
+    let analysed = false;
+    const { qc } = renderTiles(['a'], (ids) =>
+      ids.map((id) => (analysed ? summary(id, { objects: [bottle] }) : summary(id, { state: 'running' }))),
+    );
+    await screen.findByTestId('analysis-chips');
+    expect(frames('a')).toHaveLength(0);
+    analysed = true;
+    act(() =>
+      applyAdminEvent(
+        { type: 'photo.analyzed', id: 'e-2', data: { ids: ['a'] } },
+        { qc, invalidate: () => {} },
+      ),
+    );
+    await waitFor(() => expect(frames('a')).toHaveLength(1));
+    fireEvent.click(screen.getByRole('switch', { name: 'Analyse zeigen' }));
+    await waitFor(() => expect(frames('a')).toHaveLength(0));
+    expect(screen.queryByTestId('analysis-chips')).toBeNull();
+    expect(screen.queryByTestId('analysis-legend')).toBeNull();
   });
 });

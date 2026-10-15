@@ -245,6 +245,29 @@ def get(db: Database, photo_id: int) -> AnalysisRow | None:
     )  # fmt: skip
 
 
+def frames_of(
+    db: Database, photo_ids: Sequence[int], kinds: frozenset[str]
+) -> dict[int, list[dict[str, Any]]]:
+    """The stored frames (`data.boxes`) of these `kinds` per photo; photos without
+    any are left out."""
+    ids = list(dict.fromkeys(int(i) for i in photo_ids))
+    out: dict[int, list[dict[str, Any]]] = {}
+    for start in range(0, len(ids), 500):
+        chunk = ids[start : start + 500]
+        marks = ", ".join("?" for _ in chunk)
+        for r in db.all(
+            f"SELECT photo_id, data FROM wall_analysis WHERE photo_id IN ({marks})", chunk
+        ):
+            try:
+                boxes = json.loads(r["data"] or "{}").get("boxes") or []
+            except (ValueError, AttributeError):
+                continue
+            found = [b for b in boxes if isinstance(b, dict) and b.get("kind") in kinds]
+            if found:
+                out[int(r["photo_id"])] = found
+    return out
+
+
 def facts(db: Database, photo_id: int) -> dict[str, float]:
     rows = db.all("SELECT key, value FROM wall_facts WHERE photo_id=? ORDER BY key", (photo_id,))
     return {r["key"]: float(r["value"]) for r in rows}

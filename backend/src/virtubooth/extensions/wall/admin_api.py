@@ -29,7 +29,7 @@ from .config import (
     parse_settings,
     store_config,
 )
-from .enrich import engine, objects, presets, values
+from .enrich import engine, jobs, objects, presets, values
 from .enrich.engine import InvalidCategory, PhotoFilter, Winner
 from .enrich.schemas import (
     AnalysisSummariesOut,
@@ -41,10 +41,12 @@ from .enrich.schemas import (
     CategoryVerdictOut,
     CategoryWin,
     CategoryWinnerOut,
+    ObjectBox,
     OkOut,
     OptOutState,
     PhotoAnalysisSummary,
     RestoreOut,
+    SummaryBox,
     SummaryObject,
 )
 from .enrich.values import ValuesOut
@@ -206,11 +208,34 @@ SUMMARY_FACTS = frozenset({
     "glasses", "hats", "age_groups",
 })  # fmt: skip
 MAX_SUMMARIES = 100
+# the frames a tile draws besides its objects' (persons are objects now)
+TILE_FRAMES = frozenset({"face", "hand"})
+
+
+def _r3(v: float) -> float:
+    return round(float(v), 3)
+
+
+def _object_box(box: tuple[float, float, float, float] | None) -> ObjectBox | None:
+    if box is None:
+        return None
+    x, y, w, h = box
+    return ObjectBox(x=_r3(x), y=_r3(y), w=_r3(w), h=_r3(h))
+
+
+def _summary_box(raw: dict[str, Any]) -> SummaryBox | None:
+    try:
+        return SummaryBox(kind=raw["kind"], x=_r3(raw["x"]), y=_r3(raw["y"]),
+                          w=_r3(raw["w"]), h=_r3(raw["h"]))  # fmt: skip
+    except (KeyError, TypeError, ValueError):
+        return None
 
 
 def analysis_summaries(core: Core, hub: WallHub, public_ids: list[str]) -> AnalysisSummariesOut:
-    """State, key facts, object labels, opt-outs and category wins of up to
-    MAX_SUMMARIES photos (the Live screen asks for its tiles in batches)."""
+    """State, key facts, objects (label, score, frame), face and hand frames,
+    opt-outs and category wins of up to MAX_SUMMARIES photos (the Live screen asks
+    for its tiles in batches). Coordinates are rounded to 3 places: the frames
+    only lie on thumbnails, and a batch stays small."""
     ids = list(dict.fromkeys(public_ids))[:MAX_SUMMARIES]
     if not ids:
         return AnalysisSummariesOut(items=[])
@@ -226,6 +251,7 @@ def analysis_summaries(core: Core, hub: WallHub, public_ids: list[str]) -> Analy
     internal = [int(r["id"]) for r in rows]
     states = hub.enrichment.summaries(internal)
     found = objects.objects_of(db, internal)
+    frames = jobs.frames_of(db, internal, TILE_FRAMES)
     wins: dict[int, list[CategoryWin]] = {}
     wanted = set(internal)
     config = load_config(core.repos.app_settings)
@@ -258,8 +284,15 @@ def analysis_summaries(core: Core, hub: WallHub, public_ids: list[str]) -> Analy
                     if k in SUMMARY_FACTS
                 },
                 objects=[
-                    SummaryObject(label_de=o.label_de, source=o.source) for o in found.get(pid, [])
+                    SummaryObject(
+                        label_de=o.label_de,
+                        source=o.source,
+                        score=round(o.score, 2),
+                        box=_object_box(o.box),
+                    )
+                    for o in found.get(pid, [])
                 ],
+                boxes=[b for raw in frames.get(pid, []) if (b := _summary_box(raw))],
                 opt_out=OptOutState(
                     analysis=bool(r["analysis_opt_out"]), external_ai=bool(r["ai_opt_out"])
                 ),

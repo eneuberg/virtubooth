@@ -28,6 +28,9 @@ export interface PhotoTileProps {
   openLabel?: string;
   /** bottom-right corner over the photo, e.g. the hide toggle <IconButton variant="overlay"> */
   overlay?: ReactNode;
+  /** drawn over the whole photo frame, under the controls and never catching the pointer
+   * (e.g. the analysis frames; position it `absolute inset-0`) */
+  photoLayer?: ReactNode;
   /** a checkbox over the top-left corner (manage selection) */
   selection?: { isSelected: boolean; onChange: (isSelected: boolean) => void; label: string };
   hiddenLabel?: string;
@@ -55,6 +58,7 @@ export function PhotoTile({
   onOpen,
   openLabel,
   overlay,
+  photoLayer,
   selection,
   hiddenLabel = 'Ausgeblendet',
   loading = 'lazy',
@@ -96,6 +100,7 @@ export function PhotoTile({
         ) : (
           img
         )}
+        {photoLayer}
         {isHidden ? (
           <GreaseX key="x" animate className="pointer-events-none absolute inset-[6%] size-[88%] text-mark" />
         ) : null}

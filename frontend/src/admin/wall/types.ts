@@ -383,7 +383,15 @@ export interface PhotoAnalysisSummary {
   state: AnalysisState;
   /** only the key values: people, faces, smiles, happy_max, hands, thumbs_up, peace, rock, glasses, hats, age_groups */
   facts: Record<string, number>;
-  objects: Array<{ label_de: string; source: ObjectSource }>;
+  /** score to 2 places; box on the full photo (0..1, 3 places), null when the source gave none */
+  objects: Array<{
+    label_de: string;
+    source: ObjectSource;
+    score: number;
+    box: { x: number; y: number; w: number; h: number } | null;
+  }>;
+  /** face and hand frames on the full photo (objects carry their own) */
+  boxes: Array<{ kind: 'face' | 'hand'; x: number; y: number; w: number; h: number }>;
   opt_out: { analysis: boolean; external_ai: boolean };
   /** the categories this photo currently wins (or the external AI's verdict names) */
   wins: Array<{ id: string; emoji: string; title: string; verdict: boolean }>;

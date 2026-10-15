@@ -5659,8 +5659,16 @@
         "type": "object"
       },
       "PhotoAnalysisSummary": {
-        "description": "What the Live screen shows under a photo tile: the state, the key facts,\nthe object labels, the guest's opt-outs and the categories it currently wins.\nThe full analysis (boxes, details, scores) is `/admin/photos/{id}/analysis`.",
+        "description": "What the Live screen shows on and under a photo tile: the state, the key\nfacts, the objects (label, score, frame), the face and hand frames, the guest's\nopt-outs and the categories it currently wins. The full analysis (details,\nruns, scores) is `/admin/photos/{id}/analysis`.",
         "properties": {
+          "boxes": {
+            "description": "Face and hand frames (objects carry their own).",
+            "items": {
+              "$ref": "#/components/schemas/SummaryBox"
+            },
+            "title": "Boxes",
+            "type": "array"
+          },
           "facts": {
             "additionalProperties": {
               "type": "number"
@@ -5707,6 +5715,7 @@
           "state",
           "facts",
           "objects",
+          "boxes",
           "opt_out",
           "wins"
         ],
@@ -6948,11 +6957,65 @@
         "title": "StreamResyncEvent",
         "type": "object"
       },
+      "SummaryBox": {
+        "description": "A face or hand frame for a tile (on the full photo, 0..1, to 3 places).",
+        "properties": {
+          "h": {
+            "title": "H",
+            "type": "number"
+          },
+          "kind": {
+            "enum": [
+              "face",
+              "hand"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "w": {
+            "title": "W",
+            "type": "number"
+          },
+          "x": {
+            "title": "X",
+            "type": "number"
+          },
+          "y": {
+            "title": "Y",
+            "type": "number"
+          }
+        },
+        "required": [
+          "kind",
+          "x",
+          "y",
+          "w",
+          "h"
+        ],
+        "title": "SummaryBox",
+        "type": "object"
+      },
       "SummaryObject": {
         "properties": {
+          "box": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ObjectBox"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "On the full photo (0..1, to 3 places); null when the source gives none."
+          },
           "label_de": {
             "title": "Label De",
             "type": "string"
+          },
+          "score": {
+            "description": "0..1, to 2 places.",
+            "title": "Score",
+            "type": "number"
           },
           "source": {
             "description": "local | claude | mistral",
@@ -6962,7 +7025,9 @@
         },
         "required": [
           "label_de",
-          "source"
+          "source",
+          "score",
+          "box"
         ],
         "title": "SummaryObject",
         "type": "object"
@@ -7216,7 +7281,7 @@
                 "type": "null"
               }
             ],
-            "description": "The layer; null: the preset's (`custom`: party).",
+            "description": "The layer; null: the preset's (`custom`: goofy, the default).",
             "title": "Style"
           }
         },
