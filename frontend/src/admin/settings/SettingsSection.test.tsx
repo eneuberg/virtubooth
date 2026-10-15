@@ -8,6 +8,8 @@ import { bodyField, json, must, stubApi, testClient, type Route } from '../testi
 import type { AdminSettings } from './api';
 import { settingsKey } from './keys';
 import { SettingsSection } from './SettingsSection';
+import { themeKey } from './themeApi';
+import { NEON_NACHT } from '@/styles/theme';
 
 const AUTO: AdminSettings['public_address'] = {
   address: null,
@@ -25,6 +27,21 @@ const SETTINGS: AdminSettings = {
 function renderSection(routes: Record<string, Route> = {}, settings: AdminSettings = SETTINGS) {
   const qc = testClient();
   qc.setQueryData(settingsKey, settings);
+  // the Erscheinungsbild card's own query (ThemeCard.test.tsx covers it)
+  qc.setQueryData(themeKey, {
+    theme: {
+      preset: 'neon_nacht',
+      colors: NEON_NACHT,
+      on_primary: '#000000',
+      on_accent: '#1b1b1a',
+      primary_ink: '#cc4ffe',
+      rev: 0,
+      custom: false,
+      updated_at: null,
+      by: null,
+    },
+    presets: [{ id: 'neon_nacht', label: 'Neon Nacht', colors: NEON_NACHT }],
+  });
   const requests = stubApi(routes);
   render(
     <QueryClientProvider client={qc}>

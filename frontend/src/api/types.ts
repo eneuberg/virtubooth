@@ -131,6 +131,10 @@ export type EventSettings = S['EventSettings'];
 export type PublicAddress = S['PublicAddress'];
 export type AddressCheck = S['AddressCheck'];
 export type PasswordState = S['PasswordState'];
+/** GET/PUT/DELETE /api/admin/theme (Allgemeines → Erscheinungsbild) */
+export type AdminThemeOut = S['AdminThemeOut'];
+export type AdminTheme = S['AdminTheme'];
+export type ThemePreset = S['ThemePreset'];
 /** GET/PUT /api/admin/x/booth/filters */
 export type BoothFilterSettings = S['BoothFilterSettingsOut'];
 export type BoothFilterSetting = S['BoothFilterSetting'];

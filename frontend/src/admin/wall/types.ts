@@ -73,9 +73,10 @@ export interface WallConfig {
   show_instagram: boolean;
   look: {
     preset: LookPreset;
-    primary: string;
-    secondary: string;
-    background: string;
+    /** null: wie Theme (Allgemeines → Erscheinungsbild: primary / accent / background) */
+    primary: string | null;
+    secondary: string | null;
+    background: string | null;
     fps: WallFps;
     calm: boolean;
   };

@@ -92,12 +92,14 @@ export function ColorField({
   value,
   onChange,
   error,
+  description,
   testid,
 }: {
   label: string;
   value: string;
   onChange: (value: string) => void;
   error?: string | undefined;
+  description?: string | undefined;
   testid?: string;
 }) {
   const [text, setText] = useState(value);
@@ -115,6 +117,7 @@ export function ColorField({
         onChange(normalizeHex(next) ?? next);
       }}
       errorMessage={error ?? null}
+      description={description}
       // the swatch sits in the field box, on the input's line
       start={
         <input
