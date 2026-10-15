@@ -74,7 +74,7 @@ export function TextField({
           <Icon aria-hidden="true" className="size-4 shrink-0 text-ink-muted" strokeWidth={2.25} />
         ) : null}
         {prefix ? (
-          <span aria-hidden="true" className="text-md text-ink-muted">
+          <span aria-hidden="true" className="text-md text-ink-muted select-none">
             {prefix}
           </span>
         ) : null}

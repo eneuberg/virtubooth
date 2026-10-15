@@ -207,7 +207,8 @@ def test_the_worker_recycles_after_max_photos(data_dir):
 
 def test_an_opted_out_guest_gets_only_the_basic_values(data_dir):
     """„Meine Fotos nicht automatisch auswerten“: the ML analyzers (by their
-    registry names) are skipped, and the opt-out is noted in the data."""
+    registry names) are skipped. Switching back only flips the flag: the
+    analysis is frozen (PLAN-NIGHT N4), nothing is requeued."""
     data, repos, photo_id = data_dir
     user_id = repos.db.one("SELECT user_id FROM photos WHERE id=?", (photo_id,))[0]
     with repos.db.tx() as c:
@@ -217,6 +218,33 @@ def test_an_opted_out_guest_gets_only_the_basic_values(data_dir):
     )
     assert jobs.facts(repos.db, photo_id) == {"basic": 1.0}
     assert jobs.get(repos.db, photo_id).data["opt_out"] is True
+
+    row = jobs.get(repos.db, photo_id)
+    assert repos.users.set_analysis_opt_out(user_id, False)
+    assert not repos.users.set_analysis_opt_out(user_id, False)  # unchanged
+    assert jobs.get(repos.db, photo_id) == row
+    assert jobs.facts(repos.db, photo_id) == {"basic": 1.0}
+
+
+def test_switching_the_opt_out_keeps_the_frozen_analysis(data_dir):
+    data, repos, photo_id = data_dir
+    user_id = repos.db.one("SELECT user_id FROM photos WHERE id=?", (photo_id,))[0]
+    Worker(data, analyzers=[Fake("basic"), Fake("faces")]).run(once=True)
+    before = (jobs.get(repos.db, photo_id), jobs.facts(repos.db, photo_id))
+    for flag in (True, False, True, False):
+        assert repos.users.set_analysis_opt_out(user_id, flag)
+        assert (jobs.get(repos.db, photo_id), jobs.facts(repos.db, photo_id)) == before
+
+
+def test_an_opt_out_during_an_analysis_only_flips_the_flag(data_dir):
+    """The result is stored (frozen); the live flag keeps it out of every use."""
+    _data, repos, photo_id = data_dir
+    user_id = repos.db.one("SELECT user_id FROM photos WHERE id=?", (photo_id,))[0]
+    claimed = jobs.claim(repos.db)
+    assert claimed is not None and not claimed.opt_out
+    assert repos.users.set_analysis_opt_out(user_id, True)
+    assert jobs.get(repos.db, photo_id).state == "running"
+    assert repos.users.get(user_id).analysis_opt_out is True
 
 
 def test_the_worker_names_the_source_from_the_stored_labels(data_dir):

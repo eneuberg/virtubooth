@@ -19,6 +19,7 @@ import { Switch } from '@/ui/Switch';
 import { showToast } from '@/ui/Toast';
 import { errorText } from '../common/usePhotoActions';
 import { parseCodeParam, withParams } from '../manage/manageUrl';
+import { AddressWarning } from './AddressWarning';
 import { partyOrigin, revokeCode, useActivities, useCodes, type Activities, type AdminCode } from './api';
 import { CodeRowMenu } from './CodeRowMenu';
 import { CodeSheet, type CodeAction } from './CodeSheet';
@@ -182,6 +183,7 @@ export function CodesSection() {
           Neuer QR-Code
         </Button>
       </header>
+      <AddressWarning />
       <HelpDisclosure summary="Wie funktionieren die Codes?">
         <p>
           Jeder Code hat eine feste Nummer und einen Tiernamen, z. B. „Gorilla 2“. Nummern werden nie neu

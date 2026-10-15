@@ -12,9 +12,14 @@ import { Spinner } from '@/ui/Spinner';
 import { Switch } from '@/ui/Switch';
 import { showToast } from '@/ui/Toast';
 import { errorText, showError } from '../common/usePhotoActions';
-import { boothFiltersKey, saveBoothFilters, useBoothFilters, type BoothFilterSettings } from './api';
-import { LAST_ONE, lockedFilter, withFilter } from './rules';
-import { SettingsCard } from './SettingsCard';
+import {
+  boothFiltersKey,
+  saveBoothFilters,
+  useBoothFilters,
+  type BoothFilterSettings,
+} from '../settings/api';
+import { LAST_ONE, lockedFilter, withFilter } from '../settings/rules';
+import { SettingsCard } from '../settings/SettingsCard';
 
 export function BoothFiltersCard() {
   const qc = useQueryClient();
@@ -47,7 +52,7 @@ export function BoothFiltersCard() {
   };
 
   return (
-    <SettingsCard title="Fotobox-Filter" icon={Camera} testid="settings-booth-filters">
+    <SettingsCard title="Filter" icon={Camera} testid="settings-booth-filters">
       <p className="text-sm text-ink-muted">
         Ausgeschaltete Filter verschwinden bei den Gästen aus der Filterleiste, spätestens nach 30 Sekunden.
         Fotos, die schon unterwegs sind, kommen trotzdem an. Mindestens ein Filter bleibt an.

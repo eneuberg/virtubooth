@@ -9,9 +9,9 @@ fingerprint is recorded as a moderation hint (see UsersRepo.sharing_fingerprint)
 
 from __future__ import annotations
 
+import json
 import re
-import threading
-import time
+import unicodedata
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
@@ -20,7 +20,7 @@ from ..core import errors
 from ..core.clock import now_iso
 from ..db.database import Database
 from ..domain.constants import AUTO_BAN_REASON
-from ..domain.models import Photo, PhotoQuery, User, new_public_id
+from ..domain.models import Photo, PhotoQuery, User, new_public_id, shown_name
 from ..repositories.container import Repositories
 from .events import AdminEvents
 
@@ -32,13 +32,86 @@ INSTAGRAM_RE = re.compile(rf"^[a-z0-9._]{{1,{INSTAGRAM_MAX}}}$")
 MY_PHOTOS_MAX = 60
 # the Live-Wall extension; while it is loaded, its photo analysis runs
 WALL_EXTENSION = "wall"
-# the join texts' paragraph about it (VB_CONSENT_VERSION: see DEPLOY.md)
+# The join texts' paragraphs about the photo analysis. Changing them changes what
+# guests agreed to: bump VB_CONSENT_VERSION when deploying (DEPLOY.md; security
+# review 3, „Consent and privacy“). The night batch changed them (external AI):
+# deploy it with a new VB_CONSENT_VERSION.
 WALL_ANALYSIS_TEXT = (
     "Für die Live-Wall der Party werden Fotos automatisch auf dem Server ausgewertet: "
     "Gesichter und Hände zählen, Gesichtsausdruck und ungefähres Alter schätzen – nur zum "
-    "Spaß, für Kategorien wie „Grinsekatzen“. Nichts davon verlässt den Server, und du "
-    "kannst es für deine Fotos ausschalten."
+    "Spaß, für Kategorien wie „Grinsekatzen“. Du kannst das für deine Fotos ausschalten."
 )
+# always in „Mehr dazu“, also while the host has no external AI switched on
+EXTERNAL_AI_TEXT = (
+    "Wenn der Gastgeber es einschaltet, können Fotos und erkannte Dinge (z. B. „Glas“, "
+    "„Hut“) zusätzlich von einem externen KI-Dienst (Anthropic, USA) ausgewertet werden – "
+    "für lustige Kategorien auf der Live-Wall. Mit „Keine Weitergabe an externe KI“ "
+    "schließt du deine Fotos davon aus; das kannst du jederzeit unter „Du“ ändern."
+)
+
+# ------------------------------------------------------------ display names
+
+DISPLAY_NAME_MIN = 2
+DISPLAY_NAME_MAX = 24
+RESERVED_NAMES = frozenset(
+    {"admin", "host", "gastgeber", "moderator", "veranstalter", "virtubooth"}
+)
+_SPACES = re.compile(r"\s+")
+# what two names may differ in and still count as the same name
+_NAME_NOISE = re.compile(r"[\s._\-@#]+")
+LENGTH_PROBLEM = "Der Name braucht 2 bis 24 Zeichen."
+NAME_REFUSED = "Dieser Name geht leider nicht."
+NAME_TAKEN = "Dieser Name ist schon vergeben."
+
+
+def name_key(name: str) -> str:
+    """What two names are compared by: NFKC, case-folded, without spaces, „.“,
+    „_“, „-“, „@“ and „#“ („Anna_B“ = „anna b“ = „@anna.b“)."""
+    return _NAME_NOISE.sub("", unicodedata.normalize("NFKC", name).casefold())
+
+
+def normalize_display_name(raw: str | None) -> str | None:
+    """The name to store, or None for "back to the default" (null or blank).
+    NFKC, trimmed, space runs collapsed; 2–24 characters; no control, format
+    (bidi, zero-width), private-use or surrogate characters; no leading „@“
+    (that is how Instagram names look). 400 `invalid_display_name`."""
+    if raw is None:
+        return None
+    name = _SPACES.sub(" ", unicodedata.normalize("NFKC", raw)).strip()
+    if not name:
+        return None
+    if any(unicodedata.category(ch) in ("Cc", "Cf", "Co", "Cs") for ch in name):
+        raise errors.bad_request(NAME_REFUSED, "invalid_display_name")
+    if not DISPLAY_NAME_MIN <= len(name) <= DISPLAY_NAME_MAX:
+        raise errors.bad_request(LENGTH_PROBLEM, "invalid_display_name")
+    if name.startswith(("@", "＠")) or not any(ch.isalnum() for ch in name):
+        raise errors.bad_request(NAME_REFUSED, "invalid_display_name")
+    return name
+
+
+# ---------------------------------------------------------------- external AI
+
+
+def external_ai_active(repos: Repositories) -> bool:
+    """Switched on, and something would actually be sent: detection at upload,
+    an active property or an enabled category with an LLM verdict."""
+    # INT2: import from extensions.wall.llm.flags
+    config = repos.app_settings.get("x.llm.config")
+    if not config.get("enabled"):
+        return False
+    detect = config.get("detect")
+    if isinstance(detect, dict) and detect.get("external"):
+        return True
+    if repos.db.one("SELECT 1 FROM llm_properties WHERE archived_at IS NULL LIMIT 1"):
+        return True
+    for row in repos.db.all("SELECT spec FROM wall_categories WHERE enabled = 1"):
+        try:
+            spec = json.loads(row["spec"])
+        except ValueError:
+            continue
+        if isinstance(spec, dict) and spec.get("verdict"):
+            return True
+    return False
 
 
 def normalize_instagram(raw: str | None) -> str | None:
@@ -87,6 +160,7 @@ def create_user(
     banned_reason: str | None = None,
     code_id: int | None = None,
     analysis_opt_out: bool = False,
+    ai_opt_out: bool = False,
 ) -> User:
     """A new identity. While the new-guest lock is on it starts paused.
     `code_id`: the QR code it joined through."""
@@ -107,6 +181,7 @@ def create_user(
             lock_period=lock.period if lock.enabled else None,
             code_id=code_id,
             analysis_opt_out=analysis_opt_out,
+            ai_opt_out=ai_opt_out,
         )
         user = repos.users.get(uid)
     assert user is not None
@@ -120,21 +195,12 @@ class JoinResult:
     instagram_kept: bool
 
 
-# a guest's photos are queued again for the analysis at most once per this
-# many seconds, however often the opt-out is switched (ANA-01)
-ANALYSIS_REQUEUE_SECONDS = 300.0
-
-
 class IdentityService:
     def __init__(self, core: Core, db: Database, repos: Repositories, events: AdminEvents) -> None:
         self.core = core
         self.db = db
         self.repos = repos
         self.events = events
-        self.clock = time.monotonic
-        # user id -> when its photos were last queued again by an opt-out change
-        self._requeued: dict[int, float] = {}
-        self._requeue_lock = threading.Lock()
 
     def consent_info(self) -> ConsentInfo:
         s = self.core.settings
@@ -154,6 +220,7 @@ class IdentityService:
                 "gemacht hast, wie lange die Seite bei dir offen war und über welchen QR-Code "
                 "du gekommen bist.",
                 *([WALL_ANALYSIS_TEXT] if analysis else []),
+                EXTERNAL_AI_TEXT,
                 "Wenn du das nicht möchtest, mach hier bitte keine Fotos.",
             ],
             instagram_prompt="Instagram-Name (freiwillig). Dann können wir dich markieren.",
@@ -161,6 +228,7 @@ class IdentityService:
             party_name=name,
             instagram_account=s.instagram_account,
             analysis=analysis,
+            external_ai=self.external_ai(),
         )
 
     def analysis_active(self) -> bool:
@@ -208,10 +276,11 @@ class IdentityService:
         user_agent: str,
         code_id: int | None = None,
         analysis_opt_out: bool = False,
+        ai_opt_out: bool = False,
     ) -> JoinResult:
         """`code_id`: the QR code the browser scanned; stored on a new guest
         only (a device that joined already keeps its first code), like
-        `analysis_opt_out` (the switch in the join sheet)."""
+        `analysis_opt_out` and `ai_opt_out` (the switches in the join sheet)."""
         if existing is not None:
             return self._rejoin(existing, instagram)
         if self.repos.app_settings.join_stop().enabled:
@@ -236,6 +305,7 @@ class IdentityService:
                 banned_reason=banned_reason,
                 code_id=code_id,
                 analysis_opt_out=analysis_opt_out,
+                ai_opt_out=ai_opt_out,
             )
             self.events.user_created(user)
         return JoinResult(user, created=True, instagram_kept=False)
@@ -270,6 +340,7 @@ class IdentityService:
         banned_reason: str | None = None,
         code_id: int | None = None,
         analysis_opt_out: bool = False,
+        ai_opt_out: bool = False,
     ) -> User:
         return create_user(
             self.db,
@@ -283,31 +354,96 @@ class IdentityService:
             banned_reason=banned_reason,
             code_id=code_id,
             analysis_opt_out=analysis_opt_out,
+            ai_opt_out=ai_opt_out,
         )
 
     def set_analysis_opt_out(self, user: User, opt_out: bool) -> User:
-        """„Meine Fotos nicht automatisch auswerten“ on or off. Only a real
-        change does anything. The guest's photos are queued again at once at
-        most every ANALYSIS_REQUEUE_SECONDS; a change within that window only
-        drops what the analysis found (switching it off) and leaves the redo to
-        the worker's sweep (enrich/worker.py), which compares each analysis with
-        what the guest's current choice expects. So switching back and forth
-        costs one analysis pass, not one per switch (ANA-01)."""
-        with self._requeue_lock:
-            now = self.clock()
-            last = self._requeued.get(user.id)
-            due = last is None or not 0 <= now - last < ANALYSIS_REQUEUE_SECONDS
-            changed = self.repos.users.set_analysis_opt_out(user.id, opt_out, requeue=due)
-            if changed and due:
-                if len(self._requeued) > 5000:
-                    self._requeued = {
-                        k: t for k, t in self._requeued.items()
-                        if now - t < ANALYSIS_REQUEUE_SECONDS
-                    }  # fmt: skip
-                self._requeued[user.id] = now
+        """„Meine Fotos nicht automatisch auswerten“ on or off. Only the flag
+        flips: what the analysis found stays as it is (frozen, PLAN-NIGHT N4);
+        while it is on, the guest's photos are left out of every evaluation."""
+        if self.repos.users.set_analysis_opt_out(user.id, opt_out):
+            self.events.user_instagram(user.id, user.instagram)  # walls refresh the photos
+        return self._reload(user)
+
+    def set_ai_opt_out(self, user: User, opt_out: bool) -> User:
+        """„Keine Weitergabe an externe KI“ on or off: checked live before every
+        external call (detection, property poll, verdict)."""
+        self.repos.users.set_ai_opt_out(user.id, opt_out)
+        return self._reload(user)
+
+    def external_ai(self) -> bool:
+        return external_ai_active(self.repos)
+
+    # ------------------------------------------------------- display names
+
+    def set_display_name(self, user: User, raw: str | None) -> User:
+        """The guest's own display name (None or blank: back to the default).
+        400 `invalid_display_name`, 409 `display_name_taken` (another guest's
+        name or pseudonym, a reserved word or the event name)."""
+        name = normalize_display_name(raw)
+        if name is not None:
+            self._check_free(user, name)
+        with self.db.tx():
+            if self.repos.users.set_display_name(user.id, name):
+                self.repos.audit.log(
+                    f"guest:{user.id}",
+                    "user.display_name",
+                    f"user:{user.id}",
+                    {"display_name": name, "previous": user.display_name},
+                    at=now_iso(),
+                )
+                # the same event a new handle sends: open walls rename the photos
+                self.events.user_instagram(user.id, user.instagram)
+        return self._reload(user)
+
+    def reset_display_name(self, user_id: int, *, actor: str) -> tuple[User, bool]:
+        """The admin takes a guest's display name back to the default."""
+        user = self.repos.users.get(user_id)
+        if user is None:
+            raise errors.not_found("Gast nicht gefunden.")
+        with self.db.tx():
+            changed = self.repos.users.set_display_name(user_id, None)
+            if changed:
+                self.repos.audit.log(
+                    actor,
+                    "user.display_name_reset",
+                    f"user:{user_id}",
+                    {"previous": user.display_name},
+                    at=now_iso(),
+                )
+                self.events.user_instagram(user_id, user.instagram)
+        return self._reload(user), changed
+
+    def _check_free(self, user: User, name: str) -> None:
+        key = name_key(name)
+        event = name_key(self.core.services.host_settings.event_name())
+        if key in RESERVED_NAMES or key == event or len(key) < DISPLAY_NAME_MIN:
+            raise errors.bad_request(NAME_REFUSED, "invalid_display_name")
+        for uid, pseudonym, instagram, display in self.repos.users.names():
+            if uid == user.id:
+                continue
+            taken = {name_key(pseudonym), name_key(shown_name(display, instagram, pseudonym))}
+            if instagram:
+                taken.add(name_key(instagram))
+            if key in taken:
+                raise errors.ApiError(409, "display_name_taken", NAME_TAKEN)
+
+    def _reload(self, user: User) -> User:
         updated = self.repos.users.get(user.id)
         assert updated is not None
         return updated
+
+    # --------------------------------------------------------------- photos
+
+    def delete_my_photo(self, user: User, public_id: str) -> None:
+        """The guest deletes one of their own photos: the admin's delete path,
+        audited as `guest:<id>`. 404 for someone else's, an unknown or an
+        already deleted photo."""
+        photo = self.repos.photos.get(public_id)
+        if photo is None or photo.user_id != user.id or photo.deleted:
+            raise errors.not_found("Foto nicht gefunden.")
+        if not self.core.services.moderation.delete_photo(public_id, actor=f"guest:{user.id}"):
+            raise errors.not_found("Foto nicht gefunden.")
 
     def set_instagram(self, user: User, raw: str | None) -> User:
         handle = normalize_instagram(raw)

@@ -163,7 +163,9 @@ def wall_photos(
                 taken_at=p.created_at,
                 width=p.width,
                 height=p.height,
-                author=p.user_name,
+                author=p.user_shown_name
+                if config.show_instagram or p.user_display_name
+                else p.user_name,
                 instagram=p.user_instagram if config.show_instagram else None,
                 author_key=author_key(core, p.user_id),
                 urls=WallPhotoUrls(
@@ -214,7 +216,7 @@ def wall_qr(core: Core, config: WallConfig, origin: str | None = None) -> WallQr
         code = next((c for c in active if c.id == wanted), None)
     if code is None:
         return None
-    base = (core.settings.public_base_url or origin or "").rstrip("/")
+    base = (core.services.host_settings.public_base_url() or origin or "").rstrip("/")
     return WallQr(url=base + entry_path(code.target, code.token), name=code.name)
 
 

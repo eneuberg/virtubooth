@@ -6,6 +6,7 @@
 import {
   Archive,
   AtSign,
+  Camera,
   Gauge,
   Images,
   LayoutGrid,
@@ -14,7 +15,7 @@ import {
   Radio,
   QrCode,
   ScrollText,
-  Settings,
+  Settings2,
   ShieldBan,
   Tv,
   Upload,
@@ -28,8 +29,9 @@ import { t } from '@/lib/messages.de';
 import { BottomBar, bottomBarInset } from '@/ui/BottomBar';
 import { Button, LinkButton } from '@/ui/Button';
 import { cx } from '@/ui/cx';
-import { IconButton, iconButtonStyles } from '@/ui/IconButton';
+import { IconButton } from '@/ui/IconButton';
 import { SidebarNav } from '@/ui/SidebarNav';
+import { FotoboxSection } from '../booth/FotoboxSection';
 import { CodesSection } from '../codes/CodesSection';
 import { AdminFrame } from '../common/AdminFrame';
 import { ConnectionBadge } from '../common/ConnectionBadge';
@@ -57,6 +59,7 @@ const SECTION_VIEW: Record<Section, ComponentType> = {
   fotos: PhotosSection,
   gaeste: GuestsSection,
   instagram: InstagramSection,
+  fotobox: FotoboxSection,
   livewall: WallSection,
   sperren: BansSection,
   protokoll: AuditSection,
@@ -64,7 +67,7 @@ const SECTION_VIEW: Record<Section, ComponentType> = {
   plakat: PosterSection,
   export: ExportSection,
   uebersicht: OverviewSection,
-  einstellungen: SettingsSection,
+  allgemein: SettingsSection,
 };
 
 function navItem(id: Section, label: string, icon: typeof Images, count?: number) {
@@ -74,9 +77,11 @@ function navItem(id: Section, label: string, icon: typeof Images, count?: number
 function navItems(stats: AdminStats | undefined) {
   return [
     navItem('uebersicht', 'Übersicht', Gauge),
+    navItem('allgemein', 'Allgemeines', Settings2),
     navItem('fotos', 'Fotos', Images, stats?.photos),
     navItem('gaeste', 'Gäste', Users, stats?.guests),
     navItem('instagram', 'Instagram', AtSign, stats?.instagram_handles),
+    navItem('fotobox', 'Fotobox', Camera),
     navItem('livewall', 'Live-Wall', Tv),
     navItem('sperren', 'Sperren', ShieldBan, stats ? stats.banned + stats.fingerprint_bans : undefined),
     navItem('protokoll', 'Protokoll', ScrollText),
@@ -175,17 +180,6 @@ function ManageShell() {
               <LinkButton href="/live" variant="quiet" size="xs" icon={Radio} className="justify-start">
                 Live öffnen
               </LinkButton>
-              <LinkButton
-                href="/manage?tab=einstellungen"
-                variant="quiet"
-                size="xs"
-                icon={Settings}
-                className="justify-start"
-                aria-current={section === 'einstellungen' ? 'page' : undefined}
-                data-testid="settings-link"
-              >
-                Einstellungen
-              </LinkButton>
               <Button
                 variant="quiet"
                 size="xs"
@@ -207,15 +201,6 @@ function ManageShell() {
               <ConnectionBadge />
             </div>
             <UploadStatusPill className="ml-auto" />
-            <Link
-              href="/manage?tab=einstellungen"
-              aria-label="Einstellungen"
-              aria-current={section === 'einstellungen' ? 'page' : undefined}
-              className={iconButtonStyles()}
-              data-testid="settings-link"
-            >
-              <Settings aria-hidden="true" strokeWidth={2} />
-            </Link>
             <IconButton label="Abmelden" icon={LogOut} onPress={() => void logout()} data-testid="logout" />
           </div>
           <QuickControls className="px-3 pb-2" />

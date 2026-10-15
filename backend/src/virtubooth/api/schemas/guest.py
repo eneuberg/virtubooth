@@ -47,14 +47,31 @@ class JoinIn(BaseModel):
     instagram: str | None = Field(default=None, max_length=100)
     # „Meine Fotos nicht automatisch auswerten“ (Live-Wall photo analysis)
     analysis_opt_out: bool = False
+    # „Keine Weitergabe an externe KI“ (only offered while `ConsentInfo.external_ai`)
+    ai_opt_out: bool = False
     # required: leaving it out would skip the fingerprint-ban check
     fp: Fingerprint
 
 
 class MeIn(BaseModel):
-    """null or blank clears the handle."""
+    """Change what is sent; a field left out stays. null or blank clears it
+    (`display_name`: back to the default). A body with neither field clears
+    the handle (as before display names)."""
 
     instagram: str | None = Field(default=None, max_length=100)
+    display_name: str | None = Field(
+        default=None,
+        max_length=100,
+        description="2–24 characters after normalising (NFKC, spaces collapsed); no "
+        "invisible or bidi characters, no leading „@“, not another guest's name.",
+    )
+
+
+class MeExternalAiIn(BaseModel):
+    """„Keine Weitergabe an externe KI“: true = none of my photos, labels or my
+    name ever go to an external AI service."""
+
+    opt_out: bool
 
 
 class MeAnalysisIn(BaseModel):
@@ -72,11 +89,17 @@ class GuestUser(BaseModel):
 
     model_config = ConfigDict(from_attributes=True)
 
-    name: str
+    name: str = Field(description="The pseudonym (internal; never changes).")
+    display_name: str | None = Field(description="The name the guest chose; null: default.")
+    shown_name: str = Field(
+        description="How others see the guest: display name, else „@<instagram>“, else "
+        "the pseudonym."
+    )
     instagram: str | None
     banned: bool
     uploads_paused: bool
     analysis_opt_out: bool
+    ai_opt_out: bool
 
     @classmethod
     def of(cls, user: User) -> GuestUser:
@@ -93,6 +116,8 @@ class ConsentInfo(BaseModel):
     instagram_account: str
     # the Live-Wall's photo analysis runs: offer „Meine Fotos nicht automatisch auswerten“
     analysis: bool = False
+    # the host has an external AI on: offer „Keine Weitergabe an externe KI“
+    external_ai: bool = False
 
 
 class NeedsConsentOut(BaseModel):
@@ -158,6 +183,10 @@ class GuestPhoto(BaseModel):
         )
 
 
+class DeletedOut(BaseModel):
+    ok: Literal[True]
+
+
 class MyPhotosOut(BaseModel):
     """The caller's own visible photos, newest first (at most 60)."""
 
@@ -190,6 +219,11 @@ class UploadOutBase(BaseModel):
 
 class HealthOut(BaseModel):
     ok: Literal[True]
+    probe_mac: str | None = Field(
+        default=None,
+        description="With `?probe=<nonce>`: proof that this server answered (the admin's "
+        "public-address check); otherwise null.",
+    )
 
 
 class HereIn(BaseModel):

@@ -21,6 +21,60 @@
         "title": "ActivityCountOut",
         "type": "object"
       },
+      "AddressCheck": {
+        "description": "Whether the public address reaches THIS server: it fetched\n`<address>/healthz?probe=<nonce>` and compared the answer's `probe_mac`.",
+        "properties": {
+          "at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "When it was checked; null: never.",
+            "title": "At"
+          },
+          "message": {
+            "description": "German detail for the admin, e.g. „Zeitüberschreitung“.",
+            "title": "Message",
+            "type": "string"
+          },
+          "status": {
+            "description": "ok: reaches this server; unreachable: no answer (DNS, refused, timeout, TLS); mismatch: something else answers (another server, a redirect, an error page); auto: no address set, the QR codes use the address the admin is open on; unchecked: not checked since the address changed.",
+            "enum": [
+              "ok",
+              "unreachable",
+              "mismatch",
+              "auto",
+              "unchecked"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The address that was checked.",
+            "title": "Url"
+          }
+        },
+        "required": [
+          "status",
+          "url",
+          "at",
+          "message"
+        ],
+        "title": "AddressCheck",
+        "type": "object"
+      },
       "AdminCode": {
         "description": "One QR code, also when revoked („gelöscht“: `active` false).",
         "properties": {
@@ -417,11 +471,15 @@
           },
           "password": {
             "$ref": "#/components/schemas/PasswordState"
+          },
+          "public_address": {
+            "$ref": "#/components/schemas/PublicAddress"
           }
         },
         "required": [
           "event",
-          "password"
+          "password",
+          "public_address"
         ],
         "title": "AdminSettingsOut",
         "type": "object"
@@ -429,6 +487,16 @@
       "AdminUser": {
         "description": "Everything about a guest. The same shape in every response and event.",
         "properties": {
+          "ai_opt_out": {
+            "description": "„Keine externe KI“.",
+            "title": "Ai Opt Out",
+            "type": "boolean"
+          },
+          "analysis_opt_out": {
+            "description": "„Gast möchte keine Auswertung“.",
+            "title": "Analysis Opt Out",
+            "type": "boolean"
+          },
           "auto_ban": {
             "anyOf": [
               {
@@ -492,6 +560,18 @@
             "title": "Created At",
             "type": "string"
           },
+          "display_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The name the guest chose; null: default.",
+            "title": "Display Name"
+          },
           "first_ip": {
             "title": "First Ip",
             "type": "string"
@@ -536,6 +616,7 @@
             "type": "string"
           },
           "name": {
+            "description": "The pseudonym (internal name, never changes).",
             "title": "Name",
             "type": "string"
           },
@@ -558,6 +639,11 @@
             "description": "Non-deleted photos.",
             "title": "Photo Count",
             "type": "integer"
+          },
+          "shown_name": {
+            "description": "How other guests see them: display name, else „@<instagram>“, else the pseudonym.",
+            "title": "Shown Name",
+            "type": "string"
           },
           "uploads_lock_period": {
             "anyOf": [
@@ -608,7 +694,11 @@
         "required": [
           "id",
           "name",
+          "display_name",
+          "shown_name",
           "instagram",
+          "analysis_opt_out",
+          "ai_opt_out",
           "created_at",
           "last_seen_at",
           "consent_at",
@@ -2253,7 +2343,7 @@
                 "type": "null"
               }
             ],
-            "description": "VB_PUBLIC_BASE_URL, or null.",
+            "description": "The public address (Allgemeines, else VB_PUBLIC_BASE_URL), or null.",
             "title": "Base Url"
           },
           "codes": {
@@ -2287,6 +2377,11 @@
           "analysis": {
             "default": false,
             "title": "Analysis",
+            "type": "boolean"
+          },
+          "external_ai": {
+            "default": false,
+            "title": "External Ai",
             "type": "boolean"
           },
           "instagram_account": {
@@ -2346,6 +2441,20 @@
           "id"
         ],
         "title": "DeletePhotoOut",
+        "type": "object"
+      },
+      "DeletedOut": {
+        "properties": {
+          "ok": {
+            "const": true,
+            "title": "Ok",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "ok"
+        ],
+        "title": "DeletedOut",
         "type": "object"
       },
       "DetailLine": {
@@ -2555,6 +2664,23 @@
         "title": "DeviceUnbanOut",
         "type": "object"
       },
+      "DisplayNameResetOut": {
+        "properties": {
+          "changed": {
+            "title": "Changed",
+            "type": "boolean"
+          },
+          "user": {
+            "$ref": "#/components/schemas/AdminUser"
+          }
+        },
+        "required": [
+          "user",
+          "changed"
+        ],
+        "title": "DisplayNameResetOut",
+        "type": "object"
+      },
       "ErrorBody": {
         "description": "Every error response.",
         "properties": {
@@ -2567,6 +2693,8 @@
               "consent_outdated",
               "invalid_instagram",
               "join_closed",
+              "invalid_display_name",
+              "display_name_taken",
               "wall_login_required",
               "wall_no_password",
               "wall_password_too_short",
@@ -2594,6 +2722,7 @@
               "no_fingerprint",
               "restore_required",
               "invalid_event_name",
+              "invalid_public_address",
               "password_too_short",
               "password_unchanged",
               "no_filter_enabled",
@@ -2849,7 +2978,6 @@
         "discriminator": {
           "mapping": {
             "archive": "#/components/schemas/ArchiveExportIn",
-            "qr": "#/components/schemas/QrExportIn",
             "timelapse": "#/components/schemas/TimelapseExportIn"
           },
           "propertyName": "kind"
@@ -2860,9 +2988,6 @@
           },
           {
             "$ref": "#/components/schemas/TimelapseExportIn"
-          },
-          {
-            "$ref": "#/components/schemas/QrExportIn"
           }
         ],
         "title": "ExportIn"
@@ -2939,8 +3064,7 @@
           "kind": {
             "enum": [
               "archive",
-              "timelapse",
-              "qr"
+              "timelapse"
             ],
             "title": "Kind",
             "type": "string"
@@ -2952,12 +3076,9 @@
               },
               {
                 "$ref": "#/components/schemas/TimelapseOptions"
-              },
-              {
-                "$ref": "#/components/schemas/QrOptions"
               }
             ],
-            "description": "The options it runs with (defaults filled in; qr: the URL used).",
+            "description": "The options it runs with (defaults filled in).",
             "title": "Options"
           },
           "progress": {
@@ -3035,7 +3156,7 @@
                 "type": "null"
               }
             ],
-            "description": "VB_PUBLIC_BASE_URL (the QR codes' default), null when unset.",
+            "description": "The public address (Allgemeines, else VB_PUBLIC_BASE_URL); null: automatic from the request.",
             "title": "Public Base Url"
           }
         },
@@ -3405,6 +3526,10 @@
       "GuestUser": {
         "description": "What the guest's own browser may see about itself (exactly these keys).",
         "properties": {
+          "ai_opt_out": {
+            "title": "Ai Opt Out",
+            "type": "boolean"
+          },
           "analysis_opt_out": {
             "title": "Analysis Opt Out",
             "type": "boolean"
@@ -3412,6 +3537,18 @@
           "banned": {
             "title": "Banned",
             "type": "boolean"
+          },
+          "display_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The name the guest chose; null: default.",
+            "title": "Display Name"
           },
           "instagram": {
             "anyOf": [
@@ -3425,7 +3562,13 @@
             "title": "Instagram"
           },
           "name": {
+            "description": "The pseudonym (internal; never changes).",
             "title": "Name",
+            "type": "string"
+          },
+          "shown_name": {
+            "description": "How others see the guest: display name, else „@<instagram>“, else the pseudonym.",
+            "title": "Shown Name",
             "type": "string"
           },
           "uploads_paused": {
@@ -3435,12 +3578,28 @@
         },
         "required": [
           "name",
+          "display_name",
+          "shown_name",
           "instagram",
           "banned",
           "uploads_paused",
-          "analysis_opt_out"
+          "analysis_opt_out",
+          "ai_opt_out"
         ],
         "title": "GuestUser",
+        "type": "object"
+      },
+      "HTTPValidationError": {
+        "properties": {
+          "detail": {
+            "items": {
+              "$ref": "#/components/schemas/ValidationError"
+            },
+            "title": "Detail",
+            "type": "array"
+          }
+        },
+        "title": "HTTPValidationError",
         "type": "object"
       },
       "HealthOut": {
@@ -3449,6 +3608,18 @@
             "const": true,
             "title": "Ok",
             "type": "boolean"
+          },
+          "probe_mac": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "With `?probe=<nonce>`: proof that this server answered (the admin's public-address check); otherwise null.",
+            "title": "Probe Mac"
           }
         },
         "required": [
@@ -3744,6 +3915,11 @@
           "accept": {
             "const": true,
             "title": "Accept",
+            "type": "boolean"
+          },
+          "ai_opt_out": {
+            "default": false,
+            "title": "Ai Opt Out",
             "type": "boolean"
           },
           "analysis_opt_out": {
@@ -4220,9 +4396,36 @@
         "title": "MeAnalysisIn",
         "type": "object"
       },
-      "MeIn": {
-        "description": "null or blank clears the handle.",
+      "MeExternalAiIn": {
+        "description": "„Keine Weitergabe an externe KI“: true = none of my photos, labels or my\nname ever go to an external AI service.",
         "properties": {
+          "opt_out": {
+            "title": "Opt Out",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "opt_out"
+        ],
+        "title": "MeExternalAiIn",
+        "type": "object"
+      },
+      "MeIn": {
+        "description": "Change what is sent; a field left out stays. null or blank clears it\n(`display_name`: back to the default). A body with neither field clears\nthe handle (as before display names).",
+        "properties": {
+          "display_name": {
+            "anyOf": [
+              {
+                "maxLength": 100,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "2–24 characters after normalising (NFKC, spaces collapsed); no invisible or bidi characters, no leading „@“, not another guest's name.",
+            "title": "Display Name"
+          },
           "instagram": {
             "anyOf": [
               {
@@ -5795,6 +5998,77 @@
         "title": "ProviderOut",
         "type": "object"
       },
+      "PublicAddress": {
+        "description": "The address QR codes, posters and the Live-Wall's code point to.",
+        "properties": {
+          "address": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Set in Allgemeines; null: not set.",
+            "title": "Address"
+          },
+          "check": {
+            "$ref": "#/components/schemas/AddressCheck"
+          },
+          "effective": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "What the codes use: `address`, else VB_PUBLIC_BASE_URL, else the origin this request came in on.",
+            "title": "Effective"
+          },
+          "source": {
+            "enum": [
+              "setting",
+              "env",
+              "auto"
+            ],
+            "title": "Source",
+            "type": "string"
+          }
+        },
+        "required": [
+          "address",
+          "effective",
+          "source",
+          "check"
+        ],
+        "title": "PublicAddress",
+        "type": "object"
+      },
+      "PublicAddressIn": {
+        "properties": {
+          "address": {
+            "anyOf": [
+              {
+                "maxLength": 300,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "http(s)://host[:port][/path], no query or fragment; null or blank: back to VB_PUBLIC_BASE_URL / automatic.",
+            "title": "Address"
+          }
+        },
+        "required": [
+          "address"
+        ],
+        "title": "PublicAddressIn",
+        "type": "object"
+      },
       "PublicExtension": {
         "properties": {
           "emoji": {
@@ -5831,58 +6105,6 @@
           "uploads"
         ],
         "title": "PublicExtension",
-        "type": "object"
-      },
-      "QrExportIn": {
-        "properties": {
-          "kind": {
-            "const": "qr",
-            "title": "Kind",
-            "type": "string"
-          },
-          "options": {
-            "$ref": "#/components/schemas/QrOptions"
-          }
-        },
-        "required": [
-          "kind"
-        ],
-        "title": "QrExportIn",
-        "type": "object"
-      },
-      "QrOptions": {
-        "additionalProperties": false,
-        "description": "A zip of the party QR codes (SVG + PNG) and the printable qr-sheet.html.",
-        "properties": {
-          "base_url": {
-            "anyOf": [
-              {
-                "maxLength": 300,
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "description": "Public URL guests open, e.g. https://party.example.com. Default: VB_PUBLIC_BASE_URL. In a job: the URL that was used.",
-            "title": "Base Url"
-          },
-          "code_id": {
-            "anyOf": [
-              {
-                "exclusiveMaximum": 4.611686018427388e+18,
-                "minimum": 1.0,
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "description": "The QR code whose token the sheet carries. Default: the active code with the lowest number. In a job: the code that was used.",
-            "title": "Code Id"
-          }
-        },
-        "title": "QrOptions",
         "type": "object"
       },
       "RestoreOut": {
@@ -7015,6 +7237,46 @@
           "changed"
         ],
         "title": "UserUploadsOut",
+        "type": "object"
+      },
+      "ValidationError": {
+        "properties": {
+          "ctx": {
+            "title": "Context",
+            "type": "object"
+          },
+          "input": {
+            "title": "Input"
+          },
+          "loc": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ]
+            },
+            "title": "Location",
+            "type": "array"
+          },
+          "msg": {
+            "title": "Message",
+            "type": "string"
+          },
+          "type": {
+            "title": "Error Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "loc",
+          "msg",
+          "type"
+        ],
+        "title": "ValidationError",
         "type": "object"
       },
       "ValueInfo": {
@@ -10065,7 +10327,7 @@
                 }
               }
             },
-            "description": "The file as an attachment: archive and qr are a zip, timelapse an mp4."
+            "description": "The file as an attachment: archive is a zip, timelapse an mp4."
           },
           "400": {
             "content": {
@@ -12478,7 +12740,7 @@
     },
     "/api/admin/settings": {
       "get": {
-        "description": "The event name and where the admin password comes from.",
+        "description": "The event name, where the admin password comes from, and the public\naddress with its last check.",
         "operationId": "get_settings_api_admin_settings_get",
         "responses": {
           "200": {
@@ -12797,6 +13059,220 @@
           }
         },
         "summary": "Change Password",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/api/admin/settings/public-address": {
+      "put": {
+        "description": "Set the public address (null or blank: VB_PUBLIC_BASE_URL, else\nautomatic) and check it at once. 400 `invalid_public_address`. A failed\ncheck never blocks saving.",
+        "operationId": "set_public_address_api_admin_settings_public_address_put",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PublicAddressIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicAddress"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Invalid input (see `error`)"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Needs consent or an admin session"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Forbidden: banned, paused, stopped, joining closed or a foreign Origin (CSRF)"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Not found, or no party access (`scan_qr`)"
+          },
+          "411": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Content-Length required"
+          },
+          "413": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Request too large"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Request validation failed (`invalid_request`)"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Rate limited (`Retry-After` header)"
+          }
+        },
+        "summary": "Set Public Address",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/api/admin/settings/public-address/check": {
+      "post": {
+        "description": "Check the public address now: does `<address>/healthz` reach this server?",
+        "operationId": "check_public_address_api_admin_settings_public_address_check_post",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AddressCheck"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Invalid input (see `error`)"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Needs consent or an admin session"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Forbidden: banned, paused, stopped, joining closed or a foreign Origin (CSRF)"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Not found, or no party access (`scan_qr`)"
+          },
+          "411": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Content-Length required"
+          },
+          "413": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Request too large"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Request validation failed (`invalid_request`)"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Rate limited (`Retry-After` header)"
+          }
+        },
+        "summary": "Check Public Address",
         "tags": [
           "admin"
         ]
@@ -13769,6 +14245,121 @@
         ]
       }
     },
+    "/api/admin/users/{user_id}/display-name": {
+      "delete": {
+        "description": "Take the guest's display name back to the default (moderation).",
+        "operationId": "reset_display_name_api_admin_users__user_id__display_name_delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "user_id",
+            "required": true,
+            "schema": {
+              "exclusiveMaximum": 4611686018427387904,
+              "minimum": 1,
+              "title": "User Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DisplayNameResetOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Invalid input (see `error`)"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Needs consent or an admin session"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Forbidden: banned, paused, stopped, joining closed or a foreign Origin (CSRF)"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Not found, or no party access (`scan_qr`)"
+          },
+          "411": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Content-Length required"
+          },
+          "413": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Request too large"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Request validation failed (`invalid_request`)"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Rate limited (`Retry-After` header)"
+          }
+        },
+        "summary": "Reset Display Name",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
     "/api/admin/users/{user_id}/unban": {
       "post": {
         "description": "Unban a guest (only ban-hidden photos come back). `fingerprint`: lift\ntheir device bans too, releasing the identities those auto-banned.",
@@ -14644,7 +15235,7 @@
     },
     "/api/me": {
       "patch": {
-        "description": "Set or clear (null/blank) the guest's Instagram handle. Paused guests may;\nbanned ones get 403 `banned`.",
+        "description": "Set or clear (null/blank) the guest's Instagram handle and/or display\nname. Paused guests may; banned ones get 403 `banned`. 400\n`invalid_instagram` / `invalid_display_name`, 409 `display_name_taken`.",
         "operationId": "update_me_api_me_patch",
         "requestBody": {
           "content": {
@@ -14707,6 +15298,16 @@
             },
             "description": "Not found, or no party access (`scan_qr`)"
           },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
           "411": {
             "content": {
               "application/json": {
@@ -14756,7 +15357,7 @@
     },
     "/api/me/analysis": {
       "put": {
-        "description": "„Meine Fotos nicht automatisch auswerten“ on or off. The guest's photos\nare analysed again: with it on, only image values (no faces, hands,\nexpressions), and they never win a category that needs more.",
+        "description": "„Meine Fotos nicht automatisch auswerten“ on or off. Only the flag\nflips (analyses are frozen): new photos taken with it on get only image\nvalues, and while it is on none of the guest's photos is evaluated.",
         "operationId": "update_my_analysis_api_me_analysis_put",
         "requestBody": {
           "content": {
@@ -14866,6 +15467,108 @@
         ]
       }
     },
+    "/api/me/external-ai": {
+      "put": {
+        "description": "„Keine Weitergabe an externe KI“ on or off. Checked live before every\nexternal call; local analysis keeps running.",
+        "operationId": "update_my_external_ai_api_me_external_ai_put",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MeExternalAiIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MeOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Needs consent or an admin session"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Forbidden: banned, paused, stopped, joining closed or a foreign Origin (CSRF)"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Not found, or no party access (`scan_qr`)"
+          },
+          "411": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Content-Length required"
+          },
+          "413": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Request too large"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Request validation failed (`invalid_request`)"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Rate limited (`Retry-After` header)"
+          }
+        },
+        "summary": "Update My External Ai",
+        "tags": [
+          "guest"
+        ]
+      }
+    },
     "/api/me/photos": {
       "get": {
         "description": "The guest's own photos that are still up (not hidden, not deleted),\nnewest first, at most 60.",
@@ -14953,6 +15656,110 @@
           }
         },
         "summary": "My Photos",
+        "tags": [
+          "guest"
+        ]
+      }
+    },
+    "/api/me/photos/{public_id}": {
+      "delete": {
+        "description": "Delete one of the guest's own photos for good (the admin's delete:\nfiles gone, analysis purged). 404 for any other photo.",
+        "operationId": "delete_my_photo_api_me_photos__public_id__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "public_id",
+            "required": true,
+            "schema": {
+              "pattern": "^[A-Za-z0-9_-]{8,32}$",
+              "title": "Public Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeletedOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Needs consent or an admin session"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Forbidden: banned, paused, stopped, joining closed or a foreign Origin (CSRF)"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Not found, or no party access (`scan_qr`)"
+          },
+          "411": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Content-Length required"
+          },
+          "413": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Request too large"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Request validation failed (`invalid_request`)"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Rate limited (`Retry-After` header)"
+          }
+        },
+        "summary": "Delete My Photo",
         "tags": [
           "guest"
         ]
@@ -18138,7 +18945,28 @@
     },
     "/healthz": {
       "get": {
+        "description": "`probe`: a nonce; the answer's `probe_mac` proves this server answered.",
         "operationId": "healthz_healthz_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "probe",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 64,
+                  "pattern": "^[A-Za-z0-9_-]{1,64}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Probe"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "content": {
@@ -18149,6 +18977,16 @@
               }
             },
             "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
           }
         },
         "summary": "Healthz",

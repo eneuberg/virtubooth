@@ -135,7 +135,7 @@ def test_new_endpoints_are_documented(exported):
         "/ExportIn"
     )
     export_in = schema["components"]["schemas"]["ExportIn"]
-    assert set(export_in["discriminator"]["mapping"]) == {"archive", "timelapse", "qr"}
+    assert set(export_in["discriminator"]["mapping"]) == {"archive", "timelapse"}
     assert "409" in paths["/api/admin/exports/{job_id}"]["delete"]["responses"]
     assert "post" in paths["/api/admin/instagram/{handle}/done"]
     handle = schema["components"]["schemas"]["InstagramHandleOut"]

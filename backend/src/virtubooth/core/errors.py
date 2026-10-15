@@ -20,6 +20,8 @@ ErrorCode = Literal[
     "consent_outdated",
     "invalid_instagram",
     "join_closed",
+    "invalid_display_name",
+    "display_name_taken",
     # live wall
     "wall_login_required",
     "wall_no_password",
@@ -53,6 +55,7 @@ ErrorCode = Literal[
     "restore_required",
     # admin settings
     "invalid_event_name",
+    "invalid_public_address",
     "password_too_short",
     "password_unchanged",
     "no_filter_enabled",

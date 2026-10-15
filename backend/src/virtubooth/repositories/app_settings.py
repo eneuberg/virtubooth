@@ -8,6 +8,9 @@
 - `event` = {name, by}: the event name set in the admin (absent: VB_PARTY_NAME).
 - `admin.password` = {hash, changed_at, by}: the admin password set in the admin
   or by `virtubooth reset-admin-password` (absent: VB_ADMIN_PASSWORD).
+- `public_address` = {address, by}: the public address set in Allgemeines
+  (absent: VB_PUBLIC_BASE_URL, else the request's origin).
+- `public_address_check` = {status, url, at, message}: the last reachability check.
 
 Extensions keep their own keys as `x.<extension id>.<name>` (e.g.
 `x.booth.filters`), defined in their package.
@@ -25,6 +28,8 @@ from ..domain.models import UploadLock, UploadStop
 
 EVENT_KEY: Final = "event"
 ADMIN_PASSWORD_KEY: Final = "admin.password"
+PUBLIC_ADDRESS_KEY: Final = "public_address"
+PUBLIC_ADDRESS_CHECK_KEY: Final = "public_address_check"
 
 
 @dataclass(frozen=True)
@@ -34,6 +39,25 @@ class EventName:
     name: str
     by: str | None
     at: str | None
+
+
+@dataclass(frozen=True)
+class StoredAddress:
+    """The public address the host set (the row's `updated_at` as `at`)."""
+
+    address: str
+    by: str | None
+    at: str | None
+
+
+@dataclass(frozen=True)
+class StoredCheck:
+    """The last check of the public address."""
+
+    status: str
+    url: str | None
+    at: str | None
+    message: str
 
 
 @dataclass(frozen=True)
@@ -159,3 +183,38 @@ class AppSettingsRepo:
 
     def put_admin_password(self, encoded: str, *, by: str, at: str) -> None:
         self.put(ADMIN_PASSWORD_KEY, {"hash": encoded, "changed_at": at, "by": by}, at=at)
+
+    # -------------------------------------------------------- public address
+
+    def public_address(self) -> StoredAddress | None:
+        """The address the host set in Allgemeines; None: env or automatic."""
+        raw, at = self.get_entry(PUBLIC_ADDRESS_KEY)
+        address = raw.get("address")
+        if not isinstance(address, str) or not address:
+            return None
+        by = raw.get("by")
+        return StoredAddress(address=address, by=by if isinstance(by, str) else None, at=at)
+
+    def put_public_address(self, address: str, *, by: str, at: str) -> None:
+        self.put(PUBLIC_ADDRESS_KEY, {"address": address, "by": by}, at=at)
+
+    def public_address_check(self) -> StoredCheck | None:
+        raw = self.get(PUBLIC_ADDRESS_CHECK_KEY)
+        status = raw.get("status")
+        if not isinstance(status, str):
+            return None
+        url, at, message = raw.get("url"), raw.get("at"), raw.get("message")
+        return StoredCheck(
+            status=status,
+            url=url if isinstance(url, str) else None,
+            at=at if isinstance(at, str) else None,
+            message=message if isinstance(message, str) else "",
+        )
+
+    def put_public_address_check(self, check: StoredCheck) -> None:
+        at = check.at or ""
+        self.put(
+            PUBLIC_ADDRESS_CHECK_KEY,
+            {"status": check.status, "url": check.url, "at": check.at, "message": check.message},
+            at=at,
+        )
