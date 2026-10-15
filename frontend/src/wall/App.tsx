@@ -5,6 +5,7 @@
 import { useEffect, useMemo, useReducer, useRef, useState } from 'react';
 import { fetchCategories, fetchFeed, sessionStatus } from './api/client';
 import { browserStreamDeps, openWallStream, type StreamStatus } from './api/stream';
+import { applyTheme } from '@/styles/theme';
 import { DEFAULT_CONFIG, type WallCategory, type WallLook, type WallMode } from './api/types';
 import { mountBackground, type BackgroundHandle } from './background';
 import { highlightIds, visibleCategories } from './modes/categories';
@@ -243,6 +244,11 @@ export function WallApp() {
     applyLook(look);
     backgroundRef.current?.update(look);
   }, [look]);
+  // the guest UI's theme (text, accents, the corner): --t-* like on the guest pages
+  const theme = state.theme;
+  useEffect(() => {
+    if (theme) applyTheme(theme.colors);
+  }, [theme]);
 
   useEffect(() => keepScreenOn(), []);
 

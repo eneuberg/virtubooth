@@ -120,7 +120,12 @@ export function Button({
   const id = idProp ?? fallbackId;
   useDropAnnouncementsOnUnmount(id);
   return (
-    <AriaButton {...props} id={id} className={buttonStyles({ variant, size, block, class: className })}>
+    <AriaButton
+      {...props}
+      id={id}
+      data-variant={variant ?? 'secondary'}
+      className={buttonStyles({ variant, size, block, class: className })}
+    >
       {({ isPending }) => (
         <>
           <span className={cx('inline-flex items-center gap-2', isPending && 'invisible')}>
@@ -158,7 +163,11 @@ export function LinkButton({
   ...props
 }: LinkButtonProps) {
   return (
-    <AriaLink {...props} className={buttonStyles({ variant, size, block, class: className })}>
+    <AriaLink
+      {...props}
+      data-variant={variant ?? 'secondary'}
+      className={buttonStyles({ variant, size, block, class: className })}
+    >
       <Label icon={icon} iconEnd={iconEnd}>
         {children}
       </Label>
