@@ -140,7 +140,7 @@ jobs:
         run: |
           uv sync
           uv run playwright install --with-deps ${{ matrix.browser }}
-          pip install --user py-spy  # DEBUG
+          uv tool install py-spy  # DEBUG
       # 4 workers for the runner's 4 vCPUs and 16 GB (up to 1 GB each, see the Makefile).
       # Firefox runs under Xvfb: headless Firefox without any X display gets no WebGL
       # on a runner without a GPU (FEATURE_FAILURE_WEBGL_EXHAUSTED_DRIVERS), and the
@@ -153,7 +153,7 @@ jobs:
         run: |
           # DEBUG: dump the stacks of every pytest process if the run hangs
           (sleep 660; echo "=== WATCHDOG: still running after 11 min"; ps -ef --forest | grep -E "pytest|firefox|chrom|xvfb" | grep -v grep | cut -c1-200;
-           for pid in $(pgrep -f "pytest|xdist|execnet|python"); do echo "=== py-spy $pid"; sudo "$(command -v py-spy)" dump --pid "$pid" 2>&1 | head -120; done) &
+           for pid in $(pgrep -f "pytest|xdist|execnet|python"); do echo "=== py-spy $pid"; sudo "$HOME/.local/bin/py-spy" dump --pid "$pid" 2>&1 | head -120; done) &
           ${{ matrix.browser == 'firefox' && 'xvfb-run -a ' || '' }}uv run pytest -m e2e -v -n 4 --dist worksteal -o faulthandler_timeout=150
       - name: DEBUG GL log
         if: always()
