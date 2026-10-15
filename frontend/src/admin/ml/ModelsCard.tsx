@@ -322,8 +322,8 @@ function AiDetectorRow({ llm }: { llm: LlmStatus }) {
 }
 
 const IMAGE_LABELS: Record<AnalysisImage, string> = {
-  original: 'Original (ohne Filter)',
-  filtered: 'Gefiltertes Foto',
+  original: 'Original',
+  filtered: 'Mit Filter',
 };
 
 /** „Erkennung auf“: the unfiltered original or the filtered photo, for new photos. */
@@ -355,8 +355,9 @@ function AnalysisImageChoice({ value }: { value: AnalysisImage }) {
         data-testid="ml-analysis-image"
       />
       <p className="text-xs text-ink-muted">
-        Für alle Analysen und die KI-Erkennung neuer Fotos. Fotos ohne eigenes Original (z. B. ohne Filter)
-        werden immer so analysiert, wie sie sind.
+        Original: das Foto ohne Filter; mit Filter: so, wie der Gast es gesehen hat. Für alle Analysen und die
+        KI-Erkennung neuer Fotos. Fotos ohne eigenes Original (z. B. ohne Filter) werden immer so analysiert,
+        wie sie sind.
       </p>
     </div>
   );

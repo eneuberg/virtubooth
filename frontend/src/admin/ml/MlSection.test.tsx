@@ -270,13 +270,10 @@ describe('ML-Pipeline section', () => {
     const block = await screen.findByTestId('ml-analysis-image-block');
     expect(screen.getByTestId('ml-object-detection-block').contains(block)).toBe(true);
     const choice = within(block).getByTestId('ml-analysis-image');
-    expect(within(choice).getByRole('radio', { name: 'Original (ohne Filter)' })).toHaveProperty(
-      'checked',
-      true,
-    );
-    fireEvent.click(within(choice).getByRole('radio', { name: 'Gefiltertes Foto' }));
+    expect(within(choice).getByRole('radio', { name: 'Original' })).toHaveProperty('checked', true);
+    fireEvent.click(within(choice).getByRole('radio', { name: 'Mit Filter' }));
     await waitFor(() =>
-      expect(within(choice).getByRole('radio', { name: 'Gefiltertes Foto' })).toHaveProperty('checked', true),
+      expect(within(choice).getByRole('radio', { name: 'Mit Filter' })).toHaveProperty('checked', true),
     );
     const put = must(requests.find((r) => r.method === 'PUT'));
     expect(put.url).toContain('/analysis/image');
