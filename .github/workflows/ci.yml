@@ -144,7 +144,6 @@ jobs:
         if: matrix.browser == 'firefox'
         working-directory: backend
         run: |
-          sudo apt-get install -y --no-install-recommends libegl1 libegl-mesa0
           cat > /tmp/glprobe.py <<'PY'
           from playwright.sync_api import sync_playwright
           JS = """() => { const c = document.createElement('canvas'); let msg = null;
@@ -153,17 +152,19 @@ jobs:
             if (!gl) return 'NO WEBGL: ' + msg; const d = gl.getExtension('WEBGL_debug_renderer_info');
             return d ? gl.getParameter(d.UNMASKED_RENDERER_WEBGL) : gl.getParameter(gl.RENDERER); }"""
           with sync_playwright() as p:
-              b = p.firefox.launch()
-              print(b.new_page().evaluate(JS))
-              b.close()
+              for prefs in ({}, {"webgl.force-enabled": True}):
+                  b = p.firefox.launch(firefox_user_prefs=prefs)
+                  print(prefs, b.new_page().evaluate(JS))
+                  b.close()
           PY
           uv run python /tmp/glprobe.py
+          xvfb-run -a uv run python /tmp/glprobe.py
       # 4 workers for the runner's 4 vCPUs and 16 GB (up to 1 GB each, see the Makefile)
       - name: e2e (pytest + Playwright, fake cameras, zero console errors)
         working-directory: backend
         env:
           VB_E2E_BROWSER: ${{ matrix.browser }}
-        run: uv run pytest -m e2e -q -n 4 --dist worksteal -o faulthandler_timeout=150
+        run: ${{ matrix.browser == 'firefox' && 'xvfb-run -a ' || '' }}uv run pytest -m e2e -v -n 4 --dist worksteal -o faulthandler_timeout=150
 
   docker:
     name: docker (build + smoke)
