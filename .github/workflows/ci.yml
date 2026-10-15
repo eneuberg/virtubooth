@@ -140,7 +140,6 @@ jobs:
         run: |
           uv sync
           uv run playwright install --with-deps ${{ matrix.browser }}
-          uv tool install py-spy  # DEBUG
       # 4 workers for the runner's 4 vCPUs and 16 GB (up to 1 GB each, see the Makefile).
       # Firefox runs under Xvfb: headless Firefox without any X display gets no WebGL
       # on a runner without a GPU (FEATURE_FAILURE_WEBGL_EXHAUSTED_DRIVERS), and the
@@ -150,11 +149,7 @@ jobs:
         working-directory: backend
         env:
           VB_E2E_BROWSER: ${{ matrix.browser }}
-        run: |
-          # DEBUG: dump the stacks of every pytest process if the run hangs
-          (sleep 480; echo "=== WATCHDOG: still running after 8 min"; ps -ef --forest | grep -E "pytest|firefox|xvfb|node|driver" | grep -v grep | cut -c1-250;
-           for pid in $(pgrep -f "pytest|xdist|execnet|python"); do echo "=== py-spy $pid"; sudo "$HOME/.local/bin/py-spy" dump --pid "$pid" 2>&1 | head -120; done) &
-          ${{ matrix.browser == 'firefox' && 'xvfb-run -a ' || '' }}uv run pytest -m e2e -v -s -n 4 --dist worksteal -o faulthandler_timeout=120
+        run: ${{ matrix.browser == 'firefox' && 'xvfb-run -a ' || '' }}uv run pytest -m e2e -q -n 4 --dist worksteal
 
   docker:
     name: docker (build + smoke)

@@ -28,6 +28,7 @@ and failed loads show up there.
 
 from __future__ import annotations
 
+import logging
 import os
 import socket
 import threading
@@ -59,6 +60,42 @@ from . import fastpoll
 
 # waits re-check every 100 ms instead of every 500 ms (fastpoll.py)
 fastpoll.install()
+
+
+def _survive_unknown_replies() -> None:
+    """Playwright 1.63's client dies on an answer to a call it no longer waits for.
+
+    On CI the driver now and then sent an answer ("Target page, context or browser has
+    been closed") for a call id the client had no callback for. Connection.dispatch
+    then raised KeyError inside the greenlet that runs Playwright's event loop: that
+    greenlet ended, the KeyError surfaced in whatever call was running (a page.goto in
+    a fixture), and from then on every call of that xdist worker waited for a loop that
+    no longer ran. The job hung until its 30-minute timeout. Such an answer has nobody
+    to go to, so it is dropped (and logged). Private API like fastpoll.py: when it
+    changes shape, this does nothing."""
+    try:
+        from playwright._impl._connection import Connection
+    except ImportError:
+        return
+    dispatch = getattr(Connection, "dispatch", None)
+    if dispatch is None or getattr(Connection, "_vb_unknown_replies", False):
+        return
+
+    def tolerant_dispatch(self: Any, msg: Any) -> None:
+        callbacks = getattr(self, "_callbacks", None)
+        id_ = msg.get("id")
+        if id_ and isinstance(callbacks, dict) and id_ not in callbacks:
+            logging.getLogger(__name__).warning(
+                "Playwright: dropped an answer to call %s: %s", id_, msg.get("error")
+            )
+            return
+        dispatch(self, msg)
+
+    Connection.dispatch = tolerant_dispatch  # type: ignore[method-assign]
+    Connection._vb_unknown_replies = True  # type: ignore[attr-defined]
+
+
+_survive_unknown_replies()
 
 BROWSER_NAME = os.environ.get("VB_E2E_BROWSER", "chromium")
 WEB_DIR = Path(os.environ.get("VB_E2E_WEB_DIR") or DEFAULT_WEB_DIR).resolve()
@@ -121,27 +158,6 @@ def _settle_new_pages_in_firefox() -> None:
 
 if BROWSER_NAME == "firefox":
     _settle_new_pages_in_firefox()
-
-
-def _unroute_before_close() -> None:
-    """Playwright 1.63: closing a context while one of its route handlers is called
-    (a test that aborts a request the page asks for again, e.g. the Fotobox catalogue
-    after its retry) could hang context.close() for good, in Chromium and in Firefox;
-    on CI it stopped the run until the job's timeout. Unrouting first, without waiting
-    for handlers that already run and ignoring their errors, lets every request after
-    that go to the server as usual."""
-    close = BrowserContext.close
-
-    def close_unrouted(self: BrowserContext, reason: str | None = None) -> None:
-        for page in self.pages:
-            page.unroute_all(behavior="ignoreErrors")
-        self.unroute_all(behavior="ignoreErrors")
-        close(self, reason=reason)
-
-    BrowserContext.close = close_unrouted  # type: ignore[method-assign]
-
-
-_unroute_before_close()
 
 MOBILE = {
     "viewport": {"width": 390, "height": 844},
@@ -631,15 +647,3 @@ def covered_by_toast(page: Page, *targets: Locator) -> list[str]:
         ):
             out.append(str(target))
     return out
-
-
-def pytest_runtest_logreport(report: pytest.TestReport) -> None:  # DEBUG, to be dropped
-    if report.failed:
-        import sys
-
-        worker = os.environ.get("PYTEST_XDIST_WORKER", "main")
-        print(
-            f"\n##### {worker} {report.when} FAILED {report.nodeid}\n{report.longreprtext[-6000:]}\n#####",
-            file=sys.__stderr__,
-            flush=True,
-        )
