@@ -94,6 +94,10 @@ FIREFOX_PREFS = {
     "media.navigator.streams.fake": True,
     "media.navigator.permission.disabled": True,
     "dom.events.testing.asyncClipboard": True,  # navigator.clipboard.readText() without the paste prompt
+    # WebGL even when Firefox's GPU probe at startup (glxtest) calls OpenGL unusable: on
+    # a GPU-less CI runner (software GL under Xvfb) it sometimes did for one of several
+    # Firefoxes starting at once, and that worker's camera ran on Canvas2D
+    "webgl.force-enabled": True,
 }
 
 
