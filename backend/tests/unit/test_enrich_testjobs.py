@@ -74,6 +74,9 @@ def test_the_worker_answers_in_memory(running):
     assert run.objects == [DetectedObject("hat", "Hut", 0.8, (0.1, 0.0, 0.3, 0.2))]
     assert run.boxes[0]["kind"] == "face" and set(run.durations_ms) == {"basic", "objects"}
     assert any(d["label"] == "Helligkeit" for d in run.details)
+    # taken "now", not at the epoch
+    taken = next(d["value"] for d in run.details if d["label"] == "Aufgenommen")
+    assert "1970" not in taken
     # only what was asked for (plus basic)
     run = testjobs.submit_to(folder, jpeg(), ["basic"], timeout_s=10)
     assert "people" not in run.facts and run.objects == []
