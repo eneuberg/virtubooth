@@ -295,6 +295,9 @@ class LlmService:
                 raise Unavailable("llm_key_invalid", exc.message) from None
             return False, redact.redact(exc.message)
         self._meter("test", "key", cfg, usage, ok=True)
+        # a key the detection saw rejected works again: photos go to the AI again
+        self.detector.key_ok()
+        self.detector.poke()
         return True, "Schlüssel funktioniert."
 
 

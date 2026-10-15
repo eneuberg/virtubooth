@@ -2790,6 +2790,35 @@
             "title": "Failed",
             "type": "integer"
           },
+          "fallback": {
+            "description": "Photos whose objects come from the local detector in place of the AI (it could not deliver them: no key, key rejected, budget, provider down, an error).",
+            "title": "Fallback",
+            "type": "integer"
+          },
+          "fallback_now": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "While the AI is the detector but the local one stands in for new photos: why (German); None while the AI takes them.",
+            "title": "Fallback Now"
+          },
+          "fallback_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Why, for the latest of them (German).",
+            "title": "Fallback Reason"
+          },
           "last_error": {
             "anyOf": [
               {
@@ -2852,6 +2881,9 @@
           "failed",
           "last_run_at",
           "last_error",
+          "fallback",
+          "fallback_reason",
+          "fallback_now",
           "stats",
           "cost_usd"
         ],
@@ -5999,6 +6031,18 @@
             "title": "Objects Ai",
             "type": "array"
           },
+          "objects_fallback": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The local detector stood in for the external AI on this photo: why (German, e.g. „Budget aufgebraucht“); None otherwise.",
+            "title": "Objects Fallback"
+          },
           "objects_local": {
             "description": "The local model's own list.",
             "items": {
@@ -6067,6 +6111,7 @@
           "objects_local",
           "objects_ai",
           "runs",
+          "objects_fallback",
           "opt_out",
           "opt_out_at_analysis",
           "properties",

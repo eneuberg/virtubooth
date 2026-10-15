@@ -3203,6 +3203,21 @@ export interface components {
             /** Failed */
             failed: number;
             /**
+             * Fallback
+             * @description Photos whose objects come from the local detector in place of the AI (it could not deliver them: no key, key rejected, budget, provider down, an error).
+             */
+            fallback: number;
+            /**
+             * Fallback Now
+             * @description While the AI is the detector but the local one stands in for new photos: why (German); None while the AI takes them.
+             */
+            fallback_now: string | null;
+            /**
+             * Fallback Reason
+             * @description Why, for the latest of them (German).
+             */
+            fallback_reason: string | null;
+            /**
              * Last Error
              * @description The detection's last error (provider trouble).
              */
@@ -4636,6 +4651,11 @@ export interface components {
              * @description The external AI's own list (Claude, Mistral; source and model per object).
              */
             objects_ai: components["schemas"]["SourceObject"][];
+            /**
+             * Objects Fallback
+             * @description The local detector stood in for the external AI on this photo: why (German, e.g. „Budget aufgebraucht“); None otherwise.
+             */
+            objects_fallback: string | null;
             /**
              * Objects Local
              * @description The local model's own list.

@@ -186,12 +186,16 @@ def test_only_photos_analysed_while_the_ai_is_active_are_sent(core):
     # a new photo: the worker skips the local detector and queues it for the AI
     new = analyse(core, uid)
     assert ai_flag(core, new) == 1
-    local_run = core.db.one(
-        "SELECT state, error FROM photo_detection_runs WHERE photo_id=? AND source='local'",
-        (new,),
-    )
-    assert local_run["state"] == "skipped"
+
+    def local_run():
+        return core.db.one(
+            "SELECT state, error FROM photo_detection_runs WHERE photo_id=? AND source='local'",
+            (new,),
+        )
+
+    assert local_run() is None  # open while the AI has it (it may still fall back)
     assert runner.run_once() == "done" and len(fake.detected) == 1
+    assert dict(local_run()) == {"state": "skipped", "error": jobs.AI_ACTIVE}
     assert runner.run_once() == "idle"
     # its merged list is the AI's list only (nothing to merge with)
     merged = ports.objects_of(core.db, [new])[new]
@@ -230,6 +234,18 @@ def test_the_local_detector_takes_over_while_the_ai_cannot(core, cause):
     assert data[jobs.AI_FALLBACK]
     # the analyzer setting is untouched: the AI stays the chosen detector
     assert not local_on(core)
+
+
+def test_a_guest_without_external_ai_gets_the_local_list(core):
+    """While the AI is the detector, a guest's „Keine Weitergabe an externe KI“ photo
+    is never sent; the local detector takes it instead of leaving it empty."""
+    setup_llm(core, FakeProvider(objects=AI))
+    config.set_ai_detection(core.repos.app_settings, True, by="t")
+    ports.set_local_objects(core, False, by="t")
+    pid = analyse(core, add_guest(core, ai_opt_out=True))
+    assert ai_flag(core, pid) == 0
+    assert [o.source for o in ports.objects_of(core.db, [pid])[pid]] == ["local"]
+    assert jobs.get(core.db, pid).data[jobs.AI_FALLBACK] == jobs.GUEST_NO_AI
 
 
 def test_master_switch_off_queues_nothing(core):

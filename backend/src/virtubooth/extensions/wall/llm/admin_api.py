@@ -118,6 +118,7 @@ def status_of(svc: LlmService) -> LlmStatus:
         "SELECT MAX(created_at) AS at FROM photo_detection_runs WHERE source != 'local'"
     )
     stats = budget.detect_stats(db)
+    fallback, fallback_reason = jobs.fallback_counts(db)
     return LlmStatus(
         config=cfg,
         key=_key(svc.keys.status()),
@@ -161,6 +162,9 @@ def status_of(svc: LlmService) -> LlmStatus:
             failed=runs.get("failed", 0),
             last_run_at=last_run["at"] if last_run else None,
             last_error=detector.last_error or detector.blocked,
+            fallback=fallback,
+            fallback_reason=fallback_reason,
+            fallback_now=detector.fallback_now(),
             stats=DetectStatsOut(
                 processed=stats.processed,
                 errors=stats.errors,

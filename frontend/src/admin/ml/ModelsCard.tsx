@@ -312,12 +312,38 @@ function AiDetectorRow({ llm }: { llm: LlmStatus }) {
       <p className="text-xs text-ink-muted tabular" data-testid="ml-ai-detect-stats">
         {statsText(detection.stats)} · bisher {usdText(detection.cost_usd)}
       </p>
+      <AiFallback detection={detection} active={active} />
       {detection.last_error ? (
         <p className="text-sm text-danger" data-testid="ml-ai-detect-error">
           {detection.last_error}
         </p>
       ) : null}
     </li>
+  );
+}
+
+/**
+ * Photos the local detector took in the AI's place (it could not deliver them), with
+ * the latest reason, and a quiet hint while it stands in right now.
+ */
+function AiFallback({ detection, active }: { detection: LlmStatus['detection']; active: boolean }) {
+  const now = active ? detection.fallback_now : null;
+  if (detection.fallback === 0 && !now) return null;
+  return (
+    <div className="grid gap-0.5 text-xs" data-testid="ml-ai-detect-fallback">
+      {detection.fallback > 0 ? (
+        <p className="text-ink-muted tabular" data-testid="ml-ai-detect-fallback-count">
+          {detection.fallback === 1 ? '1 Foto' : `${detection.fallback} Fotos`} lokal statt KI
+          {detection.fallback_reason ? ` · zuletzt: ${detection.fallback_reason}` : ''}
+        </p>
+      ) : null}
+      {now ? (
+        <p className="text-ink-muted" data-testid="ml-ai-detect-fallback-now">
+          Gerade erkennt das lokale Modell statt der KI ({now}). Neue Fotos gehen wieder an die KI, sobald sie
+          verfügbar ist.
+        </p>
+      ) : null}
+    </div>
   );
 }
 

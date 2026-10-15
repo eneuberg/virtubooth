@@ -218,6 +218,7 @@ export function photoAnalysis(state: PhotoAnalysis['state'] = 'done'): PhotoAnal
       { source: 'local', state: 'done', model: 'objects@1', error: null },
       { source: 'claude', state: 'done', model: 'claude-haiku-5-5', error: null },
     ],
+    objects_fallback: null,
     opt_out: { analysis: false, external_ai: false },
     properties: [{ name: 'coolness', archived: false, scores: [0.2, 0.9] }],
     durations_ms: { basic: 12, faces: 140 },

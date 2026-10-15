@@ -209,6 +209,17 @@ describe('AnalysisPanel', () => {
     expect(await screen.findByText('Keine Objekte erkannt.')).toBeTruthy();
   });
 
+  it('says when the local detector stood in for the AI', async () => {
+    renderPanel({ [PATH]: () => ({ ...photoAnalysis(), objects_fallback: 'Dienst nicht erreichbar' }) });
+    expect((await screen.findByTestId('analysis-fallback')).textContent).toBe(
+      'lokal (Ersatz für KI: Dienst nicht erreichbar)',
+    );
+    cleanup();
+    renderPanel({ [PATH]: () => photoAnalysis() });
+    await screen.findByTestId('analysis-objects');
+    expect(screen.queryByTestId('analysis-fallback')).toBeNull();
+  });
+
   it("marks the guest's opt-outs", async () => {
     renderPanel({
       [PATH]: () => ({ ...photoAnalysis(), opt_out: { analysis: true, external_ai: true } }),
