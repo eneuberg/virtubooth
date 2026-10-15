@@ -87,9 +87,7 @@ export function ValuePicker({
         <ListBox className="outline-none">
           {groupsOf(list).map((g) => (
             <ListBoxSection key={g.group} className="pb-1">
-              <Header className="px-3 pt-2 pb-1 text-xs font-bold text-ink-muted uppercase">
-                {g.group}
-              </Header>
+              <Header className="px-3 pt-2 pb-1 text-xs font-bold text-ink-muted uppercase">{g.group}</Header>
               {g.items.map((c) => (
                 <ListBoxItem key={c.id} id={c.id} textValue={c.title} className={ITEM} data-value={c.id}>
                   {({ isSelected }) => (
@@ -118,7 +116,10 @@ function labelText(labels: readonly LabelInfo[], label: string): string {
   return labels.find((l) => l.label === label)?.label_de ?? label;
 }
 
-/** One object label: pick a known one or type any (English canonical or German name). */
+/**
+ * One object label: pick a known one or type any (English canonical or German name).
+ * The input text is the combobox's own; a pick shows the German name.
+ */
 export function LabelPicker({
   label,
   labels,
@@ -135,28 +136,35 @@ export function LabelPicker({
   onChange: (label: string) => void;
   error?: string | undefined;
   hideLabel?: boolean;
-  /** for adding to a list: empty again after a pick */
+  /** for adding to a list: empty again after a pick (Enter adds a typed label) */
   clearOnPick?: boolean;
   testid?: string;
 }) {
   const surface = useSurface();
-  const [text, setText] = useState(() => (value ? labelText(labels, value) : ''));
+  // a fresh, empty combobox after each pick (clearOnPick)
+  const [round, setRound] = useState(0);
+  const [text, setText] = useState('');
+  const known = labels.some((l) => l.label === value);
+  const add = (picked: string) => {
+    onChange(picked);
+    setText('');
+    setRound((r) => r + 1);
+  };
   return (
     <ComboBox
-      inputValue={text}
+      key={round}
+      defaultInputValue={clearOnPick || !value ? '' : labelText(labels, value)}
       onInputChange={(t) => {
         setText(t);
         if (!clearOnPick) onChange(labelFor(labels, t));
       }}
-      selectedKey={clearOnPick ? null : value || null}
+      selectedKey={clearOnPick || !known ? null : value}
       onSelectionChange={(key) => {
         if (key === null) return;
-        const picked = String(key);
-        onChange(picked);
-        setText(clearOnPick ? '' : labelText(labels, picked));
+        if (clearOnPick) add(String(key));
+        else onChange(String(key));
       }}
       allowsCustomValue
-      menuTrigger="focus"
       isInvalid={Boolean(error)}
       {...(hideLabel ? { 'aria-label': label } : {})}
       className="group grid min-w-0 content-start gap-1.5"
@@ -168,11 +176,7 @@ export function LabelPicker({
           className="h-full min-w-0 flex-1 bg-transparent text-md outline-none placeholder:text-ink-muted sm:text-sm"
           placeholder="Objekt…"
           onKeyDown={(e) => {
-            // Enter adds a typed label that is not in the list
-            if (clearOnPick && e.key === 'Enter' && text.trim()) {
-              onChange(labelFor(labels, text));
-              setText('');
-            }
+            if (clearOnPick && e.key === 'Enter' && text.trim()) add(labelFor(labels, text));
           }}
         />
         <AriaButton className="grid size-8 shrink-0 place-items-center rounded-small outline-none hover:bg-surface-hover">
