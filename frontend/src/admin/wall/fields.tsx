@@ -28,7 +28,9 @@ export function Card({
     <section
       aria-labelledby={headingId}
       data-testid={`wall-card-${id}`}
-      className={cx('grid min-w-0 content-start gap-4 border-t-2 border-ink pt-3', className)}
+      // a size container (@container): the layouts inside follow the card's width, not the
+      // window's (a card in a column next to the sidebar is far narrower than `sm:` thinks)
+      className={cx('@container grid min-w-0 content-start gap-4 border-t-2 border-ink pt-3', className)}
     >
       <div className="grid gap-1">
         <h2 id={headingId} className="flex items-center gap-2 text-lg font-bold">

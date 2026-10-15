@@ -93,7 +93,7 @@ export function AccessCard({ admin }: { admin: WallAdminOut }) {
       <form
         noValidate
         onSubmit={(e) => void submit(e)}
-        className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-start"
+        className="grid gap-2 @md:grid-cols-[minmax(0,1fr)_auto] @md:items-start"
       >
         <TextField
           label="Live-Wall-Passwort"
@@ -113,7 +113,7 @@ export function AccessCard({ admin }: { admin: WallAdminOut }) {
           size="sm"
           variant="secondary"
           isPending={busy === 'set'}
-          className="sm:mt-6.5"
+          className="@md:mt-6.5"
           data-testid="wall-password-submit"
         >
           {isSet ? 'Passwort ändern' : 'Passwort setzen'}

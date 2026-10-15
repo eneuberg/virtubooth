@@ -7,6 +7,7 @@ import { Cpu } from 'lucide-react';
 import { Button } from '@/ui/Button';
 import { EmptyState } from '@/ui/EmptyState';
 import { Spinner } from '@/ui/Spinner';
+import { ADMIN_COLUMNS } from '../common/layout';
 import { errorText } from '../common/usePhotoActions';
 import { isRouteMissing } from '../wall/api';
 import { useWallEnabled } from '../wall/hooks';
@@ -54,7 +55,10 @@ function ExternalAi() {
 export function MlSection() {
   const enabled = useWallEnabled();
   return (
-    <section aria-labelledby="section-title" className="grid content-start gap-5 px-4 py-4 lg:px-6 lg:py-5">
+    <section
+      aria-labelledby="section-title"
+      className="@container grid content-start gap-5 px-4 py-4 lg:px-6 lg:py-5"
+    >
       <header className="grid gap-2">
         <h1 id="section-title" tabIndex={-1} className="text-xl font-bold outline-none">
           ML-Pipeline
@@ -71,8 +75,9 @@ export function MlSection() {
       ) : enabled === undefined ? (
         <Spinner label="Lädt…" />
       ) : (
-        // two independent stacks on wide screens, in the cards' order
-        <div className="grid items-start gap-x-10 gap-y-8 xl:grid-cols-2">
+        // two independent stacks once the section has room for two ~32rem columns (a
+        // 1440 px window with the sidebar), else one column of readable width
+        <div className={ADMIN_COLUMNS}>
           <div className="grid min-w-0 content-start gap-y-8" data-testid="ml-column">
             <ModelsCard />
             <TestImageCard />

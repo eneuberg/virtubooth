@@ -83,6 +83,19 @@ describe('ML-Pipeline section', () => {
     expect(await bodyField(must(put), 'enabled')).toBe(true);
   });
 
+  it('keeps the analyzer fields in their own grid and „Speichern“ in a row below them', async () => {
+    renderSection();
+    const field = await screen.findByRole('textbox', { name: 'Mindest-Sicherheit' });
+    const form = screen.getByTestId('ml-analyzer-settings');
+    const fields = must(field.closest('.group')?.parentElement);
+    // fields side by side while each gets 11rem, else stacked (never squeezed under a neighbour)
+    expect(fields.className).toContain('grid-cols-[repeat(auto-fit,minmax(min(100%,11rem),1fr))]');
+    expect(within(fields).getAllByRole('textbox')).toHaveLength(2);
+    const save = within(form).getByRole('button', { name: 'Speichern' });
+    expect(fields.contains(save)).toBe(false);
+    expect(save.parentElement).toBe(form);
+  });
+
   it('stores a key, then shows only „gesetzt“ and never the key', async () => {
     // the server's state: GET /llm follows the PUT (the card refetches after saving)
     let llm = llmStatus();

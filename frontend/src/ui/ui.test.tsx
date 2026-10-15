@@ -137,6 +137,28 @@ describe('SegmentedControl', () => {
     fireEvent.click(within(group).getByRole('radio', { name: 'Becher' }));
     expect(onChange).toHaveBeenCalledWith('cup');
   });
+
+  it('has a minimum height, not a fixed one: a wrapping group keeps its rows inside', () => {
+    render(
+      <SegmentedControl
+        label="Vorlage"
+        size="sm"
+        value="a"
+        onChange={() => undefined}
+        className="flex-wrap"
+        options={[
+          { id: 'a', label: 'Neon Nacht' },
+          { id: 'b', label: 'Klassisch' },
+          { id: 'c', label: 'Rummel' },
+          { id: 'd', label: 'Eigene' },
+        ]}
+      />,
+    );
+    const group = screen.getByRole('radiogroup', { name: 'Vorlage' });
+    expect(group.className).toMatch(/\bmin-h-10\b/);
+    expect(group.className).not.toMatch(/(^|\s)h-10\b/);
+    expect(group.className).toMatch(/\bflex-wrap\b/);
+  });
 });
 
 describe('TextField', () => {
@@ -148,6 +170,15 @@ describe('TextField', () => {
     expect(input.getAttribute('aria-invalid')).toBe('true');
     expect(input.getAttribute('spellcheck')).toBe('false');
     expect(screen.getByText('Instagram-Namen haben keine Leerzeichen.')).toBeTruthy();
+  });
+
+  it('never forces its column wider: the field and the input may shrink', () => {
+    render(<TextField label="Höchstens Objekte pro Foto" size="sm" />);
+    const input = screen.getByRole('textbox', { name: 'Höchstens Objekte pro Foto' });
+    // an <input> is ~20 characters wide by default; w-full lets it shrink below that
+    expect(input.className).toMatch(/\bw-full\b/);
+    expect(input.className).toMatch(/\bmin-w-0\b/);
+    expect(input.closest('.group')?.className).toMatch(/\bmin-w-0\b/);
   });
 });
 

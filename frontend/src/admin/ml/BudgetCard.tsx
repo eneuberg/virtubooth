@@ -113,7 +113,7 @@ function Limits({ status }: { status: LlmStatus }) {
       data-testid="ml-limits"
     >
       <p className="text-sm font-semibold">Limits (leer = ohne Limit)</p>
-      <div className="grid gap-3 sm:grid-cols-2">
+      <div className="grid gap-3 @md:grid-cols-2">
         {LIMIT_FIELDS.map((f) => (
           <TextField
             key={f.key}
@@ -170,7 +170,7 @@ export function BudgetCard({ status }: { status: LlmStatus }) {
           </div>
         </div>
       ) : null}
-      <div className="grid gap-3 sm:grid-cols-2">
+      <div className="grid gap-3 @md:grid-cols-2">
         <Meter
           label="Party: Kosten"
           used={usage.party.cost_usd}

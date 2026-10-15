@@ -252,6 +252,7 @@ PAGES = [
     "/admin/manage?tab=gaeste",
     "/admin/manage?tab=instagram",
     "/admin/manage?tab=livewall",
+    "/admin/manage?tab=ml",
     "/admin/manage?tab=sperren",
     "/admin/manage?tab=protokoll",
     "/admin/manage?tab=qr",
@@ -264,8 +265,8 @@ PAGES = [
 
 @pytest.mark.parametrize(
     "viewport",
-    [PHONE_VIEWPORT, LANDSCAPE_VIEWPORT, DESKTOP_VIEWPORT],
-    ids=["phone", "landscape", "desktop"],
+    [PHONE_VIEWPORT, {"width": 320, "height": 640}, LANDSCAPE_VIEWPORT, DESKTOP_VIEWPORT],
+    ids=["phone", "small-phone", "landscape", "desktop"],
 )
 def test_no_sideways_scrolling(
     browser: Browser, live: LiveServer, guests: Callable[..., Guest], viewport: dict[str, int]

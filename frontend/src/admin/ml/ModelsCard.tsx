@@ -42,7 +42,8 @@ function WorkerStatus({ status }: { status: AnalysisStatus }) {
   const loadErrors = Object.entries(worker.load_errors);
   return (
     <div className="grid gap-2" data-testid="wall-worker">
-      <dl className="grid grid-cols-[auto_minmax(0,1fr)] items-baseline gap-x-5 gap-y-1.5 text-sm">
+      {/* the terms take at most 45 % (they wrap), the values the rest (they wrap too) */}
+      <dl className="grid grid-cols-[fit-content(45%)_minmax(0,1fr)] items-baseline gap-x-5 gap-y-1.5 text-sm [&_dd]:min-w-0 [&_dd]:break-words">
         <dt className="text-ink-muted">Status</dt>
         <dd className="flex flex-wrap items-center gap-2">
           <Badge tone={WORKER_TONE[worker.state]}>{WORKER_LABELS[worker.state]}</Badge>
@@ -152,36 +153,34 @@ function AnalyzerSettings({ analyzer }: { analyzer: Analyzer }) {
     <form
       noValidate
       onSubmit={(e) => void submit(e)}
-      className="grid gap-2 sm:grid-cols-[repeat(auto-fill,minmax(9rem,1fr))] sm:items-start"
+      // the fields side by side while the card has room (each at least 11rem), else one
+      // under the other; „Speichern“ below them: a long label wraps without pushing a
+      // field out of line or under its neighbour
+      className="grid justify-items-start gap-3"
       data-testid="ml-analyzer-settings"
     >
-      {analyzer.settings_schema.map((f) => (
-        <TextField
-          key={f.key}
-          label={f.title}
-          size="sm"
-          inputMode="decimal"
-          value={texts[f.key] ?? ''}
-          onChange={(v) => {
-            setTexts((t) => ({ ...t, [f.key]: v }));
-            setErrors((x) => ({ ...x, [f.key]: '' }));
-          }}
-          description={`${numberText(f.min)} bis ${numberText(f.max)}`}
-          errorMessage={errors[f.key] || null}
-        />
-      ))}
-      <Button
-        type="submit"
-        size="sm"
-        variant="secondary"
-        icon={Save}
-        isPending={busy}
-        className="self-start sm:mt-6.5"
-      >
+      <div className="grid w-full grid-cols-[repeat(auto-fit,minmax(min(100%,11rem),1fr))] items-start gap-x-4 gap-y-3">
+        {analyzer.settings_schema.map((f) => (
+          <TextField
+            key={f.key}
+            label={f.title}
+            size="sm"
+            inputMode="decimal"
+            value={texts[f.key] ?? ''}
+            onChange={(v) => {
+              setTexts((t) => ({ ...t, [f.key]: v }));
+              setErrors((x) => ({ ...x, [f.key]: '' }));
+            }}
+            description={`${numberText(f.min)} bis ${numberText(f.max)}`}
+            errorMessage={errors[f.key] || null}
+          />
+        ))}
+      </div>
+      <Button type="submit" size="sm" variant="secondary" icon={Save} isPending={busy}>
         Speichern
       </Button>
       {formError ? (
-        <p role="alert" className="text-sm text-danger sm:col-span-full">
+        <p role="alert" className="text-sm text-danger">
           {formError}
         </p>
       ) : null}

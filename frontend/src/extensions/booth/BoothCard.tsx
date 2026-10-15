@@ -23,7 +23,8 @@ export default function BoothCard(_props: ExtensionCardProps) {
     refetchInterval: CATALOGUE_REFRESH_MS,
   });
   return (
-    <span className="flex items-end gap-1.5">
+    // the samples shrink (3:4 kept) before the count is cut off on a 320 px phone
+    <span className="flex min-w-0 items-end gap-1.5">
       {SAMPLES.map((src) => (
         <img
           key={src}
@@ -33,11 +34,13 @@ export default function BoothCard(_props: ExtensionCardProps) {
           height={160}
           loading="lazy"
           decoding="async"
-          className="h-14 w-10.5 object-cover lg:h-20 lg:w-15"
+          className="aspect-[3/4] h-auto w-10.5 min-w-0 shrink object-cover lg:w-15"
         />
       ))}
       {data ? (
-        <span className="ml-1.5 text-xs text-ink-muted">{formatNumber(data.filters.length)}&nbsp;Filter</span>
+        <span className="ml-1.5 shrink-0 text-xs text-ink-muted">
+          {formatNumber(data.filters.length)}&nbsp;Filter
+        </span>
       ) : null}
     </span>
   );

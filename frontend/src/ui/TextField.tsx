@@ -57,7 +57,9 @@ export function TextField({
     <AriaTextField
       {...props}
       isInvalid={Boolean(errorMessage)}
-      className={cx('group grid content-start gap-1.5', className)}
+      // min-w-0 + the input's w-full: a field never forces its column wider than the
+      // column is (an <input> is ~20 characters wide by default, wider than a narrow grid track)
+      className={cx('group grid min-w-0 content-start gap-1.5', className)}
     >
       <Label className={cx('text-sm font-semibold', hideLabel && 'sr-only')}>{label}</Label>
       <div
@@ -85,7 +87,7 @@ export function TextField({
           autoCapitalize={handle ? 'none' : undefined}
           autoCorrect={handle ? 'off' : undefined}
           className={cx(
-            'h-full min-w-0 flex-1 bg-transparent text-md text-ink outline-none placeholder:text-ink-muted',
+            'h-full w-full min-w-0 flex-1 bg-transparent text-md text-ink outline-none placeholder:text-ink-muted',
             size === 'sm' && 'fine:text-sm',
           )}
         />
