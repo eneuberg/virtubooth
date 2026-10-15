@@ -82,6 +82,17 @@ class WallCategoriesConfig(BaseModel):
     model_config = _STRICT
 
     per_category_s: int = Field(10, ge=4, le=60)
+    disabled: list[str] = Field(
+        default_factory=list,
+        deprecated=True,
+        description="Deprecated, always empty: switch categories on and off with "
+        "PUT /admin/categories/{id}. Input is ignored.",
+    )
+
+    @field_validator("disabled", mode="plain")
+    @classmethod
+    def _ignored(cls, _value: Any) -> list[str]:
+        return []
 
 
 class WallLook(BaseModel):

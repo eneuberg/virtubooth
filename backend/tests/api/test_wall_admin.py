@@ -103,7 +103,7 @@ def test_put_config(admin, core):
     assert saved["updated_at"] != "never" and saved["look"]["primary"] == "#00ff00"
     assert saved["delay_s"] == 5
     cats = {c["id"]: c["enabled"] for c in r.json()["categories"]}
-    assert cats["generationen"] is True and "disabled" not in saved["categories"]
+    assert cats["generationen"] is True and saved["categories"]["disabled"] == []
     assert admin.get("/api/x/wall/admin/config").json()["config"] == saved
     action, _, details = audit_actions(core)[0]
     assert action == "wall.config"

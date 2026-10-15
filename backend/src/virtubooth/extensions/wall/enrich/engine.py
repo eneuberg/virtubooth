@@ -493,20 +493,22 @@ def _holds(op: str, value: float | list[str] | None, operand: Any) -> bool:
         return any(o in value for o in operand)
     if isinstance(value, list):
         return False
-    if op == "gt":
-        return value > operand + EPS
-    if op == "lt":
-        return value < operand - EPS
-    if op == "gte":
-        return value >= operand - EPS
-    if op == "lte":
-        return value <= operand + EPS
-    if op == "eq":
-        return abs(value - operand) <= EPS
-    if op == "ne":
-        return abs(value - operand) > EPS
     if op == "between":
-        return operand[0] - EPS <= value <= operand[1] + EPS
+        lo, hi = float(operand[0]), float(operand[1])
+        return lo - EPS <= value <= hi + EPS
+    x = float(operand)
+    if op == "gt":
+        return value > x + EPS
+    if op == "lt":
+        return value < x - EPS
+    if op == "gte":
+        return value >= x - EPS
+    if op == "lte":
+        return value <= x + EPS
+    if op == "eq":
+        return abs(value - x) <= EPS
+    if op == "ne":
+        return abs(value - x) > EPS
     return False
 
 

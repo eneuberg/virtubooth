@@ -35,7 +35,7 @@ DEFAULTS = {
         "transition_ms": 1200,
     },
     "gallery": {"speed": "medium", "rows": 3},
-    "categories": {"per_category_s": 10},
+    "categories": {"per_category_s": 10, "disabled": []},
     "sources": [],
     "delay_s": 20,
     "show_instagram": False,
@@ -162,7 +162,7 @@ def test_sources_must_be_upload_extensions():
 def test_the_old_disabled_list_is_accepted_and_ignored():
     """Categories live in `wall_categories` now; an old client's list is no error."""
     data = with_value("categories.disabled", ["Volles Haus", 3])
-    assert parse(data).categories.model_dump() == {"per_category_s": 10}
+    assert parse(data).categories.model_dump() == {"per_category_s": 10, "disabled": []}
 
 
 def test_server_fields_and_unknown_keys_are_ignored():

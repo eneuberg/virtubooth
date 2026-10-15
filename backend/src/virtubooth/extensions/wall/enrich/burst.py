@@ -301,18 +301,23 @@ def _drain(db_path: Path, timeout_s: float) -> float | None:
         db.close()
 
 
+def _count(db: Database, sql: str) -> int:
+    row = db.one(sql)
+    return int(row[0]) if row is not None else 0
+
+
 def _check(db_path: Path, phase: Phase) -> None:
     db = Database(db_path)
     try:
-        phase.analysed = int(db.one(
-            "SELECT COUNT(*) FROM wall_analysis WHERE state IN ('done', 'failed', 'skipped')"
-        )[0])  # fmt: skip
+        phase.analysed = _count(
+            db, "SELECT COUNT(*) FROM wall_analysis WHERE state IN ('done', 'failed', 'skipped')"
+        )
         phase.attempts = {int(r[0]): int(r[1]) for r in db.all(
             "SELECT attempts, COUNT(*) FROM wall_analysis GROUP BY attempts"
         )}  # fmt: skip
-        phase.local_runs = int(db.one(
-            "SELECT COUNT(*) FROM photo_detection_runs WHERE source='local'"
-        )[0])  # fmt: skip
+        phase.local_runs = _count(
+            db, "SELECT COUNT(*) FROM photo_detection_runs WHERE source='local'"
+        )
         totals: list[float] = []
         for row in db.all("SELECT versions, data FROM wall_analysis WHERE state='done'"):
             if any(k != "basic" for k in json.loads(row[0] or "{}")):
