@@ -83,6 +83,9 @@ export interface OutboxStore {
 export const DB_NAME = 'vb-booth';
 export const DB_VERSION = 1;
 export const STORE = 'outbox';
+/** Refusals of the unfiltered original only: the photo is then sent without it. */
+const RAW_REFUSED: ReadonlySet<string> = new Set(['invalid_raw', 'raw_not_allowed']);
+
 /** Records from before the overhaul were all Fotobox photos. */
 export const LEGACY_EXT = 'booth';
 
@@ -370,12 +373,22 @@ export async function sendFromOutbox(
   inFlight.add(id);
   if (item.state !== 'new') update(id, { state: 'sending', error: null });
   try {
-    const result = await uploadPhoto(item.ext, item.blob, {
-      meta: item.meta,
-      raw: item.raw,
-      ...(options.onProgress ? { onProgress: options.onProgress } : {}),
-      ...(options.signal ? { signal: options.signal } : {}),
-    });
+    const send = (raw: Blob | null) =>
+      uploadPhoto(item.ext, item.blob, {
+        meta: item.meta,
+        raw,
+        ...(options.onProgress ? { onProgress: options.onProgress } : {}),
+        ...(options.signal ? { signal: options.signal } : {}),
+      });
+    let result: UploadResult;
+    try {
+      result = await send(item.raw);
+    } catch (err) {
+      // the server refuses the original (a broken frame, an activity without them):
+      // the photo itself is still fine, so it goes alone instead of being dropped
+      if (!item.raw || !(err instanceof ApiError) || !RAW_REFUSED.has(err.code)) throw err;
+      result = await send(null);
+    }
     const sent = items.get(id) ?? item;
     items.delete(id);
     emitChange();

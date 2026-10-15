@@ -156,6 +156,19 @@ describe('a shot', () => {
     await expect(again).resolves.toMatchObject({ booth_number: 1 });
   });
 
+  it('a refused original never costs the photo: it goes again without it', async () => {
+    await addToOutbox({ id: 'r2', ext: 'booth', meta: {}, blob: jpeg(), raw: jpeg(3) });
+    const sent = sendFromOutbox('r2');
+    const first = await FakeXhr.next();
+    expect(first.headers['X-VB-Raw-Bytes']).toBeDefined();
+    first.respond(400, { error: 'invalid_raw', message: 'Das Original ohne Filter ist unlesbar.' });
+    const second = await FakeXhr.next();
+    expect(second.headers['X-VB-Raw-Bytes']).toBeUndefined();
+    second.respond(201, { photo: PHOTO, booth_number: 2 });
+    await expect(sent).resolves.toMatchObject({ booth_number: 2 });
+    expect(events.map((e) => e.type)).toEqual(['sent']);
+  });
+
   it('waits after a network failure and is sent by the next flush', async () => {
     await addToOutbox({ id: 's2', ext: 'booth', meta: { filter: 'bw', facing: 'user' }, blob: jpeg() });
     const first = settle(sendFromOutbox('s2'));
