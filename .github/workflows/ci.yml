@@ -140,26 +140,11 @@ jobs:
         run: |
           uv sync
           uv run playwright install --with-deps ${{ matrix.browser }}
-      - name: DEBUG WebGL probe
-        if: matrix.browser == 'firefox'
-        working-directory: backend
-        run: |
-          cat > /tmp/glprobe.py <<'PY'
-          from playwright.sync_api import sync_playwright
-          JS = """() => { const c = document.createElement('canvas'); let msg = null;
-            c.addEventListener('webglcontextcreationerror', e => { msg = e.statusMessage; });
-            const gl = c.getContext('webgl');
-            if (!gl) return 'NO WEBGL: ' + msg; const d = gl.getExtension('WEBGL_debug_renderer_info');
-            return d ? gl.getParameter(d.UNMASKED_RENDERER_WEBGL) : gl.getParameter(gl.RENDERER); }"""
-          with sync_playwright() as p:
-              for prefs in ({}, {"webgl.force-enabled": True}):
-                  b = p.firefox.launch(firefox_user_prefs=prefs)
-                  print(prefs, b.new_page().evaluate(JS))
-                  b.close()
-          PY
-          uv run python /tmp/glprobe.py
-          xvfb-run -a uv run python /tmp/glprobe.py
-      # 4 workers for the runner's 4 vCPUs and 16 GB (up to 1 GB each, see the Makefile)
+      # 4 workers for the runner's 4 vCPUs and 16 GB (up to 1 GB each, see the Makefile).
+      # Firefox runs under Xvfb: headless Firefox without any X display gets no WebGL
+      # on a runner without a GPU (FEATURE_FAILURE_WEBGL_EXHAUSTED_DRIVERS), and the
+      # camera then falls back to Canvas2D; with Xvfb's display it renders with Mesa's
+      # llvmpipe. Chromium brings its own software WebGL (SwiftShader).
       - name: e2e (pytest + Playwright, fake cameras, zero console errors)
         working-directory: backend
         env:
