@@ -120,6 +120,7 @@ def test_paused_guest_cannot_upload_but_keeps_everything_else(admin, guest, core
         "banned",
         "uploads_paused",
         "analysis_opt_out",
+        "is_host",  # the admin guest sees its own marker
     }
 
     # idempotent
