@@ -1,20 +1,12 @@
 # Deploying virtubooth
 
-This guide takes virtubooth from a Linux server with Docker to a party-ready
-HTTPS site. It covers Compose, Coolify, the reverse proxy, every setting,
-backups, updates, the exports and troubleshooting. How the pieces fit:
+From a Linux server with Docker to a party-ready HTTPS site: Compose or
+Coolify, the reverse proxy, every setting, the photo analysis, backups,
+updates and troubleshooting. How the app works inside:
 [ARCHITECTURE.md](ARCHITECTURE.md).
 
-```mermaid
-flowchart LR
-  phone["phones"] -- HTTPS --> proxy["reverse proxy<br/>Caddy / Traefik / nginx / Coolify"]
-  proxy -- "HTTP :8000" --> app["app container<br/>one process, one worker"]
-  app --> vol[("volume: /data<br/>SQLite + photos + exports")]
-```
-
-> **One container, one worker.** Rate limits and the live event bus are kept
-> in memory. Never scale the service, add replicas or run more workers: a
-> PaaS "scale" button would break the live screens and the rate limits.
+> **One container, one worker.** Rate limits and the live event bus live in
+> process memory. Never scale the service, add replicas or run more workers.
 
 Contents:
 [Requirements](#requirements) ·
@@ -24,168 +16,120 @@ Contents:
 [Coolify](#coolify) ·
 [Settings](#settings) ·
 [Live-Wall and photo analysis](#live-wall-and-photo-analysis) ·
+[Command line](#command-line) ·
 [Party-night checklist](#party-night-checklist) ·
-[Exports](#exports) ·
 [Backups](#backups) ·
 [Updating](#updating) ·
-[Rotating secrets](#rotating-secrets) ·
-[Locked out of the admin login](#locked-out-of-the-admin-login) ·
-[Logs and monitoring](#logs-and-monitoring) ·
+[Secrets and the admin password](#secrets-and-the-admin-password) ·
 [Teardown](#teardown) ·
 [Troubleshooting](#troubleshooting)
 
 ## Requirements
 
-- A Linux server with **Docker Engine 25+** and the **Compose plugin**
-  (`docker compose version`). 1 vCPU and 1 GB RAM are plenty for about 50
-  guests at runtime.
-- **Building the image** needs about 1 GB of free RAM for a minute, because
-  the frontend is built inside it (Node). On a 1 GB server, add swap or build
-  the image elsewhere and push it to a registry (`VB_IMAGE`).
-- Disk: the image is about 900 MB (236 MB to download). Photos take up to
-  about 0.5 MB each with their thumbnail, so 1 GB holds at least 2000 of them.
-  A Fotobox photo with a filter also keeps its unfiltered original, about as large
-  as the photo (measured: 0.13 to 0.4 MB each), so such shots take up to about
-  1 MB and their upload is twice as big; Beer Cam and „Normal“ photos are unchanged.
-  Export files come on top.
-- A domain (e.g. `party.example.com`) with an A/AAAA record pointing at the
-  server, and ports 80 and 443 open for the proxy's certificates.
+- Linux with Docker Engine 25+ and the Compose plugin. 1 vCPU and 1 GB RAM
+  carry about 50 guests; the photo analysis needs about 0.65 GB more
+  ([below](#live-wall-and-photo-analysis)).
+- About 1 GB of free RAM for a minute while the image builds (the frontend is
+  built inside it). On a small server add swap, or build elsewhere and push
+  to a registry (`VB_IMAGE`).
+- Disk: the image (1 to 1.9 GB, see [the table](#image-sizes-and-memory)),
+  up to about 0.5 MB per photo with its thumbnail (about 1 MB for a filtered
+  Fotobox shot, which keeps its unfiltered original), and the exports.
+- A domain with an A/AAAA record to the server, ports 80 and 443 open for the
+  proxy's certificates.
 
 ## The image
 
-The root `Dockerfile` builds one self-contained image in three stages:
-
-| Stage | Base | Does |
-|---|---|---|
-| `web` | `node:22.22.1-trixie-slim` (= `frontend/.node-version`) | installs pnpm 11.28.5 with npm, `pnpm install --frozen-lockfile` (with the React Aria CSP patch from `frontend/patches/`), `pnpm build`: hashed assets, `.br`/`.gz` siblings, the content-blocker name check |
-| `build` | `python:3.14.8-slim-trixie` + uv 0.12.18 | `uv sync --frozen --no-dev` of `backend/` into `/opt/venv` |
-| `runtime` | `python:3.14.8-slim-trixie` + ffmpeg | `/opt/venv`, the built frontend in `/app/web` (`VB_WEB_DIR`), a user with uid/gid 10001, the volume `/data`, a health check on `/healthz` |
-
-Neither Node, uv, the sources nor the tests end up in the runtime image.
-`.dockerignore` is an allowlist: only `backend/` (lockfile, metadata, `src/`)
-and the frontend sources the build reads go into the build context. `.env`,
-data, `node_modules` and local builds never do.
+The root `Dockerfile` builds one self-contained image: a Node stage builds
+the frontend, a uv stage the Python venv, and the runtime
+(`python:3.14.8-slim-trixie` + ffmpeg) gets only the venv, the frontend in
+`/app/web`, user 10001, the volume `/data` and a health check on `/healthz`.
+The tool versions are pinned at the top of the `Dockerfile`. Build arguments: `VB_ML` (default `0`; `1` adds MediaPipe, ONNX Runtime and
+OpenCV for the photo analysis) and `VB_BAKE_MODELS` (default `0`; `1` puts
+the analysis models into the image at `/opt/vb-models`).
+`docker-compose.coolify.yaml` builds with `VB_ML=1`; `compose.yaml` and a
+plain `docker build` use the defaults. `.dockerignore` is an allowlist:
+`.env`, data and local builds never enter the build context.
 
 ```bash
 docker build -t virtubooth:local .     # what `docker compose build` does
-make docker-smoke                      # build + run on 127.0.0.1:8180 + check end to end
+make docker-smoke                      # build, run on 127.0.0.1:8180, check end to end
 ```
 
-`make docker-smoke` talks to the container from the host, through the published
-port. A host firewall that drops traffic to Docker's bridge networks (a VPN kill
-switch with LAN access blocked, for example) makes it fail with a diagnosis even
-though the container is healthy; allow LAN traffic (or `172.16.0.0/12`) there.
-If the same firewall breaks `pnpm install` in the build (ECONNRESET), build on
-the host network: `make docker-smoke DOCKER_BUILD_FLAGS=--network=host`.
+`make docker-smoke` talks to the container through the published port. A
+host firewall that drops traffic to Docker's bridge networks (for example a
+VPN kill switch) makes it fail although the container is healthy: allow
+`172.16.0.0/12`. If the same firewall breaks `pnpm install` in the build, use
+`make docker-smoke DOCKER_BUILD_FLAGS=--network=host`.
 
 ## Docker Compose
 
-### 1. Get the code onto the server
-
 ```bash
 git clone <your repo url> ~/virtubooth && cd ~/virtubooth
-```
-
-Or copy it from your machine without local junk:
-
-```bash
-rsync -a --exclude .git --exclude .venv --exclude node_modules --exclude dist \
-  --exclude .worktrees --exclude data --exclude .env ./ server:virtubooth/
-```
-
-### 2. Configure
-
-```bash
-cd ~/virtubooth
 docker compose run --rm -T app virtubooth gen-env > .env   # builds the image, prints fresh secrets
-chmod 600 .env
-$EDITOR .env
+chmod 600 .env && $EDITOR .env
+docker compose up -d --build
+docker compose ps                          # "(healthy)" after a few seconds
+curl -fsS http://127.0.0.1:8000/healthz    # {"ok":true}
 ```
 
-The first run prints "pull access denied for virtubooth" before it builds the
-image; that is expected. Set at least:
+The first `run` prints "pull access denied for virtubooth" before it builds;
+that is expected. `gen-env` writes the secrets and the basics; add more from
+[.env.example](../.env.example). Behind a proxy on the same host, set at least:
 
 ```dotenv
-VB_PARTY_NAME="Lenas 30."
-VB_INSTAGRAM_ACCOUNT=@lenas30
+VB_PARTY_NAME=Sommerfest
 VB_PUBLIC_BASE_URL=https://party.example.com
 VB_COOKIE_SECURE=true
-VB_FORWARDED_ALLOW_IPS=172.16.0.0/12   # see "Reverse proxy and HTTPS"
-VB_PUBLISH_PORT=127.0.0.1:8000         # proxy on this host; for a proxy in Docker, see Traefik below
+VB_FORWARDED_ALLOW_IPS=172.16.0.0/12
+VB_PUBLISH_PORT=127.0.0.1:8000
 ```
 
-`compose.yaml` pins `VB_DATA_DIR=/data`, `VB_HOST=0.0.0.0`, `VB_PORT=8000`
-and `VB_WEB_DIR=/app/web` inside the container, whatever `.env` says. Quote
-values with spaces (`"Lenas 30."`). Compose expands `$` in `.env` values, so
-keep `$` out of passwords or wrap the value in single quotes.
-
-### 3. Start
-
-```bash
-docker compose up -d --build
-docker compose ps                         # STATUS shows "(healthy)" after a few seconds
-curl -fsS http://127.0.0.1:8000/healthz   # {"ok":true}
-docker compose logs -f app                # Ctrl-C to stop following
-```
+Quote values with spaces (`VB_PARTY_NAME="Sommerfest 2026"`). Compose expands
+`$` in `.env`, so keep `$` out of passwords or single-quote them.
+`compose.yaml` pins `VB_DATA_DIR=/data`, `VB_HOST=0.0.0.0`, `VB_PORT=8000` and
+`VB_WEB_DIR=/app/web` inside the container.
 
 | Task | Command |
 |---|---|
-| Status / health | `docker compose ps` |
 | Logs | `docker compose logs -f app` |
-| Stop (keeps data) | `docker compose stop`, or `down` (also removes the container) |
-| Apply `.env` changes | `docker compose up -d` (a plain `restart` does **not** re-read `.env`) |
-| Shell inside the container | `docker compose exec app sh` |
-| Remove everything including photos | `docker compose down -v` (irreversible) |
+| Apply `.env` changes | `docker compose up -d` (`restart` does **not** re-read `.env`) |
+| Stop, keep data | `docker compose stop` or `down` |
+| Shell in the container | `docker compose exec app sh` |
+| Delete everything, photos included | `docker compose down -v` |
 
-What the container does:
-
-- runs as uid/gid 10001 with a read-only root filesystem, no Linux
-  capabilities, `no-new-privileges`, CPU/memory/PID limits and a small init
-  process;
-- keeps everything in the named volume `virtubooth_data` at `/data`, which
-  survives `down`, rebuilds and updates (only `down -v` deletes it);
-- has a health check on `GET /healthz`, rotates its logs (5 × 10 MB), and
-  stops within seconds (open live streams are closed after 5 s).
+The container runs as uid 10001 on a read-only root filesystem, without Linux
+capabilities, with `no-new-privileges`, CPU/memory/PID limits, a small init
+and rotated logs (5 × 10 MB). All data is in the named volume
+`virtubooth_data` at `/data`; it survives `down`, rebuilds and updates.
 
 ## Reverse proxy and HTTPS
 
-Phones only allow the camera on HTTPS pages, so the proxy is not optional.
-Whatever you use, it must:
+Phones only open the camera on HTTPS pages. The proxy must:
 
-1. **Terminate TLS** for your domain.
-2. **Pass the original `Host` header.** The CSRF check compares the
-   browser's `Origin` (scheme, host and port) with `VB_PUBLIC_BASE_URL` and
-   with the request's own origin; set `VB_PUBLIC_BASE_URL=https://<your-domain>`
-   in any case. Behind TLS it accepts `https://<host>` (the public URL, the
-   request's own origin, or `https://<Host>` when the proxy says
-   `X-Forwarded-Proto: https`); `http://` origins are refused on https
-   deployments. A proxy that rewrites `Host` works through
-   `VB_PUBLIC_BASE_URL` (or `VB_ALLOWED_ORIGINS`).
-3. **Send `X-Forwarded-For` and `X-Forwarded-Proto`**, and the app must trust
-   them: `VB_FORWARDED_ALLOW_IPS` lists the proxy's address as the container
-   sees it. Otherwise every guest looks like the proxy, and the per-IP rate
-   limits throttle the whole party together. `*` is refused.
-4. **Not buffer Server-Sent Events** (the admin's live updates). The app
-   sends `X-Accel-Buffering: no` and a ping every 15 s.
-5. **Allow request bodies of at least 8 MB** (`VB_MAX_UPLOAD_BYTES`).
+1. terminate TLS for your domain;
+2. pass the original `Host` header (the CSRF check compares the browser's
+   `Origin` with `VB_PUBLIC_BASE_URL` and with the request's own origin; a
+   proxy that rewrites `Host` works through `VB_PUBLIC_BASE_URL` or
+   `VB_ALLOWED_ORIGINS`);
+3. send `X-Forwarded-For` and `X-Forwarded-Proto`, from an address listed in
+   `VB_FORWARDED_ALLOW_IPS`; otherwise every guest looks like the proxy and
+   the per-IP limits throttle the whole party at once;
+4. not buffer Server-Sent Events (the app sends `X-Accel-Buffering: no` and a
+   ping every 15 s);
+5. accept request bodies of at least 8 MB.
 
-Which address to trust: a proxy on the host reaches a `127.0.0.1` published
-port through Docker's bridge gateway (e.g. `172.19.0.1`); a proxy container
-connects from its address in the shared network. `172.16.0.0/12` covers
-Docker's default networks. To be exact, look at the client address of one
-proxied request in `docker compose logs app`, or:
+Which address to trust: a proxy on the host reaches a `127.0.0.1` port
+through the Docker bridge gateway, a proxy container from its address in the
+shared network. `172.16.0.0/12` covers Docker's default networks. To be exact,
+look at the client address of a proxied request in `docker compose logs app`,
+or run `docker network inspect virtubooth_default --format '{{(index
+.IPAM.Config 0).Gateway}}'`. Docker's published ports bypass ufw and
+firewalld, so publish on `127.0.0.1`.
 
-```bash
-docker network inspect virtubooth_default --format '{{(index .IPAM.Config 0).Gateway}}'   # proxy on the host
-docker network inspect proxy --format '{{(index .IPAM.Config 0).Subnet}}'                 # proxy in network "proxy"
-```
-
-Docker's published ports bypass ufw and firewalld: publish on `127.0.0.1`
-(or not at all) so the plain-HTTP port is not reachable from the internet.
-
-### Caddy on the host (simplest)
-
-`/etc/caddy/Caddyfile`:
+**Caddy on the host.** `/etc/caddy/Caddyfile`, then
+`sudo systemctl reload caddy`. Don't add `encode`: assets are precompressed
+and compressing the event stream delays live updates.
 
 ```caddyfile
 party.example.com {
@@ -196,24 +140,14 @@ party.example.com {
 }
 ```
 
-Then `sudo systemctl reload caddy`. Caddy gets and renews the certificate,
-keeps the `Host` header, sets the forwarded headers and streams SSE. Don't
-add `encode` for this site: the assets are already precompressed, photos are
-JPEG, and compressing the event stream can delay live updates. In `.env`:
-`VB_PUBLISH_PORT=127.0.0.1:8000` and `VB_FORWARDED_ALLOW_IPS=172.16.0.0/12`
-(or the gateway address from above), then `docker compose up -d`.
-
-### Traefik (container, Docker labels)
-
-Assuming Traefik runs with the Docker provider, an entrypoint `websecure`
-(443), a certificate resolver `letsencrypt` and an external network `proxy`.
-Create `compose.override.yaml` next to `compose.yaml` (Compose loads it
-automatically):
+**Traefik** (Docker provider, entrypoint `websecure`, resolver `letsencrypt`,
+external network `proxy`): a `compose.override.yaml` next to `compose.yaml`,
+and `VB_FORWARDED_ALLOW_IPS` set to the `proxy` network's subnet.
 
 ```yaml
 services:
   app:
-    ports: !reset []          # no host port: only Traefik can reach the app
+    ports: !reset []
     networks: [default, proxy]
     labels:
       traefik.enable: "true"
@@ -228,397 +162,249 @@ networks:
     external: true
 ```
 
-Set `VB_FORWARDED_ALLOW_IPS` to the `proxy` network's subnet, then
-`docker compose up -d`.
-
-### nginx
+**nginx:**
 
 ```nginx
 server {
     listen 443 ssl;
     http2 on;
     server_name party.example.com;
-    # ssl_certificate / ssl_certificate_key: e.g. from certbot
+    # ssl_certificate / ssl_certificate_key, e.g. from certbot
 
-    client_max_body_size 10m;            # uploads up to 8 MB
-
+    client_max_body_size 10m;
     location / {
         proxy_pass http://127.0.0.1:8000;
         proxy_http_version 1.1;
-        proxy_set_header Host $host;     # required for the CSRF origin check
-        # $remote_addr, not $proxy_add_x_forwarded_for: the app trusts the
-        # first entry, and a client could otherwise put any IP there
+        proxy_set_header Host $host;
+        # $remote_addr, not $proxy_add_x_forwarded_for: the app trusts the first entry
         proxy_set_header X-Forwarded-For $remote_addr;
         proxy_set_header X-Forwarded-Proto $scheme;
         proxy_set_header Connection "";
-        proxy_read_timeout 1h;           # long-lived live streams (SSE)
+        proxy_read_timeout 1h;
     }
 }
 ```
 
-The app's `X-Accel-Buffering: no` header turns off nginx buffering for the
-event stream. nginx's default 1 MB body limit would reject uploads with
-`413`, hence `client_max_body_size`.
-
-### Check the setup
+**Check it:**
 
 ```bash
-curl -fsS https://party.example.com/healthz                                    # {"ok":true}
-curl -s -o /dev/null -w '%{http_code}\n' https://party.example.com/           # 404 ("Scan den QR-Code")
+curl -fsS https://party.example.com/healthz                                   # {"ok":true}
+curl -s -o /dev/null -w '%{http_code}\n' https://party.example.com/          # 404, the gate
 curl -s -o /dev/null -D - "https://party.example.com/?t=$TOKEN" | grep -i set-cookie   # vb_access=…; Secure
-docker compose logs --tail 5 app    # client addresses are real public IPs, not 172.x
+docker compose logs --tail 5 app    # real client addresses, not 172.x
 ```
 
-Then open `https://party.example.com/?t=<token>` on an iPhone and an Android
-phone: join, take a Beer Cam and a Fotobox photo, and watch them arrive at
-`https://party.example.com/admin/live`. On a fresh install `<token>` is
-`VB_PARTY_TOKEN` from `.env` (it became QR code 1); later, copy a code's link
-in Admin → QR-Codes.
+Then open the link on an iPhone and an Android phone, join, take a photo in
+each activity and watch it arrive at `/admin/live`. On a fresh install the
+token is `VB_PARTY_TOKEN` from `.env` (it became QR code 1); later, copy a
+code's link in Admin → QR-Codes.
 
 ## Coolify
 
 [`docker-compose.coolify.yaml`](../docker-compose.coolify.yaml) is made for
-Coolify's "Docker Compose" build pack. It publishes no port (only Coolify's
-Traefik reaches the app), takes the domain from Coolify, and lets Coolify
-generate the secrets. You need no `.env` and none of the Compose and proxy
-steps above.
+Coolify's "Docker Compose" build pack. It publishes no port, takes the domain
+from Coolify and lets Coolify generate the secrets. No `.env`, no proxy setup.
 
-1. **Repository access.** For a private repository, use a GitHub App
-   (Coolify → Sources → GitHub App; it can also redeploy on push) or a
-   read-only deploy key ("Private Repository (with Deploy Key)" with the SSH
-   URL).
-2. **Create the resource:** Project → `+ New` → the repository and branch,
-   Build Pack **Docker Compose**, Docker Compose Location
-   **`/docker-compose.coolify.yaml`**, then "Load Compose File".
-3. **Domain:** in the service `app`, set Domains to
-   `https://party.example.com:8000`. The `:8000` tells the proxy the container
-   port; guests open `https://party.example.com`. Use https: the camera needs
-   TLS, and the app derives its public URL (QR codes, Secure cookies) from
-   this domain (`VB_PUBLIC_BASE_URL=${SERVICE_URL_APP}`).
-4. **Environment variables:** Coolify fills `VB_PARTY_TOKEN`,
-   `VB_ADMIN_PASSWORD` and `VB_SECRET_KEY` with random values on the first
-   deploy (`SERVICE_PASSWORD_64_PARTYTOKEN`, `SERVICE_PASSWORD_ADMIN`,
-   `SERVICE_BASE64_64_SECRETKEY`). They are shown under Environment Variables;
-   the admin password is what you log in with first (change it in the admin
-   afterwards). The generated party token only seeds QR code 1 on the first
-   start; after that, QR codes and their tokens are managed in Admin →
-   QR-Codes, and editing the variable changes nothing. Set `VB_PARTY_NAME`
-   (or the event name in the admin) and `VB_INSTAGRAM_ACCOUNT`;
-   `VB_EXTENSIONS`, `VB_TIMEZONE`, the per-IP limits, `VB_MIN_FREE_MB`,
-   `VB_MAX_PHOTOS_PER_GUEST` and `VB_FORWARDED_ALLOW_IPS` (default: Docker's
-   private ranges) are editable too.
+1. **Repository access.** A GitHub App (it can redeploy on push) or a
+   read-only deploy key.
+2. **Resource:** Project → `+ New` → repository and branch, Build Pack
+   **Docker Compose**, Docker Compose Location `/docker-compose.coolify.yaml`.
+3. **Domain:** in the service `app`, Domains =
+   `https://party.example.com:8000` (`:8000` is the container port; guests
+   open `https://party.example.com`). The app takes its public URL from it.
+4. **Environment variables.** Coolify generates `VB_PARTY_TOKEN`,
+   `VB_ADMIN_PASSWORD` and `VB_SECRET_KEY` on the first deploy and shows them
+   there; log in with that admin password, then set your own in the admin.
+   Editable: `VB_PARTY_NAME`, `VB_INSTAGRAM_ACCOUNT`, `VB_EXTENSIONS`,
+   `VB_TIMEZONE`, `VB_UPLOADS_PER_IP_PER_MIN`, `VB_NEW_USERS_PER_IP_PER_10MIN`,
+   `VB_SCANS_PER_IP_PER_10MIN`, `VB_MIN_FREE_MB`, `VB_MAX_PHOTOS_PER_GUEST`,
+   `VB_FORWARDED_ALLOW_IPS` (default: all private ranges), and the build
+   variables `VB_ML` (default `1`) and `VB_BAKE_MODELS` (default `0`), which
+   need a redeploy.
+5. **Storage:** the volume `virtubooth-data` at `/data` holds the database,
+   photos, exports and downloaded models. Deleting it deletes the party. The
+   container is limited to 2 CPUs and 1.5 GB RAM (`cpus`, `mem_limit` in the
+   file; `cpus` must not exceed the server's CPU count).
+6. **Deploy.** The build needs about 1 GB of free RAM; the app is healthy
+   about 15 s after the start. Then, in the admin (`/admin`):
+   Allgemeines → „Öffentliche Adresse“ should say „Erreichbar ✓“;
+   ML-Pipeline → **„Modelle herunterladen“** once (about 15 s), then a test
+   image in „Testbild“.
 
-   Two of them are **build** variables for the Live-Wall's photo analysis
-   (a change needs a redeploy, which rebuilds the image):
-   - `VB_ML` (default `1`): installs the ML packages (MediaPipe, ONNX
-     Runtime, OpenCV). `0` builds the small image with only the basic image
-     values (brightness, colour, sharpness); Admin → ML-Pipeline then says
-     what is missing.
-   - `VB_BAKE_MODELS` (default `0`): the model files (144 MB) are not in the
-     image. After the first deploy press **Admin → ML-Pipeline → „Modelle
-     herunterladen“** once: the server fetches them (SHA256-checked) into the
-     volume (`/data/wall/models`), where they survive redeploys. `1` downloads
-     them during the build instead: no button press, but every image is
-     144 MB bigger and a build without cache downloads them again.
+To narrow the trusted proxies, set `VB_FORWARDED_ALLOW_IPS` to the subnet of
+`docker network inspect coolify --format '{{(index .IPAM.Config 0).Subnet}}'`;
+otherwise other containers on Coolify's network could forge
+`X-Forwarded-For`. If the admin's connection state stays at „nur Abfrage“, a
+proxy buffers the event stream: turn off "Enable Gzip Compression" for the
+resource.
 
-   Sizes and memory: [Live-Wall and photo analysis](#live-wall-and-photo-analysis).
-5. **Persistent storage:** the volume `virtubooth-data` at `/data` holds the
-   database, every photo and the exports. Keep it: deleting it deletes the
-   party. Uploads stop while less than `VB_MIN_FREE_MB` (2 GB) is free on its
-   disk. The volume also keeps the downloaded analysis models. The container
-   is limited to 2 CPUs and 1.5 GB RAM (`cpus`, `mem_limit` in the compose
-   file; `cpus` must not exceed the server's CPU count). With the analysis it
-   uses about 0.65 GB at its peak (measured below).
-6. **Deploy.** Coolify builds the image on the server (about 1 GB of free RAM
-   for the frontend build), and the status turns healthy about 15 s after the
-   start. Then:
-   - Admin: `https://party.example.com/admin`
-   - Admin → Verwaltung → Allgemeines: set „Öffentliche Adresse“ to the domain
-     and check that it says „Erreichbar ✓“.
-   - QR codes: admin → Verwaltung → QR-Codes (a code's sheet has "QR als
-     PNG", "QR groß (PDF)" and "Plakat (PDF)"), or Coolify's Terminal for
-     service `app`: `python -m virtubooth.tools.qr`.
-   - Admin → Verwaltung → ML-Pipeline: „Modelle herunterladen“ (about 15 s on
-     a fast line); a test image in „Testbild“ shows that every analysis runs.
-
-The compose file trusts all private ranges for `X-Forwarded-For` by default.
-To narrow it, set `VB_FORWARDED_ALLOW_IPS` to Coolify's proxy network:
-`docker network inspect coolify --format '{{(index .IPAM.Config 0).Subnet}}'`.
-Other containers on Coolify's shared network could otherwise send a forged
-`X-Forwarded-For` straight to `app:8000` (the global login lock still caps
-them).
-
-Never scale the service beyond one container. If the admin's connection
-state keeps saying "nur Abfrage" (polling) instead of "verbunden", a proxy
-buffers the event stream: turn off "Enable Gzip Compression" for the
-resource. The screen still updates every 5 s in the meantime.
-
-**Other PaaS:** deploy `docker-compose.coolify.yaml` or `compose.yaml` the
-same way, route the domain to port 8000 of the service `app`, keep `/data` on
-a persistent volume, and set the `VB_*` secrets yourself (`virtubooth
-gen-env`).
+Other PaaS: deploy either compose file the same way, route the domain to port
+8000 of `app`, keep `/data` on a persistent volume and set the secrets
+yourself (`virtubooth gen-env`).
 
 ## Settings
 
-Settings are environment variables (in Compose: the `.env` file; in Coolify:
-its Environment Variables). [.env.example](../.env.example) lists them with
-comments. An empty value means the default. The app reads the process
-environment, never a `.env` file itself, and refuses to start with a message
-naming the variable when one is missing or invalid.
+All settings are `VB_*` environment variables (Compose: `.env`; Coolify:
+Environment Variables). Empty means the default. The app reads only the
+process environment, never a `.env` file, and refuses to start with the
+variable's name when one is missing or invalid. The event name, the public
+address, the look, the admin password and the QR codes are set in the admin
+and win over the environment.
 
 | Variable | Default | Purpose |
 |---|---|---|
-| `VB_PARTY_TOKEN` | empty | Optional, read only on the first start: it becomes QR code 1's token (16–128 chars of `A-Za-z0-9_-`; empty: a generated one). After that, manage QR codes in Admin → QR-Codes; changing the variable only logs a warning. |
-| `VB_ADMIN_PASSWORD` | *required* | The first admin password: at least 12 characters; use 16+ random ones (the log warns at startup otherwise; `gen-env` makes one). Once changed in the admin, the one set there applies (reset: `virtubooth reset-admin-password --from-env`). While none is set there, changing the variable ends every admin session. |
-| `VB_SECRET_KEY` | *required* | Signs cookies, at least 32 characters. Changing it forgets every guest's device (new join, new pseudonym). |
-| `VB_PARTY_NAME` | `Party` | The default event name; the admin can override it (Allgemeines → „Eventname“). Shown on Start, in the join sheet ("Willkommen bei …!") and on the posters. |
-| `VB_INSTAGRAM_ACCOUNT` | empty | The account you may post photos to, named in the join sheet. |
-| `VB_PUBLIC_BASE_URL` | empty | Public URL without a trailing slash, e.g. `https://party.example.com`: the QR codes and posters (unless Allgemeines → „Öffentliche Adresse“ is set, which wins), the CSRF origin and Secure cookies with `auto` (the admin setting never changes those). |
-| `VB_TIMEZONE` | `Europe/Berlin` | The time in photo and export file names (admin UI and CLI tools). |
-| `VB_CONSENT_VERSION` | `1` | Stored with each join. Bump it when the join sheet's promise changes (for example to record the sentence about the per-guest statistics, the Live-Wall's photo analysis paragraph, or the external-AI paragraph, as a new text version); devices that already joined are not asked again. **The 15/16 October update changed the join texts** (external AI, the analysis paragraph): bump it when you deploy that update. |
-| `VB_EXTENSIONS` | all | Comma-separated extension ids to enable, in this order, e.g. `beer,booth`. `wall` is the Live-Wall: when you set the variable, list it too, or `/livewall` is gone. |
-| `VB_COOKIE_SECURE` | `auto` | `auto` (Secure when the request came over https), `true` or `false`. `true` behind a TLS proxy. |
-| `VB_FORWARDED_ALLOW_IPS` | `127.0.0.1` | Proxies (IPs or CIDR ranges, comma-separated) whose `X-Forwarded-For`/`-Proto` are trusted. `*` is refused at startup. |
-| `VB_ALLOWED_ORIGINS` | empty | Extra origins for the CSRF check, compared exactly (scheme, host, port), e.g. `https://party.example.com`. Rarely needed: `VB_PUBLIC_BASE_URL` is accepted anyway. The only way to allow an `http://` origin on an https deployment. |
-| `VB_MAX_UPLOAD_BYTES` | `8000000` | Maximum size of one photo upload. |
-| `VB_UPLOADS_PER_USER_PER_MIN` | `10` | Uploads per guest per minute. |
-| `VB_UPLOADS_PER_IP_PER_MIN` | `180` | Valid uploads per IP per minute (venue Wi-Fi shares one IP). |
-| `VB_UPLOADS_GLOBAL_PER_MIN` | `300` | Uploads per minute for the whole party. |
-| `VB_NEW_USERS_PER_IP_PER_10MIN` | `120` | New guests per IP per 10 minutes. |
-| `VB_SCANS_PER_IP_PER_10MIN` | `120` | Counted QR scans per IP per 10 minutes from browsers without a visitor id (each writes two rows). Over it the browser still gets in; it is counted under „Gescannt“ once it joins. Logged once a minute per IP. |
-| `VB_MAX_PHOTOS_PER_GUEST` | `300` | Photos one guest may keep (not deleted), over every activity; then uploads answer 403 `photo_limit` and the photo waits on the phone. `0` = no limit. |
-| `VB_MIN_FREE_MB` | `2048` | Uploads answer 503 `storage_full` (the photo waits on the phone, retried after 5 min) while the disk under `VB_DATA_DIR` has less free space; logged once a minute. A full disk would break SQLite. `0` = off. |
-| `VB_API_REQUESTS_PER_GUEST_PER_MIN` | `300` | API requests per joined guest device per minute. |
-| `VB_API_REQUESTS_PER_IP_PER_MIN` | `1200` | API requests per IP per minute from devices that have not joined. |
+| `VB_ADMIN_PASSWORD` | *required* | The first admin password, at least 12 characters (16+ random recommended; the log warns otherwise). Once changed in the admin, only that one works; `reset-admin-password --from-env` goes back. While none is set in the admin, changing it ends every admin session. |
+| `VB_SECRET_KEY` | *required* | Signs cookies, at least 32 characters. Changing it forgets every guest device and makes a stored AI key unreadable. |
+| `VB_PARTY_TOKEN` | empty | Read only while the database has no QR code: it becomes QR code 1's token (16–128 of `A-Za-z0-9_-`; empty: generated). Later changes only log a warning. |
+| `VB_PARTY_NAME` | `Party` | Default event name; Allgemeines → „Eventname“ overrides it. |
+| `VB_INSTAGRAM_ACCOUNT` | empty | The account you may post to, named in the join sheet and on Start. |
+| `VB_PUBLIC_BASE_URL` | empty | Public URL without a trailing slash: QR codes and posters (unless „Öffentliche Adresse“ is set), the CSRF origin, `Secure` cookies with `auto`. |
+| `VB_EXTENSIONS` | all | Extension ids in order, e.g. `beer,booth,wall`. `wall` is the Live-Wall: list it, or `/livewall` is gone. Unknown ids stop the start. |
+| `VB_TIMEZONE` | `Europe/Berlin` | Time in photo and export file names. |
+| `VB_CONSENT_VERSION` | `1` | Stored with each join. Bump it when the join texts' promise changes; joined devices are not asked again. |
+| `VB_COOKIE_SECURE` | `auto` | `auto` (Secure over https), `true`, `false`. |
+| `VB_FORWARDED_ALLOW_IPS` | `127.0.0.1` | Proxies (IPs or CIDR, comma-separated) whose `X-Forwarded-*` count. `*` is refused. |
+| `VB_ALLOWED_ORIGINS` | empty | Extra origins for the CSRF check, compared exactly. The only way to allow an `http://` origin on an https deployment. |
 | `VB_ADMIN_SESSION_HOURS` | `12` | Admin login lifetime. |
-| `VB_DATA_DIR` | `./data` | SQLite database, photos and exports. Docker pins `/data`. |
-| `VB_WEB_DIR` | `frontend/dist` of the checkout | The built frontend (`index.html`, `admin.html`, `gate.html`, `assets/`). Docker pins `/app/web`, the build inside the image. |
-| `VB_DEV` | off | `1`: without a web dir, serve placeholder pages (for `vite dev`). Relaxes nothing security-relevant. Never in production. |
-| `VB_HOST` / `VB_PORT` | `127.0.0.1` / `8000` | Listen address of `virtubooth serve`. Docker pins `0.0.0.0` / `8000`. |
-| `VB_PUBLISH_PORT` | `127.0.0.1:8000` | *compose.yaml only*: the host address and port. `8000` alone publishes on all interfaces. |
-| `VB_IMAGE` | `virtubooth:local` | *compose.yaml only*: the image the build produces and `up` runs. |
-| `VB_CPU_LIMIT` / `VB_MEM_LIMIT` | `1.0` / `1g` | *compose.yaml only*: container limits. The CPU limit must not exceed the host's CPU count. `docker-compose.coolify.yaml` has fixed `cpus: "2"` / `mem_limit: 1536m` (edit them in the file for a 1-CPU server). |
-| `VB_WALL_WORKER` | on | `off`: the app does not spawn the Live-Wall's analysis worker (tests, or a worker running in another container on the same `/data`). |
-| `VB_WALL_MODELS_DIR` | empty | Where the analysis models are looked up first (then `<data>/wall/models`, then `/opt/vb-models`), and where `models fetch` writes. |
-| `VB_WALL_THREADS` | `3` | Threads per inference in the worker (`0` = all cores). |
+| `VB_MAX_UPLOAD_BYTES` | `8000000` | Size of one upload. |
+| `VB_UPLOADS_PER_USER_PER_MIN` | `10` | Uploads per guest per minute (every attempt counts). |
+| `VB_UPLOADS_PER_IP_PER_MIN` | `180` | Valid uploads per IP per minute. |
+| `VB_UPLOADS_GLOBAL_PER_MIN` | `300` | Valid uploads per minute, whole party. |
+| `VB_NEW_USERS_PER_IP_PER_10MIN` | `120` | New guests per IP per 10 minutes. |
+| `VB_SCANS_PER_IP_PER_10MIN` | `120` | Counted QR scans per IP per 10 minutes from browsers without a visitor id. Over it they still get in, uncounted until they join. |
+| `VB_MAX_PHOTOS_PER_GUEST` | `300` | Photos a guest may keep, all activities; then 403 `photo_limit` and the photo waits on the phone. `0` = no limit. |
+| `VB_MIN_FREE_MB` | `2048` | Uploads answer 503 `storage_full` while less is free under `VB_DATA_DIR`. `0` = off. |
+| `VB_API_REQUESTS_PER_GUEST_PER_MIN` | `300` | API requests per joined device. |
+| `VB_API_REQUESTS_PER_IP_PER_MIN` | `1200` | API requests per IP from devices that have not joined. |
+| `VB_DATA_DIR` | `./data` | Database, photos, exports. Docker: `/data`. |
+| `VB_WEB_DIR` | `frontend/dist` | The built frontend. Docker: `/app/web`. |
+| `VB_DEV` | off | `1`: placeholder pages without a frontend build (development only). |
+| `VB_HOST`, `VB_PORT` | `127.0.0.1`, `8000` | Listen address of `virtubooth serve`. Docker: `0.0.0.0`, `8000`. |
+| `VB_WALL_WORKER` | on | `off`: don't start the photo analysis worker. |
+| `VB_WALL_MODELS_DIR` | empty | Where models are looked up first and fetched to (then `<data>/wall/models`, then `/opt/vb-models`). |
+| `VB_WALL_THREADS` | `3` | Threads per inference (`0` = all cores). |
+| `VB_PUBLISH_PORT`, `VB_IMAGE`, `VB_CPU_LIMIT`, `VB_MEM_LIMIT` | `127.0.0.1:8000`, `virtubooth:local`, `1.0`, `1g` | `compose.yaml` only: published port, image name, container limits (the Coolify file has fixed 2 CPUs, 1536 MB). |
 
-Guests on the same venue Wi-Fi (or behind carrier NAT) share one IP. So API
-requests of joined guests count per device, only first visits count per IP,
-and admin sessions are never throttled. Uploads count per guest first; the
-per-IP and global budgets count only valid photos. For a big crowd on one
-network raise `VB_UPLOADS_PER_IP_PER_MIN` and `VB_NEW_USERS_PER_IP_PER_10MIN`.
+Guests on one venue Wi-Fi share an IP: joined guests' API requests count per
+device, admin sessions are never throttled, and the per-IP upload budget
+counts only valid photos. For a big crowd on one network, raise
+`VB_UPLOADS_PER_IP_PER_MIN` and `VB_NEW_USERS_PER_IP_PER_10MIN`. The fixed
+limits are in [ARCHITECTURE.md → Limits](ARCHITECTURE.md#limits).
 
 ## Live-Wall and photo analysis
 
-The Live-Wall (`/livewall`, extension `wall`) works in every image: set its
-password in Admin → Verwaltung → Live-Wall and open `/livewall` on the TV.
-Wake Lock (keeping the TV awake) needs https or localhost; on a plain LAN IP
-switch the TV's screensaver off.
+The Live-Wall works in every image: set its password in Admin → Live-Wall and
+open `/livewall` on the TV. Keeping the TV awake (Wake Lock) needs https or
+localhost; otherwise switch off the TV's screensaver.
 
-Its fun categories come from a photo analysis in a separate worker process the
-app starts and supervises (nice 10, one photo at a time, restarted after a
-crash, recycled after 200 photos or 900 MB RSS, it exits with the app). Without
-extras it computes only image values (brightness, colour, sharpness: two
-categories). Faces, expressions, hands, glasses and the like need the `ml`
-extra (MediaPipe, ONNX Runtime, OpenCV) and the model files (144 MB, 231 MB
-with the optional FairFace age model). `docker-compose.coolify.yaml` builds
-with the extra by default ([Coolify](#coolify), `VB_ML`, `VB_BAKE_MODELS`);
-`compose.yaml` and a plain `docker build` without it:
+Its categories come from a photo analysis in a worker process the app starts
+and supervises. Without the ML packages it computes only brightness, colour
+and sharpness. Faces, expressions, hands, gestures and objects need
+`VB_ML=1` and the model files:
 
 ```bash
-docker build --build-arg VB_ML=1 -t virtubooth:ml .        # the ML image
-docker build --build-arg VB_ML=1 --build-arg VB_BAKE_MODELS=1 -t virtubooth:ml .
-                                                            # ... with the models in /opt/vb-models
-# or download them into the volume once (versioned URLs, SHA256-checked):
-docker compose run --rm app virtubooth wall models fetch
-docker compose run --rm app virtubooth wall models list
+docker build --build-arg VB_ML=1 -t virtubooth:ml .                              # ML image
+docker build --build-arg VB_ML=1 --build-arg VB_BAKE_MODELS=1 -t virtubooth:ml . # with the models
+docker compose run --rm app virtubooth wall models fetch    # or: download into the volume once
 ```
 
-(`virtubooth wall …` is short for `python -m virtubooth.extensions.wall.enrich …`,
-which keeps working.)
+**„Modelle herunterladen“** (Admin → ML-Pipeline → „Modelle“) does the same as
+`models fetch` from the browser: versioned URLs, pinned SHA256, into
+`$VB_WALL_MODELS_DIR` or `/data/wall/models`, where they survive redeploys.
+It needs outgoing https to `huggingface.co` and `storage.googleapis.com`
+(otherwise bake them in with `VB_BAKE_MODELS=1`) and refuses to start when it
+would leave less than `VB_MIN_FREE_MB` free. The worker picks the models up
+with its next photo. FairFace (age) downloads only once „Alter“ is switched
+on, or with `models fetch --with-age`.
 
-**„Modelle herunterladen“** in Admin → ML-Pipeline → „Modelle“ does the same
-as `models fetch` from the browser: shown while the ML packages are installed
-and a needed model is missing (the standard ones, plus FairFace once „Alter“ is
-switched on). The server alone picks the files (versioned URLs, pinned SHA256),
-downloads them in the background with progress into `$VB_WALL_MODELS_DIR` or
-`/data/wall/models`, and refuses to start while that would leave less than
-`VB_MIN_FREE_MB` free. The worker picks them up with its next photo, no
-restart. It needs outgoing https to `huggingface.co` and
-`storage.googleapis.com`; without it, bake the models into the image
-(`VB_BAKE_MODELS=1`). Without the ML packages the card explains how to rebuild
-instead (a download would not help).
+The worker runs on the read-only filesystem: the image points the ML caches
+at the `/tmp` tmpfs and sets `ORT_DISABLE_TELEMETRY=1` (ONNX Runtime would
+otherwise send usage events to Microsoft).
 
-`models fetch` writes to `$VB_WALL_MODELS_DIR` or `/data/wall/models`;
-`--with-age` adds FairFace (switched off in the admin until you turn it on).
-Analyzers that cannot run (models missing) keep their switch: it stores the
-host's choice in both directions and the analyzer starts once its models are
-there.
+### Image sizes and memory
 
-The worker runs fine on the read-only root filesystem of
-`docker-compose.coolify.yaml`: the image points the ML libraries' caches
-(fontconfig, matplotlib's font list, about 100 KB) at the `/tmp` tmpfs
-(`XDG_CACHE_HOME`, `MPLCONFIGDIR`) and sets `ORT_DISABLE_TELEMETRY=1` (ONNX
-Runtime 1.31 would otherwise store a device id and send usage events to
-Microsoft; the worker sets it too outside Docker). Models are only read; only
-the download folder in `/data` must be writable.
+Measured on x86-64 with the hardening of `docker-compose.coolify.yaml`:
 
-Measured on an x86-64 build of this repository (Docker with the containerd
-image store), the container run with the hardening of
-`docker-compose.coolify.yaml` (read-only, tmpfs `/tmp`, no capabilities,
-`pids_limit` 512, `mem_limit` 1536m, 2 CPUs):
-
-| Image | compressed (pull) | unpacked | `docker image ls` |
-|---|---|---|---|
-| `VB_ML=0` | 248 MB | 667 MB | 967 MB |
-| `VB_ML=1` (Coolify default) | 427 MB | 1,173 MB | 1.66 GB |
-| `VB_ML=1`, `VB_BAKE_MODELS=1` | 535 MB | 1,317 MB | 1.92 GB |
-
-The ML extra grows `/opt/venv` from 120 MB to 638 MB: OpenCV 153 MB (`cv2`
-plus its bundled libraries), MediaPipe 122 MB, numpy 70 MB, ONNX Runtime
-68 MB, and MediaPipe's matplotlib with fontTools and kiwisolver 72 MB.
-`libegl1`/`libgles2` add about 1 MB to the 457 MB ffmpeg layer.
-
-| Model | File | Size |
+| Image | Pull (compressed) | `docker image ls` |
 |---|---|---|
-| CLIP ViT-B/32 vision, int8 (`tags`) | `clip_vision_model_int8.onnx` | 88.6 MB |
-| FER+ (`emotion`) | `emotion-ferplus-8.onnx` | 35.0 MB |
-| MediaPipe gesture recogniser (`gestures`) | `gesture_recognizer.task` | 8.4 MB |
-| EfficientDet-Lite2 int8 (`objects`) | `efficientdet_lite2.tflite` | 7.5 MB |
-| MediaPipe face landmarker (`faces`) | `face_landmarker.task` | 3.8 MB |
-| YuNet (`faces`) | `face_detection_yunet_2023mar.onnx` | 0.2 MB |
-| **standard set** (the download, `/data` grows by this) | | **143.6 MB** |
-| FairFace age, int8 (`age`, only when switched on) | `fairface_age_model_int8.onnx` | 87.3 MB |
+| `VB_ML=0` | 248 MB | 967 MB |
+| `VB_ML=1` (Coolify default) | 427 MB | 1.66 GB |
+| `VB_ML=1`, `VB_BAKE_MODELS=1` | 535 MB | 1.92 GB |
 
-| Memory (container: `docker stats`; app, worker: RSS) | Container | App | Worker |
-|---|---|---|---|
-| idle, no models | 143 MiB | 123 MiB | 33 MiB |
-| during „Modelle herunterladen“ | 158 MiB | | |
-| idle, models loaded (after the first photo) | 638 MiB | 134 MiB | 502 MiB |
-| peak, 20 photos and 3 test images | 659 MiB | 135 MiB | 583 MiB |
+The standard models are 143.6 MB: CLIP ViT-B/32 int8 (88.6 MB), FER+ emotion
+(35.0 MB), MediaPipe gesture recogniser (8.4 MB), EfficientDet-Lite2 int8
+(7.5 MB), MediaPipe face landmarker and YuNet (4.0 MB). FairFace age adds
+87.3 MB. `virtubooth wall models list` shows what is present.
 
-The six standard analyzers took about 0.3 s per photo there (objects 150 ms,
-faces 55 ms, gestures 37 ms). The 1.5 GB limit leaves room for the worker's
-900 MB recycling threshold, FairFace (about +0.1 GB) and an export's ffmpeg; the
-container never needs swap.
-The models: YuNet (MIT), MediaPipe face landmarker, gesture recogniser and
-EfficientDet-Lite2 (Apache-2.0), FER+ emotion (MIT), CLIP ViT-B/32 int8 (MIT),
-FairFace age (Apache-2.0, data CC BY 4.0).
-
-- **Raspberry Pi 5:** 0.4 to 2 s per photo; the worker holds about 500 MB. On a
-  4 GB Pi raise `VB_MEM_LIMIT` (e.g. `2g`). If the booth lags, lower
-  `VB_WALL_THREADS` or switch analyzers off in Admin → ML-Pipeline → „Modelle“.
-- `python -m virtubooth.extensions.wall.enrich status` shows the worker's
-  heartbeat and the counts; `run-once` works off what is pending by hand.
-- **Join texts:** while the wall is loaded, the join sheet's „Mehr dazu“ names
-  the analysis and offers „Meine Fotos nicht automatisch auswerten“. It always
-  says that photos may go to an external AI service if the host switches it on
-  (naming the configured provider). To record these paragraphs as part of what
-  guests accepted, bump `VB_CONSENT_VERSION` (e.g. to `2`); devices that joined
-  already are not asked again.
-- **Analyses are frozen:** each photo is analysed once; switching analyzers or
-  their settings affects only later photos. There is no re-analysis.
+Memory: the container idles at about 145 MiB without models and 640 MiB once
+the worker has loaded them (worker about 0.5 GiB); the peak while analysing
+was 660 MiB. The worker restarts itself after 200 photos or above 900 MB.
+About 0.3 s per photo on that server; a Raspberry Pi 5 takes 0.4 to 2 s (raise
+`VB_MEM_LIMIT` to `2g`, lower `VB_WALL_THREADS` if the booth lags). Licences:
+YuNet, FER+ and CLIP MIT; MediaPipe and EfficientDet Apache-2.0; FairFace
+Apache-2.0 with CC BY 4.0 data.
 
 ### External AI (optional)
 
-Off by default. In Admin → ML-Pipeline → „Claude (KI-Dienst)“ the host pastes an
-API key (Anthropic, or Mistral AI for an EU-hosted service), switches „Externe KI
-verwenden“ on and picks what it does: object detection at upload, properties
-(„Eigenschaften“) scored every few minutes, and category verdicts on the wall.
+Off by default. In Admin → ML-Pipeline → „Claude (KI-Dienst)“ the host enters
+an API key (Anthropic, or Mistral AI for an EU service) and switches it on.
+The server then needs outgoing https to `api.anthropic.com` or
+`api.mistral.ai`. The key is stored encrypted with a key derived from
+`VB_SECRET_KEY`, never shown, exported or logged. Set a budget: at the limit
+every call stops. Prices are estimates from a table in the code. What is sent
+and who is left out: [FEATURES.md → ML-Pipeline](FEATURES.md#ml-pipeline-und-externe-ki).
 
-- The server needs outbound HTTPS to `api.anthropic.com` (or `api.mistral.ai`).
-- The key is stored encrypted with a key derived from `VB_SECRET_KEY` and is
-  never shown again, exported or logged. Changing `VB_SECRET_KEY` makes it
-  unreadable: the admin shows „Schlüssel ungültig, bitte neu eingeben“.
-- Set a budget („Budget“: party and daily limits in USD and/or calls). At the
-  limit every external call stops. Prices are estimates from a table in the
-  code (Mistral's are unconfirmed).
-- Guests who chose „Keine Weitergabe an externe KI“ (or switched the analysis
-  off) never have photos, objects or names sent.
-- Local development: `make models` (installs the extra, fetches into
-  `<data>/wall/models`), then `make dev` starts the app with the worker.
+## Command line
+
+| Command | What |
+|---|---|
+| `virtubooth serve` | the server (default): `--host`, `--port`, `--forwarded-allow-ips`, `--reload` |
+| `virtubooth gen-env` | prints a `.env` with fresh secrets |
+| `virtubooth reset-admin-password` | `--from-env`: back to `VB_ADMIN_PASSWORD`; without it asks twice for a new one (or `--password-stdin`). Logs every admin out |
+| `virtubooth export-openapi -o FILE` | the OpenAPI schema for the frontend client |
+| `virtubooth wall …` | photo analysis: `models fetch [--with-age]`, `models list`, `status`, `run-once`, `worker`, `bench DIR`, `burst` |
+| `python -m virtubooth.tools.export` | everything as `.tar.gz`, also while running: `--no-hidden`, `--no-db`, `--out` |
+| `python -m virtubooth.tools.timelapse` | the MP4, with more options than the admin (`--crossfade`, `--crf`, `--limit` for a preview, …) |
+| `python -m virtubooth.tools.qr` | QR codes and an A4 sheet per activity: `--base-url`, `--code N` or `--token`, `--party-name`, … |
+
+The tools take `--data-dir` and `--help`, write to `<data>/exports/` and keep
+their files until you delete them. In Docker: `docker compose exec app …`
+while the app runs, `docker compose run --rm app …` while it is stopped;
+`docker compose cp app:/data/exports ./exports` copies the files off. In
+Coolify, use the app's Terminal.
 
 ## Party-night checklist
 
-- Tested on an iPhone and an Android phone on the real domain, including
-  opening the link from inside Instagram or WhatsApp (in-app browsers often
-  block the camera; the page tells guests to scan the code with the camera
+- Tested on an iPhone and an Android phone on the real domain, also opened
+  from inside Instagram or WhatsApp (the page tells guests to use the camera
   app instead).
-- The admin live screen shows the test uploads and says "verbunden".
-- The event name is set (Admin → Allgemeines → „Eventname“, or
-  `VB_PARTY_NAME`).
-- QR codes checked in Admin → QR-Codes: only the codes you mean to hang up
-  are active, each with the right „Ziel“ and „Notiz“; codes you no longer
-  want are deleted.
-- Admin → Allgemeines → „Öffentliche Adresse“ says „Erreichbar ✓“ (the QR-Codes
-  tab warns otherwise).
-- Posters printed from the deployed config: the template and its QR field in
-  „Plakat“, then „Plakat (PDF)“ (or „QR groß (PDF)“) in each code's sheet. One
-  printed code scanned before the guests arrive.
-- Your own admin password set in Admin → Allgemeines → „Admin-Passwort“
-  (not the generated one from `.env` or Coolify).
-- Admin logged in on a laptop or tablet; the password is on no printout.
-  Sessions last `VB_ADMIN_SESSION_HOURS` (12 h): log in shortly before.
-- Live-Wall: password set (at least 12 characters; a shorter one set before
-  that rule still works, so change it), `/livewall` open on the TV in full screen,
-  ML-Pipeline → „Modelle“ says the worker runs (ML image only).
-- External AI (if used): key „gesetzt“, a budget set, a test image run.
-- Enough disk space: `df -h /var/lib/docker`, well above `VB_MIN_FREE_MB`
-  (2 GB; below it uploads stop).
+- Admin → Live shows the test photos and says „verbunden“.
+- Allgemeines: event name set, „Öffentliche Adresse“ says „Erreichbar ✓“,
+  your own admin password set (not the generated one).
+- QR-Codes: only the codes you hang up are active, with the right target.
+  Posters printed from the deployed site, one printed code scanned.
+- Admin logged in on every device you moderate from, shortly before the party
+  (sessions last 12 h).
+- Live-Wall: password set (12+ characters), `/livewall` in full screen on the
+  TV, ML-Pipeline says the worker runs.
+- External AI, if used: key „gesetzt“, budget set, a test image run.
+- Free disk well above `VB_MIN_FREE_MB`: `df -h /var/lib/docker`.
 - No updates or rebuilds on party night.
-
-## Exports
-
-Everything you take home after the party. There are two ways to make each
-file, and both write to `/data/exports/`:
-
-| | Admin → Verwaltung → Export | CLI in the container |
-|---|---|---|
-| **Photos + lists** | "Archiv erstellen": a ZIP with `photos/<activity>/` (hidden ones under `hidden/` with "Ausgeblendete Fotos mitnehmen"), `photos.csv`, `users.csv`, `instagram.csv`, `manifest.json`, `README.txt`, and with "Datenbank mitnehmen (für ein Backup)" a consistent copy of the database (guests with IPs, fingerprints and bans, all photo rows, the audit log; without admin sessions and export jobs, vacuumed so nothing deleted earlier can be recovered) | `python -m virtubooth.tools.export`: the same content as a `.tar.gz` (`--no-hidden`, `--no-db`, `--out FILE`) |
-| **Timelapse** | "Zeitraffer erstellen": activity, "Fotos pro Sekunde" (6, 8, 12, 15, 24 or 30), "Weich überblenden", "Ausgeblendete Fotos mitnehmen". H.264 MP4, 1080×1440, the last photo held 2 s | `python -m virtubooth.tools.timelapse`: plus `--fade`, `--out-fps`, `--size`, `--hold-last`, `--crf`, `--preset`, `--limit N` (quick preview), `--dry-run` |
-| **QR codes** | Single codes and posters: Verwaltung → QR-Codes, a code's sheet („QR als PNG“, „QR groß (PDF)“, „Plakat (PDF)“), made in the browser right away. The QR sheet for all activities is CLI-only now | `python -m virtubooth.tools.qr`: plus `--code N`, `--extensions`, `--token` (codes for a token not deployed yet), `--party-name` (default: the event name from the database), `--no-home`, `--out DIR` |
-
-- The admin's exports run as **background jobs**, one at a time, with progress
-  and a download link. Starting a kind that is already waiting or running
-  gives you that job instead of a second one. The newest 10 finished files are
-  kept; older ones are deleted with their entry. A restart marks running jobs
-  as failed ("Server wurde neu gestartet.").
-- The CLI tools have more options and keep their files until you delete them.
-  `--help` lists everything. Hidden photos are left out of the timelapse
-  unless you ask for them; deleted ones never go in.
-- With Compose, `docker compose exec app …` runs a tool in the running app;
-  with the app stopped, use `docker compose run --rm app …`:
-
-```bash
-docker compose exec app python -m virtubooth.tools.timelapse --extension beer --fps 12 --crossfade
-docker compose exec app python -m virtubooth.tools.export --no-hidden
-docker compose exec app python -m virtubooth.tools.qr --base-url https://party.example.com
-docker compose cp app:/data/exports ./exports      # copy everything off the container
-```
-
-The QR codes carry a QR code's token, but it is never printed as text. Anyone
-holding a printed code is in, so treat the sheets and posters like keys and
-reprint after [changing a code's token](#rotating-secrets).
 
 ## Backups
 
-Everything is in the volume (`virtubooth_data` with Compose,
-`virtubooth-data` in Coolify): `virtubooth.db` (SQLite, WAL mode), one folder
-of photos per activity, `exports/`, and `poster/` (the poster template,
-`/data/poster/template.pdf`; its QR field is in the database).
+The volume holds `virtubooth.db` (SQLite, WAL), one photo folder per
+activity, `exports/`, `poster/` (the poster template) and `wall/` (models and
+the wall's image cache).
 
-**Hot, while the app runs:** an archive with the database (admin → Export →
-"Archiv erstellen" with "Datenbank mitnehmen", or
-`docker compose exec app python -m virtubooth.tools.export`). The database
-copy is made with SQLite's backup API, so it is consistent. It leaves out the
-admin sessions and export jobs: after restoring from it, every admin logs in
-again. The poster template is not in it (keep your PDF, or take the cold
-backup below). Copy it off with `docker compose cp app:/data/exports ./backup-$(date +%F)`.
+**Hot, while running:** Admin → Export → „Archiv erstellen“ with „Datenbank
+mitnehmen“, or `python -m virtubooth.tools.export`. The database copy is
+consistent (SQLite backup API), without admin sessions, export jobs and
+visitor ids, so admins log in again after a restore. The poster template is
+not in it.
 
-**Cold, complete:** stop the app so the SQLite files are consistent, archive
-the volume, start again (a few seconds of downtime). On a clean stop the app
-writes the WAL back into `virtubooth.db`, so that file alone holds the whole
-database:
+**Cold, complete** (a few seconds of downtime; on a clean stop the WAL is
+written back into `virtubooth.db`):
 
 ```bash
 docker compose stop
@@ -627,183 +413,90 @@ docker run --rm -v virtubooth_data:/data:ro -v "$PWD":/backup alpine:3.22 \
 docker compose start
 ```
 
-**Restore** a cold backup (this replaces all current data; the archive keeps
-the uid 10001 ownership):
+**Restore** (replaces all current data):
 
 ```bash
-docker compose down -v                    # deletes the current data volume!
-docker compose create                     # new, empty volume + container
+docker compose down -v && docker compose create
 docker run --rm -v virtubooth_data:/data -v "$PWD":/backup:ro alpine:3.22 \
   tar xzf /backup/virtubooth-data-YYYY-MM-DD.tar.gz -C /data
 docker compose up -d
 ```
 
-Backups contain every photo and guest record (IP addresses, device traits),
-and every database copy (cold backups and the archives' database) holds the
-QR codes with their tokens and the admin password's hash: store them like the
-photos themselves, and treat them like the printed codes.
+Backups and database copies hold every photo, the guests' IP addresses and
+device traits, the QR tokens and the admin password's hash: keep them like
+the printed codes.
 
 ## Updating
 
 ```bash
-cd ~/virtubooth
-git pull                                  # or rsync the new code
-docker compose up -d --build              # rebuilds (frontend + backend), then replaces the container
-docker compose ps                         # healthy again?
-docker image prune -f                     # drop the old, now untagged image
+git pull
+docker compose up -d --build     # rebuilds, then replaces the container
+docker image prune -f
 ```
 
-The data volume is untouched by updates, and database migrations run by
-themselves on start. Migration 5 brings the QR codes: on the first start
-after it, `VB_PARTY_TOKEN` becomes QR code 1, so printed codes keep working,
-guests stay joined, and every earlier guest and scan counts for code 1.
-Migration 6 adds the guests' online time. Migration 11 (October 15/16) adds
-the frozen object list, rule-based wall categories (seeded once from the old
-19, keeping the ones you had switched off), the external-AI tables, display
-names and the external-AI opt-out; bump `VB_CONSENT_VERSION` with it (see
-[Settings](#settings)). To pick up security fixes of the base images and
-ffmpeg, rebuild with `docker compose build --pull`, then `docker compose up
--d`. The Node, pnpm, Python and uv versions are pinned at the top of the
-`Dockerfile`. In Coolify, press Redeploy (or let the GitHub App redeploy on
-push).
+In Coolify: Redeploy. The volume stays; database migrations run by
+themselves on start (numbered, append only). Upgrading a database from before
+the QR codes turns `VB_PARTY_TOKEN` into QR code 1, so printed codes keep
+working. The join texts gained the external-AI paragraph in migration 11:
+when you upgrade an older deployment, bump `VB_CONSENT_VERSION`. Base image
+security fixes: `docker compose build --pull`. No updates on party night.
 
-## Rotating secrets
+## Secrets and the admin password
 
-QR tokens live in the database. When a QR code leaked, change its token in
-Admin → QR-Codes („Token ändern…“) or delete it („Löschen…“): it stops
-working at once, no restart. Browsers that scanned it but never joined must
-scan a valid code; guests who already joined through it stay (ban them one by
-one if needed, or stop new joins with „Anmeldung stoppen“). Print the new
-code afterwards: „QR als PNG“, „QR groß (PDF)“ or „Plakat (PDF)“ in the code's
-sheet, or `docker compose exec app python -m virtubooth.tools.qr --code <Nr.>`.
+- **QR tokens** live in the database. A leaked code: „Token ändern…“ or
+  „Löschen…“ in Admin → QR-Codes. It stops working at once; guests who
+  already joined through it stay (ban them, or „Anmeldung stoppen“). Reprint
+  afterwards. Printed codes are keys: anyone holding one is in.
+- **Admin password:** change it in Allgemeines → „Admin-Passwort“; every
+  other admin session ends at once. Forgotten:
+  `docker compose exec app virtubooth reset-admin-password --from-env`
+  (Coolify: the app's Terminal). Every admin is logged out.
+- **`VB_SECRET_KEY`:** edit `.env`, `docker compose up -d` (Coolify:
+  redeploy). Every guest scans and joins again with a new pseudonym (their
+  photos stay), and a stored AI key must be entered again. Change it only if
+  it leaked.
 
-`VB_PARTY_TOKEN` is only read on the first start with QR codes (a new
-database, or the first start after the update that brought them): it becomes
-QR code 1's token. Changing it later changes nothing; the startup log then
-says so:
-
-```text
-VB_PARTY_TOKEN changed after QR code 1 was created from it; it no longer controls access. Manage QR codes in Admin → QR-Codes.
-```
-
-To close the booth after the party: delete every QR code in the admin, then
-wipe the volume (see [Teardown](#teardown)).
-
-The other secrets:
-
-- **Admin password:** change it in the admin (Allgemeines →
-  „Admin-Passwort“): every other admin session ends at once, no restart.
-  `VB_ADMIN_PASSWORD` only matters while no password is stored there (then
-  changing it in `.env` ends all admin sessions). Forgotten:
-  `virtubooth reset-admin-password --from-env` (in Docker:
-  `docker compose exec app virtubooth reset-admin-password --from-env`), see
-  [below](#changing-or-resetting-the-admin-password).
-- `VB_SECRET_KEY`: an environment variable: edit `.env` and run
-  `docker compose up -d` (`docker compose restart` does **not** re-read
-  `.env`; in Coolify, edit the variable and redeploy). It forgets every guest
-  device and access cookie (everyone scans and joins again with a new
-  pseudonym; existing photos stay but are no longer linked to a device), and
-  makes a stored external-AI key unreadable (enter it again in ML-Pipeline).
-  Change it only if it leaked.
-
-## Locked out of the admin login
-
-Login is rate limited per IP (5 per minute, 20 per hour; IPv6 per /64). After
-**20 wrong passwords within 15 minutes, from anywhere**, every login is
-refused for **5 minutes**: `429 login_locked` with `Retry-After`, and the
-login page says "Zu viele Fehlversuche" and how long to wait. The correct
-password is refused too, so spreading guesses over many addresses gains
-nothing.
-
-- **Admins who are logged in keep working.** Sessions last
-  `VB_ADMIN_SESSION_HOURS` (12 h): log in before the party, on every device you
-  will moderate from.
-- **Wait** the 5 minutes, or **restart** the container: the counters live in
-  memory, so `docker compose restart app` (Coolify: Restart) clears the lock.
-  Guests notice a few seconds without the app; their sessions and photos stay.
-- **From the server itself.** A login sent straight to the app's port from
-  inside the container (no proxy, no `X-Forwarded-For`) is exempt from the
-  lock. This prints a fresh session cookie, which you can set as `vb_admin`
-  for your domain in the browser's developer tools:
-
-  ```bash
-  docker compose exec app python -c "import json, os, urllib.request as u; r = u.urlopen(u.Request('http://127.0.0.1:8000/api/admin/login', json.dumps({'password': os.environ['VB_ADMIN_PASSWORD']}).encode(), {'Content-Type': 'application/json', 'Origin': 'http://127.0.0.1:8000'})); print(r.headers['Set-Cookie'].split(';')[0])"
-  ```
-
-  A browser through an SSH tunnel does not count as local: it arrives from
-  the Docker gateway.
-- If the lock keeps coming back, someone is guessing: check
-  `docker compose logs app` for the addresses, and keep the password long and
-  random.
-
-### Changing or resetting the admin password
-
-The host can change the password in the admin: Verwaltung → „Allgemeines“
-(the gear) → „Admin-Passwort“, with the current one. The new password is stored
-as a scrypt hash in the database, and from then on it is the only valid one:
-`VB_ADMIN_PASSWORD` no longer logs in. It stays required in the configuration,
-as the first password and as what a reset goes back to. Every other admin
-session ends at once; the device that changed it stays logged in. The startup
-log says which password applies.
-
-Forgotten? Reset it on the server, the app may keep running:
+**Locked out of the login** („Zu viele Fehlversuche“): after 20 wrong
+passwords in 15 minutes from anywhere, every login is refused for 5 minutes,
+the correct one too. Logged-in admins keep working. Wait, or restart the
+container (`docker compose restart app`): the counters live in memory. A
+login sent from inside the container straight to the app's port is exempt;
+this prints a session cookie to set as `vb_admin` in the browser:
 
 ```bash
-docker compose exec app virtubooth reset-admin-password --from-env  # VB_ADMIN_PASSWORD applies again
-docker compose exec app virtubooth reset-admin-password             # asks twice for a new one
+docker compose exec app python -c "import json, os, urllib.request as u; r = u.urlopen(u.Request('http://127.0.0.1:8000/api/admin/login', json.dumps({'password': os.environ['VB_ADMIN_PASSWORD']}).encode(), {'Content-Type': 'application/json', 'Origin': 'http://127.0.0.1:8000'})); print(r.headers['Set-Cookie'].split(';')[0])"
 ```
 
-In Coolify, open the terminal of the app container (the application →
-Terminal) and run `virtubooth reset-admin-password --from-env` there. Either
-way every admin is logged out (an open live view notices within 30 s) and the
-audit log gets „Admin-Passwort zurückgesetzt (Server)“. A reset does not lift a
-login lock (wait, or restart). The login-from-the-server command above uses
-`VB_ADMIN_PASSWORD`: after a password change in the admin, reset with
-`--from-env` first.
-
-## Logs and monitoring
-
-```bash
-docker compose ps                     # health
-docker compose logs -f --since 10m app
-docker stats                          # CPU and memory against the limits
-```
-
-Logs rotate at 5 × 10 MB. The access log masks QR tokens (`?t=***`) and
-skips `/healthz`. The admin's "Protokoll" lists every moderation action with
-who and when.
+It uses `VB_ADMIN_PASSWORD`: after a change in the admin, reset with
+`--from-env` first. If the lock keeps coming back, someone is guessing: check
+`docker compose logs app` for the addresses.
 
 ## Teardown
 
-After the party, once you have exported and copied off what you want to keep:
+Export and copy off what you keep, then:
 
 ```bash
-docker compose down -v                # container, network, logs AND the data volume: irreversible
-docker image rm virtubooth:local      # or your VB_IMAGE
-rm .env compose.override.yaml         # secrets, proxy override
+docker compose down -v                # container, network AND the data volume
+docker image rm virtubooth:local
+rm .env compose.override.yaml
 ```
 
-Then remove the site from the reverse proxy, delete the DNS record, and
-delete backups and exports you no longer need. Hidden photos stay on disk
-until this point; only deleting (in the admin, or the volume) removes files.
+Remove the site from the proxy and the DNS record, and delete backups you no
+longer need. Hidden photos stay on disk until then.
 
 ## Troubleshooting
 
 | Symptom | Cause / fix |
 |---|---|
-| Every page says "Scan den QR-Code" | No or an outdated access cookie: open an active QR code's link (Admin → QR-Codes, „Link kopieren“). A code that was deleted or got a new token lets in only guests who already joined. |
-| The camera does not start on the phone | Not on HTTPS, permission denied, or an in-app browser. Use the HTTPS URL in Safari or Chrome and check the site's camera permission. The page names the problem. |
-| `403 bad_origin` on every join or upload | The proxy rewrites the `Host` header. Pass it through, or set `VB_PUBLIC_BASE_URL` to the public URL (or `VB_ALLOWED_ORIGINS`). |
-| `403 bad_origin` behind https only | The CSRF check compares the scheme. Set `VB_PUBLIC_BASE_URL=https://<host>` and trust the proxy (`VB_FORWARDED_ALLOW_IPS`). |
-| Many `429` answers during the party | Guests share an IP: set `VB_FORWARDED_ALLOW_IPS` for your proxy, and raise the per-IP limits for venue Wi-Fi. |
-| Cookies lack `Secure` behind HTTPS | Set `VB_COOKIE_SECURE=true`, or trust the proxy (`VB_FORWARDED_ALLOW_IPS`) so `auto` sees https. |
-| The container exits on start | `docker compose logs app`: a missing or too short secret is reported by its `VB_*` name, and so is `*` in `VB_FORWARDED_ALLOW_IPS`. "no built frontend was found" means `VB_WEB_DIR` points somewhere else; in Docker it must be `/app/web` (both compose files pin it). |
-| `.env` changes have no effect | Use `docker compose up -d`, not `restart`. |
-| The image build stops in `pnpm install` or `pnpm build` | Out of memory (the frontend build needs about 1 GB) or no network to the npm registry. Add swap, or build elsewhere and set `VB_IMAGE`. |
-| A guest sees "Die Seite startet nicht" | A content blocker or an old browser blocked part of the page. The page says to turn the blocker off for this site and reload. |
-| The admin's connection says "nur Abfrage" or "getrennt" | The event stream does not get through: the proxy buffers it (Coolify: turn off gzip for the resource; nginx: see above), or the network dropped. Updates still arrive every 5 s. |
-| Admin login says "Zu viele Fehlversuche" | 20+ wrong passwords within 15 minutes from anywhere: every login waits 5 minutes, the correct one too. Logged-in admins keep working. Wait, or restart the container to clear it ([details](#locked-out-of-the-admin-login)). |
-| The log warns about `VB_ADMIN_PASSWORD` at startup | It is shorter than 16 characters or very repetitive. It still works (12 is the minimum); replace it with a long random one (`virtubooth gen-env`). |
-| A fifth admin tab keeps reconnecting another one | One login keeps at most 4 live screens; a fifth closes the oldest, which reconnects. Close tabs you don't need. |
-| A timelapse export fails with "Für den Zeitraffer fehlt ffmpeg" | Only outside Docker: install ffmpeg with libx264. The image has it. |
-| A timelapse export fails with "Keine Fotos für den Zeitraffer" | That activity has no visible photos yet. Pick another one, or tick "Ausgeblendete Fotos mitnehmen". |
+| Every page says „Scan den QR-Code“ | No or an outdated access cookie: open an active code's link (Admin → QR-Codes, „Link kopieren“). |
+| The camera does not start | Not HTTPS, permission denied, or an in-app browser. The page names the problem. |
+| `403 bad_origin` on join or upload | The proxy rewrites `Host`, or the scheme differs: set `VB_PUBLIC_BASE_URL=https://<host>` and trust the proxy (`VB_FORWARDED_ALLOW_IPS`). |
+| Many `429` during the party | Guests share an IP: trust the proxy, raise the per-IP limits. |
+| Cookies lack `Secure` behind HTTPS | `VB_COOKIE_SECURE=true`, or trust the proxy so `auto` sees https. |
+| The container exits on start | `docker compose logs app` names the `VB_*` variable. "no built frontend was found": `VB_WEB_DIR` must be `/app/web` in Docker. |
+| A guest sees „Die Seite startet nicht“ | A content blocker or an old browser; the page says what to do. |
+| Admin shows „nur Abfrage“ or „getrennt“ | The proxy buffers the event stream (Coolify: gzip off). Updates still come every 5 s. |
+| The log warns about `VB_ADMIN_PASSWORD` | Shorter than 16 characters or repetitive; replace it (`virtubooth gen-env`). |
+| Timelapse: „fehlt ffmpeg“ | Outside Docker only: install ffmpeg with libx264. |
+| Timelapse: „Keine Fotos für den Zeitraffer“ | The activity has no visible photos; tick „Ausgeblendete Fotos mitnehmen“ or pick another. |
+| ML-Pipeline says the ML packages are missing | The image was built with `VB_ML=0`: set `VB_ML=1` and redeploy. |
