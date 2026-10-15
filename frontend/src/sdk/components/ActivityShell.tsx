@@ -232,7 +232,7 @@ export function ActivityShell({
               controlsLayout === 'camera'
                 ? 'grid grid-cols-[1fr_auto_1fr] items-center gap-3 [&>:first-child]:justify-self-start [&>:last-child]:justify-self-end'
                 : // the result's buttons share the row; when their labels do not fit side by
-                  // side (a 320 px phone: „Speichern“ + „Neues Foto“), they wrap onto a second
+                  // side (a 320 px phone: „Herunterladen“ + „Neues Foto“), they wrap onto a second
                   // line instead of running off the right edge
                   'flex w-full max-w-[32rem] flex-wrap gap-3 landscape-phone:max-w-[30rem]',
             )}

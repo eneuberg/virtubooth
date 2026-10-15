@@ -157,11 +157,11 @@ function Buttons() {
         {() => (
           <>
             <div className="flex flex-wrap items-center gap-3">
-              <Button variant="primary" icon={Download}>
-                Speichern
-              </Button>
-              <Button variant="secondary" icon={Camera}>
+              <Button variant="primary" icon={Camera}>
                 Neues Foto
+              </Button>
+              <Button variant="secondary" icon={Download}>
+                Herunterladen
               </Button>
               <Button variant="quiet">Auswahl aufheben</Button>
               <Button variant="danger" icon={Trash2}>

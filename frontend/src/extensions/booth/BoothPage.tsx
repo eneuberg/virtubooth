@@ -6,8 +6,10 @@
  * front camera like a mirror; the capture renders the frozen frame again at 1080×1440
  * through the same shader and overlay, so the photo is exactly what was on screen.
  * Filters: the carousel, swipes on the preview, the arrow keys; a double tap flips the
- * camera. The result is a print that develops, with "Speichern" and "Neues Foto"; its
- * upload state lives on the film edge. A failed upload waits in the outbox.
+ * camera. The result is a print that develops; its headline is the upload state
+ * („Wird hochgeladen…“ → „Hochgeladen“, UploadState), the film edge shows the frame and
+ * the progress. „Neues Foto“ is the main action, „Herunterladen“ (optional, onto the
+ * phone) the second. A failed upload waits in the outbox.
  */
 import { Camera, Check, Download, Share2, SwitchCamera, Timer } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
@@ -15,6 +17,7 @@ import { ToggleButton } from 'react-aria-components';
 import { formatPercent, NBSP } from '@/lib/format';
 import { msg, t } from '@/lib/messages.de';
 import { CameraStatus, FilmRetry } from '@/sdk/camera/CameraHints';
+import { UploadState } from '@/sdk/camera/UploadState';
 import { CameraErrorScreen, FatalScreen } from '@/sdk/camera/CameraScreens';
 import { CameraStage, PREVIEW_CANVAS_CLASS } from '@/sdk/camera/CameraStage';
 import { PHOTO_H, PHOTO_W, STREAM_SIZE } from '@/sdk/camera/capture';
@@ -22,7 +25,7 @@ import { buildFilterList, NORMAL, type Filter } from '@/sdk/camera/filters';
 import { useCameraKeys, useLeaveGuard } from '@/sdk/camera/keys';
 import { drawOverlay, overlayInfo, type OverlayInfo } from '@/sdk/camera/overlays';
 import { useCameraSession } from '@/sdk/camera/useCameraSession';
-import { shotErrorText, useNow, useOutboxToasts, useShot } from '@/sdk/camera/useShot';
+import { useNow, useOutboxToasts, useShot } from '@/sdk/camera/useShot';
 import { ActivityMenu } from '@/sdk/components/ActivityMenu';
 import { ActivityShell } from '@/sdk/components/ActivityShell';
 import { GuestPass } from '@/sdk/components/GuestPass';
@@ -271,13 +274,13 @@ function Fotobox({
       if (how !== 'cancelled') setSaved(true);
     } catch {
       showToast({
-        message: 'Speichern hat nicht geklappt. Halte das Foto gedrückt und sichere es so.',
+        message: 'Herunterladen hat nicht geklappt. Halte das Foto gedrückt und sichere es so.',
         tone: 'error',
       });
     }
   };
 
-  // iOS shares on "Speichern" already ("Bild sichern"); elsewhere "Teilen" is extra
+  // on iOS „Herunterladen“ is the share sheet already („Bild sichern“); elsewhere „Teilen“ is extra
   const [offerShare] = useState(() => !isIOS() && canShareFiles());
   const share = async () => {
     if (!shot) return;
@@ -286,7 +289,7 @@ function Fotobox({
       await shareImage(shot.blob, `fotobox-${n ?? 'foto'}.jpg`);
     } catch {
       showToast({
-        message: 'Teilen hat nicht geklappt. Speichere das Foto und teile es dann.',
+        message: 'Teilen hat nicht geklappt. Lade das Foto herunter und teile es dann.',
         tone: 'error',
       });
     }
@@ -331,7 +334,7 @@ function Fotobox({
   const shotShown = !!shot;
   useEffect(() => {
     if (shotShown)
-      document.querySelector<HTMLElement>('[data-testid="save"]')?.focus({ preventScroll: true });
+      document.querySelector<HTMLElement>('[data-testid="again"]')?.focus({ preventScroll: true });
   }, [shotShown]);
 
   // ------------------------------------------------------------ gestures on the preview
@@ -417,9 +420,7 @@ function Fotobox({
             : 'waiting';
     const end =
       shot.status === 'uploading' ? (
-        <span className="tabular">
-          {t.uploading} {formatPercent(shot.progress)}
-        </span>
+        <span className="tabular">{formatPercent(shot.progress)}</span>
       ) : shot.status === 'done' ? (
         <span className="inline-flex items-center gap-1 font-semibold text-ok">
           <Check aria-hidden="true" className="size-4" strokeWidth={2.5} />
@@ -449,25 +450,13 @@ function Fotobox({
 
   let hint;
   if (shot) {
-    const message = shotErrorText(shot.error, waitSeconds);
     hint = (
-      <div aria-live="polite" data-testid="result-text" className="grid gap-1">
-        {shot.status === 'done' ? (
-          <span className="sr-only">{t.uploaded}</span>
-        ) : shot.status === 'uploading' ? null : shot.status === 'failed' ? (
-          <p className="text-sm text-papier-muted">
-            <strong className="font-semibold text-papier">Nicht hochgeladen.</strong> {message} Speichern geht
-            trotzdem.
-          </p>
-        ) : (
-          <p className="text-sm text-papier-muted">
-            <strong className="font-semibold text-papier">Dein Foto wartet.</strong> {message}{' '}
-            {shot.status === 'held'
-              ? 'Es wird gesendet, sobald du wieder hochladen kannst.'
-              : 'Es wird gesendet, sobald es geht.'}
-          </p>
-        )}
-      </div>
+      <UploadState
+        shot={shot}
+        waitSeconds={waitSeconds}
+        done="Fertig, mehr musst du nicht tun."
+        failedHint="Herunterladen geht trotzdem."
+      />
     );
   } else if (status.kind !== 'ok') {
     hint = <CameraStatus onSend={() => void sendOutbox()} sending={sendingOutbox} />;
@@ -475,8 +464,9 @@ function Fotobox({
 
   const controls = shot ? (
     <>
+      {/* optional, so not the main action: the photo is on the party already */}
       <Button
-        variant="primary"
+        variant="secondary"
         size="lg"
         icon={saved ? Check : Download}
         data-testid="save"
@@ -484,7 +474,7 @@ function Fotobox({
         className="flex-1"
         onPress={() => void save()}
       >
-        {saved ? msg.saved : t.save}
+        {saved ? msg.downloaded : t.download}
       </Button>
       {offerShare ? (
         <IconButton
@@ -498,7 +488,7 @@ function Fotobox({
         />
       ) : null}
       <Button
-        variant="secondary"
+        variant="primary"
         size="lg"
         icon={Camera}
         data-testid="again"

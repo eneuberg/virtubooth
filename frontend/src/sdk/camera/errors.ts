@@ -27,26 +27,33 @@ export function isCameraError(err: unknown): err is CameraError {
 export const CAMERA_ERROR_TITLE = 'Die Kamera geht nicht';
 
 /**
+ * The fallback after every camera error a browser could be behind: another browser.
+ * Copying the address would not do: the QR code's token is gone from it (the access is
+ * a cookie of this browser), so the other browser needs the QR code again.
+ */
+export const BROWSER_HINT =
+  'Klappt’s nicht? Probier einen anderen Browser, z.\u00a0B. Safari oder Chrome, und scanne den QR-Code dafür nochmal.';
+
+/**
  * Instagram, WhatsApp, Facebook & co. open links in their own browser, often without a
  * camera. "Open in browser" would lose the party access (the token is gone from the
- * address), so: scan the QR code with the camera app (GP's advice on Start, too).
+ * address), so: another browser, through the camera app's QR scan (GP's advice on Start, too).
  */
 export const IN_APP_HINT =
-  'Im Browser dieser App geht die Kamera oft nicht. Öffne die Kamera-App deines Handys und scanne den QR-Code damit: Dann öffnet sich die Seite im richtigen Browser.';
+  'Im Browser dieser App geht die Kamera oft nicht. Öffne die Seite in einem anderen Browser, z.\u00a0B. Safari oder Chrome: Scanne den QR-Code dafür mit der Kamera-App deines Handys.';
 
+/** What to do first, then (except for https, which no browser fixes) another browser. */
 export const CAMERA_TEXT = {
   insecure: 'Die Kamera funktioniert nur über eine sichere Verbindung (https).',
-  unsupported: 'Dein Browser unterstützt keine Kamera. Nimm Safari oder Chrome.',
-  deniedIOS:
-    'Kamera-Zugriff wurde verweigert. Tippe in der Adressleiste auf „aA“ › Website-Einstellungen › Kamera › Erlauben und lade die Seite neu.',
-  deniedTouch:
-    'Kamera-Zugriff wurde verweigert. Tippe auf das Schloss in der Adressleiste, erlaube die Kamera und lade die Seite neu.',
-  deniedDesktop:
-    'Kamera-Zugriff wurde verweigert. Klick in der Adressleiste auf das Kamera-Symbol, erlaube die Kamera und lade die Seite neu.',
-  notFound: 'Keine passende Kamera gefunden.',
-  busy: 'Die Kamera wird gerade von einer anderen App benutzt. Schließ sie und versuch es nochmal.',
-  timeout: 'Die Kamera startet nicht. Lade die Seite neu.',
-  unknown: 'Die Kamera konnte nicht gestartet werden.',
+  unsupported:
+    'Dieser Browser kann die Kamera nicht nutzen. Probier einen anderen, z.\u00a0B. Safari oder Chrome, und scanne den QR-Code dafür nochmal.',
+  deniedIOS: `Kamera-Zugriff wurde verweigert. Tippe in der Adressleiste auf „aA“ › Website-Einstellungen › Kamera › Erlauben und lade die Seite neu. ${BROWSER_HINT}`,
+  deniedTouch: `Kamera-Zugriff wurde verweigert. Tippe auf das Schloss in der Adressleiste, erlaube die Kamera und lade die Seite neu. ${BROWSER_HINT}`,
+  deniedDesktop: `Kamera-Zugriff wurde verweigert. Klick in der Adressleiste auf das Kamera-Symbol, erlaube die Kamera und lade die Seite neu. ${BROWSER_HINT}`,
+  notFound: `Keine passende Kamera gefunden. ${BROWSER_HINT}`,
+  busy: `Die Kamera wird gerade von einer anderen App benutzt. Schließ sie und versuch es nochmal. ${BROWSER_HINT}`,
+  timeout: `Die Kamera startet nicht. Lade die Seite neu. ${BROWSER_HINT}`,
+  unknown: `Die Kamera konnte nicht gestartet werden. Lade die Seite neu. ${BROWSER_HINT}`,
 } as const;
 
 function errorName(err: unknown): string {

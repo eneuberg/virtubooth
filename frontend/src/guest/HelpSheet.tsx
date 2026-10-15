@@ -3,6 +3,7 @@
  * (the same sheet, that section open): the join texts read-only, the camera
  * permission, in-app browsers. Test id `help`.
  */
+import { BROWSER_HINT } from '@/sdk/camera/errors';
 import { inAppBrowserName, isIOS } from '@/sdk/platform';
 import { useJoinText } from '@/sdk/session';
 import { HelpDisclosure } from '@/ui/HelpDisclosure';
@@ -20,8 +21,8 @@ export interface HelpSheetProps {
 
 function cameraHelp(): string {
   return isIOS()
-    ? 'Erlaube der Seite die Kamera: Tippe in der Adressleiste auf „aA“, dann auf „Website-Einstellungen“ und stell die Kamera auf „Erlauben“. Danach die Seite neu laden.'
-    : 'Erlaube der Seite die Kamera: Tippe links in der Adressleiste auf das Schloss oder die Einstellungen, dann auf „Berechtigungen“ und erlaube die Kamera. Danach die Seite neu laden.';
+    ? `Erlaube der Seite die Kamera: Tippe in der Adressleiste auf „aA“, dann auf „Website-Einstellungen“ und stell die Kamera auf „Erlauben“. Danach die Seite neu laden. ${BROWSER_HINT}`
+    : `Erlaube der Seite die Kamera: Tippe links in der Adressleiste auf das Schloss oder die Einstellungen, dann auf „Berechtigungen“ und erlaube die Kamera. Danach die Seite neu laden. ${BROWSER_HINT}`;
 }
 
 export function HelpSheet({ topic, onClose, instagramAccount }: HelpSheetProps) {
@@ -65,8 +66,9 @@ export function HelpSheet({ topic, onClose, instagramAccount }: HelpSheetProps) 
             defaultExpanded={topic === 'browser'}
           >
             <p>
-              Die Browser in diesen Apps lassen die Kamera oft nicht zu. Öffne stattdessen die Kamera-App
-              deines Handys und scanne den QR-Code damit: Dann öffnet sich die Seite im richtigen Browser.
+              Die Browser in diesen Apps lassen die Kamera oft nicht zu. Öffne die Seite stattdessen in einem
+              anderen Browser, z.&nbsp;B. Safari oder Chrome: Scanne den QR-Code dafür mit der Kamera-App
+              deines Handys.
             </p>
             {inAppBrowserName() ? <p className="text-ink-muted">{advice.text}</p> : null}
           </HelpDisclosure>

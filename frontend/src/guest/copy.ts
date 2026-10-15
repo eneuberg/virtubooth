@@ -87,7 +87,7 @@ export function inAppAdvice(app: string | null): { title: string; text: string }
   const camera = isIOS() ? 'die Kamera-App' : 'die Kamera-App (oder Google Lens)';
   return {
     title: 'Hier geht die Kamera oft nicht',
-    text: `Du bist gerade ${where}. Öffne ${camera} deines Handys und scanne den QR-Code damit: Dann öffnet sich die Seite im richtigen Browser.`,
+    text: `Du bist gerade ${where}. Öffne die Seite lieber in einem anderen Browser, z.\u00a0B. Safari oder Chrome: Scanne den QR-Code dafür mit ${camera} deines Handys.`,
   };
 }
 
@@ -106,6 +106,6 @@ export function activityList(titles: ReadonlyArray<string>): string {
 export function firstPhotoText(titles: ReadonlyArray<string>): string {
   const names = activityList(titles);
   return names
-    ? `Noch keine Bilder von dir. Probier ${names} aus: Dein erstes Bild landet dann hier, und du kannst es speichern.`
-    : 'Noch keine Bilder von dir. Sobald du eins machst, landet es hier, und du kannst es speichern.';
+    ? `Noch keine Bilder von dir. Probier ${names} aus: Dein erstes Bild landet dann hier, und du kannst es herunterladen.`
+    : 'Noch keine Bilder von dir. Sobald du eins machst, landet es hier, und du kannst es herunterladen.';
 }

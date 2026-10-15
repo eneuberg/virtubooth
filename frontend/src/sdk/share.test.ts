@@ -56,7 +56,7 @@ describe('saveImage', () => {
     expect(clicks).toEqual(['a.jpg']);
   });
 
-  it('Speichern downloads on Android even with a share sheet (it has no "save to gallery")', async () => {
+  it('„Herunterladen“ downloads on Android even with a share sheet (it has no "save to gallery")', async () => {
     withShare(() => Promise.resolve());
     await expect(saveImage(blob(), 'a.jpg')).resolves.toBe('downloaded');
   });

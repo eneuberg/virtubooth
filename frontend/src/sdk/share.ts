@@ -7,7 +7,7 @@
  * - Otherwise, or when sharing fails for another reason, a download through
  *   <a download> with an object URL that is revoked after 30 s → 'downloaded'.
  *
- * Android's share sheet usually has no "save to gallery", so "Speichern" downloads
+ * Android's share sheet usually has no "save to gallery", so „Herunterladen“ downloads
  * there and the viewer offers "Teilen" (shareImage) as a second button.
  * Build the Blob BEFORE the tap and call this synchronously in the press handler:
  * Web Share needs the user activation (WebKit is strict about it).

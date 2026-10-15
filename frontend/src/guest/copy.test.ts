@@ -24,14 +24,14 @@ describe('the invitation in "Deine Bilder" before the first photo', () => {
   it('builds no article in front of a title', () => {
     const text = firstPhotoText(['Beer Cam', 'Glücksrad']);
     expect(text).toBe(
-      'Noch keine Bilder von dir. Probier „Beer Cam“ oder „Glücksrad“ aus: Dein erstes Bild landet dann hier, und du kannst es speichern.',
+      'Noch keine Bilder von dir. Probier „Beer Cam“ oder „Glücksrad“ aus: Dein erstes Bild landet dann hier, und du kannst es herunterladen.',
     );
     expect(text).not.toMatch(/\b(der|die|das|dem|den) „/);
   });
 
   it('still reads well without an activity that takes photos', () => {
     expect(firstPhotoText([])).toBe(
-      'Noch keine Bilder von dir. Sobald du eins machst, landet es hier, und du kannst es speichern.',
+      'Noch keine Bilder von dir. Sobald du eins machst, landet es hier, und du kannst es herunterladen.',
     );
   });
 });

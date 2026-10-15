@@ -228,7 +228,8 @@ def test_keyboard(guest: Page, live: LiveServer):
     page.keyboard.press("Space")
     expect(page.get_by_test_id("result-photo")).to_be_visible(timeout=READY)
     expect_uploaded(page)
-    expect(page.get_by_test_id("save")).to_be_focused()
+    # the main action takes the focus; „Herunterladen“ is optional
+    expect(page.get_by_test_id("again")).to_be_focused()
     page.keyboard.press("Escape")
     expect(page.get_by_test_id("result-photo")).to_have_count(0)
     expect(page.get_by_test_id("shutter")).to_be_focused()
@@ -297,7 +298,12 @@ def test_capture_bw_is_grayscale_exact_size_and_uploaded(guest: Page, live: Live
     status = page.get_by_test_id("upload-status")
     expect(status).to_contain_text("Hochgeladen")
     expect(status).to_contain_text("0001")
-    expect(page.get_by_test_id("save")).to_be_visible()
+    # the headline is the upload state, as a live region
+    result = page.get_by_role("status").filter(has=page.get_by_test_id("upload-title"))
+    expect(result).to_have_attribute("data-state", "done")
+    expect(page.get_by_test_id("upload-title")).to_have_text("Hochgeladen")
+    expect(result).to_contain_text("mehr musst du nicht tun")
+    expect(page.get_by_test_id("save")).to_have_text("Herunterladen")
     expect(page.get_by_test_id("result-photo")).to_have_attribute("src", re.compile(r"^blob:"))
     shot(page, "booth-result", 900)
 
@@ -443,10 +449,10 @@ def test_save_downloads_the_photo(guest: Page, live: LiveServer):
     assert download.suggested_filename == "fotobox-1.jpg"
     data = Path(download.path()).read_bytes()
     assert Image.open(io.BytesIO(data)).size == (1080, 1440)
-    expect(page.get_by_test_id("save")).to_contain_text("Gespeichert")
+    expect(page.get_by_test_id("save")).to_have_text("Heruntergeladen")
     again(page)
     page.get_by_test_id("shutter").click()
-    expect(page.get_by_test_id("save")).to_contain_text("Speichern", timeout=READY)
+    expect(page.get_by_test_id("save")).to_have_text("Herunterladen", timeout=READY)
     assert page.js_errors == []
 
 
@@ -489,6 +495,7 @@ def test_camera_denied(guest: Page, live: LiveServer):
     screen = guest.get_by_test_id("camera-error")
     expect(screen).to_contain_text("Die Kamera geht nicht", timeout=READY)
     expect(screen).to_contain_text("Kamera-Zugriff wurde verweigert")
+    expect(screen).to_contain_text("Probier einen anderen Browser, z.\u00a0B. Safari oder Chrome")
     expect(screen.get_by_role("button", name="Seite neu laden")).to_be_visible()
     expect(guest.get_by_test_id("shutter")).to_be_disabled()
     assert guest.js_errors == []
@@ -536,7 +543,9 @@ def test_offline_shot_waits_survives_a_reload_and_is_sent(guest: Page, live: Liv
     page.get_by_test_id("shutter").click()
     status = page.get_by_test_id("upload-status")
     expect(status).to_have_attribute("data-state", "waiting", timeout=READY)
+    expect(page.get_by_test_id("upload-title")).to_have_text("Noch nicht hochgeladen")
     expect(page.get_by_test_id("result-text")).to_contain_text("Keine Verbindung")
+    expect(page.get_by_test_id("result-text")).to_contain_text("sobald es geht")
     expect(page.get_by_test_id("save")).to_be_visible()  # the photo is still theirs to keep
     [kept] = wait_kept(page, 1)
     assert kept["ext"] == "booth" and kept["meta"] == {"filter": "normal", "facing": "user"}
@@ -617,6 +626,7 @@ def test_without_storage_leaving_warns(guest: Page, live: LiveServer):
         "data-state", "waiting", timeout=READY
     )
     assert leaving_is_blocked(page)  # only in memory: a closed tab would lose it
+    expect(page.get_by_test_id("result-text")).to_contain_text("Lass die Seite offen")
     again(page)
     assert leaving_is_blocked(page)
     net.offline = False
@@ -634,6 +644,7 @@ def test_reload_mid_upload_loses_nothing(guest: Page, live: LiveServer):
     page.route("**/api/x/booth/upload", lambda route: None)  # never answers
     page.get_by_test_id("shutter").click()
     expect(page.get_by_test_id("upload-status")).to_have_attribute("data-state", "uploading")
+    expect(page.get_by_test_id("upload-title")).to_have_text("Wird hochgeladen…")
     wait_kept(page, 1)
     assert not leaving_is_blocked(page)
     page.unroute("**/api/x/booth/upload")
@@ -815,7 +826,7 @@ WEB_SHARE = """(() => {
 def test_result_buttons_stay_on_screen_with_share(
     guest: Page, live: LiveServer, activity: str, width: int
 ):
-    """The Fotobox result's „Speichern“, Teilen and „Neues Foto“ on a narrow Android
+    """The Fotobox result's „Herunterladen“, Teilen and „Neues Foto“ on a narrow Android
     phone: they wrap onto a second line instead of running off the right edge (they did
     at 390 px with the share button, at 320 px without it). The Beer Cam's one button
     („Noch ein Bier“) shares the layout."""
