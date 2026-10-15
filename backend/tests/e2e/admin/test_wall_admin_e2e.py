@@ -421,8 +421,8 @@ def test_change_transition_and_colour_then_save(
     assert body["spotlight"]["transition"] == "glitch"
     assert body["spotlight"]["interval_s"] == 10
     assert body["look"]["primary"] == "#112233"
-    # categories are switched in their own card now, not in the draft
-    assert body["categories"]["disabled"] == []
+    # categories are switched in their own card now: the old list is not sent
+    assert body["categories"] == {"per_category_s": DEFAULTS["categories"]["per_category_s"]}
     assert body["playlist"] == DEFAULTS["playlist"]
     assert "rev" not in body and "by" not in body
     # the saved state is the new base: the field keeps the value, nothing is dirty

@@ -43,7 +43,7 @@ class MlFake(FakeWall):
             "updated_at": None,
             "by": None,
         }
-        self.key: dict[str, Any] = {"set": False, "set_at": None, "provider": None, "valid": None}
+        self.key: dict[str, Any] = {"set": False, "set_at": None, "provider": None, "valid": False}
         self.blocked = False
         self.props: list[dict[str, Any]] = [
             {
@@ -62,15 +62,15 @@ class MlFake(FakeWall):
             "config": self.llm,
             "key": self.key,
             "providers": [
-                {"id": "anthropic", "title": "Anthropic (Claude)", "eu": False,
+                {"id": "anthropic", "title": "Anthropic (Claude, USA)", "eu": False,
                  "available": True, "reason": None},
             ],
             "models": [
-                {"id": "claude-haiku-5-5", "title": "Claude Haiku 5.5", "usd_in_mtok": 1,
+                {"id": "claude-haiku-5-5", "provider": "anthropic", "title": "Claude Haiku 5.5", "usd_in_mtok": 1,
                  "usd_out_mtok": 5},
-                {"id": "claude-sonnet-5-5", "title": "Claude Sonnet 5.5", "usd_in_mtok": 3,
+                {"id": "claude-sonnet-5-5", "provider": "anthropic", "title": "Claude Sonnet 5.5", "usd_in_mtok": 3,
                  "usd_out_mtok": 15},
-                {"id": "claude-opus-5-5", "title": "Claude Opus 5.5", "usd_in_mtok": 5,
+                {"id": "claude-opus-5-5", "provider": "anthropic", "title": "Claude Opus 5.5", "usd_in_mtok": 5,
                  "usd_out_mtok": 25},
             ],
             "poller": {"state": "blocked" if self.blocked else "idle", "last_poll_at": None,
@@ -106,7 +106,7 @@ class MlFake(FakeWall):
                             "provider": body["provider"], "valid": True}  # fmt: skip
                 return 200, self.key
             case "DELETE", "/llm/key":
-                self.key = {"set": False, "set_at": None, "provider": None, "valid": None}
+                self.key = {"set": False, "set_at": None, "provider": None, "valid": False}
                 return 200, self.key
             case "POST", "/llm/key/test":
                 return 200, {"ok": True, "message": "Der Schlüssel funktioniert."}
@@ -142,9 +142,10 @@ TEST_RESULT = {
         ],
         "details": [{"label": "Gesichter", "value": "2"}],
         "objects": [{"label": "wine glass", "label_de": "Weinglas", "score": 0.87,
-                     "box": [0.5, 0.5, 0.1, 0.2]}],
+                     "box": {"x": 0.5, "y": 0.5, "w": 0.1, "h": 0.2}}],
         "durations_ms": {"basic": 11, "faces": 150},
         "error": None,
+        "skipped": {},
     },
     "external": None,
 }  # fmt: skip
