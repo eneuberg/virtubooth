@@ -10,6 +10,7 @@ import { Palette, RotateCcw } from 'lucide-react';
 import { useState, type CSSProperties } from 'react';
 import {
   contrastProblems,
+  DEFAULT_STYLE,
   HEX_RE,
   themeVariables,
   THEME_COLOR_KEYS,
@@ -46,8 +47,10 @@ const CHOICES: { id: ThemeChoice; label: string }[] = [
   { id: 'custom', label: 'Eigene' },
 ];
 
+// party is the default (Neon Nacht): the calm look plus a few deliberate gags
 const STYLES: { id: ThemeStyle; label: string }[] = [
   { id: 'elegant', label: 'Ruhig' },
+  { id: 'party', label: 'Party' },
   { id: 'goofy', label: 'Verspielt' },
 ];
 
@@ -68,7 +71,7 @@ export function ThemeCard({ data }: { data: AdminThemeOut }) {
   const [busy, setBusy] = useState<Busy>(null);
   const choice: ThemeChoice = draft?.choice ?? data.theme.preset;
   const colors = draft?.colors ?? saved;
-  const savedStyle: ThemeStyle = data.theme.style ?? 'elegant';
+  const savedStyle: ThemeStyle = data.theme.style ?? DEFAULT_STYLE;
   const style = draft?.style ?? savedStyle;
   const presetOf = (id: ThemeChoice) => data.presets.find((p) => p.id === id);
 

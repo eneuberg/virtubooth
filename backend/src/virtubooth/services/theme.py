@@ -1,10 +1,11 @@
 """The theme: colours of the guest UI and the Live Wall, set in Allgemeines.
 
 Stored as `x.theme` = {preset, colors, style, rev, updated_at, by}; absent =
-„Neon Nacht“. `style` is the layer on top of the colours: "elegant" or "goofy"
-(the „Rummel“ fairground look); the server writes it into the guest pages'
-<html data-vb-style> (WebFrontend.theme_style), so the goofy CSS applies before
-the first paint. Every guest page (index.html, gate.html, wall.html) links
+„Neon Nacht“. `style` is the layer on top of the colours: "elegant" (calm),
+"party" (the default: calm plus a few deliberate gags) or "goofy" (the „Rummel“
+fairground look); a stored theme without one gets its preset's. The server writes
+it into the guest pages' <html data-vb-style> (WebFrontend.theme_style), so the
+style's CSS applies before the first paint. Every guest page (index.html, gate.html, wall.html) links
 `/api/theme.css?v=<rev>` in its <head> (WebFrontend.theme_head), so the
 colours are there before the first paint without an inline style (CSP).
 The guest app re-reads `/api/theme` when it becomes visible again, and open
@@ -86,11 +87,11 @@ RUMMEL = ThemeColors(
     text_muted="#cdc6f2",
 )
 PRESETS: Final = (
-    ThemePreset(id="neon_nacht", label="Neon Nacht", colors=NEON_NACHT, style="elegant"),
-    ThemePreset(id="klassisch", label="Klassisch", colors=KLASSISCH, style="elegant"),
+    ThemePreset(id="neon_nacht", label="Neon Nacht", colors=NEON_NACHT, style="party"),
+    ThemePreset(id="klassisch", label="Klassisch", colors=KLASSISCH, style="party"),
     ThemePreset(id="rummel", label="Rummel", colors=RUMMEL, style="goofy"),
 )
-STYLES: Final = ("elegant", "goofy")
+STYLES: Final = ("elegant", "party", "goofy")
 DEFAULT_PRESET: Final = PRESETS[0]
 
 LABELS: Final = {
@@ -205,8 +206,8 @@ def parse_colors(raw: Any) -> ThemeColors:
 
 
 def _preset_style(preset: str) -> ThemeStyle:
-    """The style a preset comes with (own colours and unknown: elegant)."""
-    return next((p.style for p in PRESETS if p.id == preset), "elegant")
+    """The style a preset comes with (own colours and unknown: party, the default)."""
+    return next((p.style for p in PRESETS if p.id == preset), "party")
 
 
 def css_variables(theme: PublicTheme) -> str:

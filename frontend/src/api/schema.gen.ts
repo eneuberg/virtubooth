@@ -2060,11 +2060,11 @@ export interface components {
             rev: number;
             /**
              * Style
-             * @description The look's layer on guest pages and the wall: `elegant` or `goofy` (<html data-vb-style>).
-             * @default elegant
+             * @description The look's layer on guest pages and the wall: `elegant`, `party` or `goofy` (<html data-vb-style>).
+             * @default party
              * @enum {string}
              */
-            style: "elegant" | "goofy";
+            style: "elegant" | "party" | "goofy";
             /** Updated At */
             updated_at: string | null;
         };
@@ -4625,11 +4625,11 @@ export interface components {
             rev: number;
             /**
              * Style
-             * @description The look's layer on guest pages and the wall: `elegant` or `goofy` (<html data-vb-style>).
-             * @default elegant
+             * @description The look's layer on guest pages and the wall: `elegant`, `party` or `goofy` (<html data-vb-style>).
+             * @default party
              * @enum {string}
              */
-            style: "elegant" | "goofy";
+            style: "elegant" | "party" | "goofy";
         };
         /** RestoreOut */
         RestoreOut: {
@@ -4866,9 +4866,9 @@ export interface components {
             preset: "neon_nacht" | "klassisch" | "rummel" | "custom";
             /**
              * Style
-             * @description The layer; null: the preset's (`custom`: elegant).
+             * @description The layer; null: the preset's (`custom`: party).
              */
-            style?: ("elegant" | "goofy") | null;
+            style?: ("elegant" | "party" | "goofy") | null;
         };
         /** ThemePreset */
         ThemePreset: {
@@ -4885,7 +4885,7 @@ export interface components {
              * @description The style the preset comes with.
              * @enum {string}
              */
-            style: "elegant" | "goofy";
+            style: "elegant" | "party" | "goofy";
         };
         /** TimelapseExportIn */
         TimelapseExportIn: {

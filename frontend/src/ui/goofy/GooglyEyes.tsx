@@ -1,17 +1,17 @@
 /**
- * Wackelaugen: the running gag of the goofy „Rummel“ look. Two plastic googly eyes
+ * Wackelaugen: the running gag of the party and goofy styles. Two plastic googly eyes
  * whose pupils follow the finger or the mouse (and, on phones that tell without asking,
  * fall towards the low side when the phone tilts), overshoot and wobble (eyes.ts), blink
  * now and then, squint nervously during a countdown and squeeze shut when a photo is
  * taken. Without a pointer (the Live Wall) they look around the room.
  *
- * Renders nothing unless the goofy style is on; with reduced motion the pupils rest.
- * Size: CSS `--eye` on `.vb-googly` (styles/goofy.css). Decorative: aria-hidden.
+ * Renders nothing in the calm style; with reduced motion the pupils rest. Size: CSS
+ * `--eye` on `.vb-googly` (styles/party.css, styles/goofy.css). Decorative: aria-hidden.
  */
 import { useEffect, useRef, useState } from 'react';
 import { cx } from '../cx';
 import { aim, settled, SPRINGS, step, type Pupil, type Vec } from './eyes';
-import { prefersReducedMotion, useGoofy } from './style';
+import { isPlayful, prefersReducedMotion, useThemeStyle } from './style';
 
 export type EyeMood = 'look' | 'nervous' | 'shut';
 
@@ -67,8 +67,8 @@ export function GooglyEyes({
   gaze?: 'pointer' | 'room';
   className?: string;
 }) {
-  const goofy = useGoofy();
-  if (!goofy) return null;
+  const style = useThemeStyle();
+  if (!isPlayful(style)) return null;
   return <Eyes mood={mood} gaze={gaze} className={className} />;
 }
 

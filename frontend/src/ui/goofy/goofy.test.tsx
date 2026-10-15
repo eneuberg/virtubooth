@@ -1,8 +1,9 @@
 import { act, render, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, it } from 'vitest';
-import { applyStyle } from '@/styles/theme';
+import { applyStyle, type ThemeStyle } from '@/styles/theme';
 import { aim, settled, SPRINGS, step, type Pupil } from './eyes';
 import { GooglyEyes } from './GooglyEyes';
+import { currentStyle, isPlayful } from './style';
 
 afterEach(() => {
   document.documentElement.removeAttribute('data-vb-style');
@@ -45,28 +46,46 @@ describe('googly eye physics', () => {
 });
 
 describe('GooglyEyes', () => {
-  it('renders nothing in the calm style, two eyes in the goofy one', async () => {
+  it('renders nothing in the calm style, two eyes in the party and goofy ones', async () => {
+    applyStyle('elegant');
     const { container } = render(<GooglyEyes />);
     expect(container.querySelector('.vb-googly')).toBeNull();
-    act(() => applyStyle('goofy'));
+    act(() => applyStyle('party'));
     // the MutationObserver reports asynchronously
     await waitFor(() => expect(container.querySelector('.vb-googly')).not.toBeNull());
     expect(container.querySelector('.vb-googly')?.getAttribute('aria-hidden')).toBe('true');
     expect(container.querySelectorAll('.vb-googly-pupil')).toHaveLength(2);
+    act(() => applyStyle('goofy'));
+    act(() => applyStyle('elegant'));
+    await waitFor(() => expect(container.querySelector('.vb-googly')).toBeNull());
+    act(() => applyStyle('goofy'));
+    await waitFor(() => expect(container.querySelector('.vb-googly')).not.toBeNull());
+  });
+
+  it('no style on the page yet: no eyes', () => {
+    const { container } = render(<GooglyEyes />);
+    expect(container.querySelector('.vb-googly')).toBeNull();
+    expect(isPlayful()).toBe(false);
   });
 
   it('squeezes shut for the photo', () => {
-    applyStyle('goofy');
+    applyStyle('party');
     const { container } = render(<GooglyEyes mood="shut" />);
     const eyes = container.querySelector('.vb-googly');
     expect(eyes?.hasAttribute('data-blink')).toBe(true);
     expect(eyes?.getAttribute('data-mood')).toBe('shut');
   });
 
-  it('applyStyle only knows two styles', () => {
+  it('applyStyle knows three styles; anything else is the default, party', () => {
     applyStyle(undefined);
-    expect(document.documentElement.getAttribute('data-vb-style')).toBe('elegant');
-    applyStyle('goofy');
-    expect(document.documentElement.getAttribute('data-vb-style')).toBe('goofy');
+    expect(document.documentElement.getAttribute('data-vb-style')).toBe('party');
+    applyStyle('wild' as ThemeStyle);
+    expect(document.documentElement.getAttribute('data-vb-style')).toBe('party');
+    for (const style of ['elegant', 'party', 'goofy'] as const) {
+      applyStyle(style);
+      expect(document.documentElement.getAttribute('data-vb-style')).toBe(style);
+      expect(currentStyle()).toBe(style);
+      expect(isPlayful()).toBe(style !== 'elegant');
+    }
   });
 });

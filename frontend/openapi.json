@@ -539,10 +539,11 @@
             "type": "integer"
           },
           "style": {
-            "default": "elegant",
-            "description": "The look's layer on guest pages and the wall: `elegant` or `goofy` (<html data-vb-style>).",
+            "default": "party",
+            "description": "The look's layer on guest pages and the wall: `elegant`, `party` or `goofy` (<html data-vb-style>).",
             "enum": [
               "elegant",
+              "party",
               "goofy"
             ],
             "title": "Style",
@@ -6275,10 +6276,11 @@
             "type": "integer"
           },
           "style": {
-            "default": "elegant",
-            "description": "The look's layer on guest pages and the wall: `elegant` or `goofy` (<html data-vb-style>).",
+            "default": "party",
+            "description": "The look's layer on guest pages and the wall: `elegant`, `party` or `goofy` (<html data-vb-style>).",
             "enum": [
               "elegant",
+              "party",
               "goofy"
             ],
             "title": "Style",
@@ -6811,6 +6813,7 @@
               {
                 "enum": [
                   "elegant",
+                  "party",
                   "goofy"
                 ],
                 "type": "string"
@@ -6819,7 +6822,7 @@
                 "type": "null"
               }
             ],
-            "description": "The layer; null: the preset's (`custom`: elegant).",
+            "description": "The layer; null: the preset's (`custom`: party).",
             "title": "Style"
           }
         },
@@ -6851,6 +6854,7 @@
             "description": "The style the preset comes with.",
             "enum": [
               "elegant",
+              "party",
               "goofy"
             ],
             "title": "Style",

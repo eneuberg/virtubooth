@@ -1,14 +1,22 @@
 /**
- * The theme's style layer (`<html data-vb-style="elegant|goofy">`, see styles/theme.ts).
- * The goofy pieces (googly eyes, jelly presses) only run while it says "goofy", so the
- * calm look pays nothing for them.
+ * The theme's style layer (`<html data-vb-style="elegant|party|goofy">`, see
+ * styles/theme.ts). The playful pieces (googly eyes, jelly presses) run in „party“ (the
+ * default, styles/party.css) and „goofy“ (Rummel, styles/goofy.css); the calm look pays
+ * nothing for them.
  */
 import { useSyncExternalStore } from 'react';
+import { isThemeStyle, type ThemeStyle } from '@/styles/theme';
 
-export function isGoofy(): boolean {
-  return (
-    typeof document !== 'undefined' && document.documentElement.getAttribute('data-vb-style') === 'goofy'
-  );
+/** The style on <html>, null before the server or applyStyle set one. */
+export function currentStyle(): ThemeStyle | null {
+  if (typeof document === 'undefined') return null;
+  const style = document.documentElement.getAttribute('data-vb-style');
+  return isThemeStyle(style) ? style : null;
+}
+
+/** party and goofy: the styles with googly eyes and jelly presses */
+export function isPlayful(style: ThemeStyle | null = currentStyle()): boolean {
+  return style === 'party' || style === 'goofy';
 }
 
 export function prefersReducedMotion(): boolean {
@@ -22,7 +30,7 @@ function subscribe(onChange: () => void): () => void {
   return () => observer.disconnect();
 }
 
-/** True while the goofy layer is on (follows a theme switch without a reload). */
-export function useGoofy(): boolean {
-  return useSyncExternalStore(subscribe, isGoofy, () => false);
+/** The current style (follows a theme switch without a reload). */
+export function useThemeStyle(): ThemeStyle | null {
+  return useSyncExternalStore(subscribe, currentStyle, () => null);
 }

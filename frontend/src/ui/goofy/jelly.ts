@@ -1,16 +1,17 @@
 /**
- * Wackelpudding: in the goofy style a pressed button or card is squashed flat
- * (styles/goofy.css, `[data-pressed]`), and when the finger lets go it wobbles back
- * out like jelly: `data-vb-jelly` for one run of the `vb-jelly` keyframes. Only as an
- * answer to the finger, never by itself. Transform only: nothing around it moves.
+ * Wackelpudding: in the party and goofy styles a pressed button or card is squashed
+ * (`[data-pressed]`), and when the finger lets go it wobbles back out like jelly:
+ * `data-vb-jelly` for one run of the style's keyframes (party: two small overshoots,
+ * styles/party.css; goofy: the full wobble, styles/goofy.css). Only as an answer to
+ * the finger, never by itself. Transform only: nothing around it moves.
  */
-import { isGoofy, prefersReducedMotion } from './style';
+import { isPlayful, prefersReducedMotion } from './style';
 
 const TARGETS =
   'button[data-variant], a[data-variant], a.vb-activity, .vb-shutter, [data-testid="guest-pass"], .vb-wordmark';
 
 function wobble(event: PointerEvent): void {
-  if (!isGoofy() || prefersReducedMotion()) return;
+  if (!isPlayful() || prefersReducedMotion()) return;
   const target = event.target instanceof Element ? event.target.closest<HTMLElement>(TARGETS) : null;
   if (!target || target.matches(':disabled, [data-disabled]')) return;
   target.removeAttribute('data-vb-jelly');
