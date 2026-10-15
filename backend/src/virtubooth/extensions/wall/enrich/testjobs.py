@@ -69,8 +69,12 @@ class TestRun:
             "boxes": self.boxes,
             "details": self.details,
             "objects": [
-                {"label": o.label, "label_de": o.label_de, "score": o.score,
-                 "box": list(o.box) if o.box is not None else None}  # fmt: skip
+                {
+                    "label": o.label,
+                    "label_de": o.label_de,
+                    "score": o.score,
+                    "box": list(o.box) if o.box is not None else None,
+                }
                 for o in self.objects
             ],
             "durations_ms": self.durations_ms,
@@ -85,10 +89,13 @@ class TestRun:
             box = o.get("box")
             objs.append(
                 DetectedObject(
-                    label=str(o["label"]), label_de=str(o["label_de"]), score=float(o["score"]),
+                    label=str(o["label"]),
+                    label_de=str(o["label_de"]),
+                    score=float(o["score"]),
                     box=(float(box[0]), float(box[1]), float(box[2]), float(box[3]))
-                    if box else None,
-                )  # fmt: skip
+                    if box
+                    else None,
+                )
             )
         return cls(
             width=int(raw.get("width") or 0), height=int(raw.get("height") or 0),

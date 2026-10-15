@@ -49,6 +49,7 @@ from ...runtime import Core
 from . import auth
 from .auth import NO_STORE, WallDep, wall_auth
 from .config import load_config
+from .enrichment import board
 from .feed import (
     MAX_FEED,
     WALL_PATH,
@@ -71,6 +72,7 @@ from .schemas import (
     WallLoginIn,
     WallOk,
     WallSessionOut,
+    WallVerdict,
     WallWinner,
 )
 
@@ -267,7 +269,8 @@ def build_router(wall: Wall) -> APIRouter:
         responses=error_responses(401, 429),
     )
     def categories(core: CoreDep, hub: HubDep, _via: WallDep) -> WallCategoriesOut:
-        """The enabled categories that have winners, in catalogue order."""
+        """The enabled categories that have winners, in the admin's order (1–10 winners
+        each, plus the LLM verdict when there is one)."""
         return WallCategoriesOut(categories=screen_categories(core, hub))
 
     @router.get(
@@ -315,32 +318,41 @@ def build_router(wall: Wall) -> APIRouter:
 
 
 def screen_categories(core: Core, hub: WallHub) -> list[WallCategory]:
+    """The enabled categories that have winners (rule specs, PLAN-NIGHT N13),
+    in the admin's order, each with its LLM verdict when there is one."""
     config = load_config(core.repos.app_settings)
-    catalogue = hub.enrichment.catalogue()
-    disabled = set(config.categories.disabled)
-    enabled = [c.id for c in catalogue if c.id not in disabled]
-    if not enabled:
-        return []
-    order = {cid: i for i, cid in enumerate(enabled)}
-    results = hub.enrichment.winners(enabled, photo_filter(core, config))
-    ids = list(dict.fromkeys(pid for r in results for pid, _ in r.winners))
-    photos = visible_by_ids(core, config, ids)
+    entries = board(core, hub.enrichment.active_analyzers(), photo_filter(core, config),
+                    enabled_only=True)  # fmt: skip
+    wanted = [w.photo_id for e in entries for w in e.winners]
+    wanted += [e.verdict.photo_id for e in entries if e.verdict and e.verdict.photo_id]
+    photos = visible_by_ids(core, config, list(dict.fromkeys(wanted)))
     built = wall_photos(core, config, hub.enrichment, list(photos.values()))
     by_id = dict(zip(photos, built, strict=True))
     out: list[WallCategory] = []
-    for result in sorted(results, key=lambda r: order.get(r.category.id, len(order))):
-        cat = result.category
-        if cat.id not in order:
-            continue
+    for e in entries:
         winners = [
-            WallWinner(photo=by_id[pid], value=float(value), label=cat.label(value))
-            for pid, value in result.winners
-            if pid in by_id
-        ][:3]
-        if winners:
-            out.append(
-                WallCategory(
-                    id=cat.id, emoji=cat.emoji, title=cat.title, line=cat.line, winners=winners
-                )
+            WallWinner(
+                photo=by_id[w.photo_id], value=w.value, label=w.label, object_idx=w.object_idx
             )
+            for w in e.winners
+            if w.photo_id in by_id
+        ]
+        if not winners:
+            continue
+        verdict = None
+        if e.verdict is not None:
+            shown = photos.get(e.verdict.photo_id) if e.verdict.photo_id else None
+            verdict = WallVerdict(text=e.verdict.text, emoji=e.verdict.emoji,
+                                  photo_id=shown.public_id if shown else None)  # fmt: skip
+        spec = e.category.spec
+        out.append(
+            WallCategory(
+                id=e.category.id,
+                emoji=spec["emoji"],
+                title=spec["title"],
+                line=spec["line"],
+                winners=winners,
+                verdict=verdict,
+            )
+        )
     return out

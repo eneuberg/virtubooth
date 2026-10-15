@@ -44,7 +44,6 @@ def _lower(value: Any) -> Any:
 
 
 Color = Annotated[str, BeforeValidator(_lower), Field(pattern=COLOR_PATTERN)]
-CategoryId = Annotated[str, Field(pattern=CATEGORY_ID_PATTERN)]
 SourceId = Annotated[str, Field(pattern=EXT_ID_PATTERN)]
 
 _STRICT = ConfigDict(strict=True, extra="ignore")
@@ -76,14 +75,13 @@ class WallGallery(BaseModel):
 
 
 class WallCategoriesConfig(BaseModel):
+    """The categories themselves live in `wall_categories` (admin: /categories);
+    an old `disabled` list is accepted and ignored (it was taken over into
+    the categories' `enabled` once, when the presets were seeded)."""
+
     model_config = _STRICT
 
     per_category_s: int = Field(10, ge=4, le=60)
-    disabled: list[CategoryId] = Field(
-        default_factory=list,
-        max_length=200,
-        description="Category ids switched off (unknown ids are kept and ignored).",
-    )
 
 
 class WallLook(BaseModel):

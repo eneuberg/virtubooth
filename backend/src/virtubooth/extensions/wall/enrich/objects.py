@@ -85,8 +85,20 @@ def append(
         for i, o in enumerate(objs):
             x, y, w, h = (_clip01(v) for v in o.box) if o.box is not None else (None,) * 4
             rows.append(
-                (photo_id, start + i, o.label, o.label_de, _clip01(o.score), x, y, w, h,
-                 source, model, at)  # fmt: skip
+                (
+                    photo_id,
+                    start + i,
+                    o.label,
+                    o.label_de,
+                    _clip01(o.score),
+                    x,
+                    y,
+                    w,
+                    h,
+                    source,
+                    model,
+                    at,
+                )
             )
         c.executemany(
             "INSERT INTO photo_objects (photo_id, idx, label, label_de, score, x, y, w, h, "
@@ -144,9 +156,14 @@ def objects_of(db: Database, photo_ids: Sequence[int]) -> dict[int, list[StoredO
             box = None if r["x"] is None else (r["x"], r["y"], r["w"], r["h"])
             out.setdefault(int(r["photo_id"]), []).append(
                 StoredObject(
-                    label=r["label"], label_de=r["label_de"], score=float(r["score"]), box=box,
-                    idx=int(r["idx"]), source=r["source"], model=r["model"],
-                )  # fmt: skip
+                    label=r["label"],
+                    label_de=r["label_de"],
+                    score=float(r["score"]),
+                    box=box,
+                    idx=int(r["idx"]),
+                    source=r["source"],
+                    model=r["model"],
+                )
             )
     return out
 
@@ -154,8 +171,13 @@ def objects_of(db: Database, photo_ids: Sequence[int]) -> dict[int, list[StoredO
 def runs_of(db: Database, photo_id: int) -> list[dict[str, str | int | None]]:
     """The photo's detection runs: {source, state, model, error, objects}."""
     return [
-        {"source": r["source"], "state": r["state"], "model": r["model"], "error": r["error"],
-         "objects": int(r["objects"])}  # fmt: skip
+        {
+            "source": r["source"],
+            "state": r["state"],
+            "model": r["model"],
+            "error": r["error"],
+            "objects": int(r["objects"]),
+        }
         for r in db.all(
             "SELECT source, state, model, error, objects FROM photo_detection_runs "
             "WHERE photo_id=? ORDER BY rowid",

@@ -92,6 +92,7 @@ SETTINGS: dict[str, tuple[SettingSpec, ...]] = {
 def settings_defaults(name: str) -> dict[str, float]:
     return {s.key: s.default for s in SETTINGS.get(name, ())}
 
+
 ML_PACKAGES = ("numpy", "cv2", "onnxruntime", "mediapipe")
 THREADS_ENV = "VB_WALL_THREADS"
 DEFAULT_THREADS = 3

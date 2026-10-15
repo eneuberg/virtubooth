@@ -18,9 +18,9 @@ from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any, cast
 
 from ....core.clock import now_iso
-from . import categories, jobs, models, objects
+from . import jobs, models, objects
 from .analyzers import ALWAYS_ON, BY_NAME, INFOS, SETTINGS, ml_installed
-from .categories import CategoryDef, CategoryWinners, PhotoFilter
+from .engine import PhotoFilter
 from .schemas import (
     AnalysisBox,
     AnalysisCounts,
@@ -45,13 +45,7 @@ from .supervisor import Supervisor
 if TYPE_CHECKING:
     from ....runtime import Core
 
-__all__ = [
-    "CategoryDef",
-    "CategoryWinners",
-    "EnrichmentService",
-    "PhotoFilter",
-    "PhotoSummary",
-]
+__all__ = ["EnrichmentService", "PhotoFilter", "PhotoSummary"]
 
 log = logging.getLogger("virtubooth.wall.enrich")
 
@@ -156,14 +150,6 @@ class EnrichmentService:
         if not rows:
             return rev, []
         return int(rows[-1]["rev"]), [int(r["photo_id"]) for r in rows]
-
-    def catalogue(self) -> list[CategoryDef]:
-        return list(categories.CATALOGUE)
-
-    def winners(
-        self, ids: Sequence[str], flt: PhotoFilter, per_category: int = 3
-    ) -> list[CategoryWinners]:
-        return categories.winners(self.core.db, ids, flt, per_category)
 
     # ------------------------------------------------------- admin helpers
 
@@ -337,8 +323,9 @@ class EnrichmentService:
                        (photo.user_id,))  # fmt: skip
         objs = objects.objects_of(db, [photo.id]).get(photo.id, [])
         props = [
-            PropertyScores(name=r["name"], archived=r["archived_at"] is not None,
-                           scores=_scores(r["scores"]))  # fmt: skip
+            PropertyScores(
+                name=r["name"], archived=r["archived_at"] is not None, scores=_scores(r["scores"])
+            )
             for r in db.all(
                 "SELECT p.name, p.archived_at, s.scores FROM property_scores s "
                 "JOIN llm_properties p ON p.id = s.property_id WHERE s.photo_id=? ORDER BY p.name",
@@ -358,11 +345,16 @@ class EnrichmentService:
             details=[DetailLine.model_validate(d) for d in data.get("details", [])],
             objects=[
                 PhotoObject(
-                    idx=o.idx, label=o.label, label_de=o.label_de, score=o.score,
+                    idx=o.idx,
+                    label=o.label,
+                    label_de=o.label_de,
+                    score=o.score,
                     box=ObjectBox(x=o.box[0], y=o.box[1], w=o.box[2], h=o.box[3])
-                    if o.box else None,
-                    source=o.source, model=o.model,
-                )  # fmt: skip
+                    if o.box
+                    else None,
+                    source=o.source,
+                    model=o.model,
+                )
                 for o in objs
             ],
             runs=[DetectionRun.model_validate(r) for r in objects.runs_of(db, photo.id)],
@@ -372,8 +364,9 @@ class EnrichmentService:
             opt_out_at_analysis=bool(data.get("opt_out", False)),
             properties=props,
             durations_ms={str(k): int(v) for k, v in durations.items()}
-            if isinstance(durations, dict) else {},
-        )  # fmt: skip
+            if isinstance(durations, dict)
+            else {},
+        )
 
 
 def _scores(raw: str) -> list[float | None]:
@@ -384,6 +377,5 @@ def _scores(raw: str) -> list[float | None]:
     if not isinstance(values, list):
         return []
     return [
-        float(v) if isinstance(v, int | float) and not isinstance(v, bool) else None
-        for v in values
+        float(v) if isinstance(v, int | float) and not isinstance(v, bool) else None for v in values
     ]

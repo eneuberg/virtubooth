@@ -278,7 +278,9 @@ def queue(db: Database) -> dict[str, Any]:
     oldest: float | None = None
     if row is not None and row["oldest"]:
         try:
-            oldest = max(0.0, (datetime.now(UTC) - datetime.fromisoformat(row["oldest"])).total_seconds())
+            oldest = max(
+                0.0, (datetime.now(UTC) - datetime.fromisoformat(row["oldest"])).total_seconds()
+            )
         except ValueError:
             oldest = None
     return {

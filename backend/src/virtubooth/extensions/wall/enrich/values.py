@@ -122,7 +122,11 @@ def parse(key: object) -> ValueRef | None:
             return ValueRef(key, "prop", prop=name, agg=tail)
         if tail.startswith("at:"):
             label = _label(tail[3:])
-            return ValueRef(f"prop.{name}.at:{label}", "prop_at", prop=name, label=label) if label else None
+            return (
+                ValueRef(f"prop.{name}.at:{label}", "prop_at", prop=name, label=label)
+                if label
+                else None
+            )
     return None
 
 

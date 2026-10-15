@@ -429,7 +429,9 @@ class _Ctx:
             return None
         if ref.kind == "prop_at":
             labels = {o[0]: o[1] for o in d.objects}
-            found = [s for i, s in enumerate(scores) if s is not None and labels.get(i) == ref.label]
+            found = [
+                s for i, s in enumerate(scores) if s is not None and labels.get(i) == ref.label
+            ]
             return max(found) if found else None
         present = [s for s in scores if s is not None]
         if ref.agg == "count":
@@ -533,7 +535,9 @@ def _sort_key(v: float | list[str] | None, order: str) -> tuple[int, float]:
     return (0, -v if order == "top" else v)
 
 
-def run(core: HasDb, spec: Mapping[str, Any], flt: PhotoFilter, limit: int | None = None) -> Evaluation:
+def run(
+    core: HasDb, spec: Mapping[str, Any], flt: PhotoFilter, limit: int | None = None
+) -> Evaluation:
     """Winners of a (validated) spec plus how many photos met the conditions."""
     db = core.db
     snap = snapshot(db)
@@ -645,13 +649,22 @@ def insert(db: Database, cid: str, spec: Mapping[str, Any], *, enabled: bool,
     with db.tx() as c:
         if position is None:
             position = int(
-                c.execute("SELECT COALESCE(MAX(position) + 1, 0) FROM wall_categories").fetchone()[0]
+                c.execute("SELECT COALESCE(MAX(position) + 1, 0) FROM wall_categories").fetchone()[
+                    0
+                ]
             )
         c.execute(
             "INSERT INTO wall_categories (id, position, enabled, preset, spec, updated_at, "
             "updated_by) VALUES (?,?,?,?,?,?,?)",
-            (cid, position, int(enabled), preset, json.dumps(spec, ensure_ascii=False),
-             now_iso(), by),  # fmt: skip
+            (
+                cid,
+                position,
+                int(enabled),
+                preset,
+                json.dumps(spec, ensure_ascii=False),
+                now_iso(),
+                by,
+            ),
         )
 
 
@@ -703,8 +716,9 @@ class Verdict:
 
 def verdicts(db: Database) -> dict[str, Verdict]:
     return {
-        r["category_id"]: Verdict(r["text"], r["emoji"], r["photo_id"], r["object_idx"],
-                                  r["created_at"])  # fmt: skip
+        r["category_id"]: Verdict(
+            r["text"], r["emoji"], r["photo_id"], r["object_idx"], r["created_at"]
+        )
         for r in db.all(
             "SELECT category_id, text, emoji, photo_id, object_idx, created_at "
             "FROM wall_category_verdicts"

@@ -11,11 +11,9 @@ from fastapi import APIRouter, Depends
 
 from ....api.deps import AdminDep, CoreDep, require_admin
 from ....core import errors
-from . import values
 from .analyzers import BY_NAME
 from .schemas import AnalysisStatus, AnalyzerIn, AnalyzersIn, PhotoAnalysis
 from .service import EnrichmentService, InvalidSettings
-from .values import ValuesOut
 
 router = APIRouter(
     tags=["wall"],
@@ -67,11 +65,3 @@ def photo_analysis(public_id: str, core: CoreDep) -> PhotoAnalysis:
     if result is None:
         raise errors.not_found("Foto nicht gefunden.")
     return result
-
-
-@router.get("/admin/values")
-def analysis_values(core: CoreDep) -> ValuesOut:
-    """The values categories can use (PLAN-NIGHT §4.2) and the object labels
-    seen so far."""
-    service = EnrichmentService.of(core)
-    return values.catalogue(core.db, service.active_analyzers())

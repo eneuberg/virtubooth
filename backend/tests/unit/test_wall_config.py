@@ -35,7 +35,7 @@ DEFAULTS = {
         "transition_ms": 1200,
     },
     "gallery": {"speed": "medium", "rows": 3},
-    "categories": {"per_category_s": 10, "disabled": []},
+    "categories": {"per_category_s": 10},
     "sources": [],
     "delay_s": 20,
     "show_instagram": False,
@@ -120,7 +120,6 @@ def test_every_range(path, low, high):
         ("spotlight.n", "12", "spotlight.n"),
         ("delay_s", True, "delay_s"),
         ("show_instagram", 1, "show_instagram"),
-        ("categories.disabled", ["Volles Haus"], "categories.disabled"),
         ("sources", ["Not An Id"], "sources"),
     ],
 )
@@ -160,9 +159,10 @@ def test_sources_must_be_upload_extensions():
     )
 
 
-def test_unknown_category_ids_are_kept():
-    data = with_value("categories.disabled", ["volles_haus", "gibts_nicht"])
-    assert parse(data).categories.disabled == ["volles_haus", "gibts_nicht"]
+def test_the_old_disabled_list_is_accepted_and_ignored():
+    """Categories live in `wall_categories` now; an old client's list is no error."""
+    data = with_value("categories.disabled", ["Volles Haus", 3])
+    assert parse(data).categories.model_dump() == {"per_category_s": 10}
 
 
 def test_server_fields_and_unknown_keys_are_ignored():

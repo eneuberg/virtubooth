@@ -3,10 +3,9 @@ crash recovery, frozen results, purge of deleted photos, the global rev counter.
 
 from __future__ import annotations
 
+import sqlite3
 from collections.abc import Iterator
 from pathlib import Path
-
-import sqlite3
 
 import pytest
 

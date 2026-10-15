@@ -23,8 +23,9 @@ from virtubooth.services.identity import create_user
 T0 = "2026-10-13T18:00:00.000+00:00"
 FILTERS = {
     "all": PhotoFilter(sources=None, not_after="2026-10-13T23:59:00.000+00:00"),
-    "booth_before_19_30": PhotoFilter(sources=("booth",),
-                                      not_after="2026-10-13T19:30:00.000+00:00"),  # fmt: skip
+    "booth_before_19_30": PhotoFilter(
+        sources=("booth",), not_after="2026-10-13T19:30:00.000+00:00"
+    ),
 }
 
 # fact → candidate values (crossing every preset's threshold, with ties)
@@ -107,7 +108,84 @@ def engine_winners(db: Database, cid: str, flt: PhotoFilter) -> list[tuple[int, 
 
 # Captured from the old hard-coded scoring (`enrich/categories.py`, deleted
 # after this test passed against it): (photo id, value, label) per filter.
-GOLDEN: dict[str, dict[str, list[tuple[int, float, str]]]] = {}
+GOLDEN: dict[str, dict[str, list[tuple[int, float, str]]]] = {
+    'volles_haus': {
+        'all': [(41, 7.0, '7 Personen'), (33, 7.0, '7 Personen'), (9, 7.0, '7 Personen')],
+        'booth_before_19_30': [(33, 7.0, '7 Personen'), (31, 7.0, '7 Personen'), (9, 7.0, '7 Personen')],
+    },
+    'haende_hoch': {
+        'all': [(27, 6.0, '6 Hände'), (25, 6.0, '6 Hände'), (5, 4.0, '4 Hände')],
+        'booth_before_19_30': [(25, 6.0, '6 Hände'), (21, 6.0, '6 Hände'), (5, 4.0, '4 Hände')],
+    },
+    'grinsekatzen': {
+        'all': [(37, 3.0, '3 Lächeln'), (33, 3.0, '3 Lächeln'), (20, 3.0, '3 Lächeln')],
+        'booth_before_19_30': [(37, 3.0, '3 Lächeln'), (33, 3.0, '3 Lächeln'), (20, 3.0, '3 Lächeln')],
+    },
+    'herzschmerz': {
+        'all': [(29, 0.9, '90 % Drama'), (42, 0.9, '90 % Drama'), (36, 0.9, '90 % Drama')],
+        'booth_before_19_30': [(42, 0.9, '90 % Drama'), (36, 0.9, '90 % Drama'), (33, 0.9, '90 % Drama')],
+    },
+    'ach_du_schreck': {
+        'all': [(26, 0.95, '95 % Schreck'), (42, 0.95, '95 % Schreck'), (39, 0.95, '95 % Schreck')],
+        'booth_before_19_30': [(42, 0.95, '95 % Schreck'), (39, 0.95, '95 % Schreck'), (31, 0.95, '95 % Schreck')],
+    },
+    'brillenbande': {
+        'all': [(29, 2.0, '2 Brillen'), (34, 2.0, '2 Brillen'), (21, 2.0, '2 Brillen')],
+        'booth_before_19_30': [(34, 2.0, '2 Brillen'), (21, 2.0, '2 Brillen'), (5, 2.0, '2 Brillen')],
+    },
+    'generationen': {
+        'all': [(31, 3.0, '3 Generationen'), (38, 2.0, '2 Generationen'), (13, 2.0, '2 Generationen')],
+        'booth_before_19_30': [(31, 3.0, '3 Generationen'), (38, 2.0, '2 Generationen'), (13, 2.0, '2 Generationen')],
+    },
+    'dream_team': {
+        'all': [(21, 2.0, '2 Leute, 2 Lächeln'), (8, 2.0, '2 Leute, 2 Lächeln')],
+        'booth_before_19_30': [(21, 2.0, '2 Leute, 2 Lächeln')],
+    },
+    'solo_star': {
+        'all': [(41, 0.12, '12 % Gesicht')],
+        'booth_before_19_30': [],
+    },
+    'peace': {
+        'all': [(42, 2.0, '2 Peace-Zeichen'), (38, 2.0, '2 Peace-Zeichen'), (18, 2.0, '2 Peace-Zeichen')],
+        'booth_before_19_30': [(42, 2.0, '2 Peace-Zeichen'), (38, 2.0, '2 Peace-Zeichen'), (18, 2.0, '2 Peace-Zeichen')],
+    },
+    'rock': {
+        'all': [(29, 1.0, '1 Pommesgabel'), (41, 1.0, '1 Pommesgabel'), (34, 1.0, '1 Pommesgabel')],
+        'booth_before_19_30': [(34, 1.0, '1 Pommesgabel'), (14, 1.0, '1 Pommesgabel'), (12, 1.0, '1 Pommesgabel')],
+    },
+    'daumen_hoch': {
+        'all': [(29, 3.0, '3 Daumen'), (41, 3.0, '3 Daumen'), (9, 3.0, '3 Daumen')],
+        'booth_before_19_30': [(31, 3.0, '3 Daumen'), (9, 3.0, '3 Daumen'), (42, 1.0, '1 Daumen')],
+    },
+    'prost': {
+        'all': [(38, 4.0, '4 Gläser'), (36, 4.0, '4 Gläser'), (35, 4.0, '4 Gläser')],
+        'booth_before_19_30': [(38, 4.0, '4 Gläser'), (36, 4.0, '4 Gläser'), (35, 4.0, '4 Gläser')],
+    },
+    'hutparade': {
+        'all': [(28, 3.0, '3 Hüte'), (41, 3.0, '3 Hüte'), (24, 3.0, '3 Hüte')],
+        'booth_before_19_30': [(32, 3.0, '3 Hüte'), (24, 3.0, '3 Hüte'), (22, 3.0, '3 Hüte')],
+    },
+    'gesangseinlage': {
+        'all': [(28, 3.0, '3 offene Münder'), (39, 3.0, '3 offene Münder'), (37, 3.0, '3 offene Münder')],
+        'booth_before_19_30': [(39, 3.0, '3 offene Münder'), (37, 3.0, '3 offene Münder'), (25, 3.0, '3 offene Münder')],
+    },
+    'farbexplosion': {
+        'all': [(35, 80.0, 'Farbwert 80'), (34, 80.0, 'Farbwert 80'), (31, 80.0, 'Farbwert 80')],
+        'booth_before_19_30': [(35, 80.0, 'Farbwert 80'), (34, 80.0, 'Farbwert 80'), (31, 80.0, 'Farbwert 80')],
+    },
+    'action_shot': {
+        'all': [(20, 10.0, 'volle Bewegung'), (2, 40.0, 'volle Bewegung')],
+        'booth_before_19_30': [(20, 10.0, 'volle Bewegung'), (2, 40.0, 'volle Bewegung')],
+    },
+    'eroeffnung': {
+        'all': [(1, 1791914400.0, 'um 20:00')],
+        'booth_before_19_30': [(1, 1791914400.0, 'um 20:00')],
+    },
+    'dauerausloeser': {
+        'all': [(27, 13.0, '13 Fotos'), (28, 8.0, '8 Fotos'), (38, 5.0, '5 Fotos')],
+        'booth_before_19_30': [(37, 10.0, '10 Fotos'), (25, 6.0, '6 Fotos')],
+    },
+}  # fmt: skip
 
 
 def test_nineteen_classic_presets():
@@ -120,9 +198,10 @@ def test_nineteen_classic_presets():
 @pytest.mark.parametrize("cid", presets.CLASSIC)
 @pytest.mark.parametrize("fname", list(FILTERS))
 def test_presets_pick_the_old_winners(party, cid, fname):
-    from virtubooth.extensions.wall.enrich import categories as old
+    assert engine_winners(party, cid, FILTERS[fname]) == GOLDEN[cid][fname]
 
-    flt = FILTERS[fname]
-    cat = old.BY_ID[cid]
-    expected = [(pid, value, cat.label(value)) for pid, value in old.winners_of(party, cat, flt, 3)]
-    assert engine_winners(party, cid, flt) == expected
+
+def test_the_golden_data_is_not_trivial():
+    lists = [w for per in GOLDEN.values() for w in per.values()]
+    assert len(GOLDEN) == 19 and sum(1 for w in lists if w) >= 35
+    assert sum(len(w) for w in lists) >= 90
