@@ -9,10 +9,11 @@ from collections.abc import Callable
 import pytest
 from playwright.sync_api import Browser, Page, Request, expect
 
-from ..conftest import LiveServer, join_via_api, new_context, track_errors
+from ..conftest import LiveServer, join_via_api, new_context, shot, track_errors
 from .conftest import (
     DESKTOP_VIEWPORT,
     LANDSCAPE_VIEWPORT,
+    PHONE_VIEWPORT,
     Guest,
     admin_context,
     card,
@@ -238,6 +239,79 @@ def test_live_layouts(
         else:
             expect(nav).to_have_count(0)
             expect(page.get_by_role("link", name="Verwaltung")).to_be_visible()
+        assert no_horizontal_scroll(page)
+        assert errors(page) == []
+    finally:
+        ctx.close()
+
+
+# every item in the Live header that must stay readable: the boxes the eye sees
+HEADER_BOXES = """() => {
+  const header = document.querySelector('header');
+  const box = (name, el) => {
+    const r = el.getBoundingClientRect();
+    return {name, x: r.left, y: r.top, right: r.right, bottom: r.bottom};
+  };
+  const out = [box('title', header.querySelector('h1')), box('conn', header.querySelector('[data-testid=conn]'))];
+  header.querySelectorAll('[data-testid=party-badges] > *').forEach((b, i) => out.push(box('badge ' + i, b)));
+  out.push(box('count', header.querySelector('[data-testid=stat-photos]').closest('p')));
+  for (const id of ['analysis-toggle', 'filter-toggle']) {
+    const el = header.querySelector('[data-testid=' + id + ']');
+    if (el) out.push(box(id, el));
+  }
+  const link = header.querySelector('a[href="/manage"]');
+  if (link) out.push(box('Verwaltung', link));
+  return {items: out, width: window.innerWidth};
+}"""
+
+
+@pytest.mark.parametrize(
+    "viewport",
+    [
+        {"width": 320, "height": 640},
+        {"width": 360, "height": 740},
+        PHONE_VIEWPORT,
+        DESKTOP_VIEWPORT,
+    ],
+    ids=["320", "360", "390", "desktop"],
+)
+def test_live_header_items_never_overlap(
+    browser: Browser, live: LiveServer, guests: Callable[..., Guest], viewport: dict[str, int]
+) -> None:
+    """The title, the connection badge, the party badges (phones), the photo count and
+    the switches each keep their own spot, even at 320 px with both stops on."""
+    g = guests()
+    for _ in range(3):
+        g.upload()
+    live.core.services.upload_controls.set_stop(True, actor="pytest")
+    live.core.services.join_controls.set_stop(True, actor="pytest")
+    ctx = admin_context(browser, viewport)
+    try:
+        page = track_errors(ctx.new_page())
+        login_api(page, live)
+        goto(page, live, "/admin/live")
+        wait_live(page)
+        header = page.locator("header")
+        expect(header.get_by_test_id("stat-photos")).to_have_text("3")
+        expect(header.get_by_test_id("analysis-toggle")).to_be_visible()
+        if viewport["width"] < 1024:
+            expect(header.get_by_test_id("party-badges").locator("> *")).to_have_count(2)
+        else:
+            expect(header.get_by_test_id("filter-toggle")).to_be_visible()
+        shot(page, f"live_header_{viewport['width']}")
+        found = page.evaluate(HEADER_BOXES)
+        items, width = found["items"], found["width"]
+        for it in items:
+            assert it["x"] >= 0 and it["right"] <= width + 0.5, f"{it['name']} leaves the screen"
+        for i, a in enumerate(items):
+            for b in items[i + 1 :]:
+                apart = (
+                    a["right"] <= b["x"] + 0.5
+                    or b["right"] <= a["x"] + 0.5
+                    or a["bottom"] <= b["y"] + 0.5
+                    or b["bottom"] <= a["y"] + 0.5
+                )
+                assert apart, f"{a['name']} overlaps {b['name']}: {a} / {b}"
         assert no_horizontal_scroll(page)
         assert errors(page) == []
     finally:

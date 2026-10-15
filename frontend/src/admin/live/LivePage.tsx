@@ -49,6 +49,9 @@ import { guestName } from '../hostGuest/marks';
 
 const isAtTop = () => window.scrollY < AT_TOP;
 
+/** two text-xs lines; with the chip area under it every tile has one fixed height */
+const TILE_CAPTION = '[&>figcaption]:h-9 [&>figcaption]:overflow-hidden';
+
 const TOAST_ABOVE_BAR =
   'bottom-[calc(4.75rem+env(safe-area-inset-bottom))] landscape-phone:bottom-3 landscape-phone:pl-19 lg:bottom-6';
 
@@ -63,8 +66,12 @@ export function LivePage() {
 function LiveHeader({ desktop }: { desktop: boolean }) {
   const { data: stats } = useStats();
   return (
-    <header className="flex items-center gap-3 border-b border-line bg-surface py-2 pt-[max(0.5rem,env(safe-area-inset-top))] pr-3 pl-4">
-      <div className="mr-auto grid min-w-0">
+    // a narrow phone (under ~380 px) has no room beside the title, badges and count:
+    // the switch wraps onto its own full-width row (label left, track right, like the
+    // „Filter zeigen“ row) instead of pushing over them
+    <header className="flex flex-wrap items-center gap-x-3 gap-y-1 border-b border-line bg-surface py-2 pt-[max(0.5rem,env(safe-area-inset-top))] pr-3 pl-4">
+      {/* at least as wide as the widest party badge, „Anmeldung gestoppt“ */}
+      <div className="grid min-w-42 flex-1">
         <div className="flex items-baseline gap-2.5">
           <h1 className="text-lg font-bold">Live</h1>
           <ConnectionBadge />
@@ -86,7 +93,7 @@ function LiveHeader({ desktop }: { desktop: boolean }) {
         </p>
       </div>
       {desktop ? <FilterToggle className="shrink-0" /> : null}
-      <AnalysisToggle className="shrink-0" />
+      <AnalysisToggle className="shrink-0 grow lg:grow-0" />
       {desktop ? (
         <LinkButton href="/manage" variant="secondary" size="sm" icon={LayoutGrid}>
           Verwaltung
@@ -198,6 +205,8 @@ function LiveScreen() {
             {photos.map((photo, i) => (
               <li key={photo.id} data-photo-id={photo.id} data-testid="photo-card">
                 <PhotoTile
+                  // always two caption lines (title, then name or „Ausgeblendet“): every tile as tall
+                  className={TILE_CAPTION}
                   src={photoSrc(photo, showFilter, true)}
                   alt={photoLabel(photo)}
                   label={photoLabel(photo)}
