@@ -25,6 +25,8 @@ export type ErrorCode =
   | 'invalid_meta'
   | 'empty_upload'
   | 'invalid_image'
+  | 'photo_limit'
+  | 'storage_full'
   | 'not_found'
   | 'invalid_filter'
   | 'invalid_cursor'

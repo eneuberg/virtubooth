@@ -292,7 +292,11 @@ startup log warns once that it no longer controls access.
 token is hashed and looked up among the current tokens of active codes
 (hash-then-lookup: timing tells nothing about stored tokens). A hit sets
 `vb_access`, counts the scan (`PresenceService.enter(code_id=…)` →
-`code_visitors`) and redirects without `t`; a miss shows the gate. Only
+`code_visitors`) and redirects without `t`; a miss shows the gate. A browser
+without a visitor id is counted (two new rows) only while its IP is within
+`limits.scan_ip` (`VB_SCANS_PER_IP_PER_10MIN`); over it, it still gets in,
+uncounted until it joins, so a script can't fill the database and no guest
+behind a shared IP is ever turned away. Only
 well-formed tokens (`TOKEN_RE`: 16–128 characters of `[A-Za-z0-9_-]`) are
 looked up, and they always are: guessing 144-bit generated or 16+ character
 custom tokens is hopeless, and an unchecked gate would let one device lock

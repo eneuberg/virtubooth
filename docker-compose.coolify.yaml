@@ -32,6 +32,10 @@ services:
       - VB_TIMEZONE=${VB_TIMEZONE:-Europe/Berlin}
       - VB_UPLOADS_PER_IP_PER_MIN=${VB_UPLOADS_PER_IP_PER_MIN:-180}
       - VB_NEW_USERS_PER_IP_PER_10MIN=${VB_NEW_USERS_PER_IP_PER_10MIN:-120}
+      - VB_SCANS_PER_IP_PER_10MIN=${VB_SCANS_PER_IP_PER_10MIN:-120}
+      # uploads stop below this much free disk (MB) and at this many photos per guest
+      - VB_MIN_FREE_MB=${VB_MIN_FREE_MB:-2048}
+      - VB_MAX_PHOTOS_PER_GUEST=${VB_MAX_PHOTOS_PER_GUEST:-300}
       # Coolify's proxy reaches the app over Docker's private networks, and
       # nothing else can (no published port). Traefik replaces any
       # X-Forwarded-For a client sends, so the first entry is the real guest.
@@ -54,6 +58,13 @@ services:
     security_opt:
       - no-new-privileges:true
     pids_limit: 512
+    # bounded resources (like compose.yaml's deploy.resources.limits): a flood
+    # of uploads or a runaway export can't starve the rest of the server. A
+    # party needs far less; the headroom is for image re-encoding bursts, the
+    # Live-Wall's analysis worker and ffmpeg (timelapse). cpus must not exceed
+    # the server's CPU count (Docker refuses to start the container).
+    cpus: "2"
+    mem_limit: 1536m
     # one process on purpose (in-memory rate limits + live events):
     # never scale this service to more than one container
     healthcheck:

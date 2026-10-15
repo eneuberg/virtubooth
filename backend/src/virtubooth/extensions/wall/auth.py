@@ -49,7 +49,9 @@ COOKIE = "vb_wall"
 COOKIE_PATH = "/livewall"
 COOKIE_MAX_AGE = 30 * 24 * 3600
 PASSWORD_KEY = "x.wall.password"
-MIN_PASSWORD = 6
+# the wall login is online: like the admin password, at least 12 characters
+# (a password set before this rule keeps working; see docs/DEPLOY.md)
+MIN_PASSWORD = 12
 MAX_PASSWORD = 256
 # a cookie "issued" this far in the future (clock skew) still counts
 _FUTURE_SLACK = 300
@@ -94,7 +96,9 @@ def login_locked(retry_after: int) -> errors.ApiError:
 
 def password_too_short() -> errors.ApiError:
     return errors.ApiError(
-        400, "wall_password_too_short", "Das Passwort braucht mindestens 6 Zeichen."
+        400,
+        "wall_password_too_short",
+        f"Das Passwort braucht mindestens {MIN_PASSWORD} Zeichen.",
     )
 
 

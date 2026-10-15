@@ -11,6 +11,7 @@ from datetime import UTC, datetime, timedelta
 import pytest
 
 from virtubooth.core.clock import iso
+from virtubooth.core.ratelimit import IpRateLimiter
 from virtubooth.db.database import Database
 from virtubooth.services.presence import THROTTLE_SECONDS
 from virtubooth.tools.export import SCRUBBED_TABLES, take_snapshot
@@ -169,6 +170,41 @@ def test_wrong_token_sets_no_visitor_id(client, core):
     r = client.get("/?t=wrong-token")
     assert "vb_vid" not in r.headers.get("set-cookie", "")
     assert core.db.one("SELECT COUNT(*) FROM visitors")[0] == 0
+
+
+def test_cookieless_scans_are_rationed_per_ip_but_never_refused(make_client, core, caplog):
+    """online-review 2b: each scan without a visitor id writes two rows. Over
+    VB_SCANS_PER_IP_PER_10MIN per address the browser still gets in (access
+    cookie + redirect), just without a new visitor row; one log line a minute."""
+    core.limits.scan_ip = IpRateLimiter(2, 600)
+    for _ in range(2):
+        r = make_client().get(f"/?t={PARTY_TOKEN}")
+        assert r.status_code == 303 and "vb_vid=" in r.headers["set-cookie"]
+    caplog.set_level("WARNING", logger="virtubooth.middleware")
+    for _ in range(3):
+        c = make_client()
+        r = c.get(f"/x/demo/?t={PARTY_TOKEN}")
+        assert r.status_code == 303 and r.headers["location"] == "/x/demo/"
+        assert "vb_access=" in r.headers["set-cookie"] and "vb_vid=" not in r.headers["set-cookie"]
+        assert c.get("/api/extensions").status_code == 200  # in: party access
+    assert core.db.one("SELECT COUNT(*) FROM visitors")[0] == 2
+    assert core.db.one("SELECT COUNT(*) FROM code_visitors")[0] == 2
+    assert len([r for r in caplog.records if "over 120 per 10 minutes" in r.message]) == 1
+
+    # such a browser gets its visitor id once it joins, like a guest from before
+    accept_consent(c)
+    assert core.repos.presence.visitor_user(visitor_of(core, c)) == user_id_of(core, c)
+
+
+def test_scans_with_a_visitor_id_are_not_rationed(client, core):
+    core.limits.scan_ip = IpRateLimiter(1, 600)
+    scan(client)
+    vid = visitor_of(core, client)
+    for path in ("/", "/x/demo/", "/"):
+        r = client.get(f"{path}?t={PARTY_TOKEN}")
+        assert r.status_code == 303
+    assert visitor_of(core, client) == vid
+    assert core.db.one("SELECT last_seen_at FROM visitors WHERE id=?", (vid,))[0]
 
 
 def test_visitor_cookie_is_secure_like_the_others(make_client, core, settings):

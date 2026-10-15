@@ -73,6 +73,67 @@ def test_upload_rejections(guest):
     assert upload(g, ext="nope").status_code == 404
 
 
+def test_upload_refused_while_the_disk_is_almost_full(guest, core, caplog):
+    """online-review 2b: below VB_MIN_FREE_MB free, no upload is read or stored
+    (503 storage_full with Retry-After); one warning a minute in the log."""
+    g = guest()
+    uploads = core.services.uploads
+    uploads.free_bytes = lambda: 2047 * 1024 * 1024  # default minimum: 2048 MB
+    caplog.set_level("WARNING", logger="virtubooth.services.uploads")
+    for _ in range(2):
+        r = upload(g)
+        assert r.status_code == 503
+        assert r.json() == {
+            "error": "storage_full",
+            "message": "Der Speicher auf dem Server ist fast voll. "
+            "Sag bitte den Gastgebern Bescheid.",
+        }
+        assert r.headers["retry-after"] == "300"
+    assert [r.message for r in caplog.records] == [
+        f"uploads refused: 2047 MB free under {core.settings.data_dir}, below VB_MIN_FREE_MB=2048"
+    ]
+    assert core.repos.photos.count() == 0
+
+    uploads.free_bytes = lambda: 2048 * 1024 * 1024
+    assert upload(g).status_code == 201
+    # VB_MIN_FREE_MB=0 turns the check off
+    uploads.free_bytes = lambda: 0
+    core.settings = core.settings.replace(min_free_mb=0)
+    assert upload(g).status_code == 201
+
+
+def test_disk_check_reads_the_data_dir(core):
+    assert core.services.uploads.free_bytes() > 0
+
+
+def test_photo_cap_per_guest(guest, core, admin):
+    """online-review 2b: VB_MAX_PHOTOS_PER_GUEST photos that are not deleted,
+    over every activity; deleting one makes room; 0 = no cap."""
+    core.settings = core.settings.replace(max_photos_per_guest=2)
+    g, other = guest(), guest(fp_n=2)
+    first = upload(g).json()["photo"]["id"]
+    assert upload(g).status_code == 201
+    r = upload(g)
+    assert r.status_code == 403
+    assert r.json() == {
+        "error": "photo_limit",
+        "message": "Du hast schon sehr viele Fotos gemacht – mehr passen leider nicht. "
+        "Lösche ein paar unter „Deine Bilder“, dann geht's weiter.",
+    }
+    assert upload(other).status_code == 201  # per guest
+    assert g.delete(f"/api/me/photos/{first}", headers=ORIGIN).status_code == 200
+    assert upload(g).status_code == 201
+    assert upload(g).json()["error"] == "photo_limit"
+    core.settings = core.settings.replace(max_photos_per_guest=0)
+    assert upload(g).status_code == 201
+
+
+def test_upload_guard_defaults(settings):
+    assert settings.min_free_mb == 2048
+    assert settings.max_photos_per_guest == 300
+    assert settings.scans_per_ip_per_10min == 120
+
+
 def test_exact_size_policy(guest, core, demo_extension):
     from dataclasses import replace
 

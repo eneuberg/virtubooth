@@ -130,7 +130,7 @@ def test_join_texts_without_the_wall(settings, demo_extension):
 
 
 def test_qr_corner_follows_the_codes(admin, core):
-    r = admin.put("/api/x/wall/admin/password", json={"password": "geheim-123"}, headers=ORIGIN)
+    r = admin.put("/api/x/wall/admin/password", json={"password": "geheim-123456"}, headers=ORIGIN)
     assert r.status_code == 200
     assert admin.get("/livewall/api/feed").json()["qr"] is None  # overlay.qr is off
     config = put_config(admin)["config"]
@@ -158,7 +158,7 @@ def live(app):
 def test_event_name_and_code_changes_reach_open_walls(live):
     admin = live_admin(live)
     try:
-        r = admin.put("/api/x/wall/admin/password", json={"password": "geheim-123"},
+        r = admin.put("/api/x/wall/admin/password", json={"password": "geheim-123456"},
                       headers=live.origin)  # fmt: skip
         assert r.status_code == 200
         config = admin.get("/api/x/wall/admin/config").json()["config"]

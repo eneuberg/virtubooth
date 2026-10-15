@@ -16,7 +16,8 @@ import { wk } from './keys';
 import { passwordText } from './text';
 import type { WallAdminOut } from './types';
 
-const MIN_LENGTH = 6;
+// the server's minimum (extensions/wall/auth.py MIN_PASSWORD)
+const MIN_LENGTH = 12;
 
 export function AccessCard({ admin }: { admin: WallAdminOut }) {
   const qc = useQueryClient();

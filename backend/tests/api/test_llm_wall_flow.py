@@ -80,7 +80,7 @@ def test_poll_verdict_reaches_the_wall_and_opted_out_guests_never_leave(live):
     fake = FakeProvider(objects=[ports.DetectedObject("bow tie", "Fliege", 0.8, None)])
     svc = setup_llm(core, fake, detect={"local": True, "external": True})
     admin = live_admin(live)
-    admin.put("/api/x/wall/admin/password", json={"password": "geheim-123"}, headers=live.origin)
+    admin.put("/api/x/wall/admin/password", json={"password": "geheim-123456"}, headers=live.origin)
     config = admin.get("/api/x/wall/admin/config").json()["config"]
     admin.put("/api/x/wall/admin/config", json=config | {"delay_s": 0}, headers=live.origin)
 
@@ -130,7 +130,7 @@ def test_poll_verdict_reaches_the_wall_and_opted_out_guests_never_leave(live):
     assert detected == {cool_pid}
     assert len(fake.detected) == 1
 
-    wall = live_wall(live, "geheim-123")
+    wall = live_wall(live, "geheim-123456")
     stream = Stream(wall, "/livewall/api/stream")
     try:
         stream.until("hello")

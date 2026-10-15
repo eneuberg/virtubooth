@@ -283,9 +283,9 @@ class FakeWall:
                                "by": "admin:1"}  # fmt: skip
                 return 200, self.admin_out()
             case "PUT", "/password":
-                if len(body["password"]) < 6:
+                if len(body["password"]) < 12:
                     return 400, {"error": "wall_password_too_short",
-                                 "message": "Mindestens 6 Zeichen."}  # fmt: skip
+                                 "message": "Mindestens 12 Zeichen."}  # fmt: skip
                 self.password = {"set": True, "changed_at": now()}
                 return 200, self.password
             case "DELETE", "/password":
@@ -444,15 +444,15 @@ def test_set_password_and_log_out_walls(
     status = page.get_by_test_id("wall-password-status")
     expect(status).to_have_text("Noch kein Passwort: die Live-Wall ist gesperrt.")
     field = page.get_by_label("Live-Wall-Passwort")
-    field.fill("kurz")
+    field.fill("elf-zeichen")
     page.get_by_test_id("wall-password-submit").click()
-    expect(page.get_by_text("Das Passwort ist zu kurz: mindestens 6 Zeichen.")).to_be_visible()
+    expect(page.get_by_text("Das Passwort ist zu kurz: mindestens 12 Zeichen.")).to_be_visible()
     assert wall.sent("PUT", "/password") == []
 
-    field.fill("geheim123")
+    field.fill("geheim-12345")
     page.get_by_test_id("wall-password-submit").click()
     expect(status).to_have_text(re.compile(r"^Passwort gesetzt am .+\.$"))
-    assert wall.sent("PUT", "/password") == [{"password": "geheim123"}]
+    assert wall.sent("PUT", "/password") == [{"password": "geheim-12345"}]
     expect(page.get_by_test_id("wall-password-submit")).to_have_text("Passwort ändern")
     expect(field).to_have_value("")
 

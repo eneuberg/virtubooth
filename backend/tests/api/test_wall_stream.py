@@ -51,7 +51,7 @@ def live(app, monkeypatch):
 @pytest.fixture
 def admin_c(live):
     c = live_admin(live)
-    r = c.put("/api/x/wall/admin/password", json={"password": "geheim-123"}, headers=live.origin)
+    r = c.put("/api/x/wall/admin/password", json={"password": "geheim-123456"}, headers=live.origin)
     assert r.status_code == 200, r.text
     yield c
     c.close()
@@ -153,7 +153,9 @@ def test_bye_ends_the_stream(live, admin_c, how, reason):
         watching_admin.until("hello")
         if how == "password":
             r = admin_c.put(
-                "/api/x/wall/admin/password", json={"password": "anderes-pw"}, headers=live.origin
+                "/api/x/wall/admin/password",
+                json={"password": "anderes-passwort"},
+                headers=live.origin,
             )
         elif how == "clear":
             r = admin_c.delete("/api/x/wall/admin/password", headers=live.origin)
