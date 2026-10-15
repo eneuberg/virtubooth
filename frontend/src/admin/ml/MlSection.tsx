@@ -1,6 +1,7 @@
 /**
- * /admin/manage?tab=ml: the ML-Pipeline. Every analyzer (Modelle), a test image, the
- * external AI (Claude) with its key, the properties it rates, and the budget. Every
+ * /admin/manage?tab=ml: the ML-Pipeline. Every analyzer (Modelle, with the either/or object
+ * detection: local or external AI), a test image, the external AI (provider, model, key),
+ * the properties it rates with the poll, and the budget. Every
  * card makes its own requests; nothing here is a draft of the wall config.
  */
 import { Cpu } from 'lucide-react';
@@ -18,14 +19,14 @@ import { ModelsCard } from './ModelsCard';
 import { PropertiesCard } from './PropertiesCard';
 import { TestImageCard } from './TestImageCard';
 
-/** Claude, Eigenschaften and Budget share GET /llm. */
+/** Externe KI, Eigenschaften and Budget share GET /llm (Modelle and Testbild read it too). */
 function ExternalAi() {
   const llm = useLlm();
   if (llm.data) {
     return (
       <>
         <LlmCard status={llm.data} />
-        <PropertiesCard />
+        <PropertiesCard status={llm.data} />
         <BudgetCard status={llm.data} />
       </>
     );

@@ -302,8 +302,32 @@ class FakeWall:
         status, answer = self.answer(req.method, path, body)
         route.fulfill(status=status, json=answer)
 
+    def llm_status(self) -> dict[str, Any]:
+        """GET /llm as a fresh server answers it (the category editor's AI-verdict hint
+        reads it; the ML-Pipeline fake has the full one)."""
+        budget = {"party_usd": 5.0, "party_calls": None, "daily_usd": 2.0, "daily_calls": None}
+        totals = {"calls": 0, "input_tokens": 0, "output_tokens": 0, "cost_usd": 0}
+        return {
+            "config": {"enabled": False, "provider": "anthropic", "model": "claude-haiku-5-5",
+                       "poll": True, "poll_interval_s": 180, "detect": {"external": False},
+                       "effort": "low", "image_max_px": 1024, "budget": budget, "rev": 0,
+                       "updated_at": None, "by": None},
+            "key": {"set": False, "set_at": None, "provider": None, "valid": False},
+            "providers": [], "models": [],
+            "poller": {"state": "off", "last_poll_at": None, "next_poll_at": None,
+                       "last_error": None},
+            "detection": {"mode": "local", "state": "off", "pending": 0, "done": 0, "failed": 0,
+                          "last_run_at": None, "last_error": None,
+                          "stats": {"processed": 0, "errors": 0, "avg_ms": None, "last_ms": None},
+                          "cost_usd": 0},
+            "usage": {"party": totals, "today": totals, "by_kind": [], "budget": budget,
+                      "blocked": False, "reason": None},
+        }  # fmt: skip
+
     def answer(self, method: str, path: str, body: Any) -> tuple[int, Any]:
         match method, path:
+            case "GET", "/llm":
+                return 200, self.llm_status()
             case "GET", "/config":
                 return 200, self.admin_out()
             case "PUT", "/config":

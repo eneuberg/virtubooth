@@ -1,8 +1,9 @@
 /**
  * The three views of a photo's (or a test image's) objects: „Lokales Modell“ (the
  * local detector's own list), „KI“ (the external AI's own list) and „Zusammengeführt“
- * (the merged list the poll rates and the categories count: local and AI objects,
- * duplicates linked). Rows and frames per view, each view with its own frame colour
+ * (the merged list the poll rates and the categories count). Object detection is
+ * either/or since v15, so a new photo's merged list is just its one source's list;
+ * older photos may have both, duplicates linked. Rows and frames per view, each view with its own frame colour
  * (objectViews.test.ts).
  */
 import { sourceText } from '../ml/text';

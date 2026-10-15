@@ -2692,26 +2692,69 @@
       },
       "DetectConfig": {
         "additionalProperties": false,
+        "description": "Object detection is either/or: the local detector (D1's `objects` analyzer,\nswitched in `x.wall.analyzers`) OR the external AI (`external`), never both.\nSwitching one on switches the other off (`set_detection`).",
         "properties": {
           "external": {
             "default": false,
-            "description": "„Objekterkennung mit KI“: the external AI also lists the objects of each photo at upload (its own list, merged into the photo's object list).",
+            "description": "„Objekte mit KI“: the external AI lists the objects of each photo the pipeline analyses while this is on (and the master switch is on); the local detector is off meanwhile. Older photos are never sent afterwards.",
             "title": "External",
-            "type": "boolean"
-          },
-          "local": {
-            "default": true,
-            "description": "The local object detector runs (D1's `objects`).",
-            "title": "Local",
             "type": "boolean"
           }
         },
         "title": "DetectConfig",
         "type": "object"
       },
-      "DetectionOut": {
-        "description": "„Objekterkennung mit KI“ (at upload): its own state and error.",
+      "DetectStatsOut": {
+        "description": "Every detection call so far (like an analyzer's stats, but from `llm_usage`).",
         "properties": {
+          "avg_ms": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Avg Ms"
+          },
+          "errors": {
+            "title": "Errors",
+            "type": "integer"
+          },
+          "last_ms": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Ms"
+          },
+          "processed": {
+            "title": "Processed",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "processed",
+          "errors",
+          "avg_ms",
+          "last_ms"
+        ],
+        "title": "DetectStatsOut",
+        "type": "object"
+      },
+      "DetectionOut": {
+        "description": "„Objekte mit KI“ (a step of the pipeline while it is the active detector).",
+        "properties": {
+          "cost_usd": {
+            "description": "What detection has cost so far (estimate).",
+            "title": "Cost Usd",
+            "type": "number"
+          },
           "done": {
             "title": "Done",
             "type": "integer"
@@ -2744,13 +2787,23 @@
             "description": "When the detector last finished a photo.",
             "title": "Last Run At"
           },
+          "mode": {
+            "description": "The object detection: the local detector, the external AI or none (either/or; `ai` also while the master switch is off, then nothing runs).",
+            "enum": [
+              "local",
+              "ai",
+              "off"
+            ],
+            "title": "Mode",
+            "type": "string"
+          },
           "pending": {
             "description": "Photos the external detector will still look at.",
             "title": "Pending",
             "type": "integer"
           },
           "state": {
-            "description": "off: switched off (or external AI off, no key); running: a photo is out.",
+            "description": "off: not the active detector (or external AI off, no key); running: a photo is out.",
             "enum": [
               "off",
               "idle",
@@ -2759,15 +2812,21 @@
             ],
             "title": "State",
             "type": "string"
+          },
+          "stats": {
+            "$ref": "#/components/schemas/DetectStatsOut"
           }
         },
         "required": [
+          "mode",
           "state",
           "pending",
           "done",
           "failed",
           "last_run_at",
-          "last_error"
+          "last_error",
+          "stats",
+          "cost_usd"
         ],
         "title": "DetectionOut",
         "type": "object"
@@ -2997,6 +3056,7 @@
               "invalid_note",
               "invalid_llm_config",
               "llm_not_configured",
+              "llm_no_vision",
               "llm_key_invalid",
               "llm_budget_exhausted",
               "invalid_property",
@@ -4463,7 +4523,8 @@
           "provider": {
             "enum": [
               "anthropic",
-              "mistral"
+              "mistral",
+              "deutschlandgpt"
             ],
             "title": "Provider",
             "type": "string"
@@ -4582,6 +4643,17 @@
           "detect": {
             "$ref": "#/components/schemas/DetectConfig"
           },
+          "effort": {
+            "default": "low",
+            "description": "„Denkaufwand“: how long the model thinks before answering (Anthropic and DeutschlandGPT; adaptive thinking with this effort). Thinking is billed as output tokens, so higher costs more. Ignored by providers without thinking.",
+            "enum": [
+              "low",
+              "medium",
+              "high"
+            ],
+            "title": "Effort",
+            "type": "string"
+          },
           "enabled": {
             "default": false,
             "description": "Master switch: nothing is sent while off.",
@@ -4618,7 +4690,8 @@
             "default": "anthropic",
             "enum": [
               "anthropic",
-              "mistral"
+              "mistral",
+              "deutschlandgpt"
             ],
             "title": "Provider",
             "type": "string"
@@ -4681,6 +4754,22 @@
               }
             ]
           },
+          "effort": {
+            "anyOf": [
+              {
+                "enum": [
+                  "low",
+                  "medium",
+                  "high"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Effort"
+          },
           "enabled": {
             "anyOf": [
               {
@@ -4741,7 +4830,8 @@
               {
                 "enum": [
                   "anthropic",
-                  "mistral"
+                  "mistral",
+                  "deutschlandgpt"
                 ],
                 "type": "string"
               },
@@ -5039,9 +5129,23 @@
       },
       "ModelOut": {
         "properties": {
+          "currency": {
+            "description": "The provider's currency (USD | EUR).",
+            "title": "Currency",
+            "type": "string"
+          },
           "id": {
             "title": "Id",
             "type": "string"
+          },
+          "price_in_mtok": {
+            "description": "Per million input tokens in `currency`.",
+            "title": "Price In Mtok",
+            "type": "number"
+          },
+          "price_out_mtok": {
+            "title": "Price Out Mtok",
+            "type": "number"
           },
           "provider": {
             "title": "Provider",
@@ -5052,6 +5156,7 @@
             "type": "string"
           },
           "usd_in_mtok": {
+            "description": "Per million input tokens, converted to USD.",
             "title": "Usd In Mtok",
             "type": "number"
           },
@@ -5065,7 +5170,10 @@
           "provider",
           "title",
           "usd_in_mtok",
-          "usd_out_mtok"
+          "usd_out_mtok",
+          "currency",
+          "price_in_mtok",
+          "price_out_mtok"
         ],
         "title": "ModelOut",
         "type": "object"
@@ -5185,6 +5293,24 @@
           "h"
         ],
         "title": "ObjectBox",
+        "type": "object"
+      },
+      "ObjectDetectionIn": {
+        "properties": {
+          "mode": {
+            "enum": [
+              "local",
+              "ai",
+              "off"
+            ],
+            "title": "Mode",
+            "type": "string"
+          }
+        },
+        "required": [
+          "mode"
+        ],
+        "title": "ObjectDetectionIn",
         "type": "object"
       },
       "ObjectOut": {
@@ -6735,6 +6861,11 @@
             "title": "Available",
             "type": "boolean"
           },
+          "currency": {
+            "description": "What it bills in: USD | EUR.",
+            "title": "Currency",
+            "type": "string"
+          },
           "eu": {
             "description": "Hosted in the EU.",
             "title": "Eu",
@@ -6755,9 +6886,19 @@
             ],
             "title": "Reason"
           },
+          "thinking": {
+            "description": "Takes a „Denkaufwand“ (config.effort).",
+            "title": "Thinking",
+            "type": "boolean"
+          },
           "title": {
             "title": "Title",
             "type": "string"
+          },
+          "vision": {
+            "description": "Can look at photos (object detection, test image).",
+            "title": "Vision",
+            "type": "boolean"
           }
         },
         "required": [
@@ -6765,7 +6906,10 @@
           "title",
           "eu",
           "available",
-          "reason"
+          "reason",
+          "vision",
+          "thinking",
+          "currency"
         ],
         "title": "ProviderOut",
         "type": "object"
@@ -19362,6 +19506,109 @@
           }
         },
         "summary": "Test Llm Key",
+        "tags": [
+          "extension:wall",
+          "wall"
+        ]
+      }
+    },
+    "/api/x/wall/admin/llm/object-detection": {
+      "put": {
+        "description": "„Objekterkennung: Lokal / KI / Aus“ (either/or): `local` switches the\n`objects` analyzer on and the AI detector off, `ai` the other way round, `off`\nboth off. Applies to photos the pipeline finishes from now on: older photos\nare never sent to the AI afterwards. 400 `invalid_llm_config` when the\nprovider can't look at photos (`ai`).",
+        "operationId": "set_object_detection_api_x_wall_admin_llm_object_detection_put",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ObjectDetectionIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LlmStatus"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Invalid input (see `error`)"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Needs consent or an admin session"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Forbidden: banned, paused, stopped, joining closed or a foreign Origin (CSRF)"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Not found, or no party access (`scan_qr`)"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Request validation failed (`invalid_request`)"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Rate limited (`Retry-After` header)"
+          }
+        },
+        "summary": "Set Object Detection",
         "tags": [
           "extension:wall",
           "wall"

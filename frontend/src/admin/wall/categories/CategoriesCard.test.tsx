@@ -3,6 +3,7 @@ import { fireEvent, render, screen, waitFor, within } from '@testing-library/rea
 import { describe, expect, it } from 'vitest';
 import { UiProvider } from '@/ui/UiProvider';
 import { bodyField, must, stubApi, testClient, type Route } from '../../testing';
+import { llmStatus } from '../../ml/fixtures';
 import { categoryItems, valuesOut } from '../fixtures';
 import type { CategoryItem } from '../types';
 import { CategoriesCard } from './CategoriesCard';
@@ -54,6 +55,23 @@ describe('the categories card', () => {
     );
     expect(within(row('volles_haus')).getAllByRole('img')).toHaveLength(1);
     expect(screen.queryByRole('button', { name: /analysieren/i })).toBeNull();
+  });
+
+  it('marks the AI verdict with the red hint while the external AI is off', async () => {
+    const llm = llmStatus({ key: { set: true, set_at: null, provider: 'anthropic', valid: true } });
+    llm.config = { ...llm.config, enabled: false };
+    renderCard({ [`GET ${A}/llm`]: () => llm });
+    await screen.findByTestId('wall-categories');
+    fireEvent.click(within(row('coolstes_objekt')).getByTestId('category-edit'));
+    const sheet = await screen.findByTestId('category-sheet');
+    const verdict = within(sheet).getByTestId('category-verdict');
+    const hint = await within(verdict).findByTestId('ml-ai-off-hint');
+    expect(hint.textContent).toBe(
+      'Externe KI ist aus – unter ‚ML-Pipeline › Externe KI‘ einschalten, um das zu nutzen.',
+    );
+    // no verdict prompt: no hint
+    fireEvent.change(within(sheet).getByTestId('category-verdict-prompt'), { target: { value: '' } });
+    await waitFor(() => expect(within(verdict).queryByTestId('ml-ai-off-hint')).toBeNull());
   });
 
   it('moves a category down with ↓', async () => {

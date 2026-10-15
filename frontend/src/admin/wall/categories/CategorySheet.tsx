@@ -22,6 +22,8 @@ import { Spinner } from '@/ui/Spinner';
 import { TextField } from '@/ui/TextField';
 import { showToast } from '@/ui/Toast';
 import { errorText } from '../../common/usePhotoActions';
+import { ExternalAiHint } from '../../ml/ExternalAiHint';
+import { useLlm } from '../../ml/hooks';
 import { createCategory, deleteCategory, previewCategory, saveCategory } from '../api';
 import { wk } from '../keys';
 import { optionsOf } from '../labels';
@@ -278,6 +280,8 @@ export interface CategorySheetProps {
 
 export function CategorySheet({ item, values, taken, isOpen, onOpenChange }: CategorySheetProps) {
   const qc = useQueryClient();
+  // the AI verdict's red hint: the external AI is off or has no key
+  const llm = useLlm(isOpen);
   const choices = useMemo(() => valueChoices(values.values), [values.values]);
   const isNew = item === null;
   const [draft, setDraft] = useState<CategoryDraft>(() =>
@@ -665,6 +669,7 @@ export function CategorySheet({ item, values, taken, isOpen, onOpenChange }: Cat
             Optional. Bei jeder Abfrage schreibt die externe KI dazu einen Satz, der unter dem Gewinnerfoto
             steht. Leer = kein Urteil.
           </p>
+          {draft.verdict.trim() ? <ExternalAiHint status={llm.data} where="elsewhere" /> : null}
         </Section>
 
         <Preview state={preview} />

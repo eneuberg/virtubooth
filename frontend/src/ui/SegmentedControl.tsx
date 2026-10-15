@@ -37,6 +37,8 @@ export interface SegmentOption<K extends string> {
   id: K;
   label: string;
   icon?: LucideIcon;
+  /** this one option can't be chosen (the others can) */
+  isDisabled?: boolean;
 }
 
 export interface SegmentedControlProps<K extends string> {
@@ -86,8 +88,14 @@ export function SegmentedControl<K extends string>({
       data-testid={rest['data-testid']}
       className={cx(s.group(), className)}
     >
-      {options.map(({ id, label: optionLabel, icon: Icon }) => (
-        <Radio key={id} value={id} data-value={id} className={s.item()}>
+      {options.map(({ id, label: optionLabel, icon: Icon, isDisabled: off }) => (
+        <Radio
+          key={id}
+          value={id}
+          data-value={id}
+          className={s.item()}
+          {...(off ? { isDisabled: true } : {})}
+        >
           {Icon ? <Icon aria-hidden="true" className="size-5 shrink-0" strokeWidth={2} /> : null}
           <span className={Icon ? hide : undefined}>{optionLabel}</span>
         </Radio>

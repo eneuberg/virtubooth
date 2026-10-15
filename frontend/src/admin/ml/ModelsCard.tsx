@@ -1,14 +1,18 @@
 /**
  * "Modelle": the analysis worker (state, heartbeat, queue) and every analyzer with
- * what it does, its size, on/off, its settings and its numbers. Own requests; polls
- * every 5 s while on screen. Analyses are made once (N3): changes apply to new photos.
+ * what it does, its size, on/off, its settings and its numbers. Object detection is
+ * either/or: where „Objekte“ sits, one choice „Objekterkennung: Lokal / KI / Aus“ (PUT
+ * /llm/object-detection) over two rows, the local detector and „Objekte mit KI“ (the
+ * external AI as a step of the pipeline, from GET /llm). Own requests; polls every 5 s
+ * while on screen. Analyses are made once (N3): changes apply to new photos.
  */
 import { useQueryClient } from '@tanstack/react-query';
-import { Boxes, Save } from 'lucide-react';
-import { useState, type FormEvent } from 'react';
+import { Boxes, Save, Sparkles } from 'lucide-react';
+import { useState, type FormEvent, type ReactNode } from 'react';
 import { formatDateTime } from '@/lib/format';
 import { Badge } from '@/ui/Badge';
 import { Button } from '@/ui/Button';
+import { SegmentedControl } from '@/ui/SegmentedControl';
 import { Spinner } from '@/ui/Spinner';
 import { Switch } from '@/ui/Switch';
 import { TextField } from '@/ui/TextField';
@@ -22,8 +26,13 @@ import { ANALYZER_KIND_LABELS, WORKER_LABELS } from '../wall/labels';
 import { countsText, lastBeatText, memoryText, processedText } from '../wall/text';
 import type { Analyzer, AnalysisStatus, WorkerState } from '../wall/types';
 import { parseDecimal, numberText } from '../wall/categories/spec';
+import { setObjectDetection } from './api';
+import { ExternalAiHint } from './ExternalAiHint';
+import { useLlm } from './hooks';
 import { ModelsSetup } from './ModelsSetup';
-import { queueText, sizeText, statsText } from './text';
+import { PartState } from './PartState';
+import { modelText, queueText, sizeText, statsText, usdText } from './text';
+import { DETECTION_MODES, type DetectionMode, type LlmStatus } from './types';
 
 const WORKER_TONE: Record<WorkerState, 'ok' | 'amber' | 'neutral' | 'mark'> = {
   running: 'ok',
@@ -193,10 +202,13 @@ function AnalyzerRow({
   analyzer: a,
   busy,
   onToggle,
+  control,
 }: {
   analyzer: Analyzer;
   busy: boolean;
   onToggle: (on: boolean) => void;
+  /** in place of the switch (the local detector: switched by the shared choice above it) */
+  control?: ReactNode;
 }) {
   return (
     <li data-analyzer={a.name} className="grid gap-1.5 border-b border-line py-3">
@@ -214,18 +226,20 @@ function AnalyzerRow({
           </p>
           {a.description ? <p className="text-sm text-ink-muted">{a.description}</p> : null}
         </div>
-        <Switch
-          isSelected={a.enabled}
-          isPending={busy}
-          // the image values always run (the server never switches them off). Every other
-          // switch works both ways, also while the analyzer can't run (models missing): it
-          // is the stored wish, the reason below says why it does not run yet
-          isDisabled={a.kind === 'basic'}
-          onChange={onToggle}
-          aria-label={`${a.title} an`}
-        >
-          {a.enabled ? 'an' : 'aus'}
-        </Switch>
+        {control ?? (
+          <Switch
+            isSelected={a.enabled}
+            isPending={busy}
+            // the image values always run (the server never switches them off). Every other
+            // switch works both ways, also while the analyzer can't run (models missing): it
+            // is the stored wish, the reason below says why it does not run yet
+            isDisabled={a.kind === 'basic'}
+            onChange={onToggle}
+            aria-label={`${a.title} an`}
+          >
+            {a.enabled ? 'an' : 'aus'}
+          </Switch>
+        )}
       </div>
       {a.reason || a.kind === 'basic' ? (
         <p className="text-xs text-ink-muted" data-testid="ml-analyzer-reason">
@@ -244,9 +258,142 @@ function AnalyzerRow({
   );
 }
 
+const MODE_LABELS: Record<DetectionMode, string> = { local: 'Lokal', ai: 'KI', off: 'Aus' };
+
+/** „aktiv“ / „aus“ in place of a switch: the shared choice above decides. */
+const ActiveBadge = ({ on, testId }: { on: boolean; testId: string }) => (
+  <span data-testid={testId}>
+    <Badge tone={on ? 'ok' : 'neutral'}>{on ? 'aktiv' : 'aus'}</Badge>
+  </span>
+);
+
+/** „Objekte mit KI“: the external AI as the pipeline's detector, with its own numbers. */
+function AiDetectorRow({ llm }: { llm: LlmStatus }) {
+  const { detection, config } = llm;
+  const active = detection.mode === 'ai';
+  const provider = llm.providers.find((p) => p.id === config.provider);
+  const model = llm.models.find((m) => m.id === config.model);
+  return (
+    <li data-analyzer="objects-ai" className="grid gap-1.5 border-b border-line py-3">
+      <div className="flex flex-wrap items-start justify-between gap-x-3 gap-y-1">
+        <div className="grid min-w-0 flex-1 gap-0.5">
+          <p className="flex flex-wrap items-center gap-2 font-semibold">
+            Objekte mit KI
+            <Badge tone="new" icon={Sparkles}>
+              Extern
+            </Badge>
+            <span className="text-sm font-normal text-ink-muted" data-testid="ml-ai-detect-size">
+              Größe: –
+            </span>
+          </p>
+          <p className="text-sm text-ink-muted" data-testid="ml-ai-detect-model">
+            {provider?.title ?? config.provider} · {model ? modelText(model) : config.model}
+          </p>
+          <p className="text-sm text-ink-muted">
+            Jedes neue Foto geht verkleinert an die externe KI, sie listet die Objekte mit Rahmen. Kostet pro
+            Foto.
+          </p>
+        </div>
+        <ActiveBadge on={active} testId="ml-ai-detect-active" />
+      </div>
+      {active ? <ExternalAiHint status={llm} /> : null}
+      <p className="flex flex-wrap items-center gap-2 text-xs" data-testid="ml-ai-detect-state">
+        <PartState status={llm} part="detection" state={detection.state} partOn={active} />
+        <span className="text-ink-muted tabular">
+          {detection.done} fertig · {detection.pending} warten · {detection.failed} fehlgeschlagen
+        </span>
+      </p>
+      <p className="text-xs text-ink-muted tabular" data-testid="ml-ai-detect-stats">
+        {statsText(detection.stats)} · bisher {usdText(detection.cost_usd)}
+      </p>
+      {detection.last_error ? (
+        <p className="text-sm text-danger" data-testid="ml-ai-detect-error">
+          {detection.last_error}
+        </p>
+      ) : null}
+    </li>
+  );
+}
+
+/** The either/or: one choice over the local detector's row and the AI's row. */
+function ObjectDetection({
+  analyzer,
+  llm,
+  busy,
+  onToggle,
+}: {
+  analyzer: Analyzer;
+  llm: LlmStatus;
+  busy: boolean;
+  onToggle: (on: boolean) => void;
+}) {
+  const qc = useQueryClient();
+  const [pending, setPending] = useState(false);
+  const mode = llm.detection.mode;
+  const provider = llm.providers.find((p) => p.id === llm.config.provider);
+  const noVision = provider !== undefined && !provider.vision;
+
+  const choose = async (next: DetectionMode) => {
+    if (next === mode) return;
+    setPending(true);
+    try {
+      qc.setQueryData<LlmStatus>(wk.llm, await setObjectDetection(next));
+      void qc.invalidateQueries({ queryKey: wk.analysis });
+      void qc.invalidateQueries({ queryKey: wk.categories });
+      void qc.invalidateQueries({ queryKey: wk.values });
+    } catch (err) {
+      showError(err);
+    } finally {
+      setPending(false);
+    }
+  };
+
+  return (
+    <li className="grid border-b border-line" data-testid="ml-object-detection-block">
+      <div className="grid gap-1.5 py-3">
+        <p className="font-semibold">Objekterkennung</p>
+        <SegmentedControl
+          label="Objekterkennung"
+          size="sm"
+          options={DETECTION_MODES.map((id) => ({
+            id,
+            label: MODE_LABELS[id],
+            isDisabled: id === 'ai' && noVision,
+          }))}
+          value={mode}
+          onChange={(m) => void choose(m)}
+          isDisabled={pending}
+          className="justify-self-start"
+          data-testid="ml-object-detection"
+        />
+        <p className="text-xs text-ink-muted">
+          Entweder das lokale Modell oder die externe KI, nie beide. Gilt nur für Fotos, die ab jetzt
+          hochgeladen werden; ältere Fotos werden nicht nachträglich geschickt.
+        </p>
+        {noVision ? (
+          <p className="text-xs text-ink-muted" data-testid="ml-ai-detect-no-vision">
+            „KI“ geht nicht: {provider.title} kann keine Fotos ansehen.
+          </p>
+        ) : null}
+      </div>
+      <ul className="grid border-t border-line" aria-label="Objekterkennung">
+        <AnalyzerRow
+          analyzer={analyzer}
+          busy={busy}
+          onToggle={onToggle}
+          control={<ActiveBadge on={mode === 'local'} testId="ml-local-detect-active" />}
+        />
+        <AiDetectorRow llm={llm} />
+      </ul>
+    </li>
+  );
+}
+
 export function ModelsCard() {
   const qc = useQueryClient();
   const status = useAnalysisStatus();
+  // the AI detector's row and the either/or choice (missing: only the local switch, as before)
+  const llm = useLlm();
   const [busy, setBusy] = useState<string | null>(null);
 
   const toggle = async (a: Analyzer, enabled: boolean) => {
@@ -279,14 +426,24 @@ export function ModelsCard() {
           <ModelsSetup status={data} />
           <WorkerStatus status={data} />
           <ul className="grid border-t border-line" aria-label="Modelle">
-            {data.analyzers.map((a) => (
-              <AnalyzerRow
-                key={a.name}
-                analyzer={a}
-                busy={busy === a.name}
-                onToggle={(on) => void toggle(a, on)}
-              />
-            ))}
+            {data.analyzers.map((a) =>
+              a.name === 'objects' && llm.data ? (
+                <ObjectDetection
+                  key={a.name}
+                  analyzer={a}
+                  llm={llm.data}
+                  busy={busy === a.name}
+                  onToggle={(on) => void toggle(a, on)}
+                />
+              ) : (
+                <AnalyzerRow
+                  key={a.name}
+                  analyzer={a}
+                  busy={busy === a.name}
+                  onToggle={(on) => void toggle(a, on)}
+                />
+              ),
+            )}
           </ul>
           <p className="text-sm text-ink-muted" data-testid="ml-freeze-note">
             Analysen werden einmal gemacht und danach nicht mehr verändert. Änderungen gelten für neue Fotos.

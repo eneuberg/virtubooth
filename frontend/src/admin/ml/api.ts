@@ -4,19 +4,27 @@
  * ../wall/api.ts (GET /analysis, PUT /analysis/analyzers/{name}).
  */
 import { wallFetch } from '../wall/api';
-import type { LlmConfig, LlmKeyState, LlmProperty, LlmStatus, TestImageResult } from './types';
+import type {
+  DetectionMode,
+  LlmConfigChange,
+  LlmKeyState,
+  LlmProperty,
+  LlmStatus,
+  TestImageResult,
+} from './types';
 
 export function fetchLlm(): Promise<LlmStatus> {
   return wallFetch('/llm');
 }
 
-/** The editable part only; rev, updated_at and by are server-set. */
-export function saveLlmConfig(config: LlmConfig): Promise<LlmStatus> {
-  const { enabled, provider, model, poll, poll_interval_s, detect, image_max_px, budget } = config;
-  return wallFetch('/llm/config', {
-    method: 'PUT',
-    json: { enabled, provider, model, poll, poll_interval_s, detect, image_max_px, budget },
-  });
+/** Only the fields given change (each card sends its own); rev, updated_at and by are server-set. */
+export function saveLlmConfig(change: LlmConfigChange): Promise<LlmStatus> {
+  return wallFetch('/llm/config', { method: 'PUT', json: change });
+}
+
+/** „Objekterkennung: Lokal / KI / Aus“ (either/or; also switches the `objects` analyzer). */
+export function setObjectDetection(mode: DetectionMode): Promise<LlmStatus> {
+  return wallFetch('/llm/object-detection', { method: 'PUT', json: { mode } });
 }
 
 export function setLlmKey(provider: string, key: string): Promise<LlmKeyState> {
