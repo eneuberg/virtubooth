@@ -142,6 +142,8 @@ class TestRunOut(BaseModel):
     objects: list[ObjectOut]
     durations_ms: dict[str, int]
     error: str | None
+    # analyzer → why it did not run (switched off, model missing, ...)
+    skipped: dict[str, str] = Field(default_factory=dict)
 
 
 class ExternalTestOut(BaseModel):

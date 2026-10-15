@@ -63,8 +63,6 @@ ErrorCode = Literal[
     # admin exports
     "export_not_ready",
     "export_running",
-    "base_url_required",
-    "invalid_base_url",
     # QR codes
     "invalid_token",
     "token_taken",

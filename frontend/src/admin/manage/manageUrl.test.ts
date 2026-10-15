@@ -31,7 +31,7 @@ describe('manage URL state', () => {
   });
 
   it('knows every section (PLAN-NIGHT N17)', () => {
-    expect([...SECTIONS].sort()).toEqual(
+    expect(SECTIONS.toSorted()).toEqual(
       [
         'uebersicht',
         'allgemein',
@@ -46,7 +46,7 @@ describe('manage URL state', () => {
         'qr',
         'plakat',
         'export',
-      ].sort(),
+      ].toSorted(),
     );
     for (const section of SECTIONS) expect(parseSection(section)).toBe(section);
   });

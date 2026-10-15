@@ -127,3 +127,14 @@ def test_rate_limit(admin):
 
 def test_admin_only(client):
     assert send(client).status_code == 401
+
+
+def test_a_worker_timeout_is_an_error_in_the_local_part(admin, monkeypatch):
+    def submit(core_, image, analyzers, timeout_s=30):
+        raise TimeoutError("no answer")
+
+    monkeypatch.setattr(ports, "submit_test", submit)
+    r = send(admin)
+    assert r.status_code == 200, r.text
+    local = r.json()["local"]
+    assert local["objects"] == [] and "Zeitüberschreitung" in local["error"]

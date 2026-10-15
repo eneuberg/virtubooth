@@ -164,12 +164,16 @@ def run(svc: LlmService, form: TestForm) -> TestImageOut:
                 svc.core, image.data, None if names is None else list(names), LOCAL_TIMEOUT_S
             )
         except ports.WorkerOff:
-            # D1's code (core/errors.py after INT2)
             raise errors.ApiError(
-                409,
-                cast(ErrorCode, "worker_off"),
-                "Die Analyse läuft gerade nicht (Worker aus).",
+                409, "worker_off", "Die Analyse läuft gerade nicht (Worker aus)."
             ) from None
+        except TimeoutError:
+            # the worker is busy with a long queue or stuck: say so, keep the external part
+            result = ports.TestRun(
+                width=image.width,
+                height=image.height,
+                error="Keine Antwort von der Analyse (Zeitüberschreitung). Später noch einmal.",
+            )
         local = TestRunOut(
             width=result.width,
             height=result.height,
@@ -179,6 +183,7 @@ def run(svc: LlmService, form: TestForm) -> TestImageOut:
             objects=_objects(result.objects),
             durations_ms=result.durations_ms,
             error=result.error,
+            skipped=result.skipped,
         )
 
     external: ExternalTestOut | None = None

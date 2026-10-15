@@ -2965,7 +2965,7 @@ export interface components {
              * @description Machine-readable error code.
              * @enum {string}
              */
-            error: "scan_qr" | "needs_consent" | "banned" | "consent_outdated" | "invalid_instagram" | "join_closed" | "invalid_display_name" | "display_name_taken" | "wall_login_required" | "wall_no_password" | "wall_password_too_short" | "invalid_wall_config" | "invalid_category" | "category_exists" | "invalid_analyzer_settings" | "worker_off" | "uploads_paused" | "uploads_stopped" | "unsupported_type" | "too_large" | "invalid_meta" | "empty_upload" | "invalid_image" | "invalid_pdf" | "invalid_layout" | "no_template" | "admin_required" | "wrong_password" | "login_locked" | "invalid_filter" | "unknown_analyzer" | "invalid_cursor" | "no_fingerprint" | "restore_required" | "invalid_event_name" | "invalid_public_address" | "password_too_short" | "password_unchanged" | "no_filter_enabled" | "unknown_filter" | "export_not_ready" | "export_running" | "base_url_required" | "invalid_base_url" | "invalid_token" | "token_taken" | "code_revoked" | "invalid_target" | "invalid_note" | "invalid_llm_config" | "llm_not_configured" | "llm_key_invalid" | "llm_budget_exhausted" | "invalid_property" | "property_exists" | "bad_origin" | "length_required" | "rate_limited" | "invalid_request" | "not_found" | "http_404" | "http_405";
+            error: "scan_qr" | "needs_consent" | "banned" | "consent_outdated" | "invalid_instagram" | "join_closed" | "invalid_display_name" | "display_name_taken" | "wall_login_required" | "wall_no_password" | "wall_password_too_short" | "invalid_wall_config" | "invalid_category" | "category_exists" | "invalid_analyzer_settings" | "worker_off" | "uploads_paused" | "uploads_stopped" | "unsupported_type" | "too_large" | "invalid_meta" | "empty_upload" | "invalid_image" | "invalid_pdf" | "invalid_layout" | "no_template" | "admin_required" | "wrong_password" | "login_locked" | "invalid_filter" | "unknown_analyzer" | "invalid_cursor" | "no_fingerprint" | "restore_required" | "invalid_event_name" | "invalid_public_address" | "password_too_short" | "password_unchanged" | "no_filter_enabled" | "unknown_filter" | "export_not_ready" | "export_running" | "invalid_token" | "token_taken" | "code_revoked" | "invalid_target" | "invalid_note" | "invalid_llm_config" | "llm_not_configured" | "llm_key_invalid" | "llm_budget_exhausted" | "invalid_property" | "property_exists" | "bad_origin" | "length_required" | "rate_limited" | "invalid_request" | "not_found" | "http_404" | "http_405";
             /**
              * Message
              * @description German text for the guest or admin, shown as-is.
@@ -4630,6 +4630,10 @@ export interface components {
             height: number;
             /** Objects */
             objects: components["schemas"]["ObjectOut"][];
+            /** Skipped */
+            skipped?: {
+                [key: string]: string;
+            };
             /** Width */
             width: number;
         };

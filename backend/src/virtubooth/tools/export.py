@@ -103,8 +103,7 @@ SCRUBBED_TABLES = ("admin_sessions", "export_jobs", "visitors", "code_visitors")
 # API key"), and the host's external-AI API key `x.llm.key` (encrypted, named
 # before the rule; it never leaves the server).
 SCRUBBED_SETTINGS_SQL = (
-    "key = 'admin.password' OR key LIKE 'x.%.password' OR key LIKE '%.secret'"
-    " OR key = 'x.llm.key'"
+    "key = 'admin.password' OR key LIKE 'x.%.password' OR key LIKE '%.secret' OR key = 'x.llm.key'"
 )
 
 

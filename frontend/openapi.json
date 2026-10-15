@@ -2729,8 +2729,6 @@
               "unknown_filter",
               "export_not_ready",
               "export_running",
-              "base_url_required",
-              "invalid_base_url",
               "invalid_token",
               "token_taken",
               "code_revoked",
@@ -6476,6 +6474,13 @@
             },
             "title": "Objects",
             "type": "array"
+          },
+          "skipped": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "title": "Skipped",
+            "type": "object"
           },
           "width": {
             "title": "Width",

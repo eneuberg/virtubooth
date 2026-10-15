@@ -186,20 +186,33 @@ def runs_of(db: Database, photo_id: int) -> list[dict[str, str | int | None]]:
     ]
 
 
+# Photos an external source may still see (also counted for the admin): the
+# local pipeline finished them, `source` has no run for them, they are visible
+# and their guest is not banned and has neither opt-out on (live flags).
+_ELIGIBLE_SQL = (
+    "FROM photos p JOIN users u ON u.id = p.user_id "
+    "JOIN wall_analysis a ON a.photo_id = p.id "
+    "WHERE a.state IN ('done', 'failed', 'skipped') "
+    "AND p.hidden_at IS NULL AND p.deleted_at IS NULL "
+    "AND u.analysis_opt_out = 0 AND u.ai_opt_out = 0 AND u.banned_at IS NULL "
+    "AND NOT EXISTS (SELECT 1 FROM photo_detection_runs r "
+    "                WHERE r.photo_id = p.id AND r.source = ?) "
+)
+
+
 def eligible_for_external(db: Database, source: str, limit: int) -> list[int]:
     """Photo ids an external source may still analyse, newest first: the local
     pipeline finished them (`done`/`failed`/`skipped`), `source` has no run
-    for them, they are visible (not hidden, not deleted) and their guest has
-    neither the analysis opt-out nor the external-AI opt-out on (live flags)."""
+    for them, they are visible (not hidden, not deleted) and their guest is not
+    banned and has neither the analysis opt-out nor the external-AI opt-out on
+    (live flags)."""
     rows = db.all(
-        "SELECT p.id FROM photos p JOIN users u ON u.id = p.user_id "
-        "JOIN wall_analysis a ON a.photo_id = p.id "
-        "WHERE a.state IN ('done', 'failed', 'skipped') "
-        "AND p.hidden_at IS NULL AND p.deleted_at IS NULL "
-        "AND u.analysis_opt_out = 0 AND u.ai_opt_out = 0 "
-        "AND NOT EXISTS (SELECT 1 FROM photo_detection_runs r "
-        "                WHERE r.photo_id = p.id AND r.source = ?) "
-        "ORDER BY p.id DESC LIMIT ?",
-        (source, max(0, int(limit))),
+        f"SELECT p.id {_ELIGIBLE_SQL} ORDER BY p.id DESC LIMIT ?", (source, max(0, int(limit)))
     )
     return [int(r[0]) for r in rows]
+
+
+def count_eligible_for_external(db: Database, source: str) -> int:
+    """How many photos `eligible_for_external` would still hand out."""
+    row = db.one(f"SELECT COUNT(*) {_ELIGIBLE_SQL}", (source,))
+    return int(row[0]) if row is not None else 0
