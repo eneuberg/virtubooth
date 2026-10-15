@@ -84,7 +84,7 @@ function LiveHeader({ desktop }: { desktop: boolean }) {
           )}
         </p>
       </div>
-      <FilterToggle className="shrink-0" />
+      {desktop ? <FilterToggle className="shrink-0" /> : null}
       <AnalysisToggle className="shrink-0" />
       {desktop ? (
         <LinkButton href="/manage" variant="secondary" size="sm" icon={LayoutGrid}>
@@ -159,6 +159,8 @@ function LiveScreen() {
       {desktop ? null : <PartyControls className="border-b border-line px-3 py-2.5" />}
       <OverviewStrip />
       <main id="live-photos" tabIndex={-1} className="px-2 pt-2 pb-6 outline-none">
+        {/* phones: the header has no room for a second switch */}
+        {desktop ? null : <FilterToggle className="mb-1 px-2" />}
         {list.isPending ? (
           <SkeletonGrid
             count={6}

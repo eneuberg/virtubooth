@@ -221,6 +221,7 @@ export function PhotosSection() {
             data-testid="filter-status"
             className="max-sm:w-full"
           />
+          <FilterToggle className="sm:ml-2" />
         </div>
         <div className="flex min-h-11 flex-wrap items-center gap-x-4 gap-y-1">
           <Button
@@ -233,7 +234,6 @@ export function PhotosSection() {
           >
             Alle auswählen
           </Button>
-          <FilterToggle />
           <span className="text-xs text-ink-muted max-lg:hidden">
             Shift-Klick wählt einen Bereich, Esc hebt die Auswahl auf. Pfeiltasten bewegen, X blendet aus,
             Entf löscht.
