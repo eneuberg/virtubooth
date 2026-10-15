@@ -1,5 +1,7 @@
-"""Einstellungen: the event name reaches the guests, the password change logs out the
-other admin devices (and only the new password opens the admin)."""
+"""Allgemeines: the event name reaches the guests, the password change logs out the
+other admin devices (and only the new password opens the admin), the public address
+is checked against this server and the QR-Codes tab warns while it is broken. Fotobox:
+the filters have their own section."""
 
 from __future__ import annotations
 
@@ -27,8 +29,8 @@ NEW_PASSWORD = "e2e-brand-new-password-2026"
 
 
 def open_settings(page: Page, live: LiveServer) -> None:
-    goto(page, live, "/admin/manage?tab=einstellungen")
-    expect(page.get_by_role("heading", name="Einstellungen", level=1)).to_be_visible()
+    goto(page, live, "/admin/manage?tab=allgemein")
+    expect(page.get_by_role("heading", name="Allgemeines", level=1)).to_be_visible()
 
 
 def test_the_event_name_reaches_the_guests_and_goes_back(
@@ -36,18 +38,20 @@ def test_the_event_name_reaches_the_guests_and_goes_back(
 ) -> None:
     admin = desktop_page
     goto(admin, live, "/admin/manage")
-    # not a section of the list: a link in the sidebar's footer
-    admin.get_by_test_id("settings-link").click()
-    expect(admin.get_by_role("heading", name="Einstellungen", level=1)).to_be_visible()
-    assert admin.url.endswith("/admin/manage?tab=einstellungen")
+    # a section of the main navigation, right after Übersicht
+    nav = admin.get_by_role("navigation", name="Verwaltung")
+    nav.get_by_role("link", name="Allgemeines").click()
+    expect(admin.get_by_role("heading", name="Allgemeines", level=1)).to_be_visible()
+    assert admin.url.endswith("/admin/manage?tab=allgemein")
 
     field = admin.get_by_label("Name des Events")
     expect(field).to_have_value("E2E Party")
-    expect(admin.get_by_role("heading", name="Fotobox-Filter")).to_be_visible()
+    expect(admin.get_by_role("heading", name="Öffentliche Adresse")).to_be_visible()
+    expect(admin.get_by_test_id("settings-booth-filters")).to_have_count(0)
     shot(admin, "admin-settings-desktop")
     expect(admin.get_by_test_id("event-name-reset")).to_have_count(0)
     field.fill("  Gartenfest   2026 ")
-    admin.get_by_role("button", name="Speichern").click()
+    admin.get_by_test_id("settings-event").get_by_role("button", name="Speichern").click()
     expect(toast(admin)).to_have_text("Eventname gespeichert.")
     expect(field).to_have_value("Gartenfest 2026")
     assert live.core.services.host_settings.event_name() == "Gartenfest 2026"
@@ -106,7 +110,7 @@ def test_password_change_logs_out_the_other_admins(
     other.wait_for_url(re.compile(r"/admin/login"), timeout=10_000)
     # this one stays signed in
     admin.reload()
-    expect(admin.get_by_role("heading", name="Einstellungen", level=1)).to_be_visible()
+    expect(admin.get_by_role("heading", name="Allgemeines", level=1)).to_be_visible()
 
     other.wait_for_load_state()
     other.get_by_label("Passwort").fill(ADMIN_PASSWORD)
@@ -122,17 +126,16 @@ def test_password_change_logs_out_the_other_admins(
     assert errors(admin) == []
 
 
-def test_phones_reach_it_from_the_header(admin_page: Page, live: LiveServer) -> None:
+def test_phones_reach_it_from_the_section_strip(admin_page: Page, live: LiveServer) -> None:
     page = admin_page
     goto(page, live, "/admin/manage")
-    page.get_by_role("link", name="Einstellungen").click()
-    expect(page.get_by_role("heading", name="Einstellungen", level=1)).to_be_visible()
-    expect(page.get_by_role("link", name="Einstellungen")).to_have_attribute("aria-current", "page")
-    for block in ("settings-event", "settings-booth-filters", "settings-password"):
-        expect(page.get_by_test_id(block)).to_be_visible()
-    # the section strip keeps its sections: Einstellungen is not one of them
+    expect(page.get_by_test_id("settings-link")).to_have_count(0)  # no gear in the header
     strip = page.get_by_role("navigation", name="Bereiche der Verwaltung")
-    expect(strip.get_by_role("link", name="Einstellungen")).to_have_count(0)
+    strip.get_by_role("link", name="Allgemeines").click()
+    expect(page.get_by_role("heading", name="Allgemeines", level=1)).to_be_visible()
+    expect(strip.get_by_role("link", name="Allgemeines")).to_have_attribute("aria-current", "page")
+    for block in ("settings-event", "settings-address", "settings-password"):
+        expect(page.get_by_test_id(block)).to_be_visible()
     assert no_horizontal_scroll(page)
     shot(page, "admin-settings-phone")
     # a small phone: the header's title gives way instead of running under the upload pill
@@ -142,4 +145,65 @@ def test_phones_reach_it_from_the_header(admin_page: Page, live: LiveServer) -> 
     assert title is not None and pill is not None
     assert title["x"] + title["width"] <= pill["x"]
     assert no_horizontal_scroll(page)
+    assert errors(page) == []
+
+
+def test_fotobox_section_has_the_filters(desktop_page: Page, live: LiveServer) -> None:
+    page = desktop_page
+    goto(page, live, "/admin/manage")
+    page.get_by_role("navigation", name="Verwaltung").get_by_role("link", name="Fotobox").click()
+    expect(page.get_by_role("heading", name="Fotobox", level=1)).to_be_visible()
+    card = page.get_by_test_id("settings-booth-filters")
+    expect(card).to_be_visible()
+    expect(card.get_by_role("switch").first).to_be_checked()
+    shot(page, "admin-fotobox-desktop")
+    assert errors(page) == []
+
+
+def test_public_address_check_and_qr_warning(desktop_page: Page, live: LiveServer) -> None:
+    page = desktop_page
+    open_settings(page, live)
+    card = page.get_by_test_id("settings-address")
+    status = card.get_by_test_id("address-status")
+    expect(status).to_have_attribute("data-status", "auto")
+    expect(card.get_by_text("Leer lassen = automatisch aus dem Aufruf")).to_be_visible()
+
+    # this very server: the probe proves it
+    field = card.get_by_label("Adresse für QR-Codes und Plakate")
+    field.fill(live.base_url + "/")
+    card.get_by_role("button", name="Speichern").click()
+    expect(toast(page)).to_have_text("Adresse gespeichert.")
+    expect(status).to_have_attribute("data-status", "ok")
+    expect(status).to_contain_text(re.compile(r"Erreichbar ✓ – geprüft \d\d:\d\d"))
+    expect(field).to_have_value(live.base_url)
+    goto(page, live, "/admin/manage?tab=qr")
+    expect(page.get_by_role("heading", name="QR-Codes", level=1)).to_be_visible()
+    expect(page.get_by_test_id("address-warning")).to_have_count(0)
+
+    # a port nobody listens on: a warning, saved anyway
+    open_settings(page, live)
+    field.fill("http://127.0.0.1:9")
+    card.get_by_role("button", name="Speichern").click()
+    expect(toast(page)).to_have_text("Adresse gespeichert, aber nicht erreichbar.")
+    expect(status).to_have_attribute("data-status", "unreachable")
+    expect(status).to_contain_text("Nicht erreichbar – QR-Codes würden ins Leere führen.")
+    shot(page, "admin-address-unreachable-desktop")
+    goto(page, live, "/admin/manage?tab=qr")
+    warning = page.get_by_test_id("address-warning")
+    expect(warning).to_contain_text(
+        "Die öffentliche Adresse ist nicht geprüft oder nicht erreichbar. "
+        "Prüfe sie unter „Allgemeines“, bevor du druckst."
+    )
+    shot(page, "admin-qr-warning-desktop")
+    warning.get_by_role("link", name="Zu „Allgemeines“").click()
+    expect(page.get_by_role("heading", name="Allgemeines", level=1)).to_be_visible()
+
+    # empty: automatic again, nothing to check, no warning
+    field.fill("")
+    card.get_by_role("button", name="Speichern").click()
+    expect(status).to_have_attribute("data-status", "auto")
+    expect(card.get_by_test_id("public-address-check")).to_have_count(0)
+    goto(page, live, "/admin/manage?tab=qr")
+    expect(page.get_by_role("heading", name="QR-Codes", level=1)).to_be_visible()
+    expect(page.get_by_test_id("address-warning")).to_have_count(0)
     assert errors(page) == []

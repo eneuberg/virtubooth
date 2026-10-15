@@ -19,7 +19,7 @@ from ..conftest import (
     shot,
     track_errors,
 )
-from .conftest import errors_besides, only_user, reload
+from .conftest import errors_besides, only_user, reload, upload
 
 pytestmark = pytest.mark.e2e
 
@@ -293,4 +293,98 @@ def test_live_wall_analysis_opt_out(page: Page, live: LiveServer):
             break
         page.wait_for_timeout(100)
     assert only_user(live).analysis_opt_out is False
+    assert page.js_errors == []  # type: ignore[attr-defined]
+
+
+def _external_ai_on(live: LiveServer) -> None:
+    live.core.repos.app_settings.put(
+        "x.llm.config",
+        {"enabled": True, "detect": {"local": True, "external": True}},
+        at="2026-10-15T20:00:00.000+00:00",
+    )
+
+
+def test_external_ai_opt_out(page: Page, live: LiveServer):
+    """„Keine Weitergabe an externe KI“: in plain sight in the join sheet while the host
+    has an external AI on, explained under „Mehr dazu“, changeable in the Du sheet."""
+    _external_ai_on(live)
+    page.goto(live.entry("/"))
+    sheet = page.get_by_test_id("join")
+    switch = page.get_by_test_id("ai-opt-out").get_by_role("switch")
+    expect(switch).not_to_be_checked()
+    sheet.get_by_role("button", name="Mehr dazu").click()
+    expect(sheet).to_contain_text("externen KI-Dienst (Anthropic, USA)")
+    expect(sheet).not_to_contain_text("verlässt den Server")
+    page.get_by_test_id("ai-opt-out").get_by_text("Keine Weitergabe an externe KI").click()
+    expect(switch).to_be_checked()
+    shot(page, "join-ai-opt-out-phone")
+    accept_consent_in_browser(page)
+    expect(page.get_by_test_id("start")).to_be_visible()
+    assert only_user(live).ai_opt_out is True
+
+    page.get_by_test_id("guest-pass").click()
+    du = page.get_by_test_id("guest-ai-opt-out").get_by_role("switch")
+    expect(du).to_be_checked()
+    page.get_by_test_id("guest-ai-opt-out").get_by_text("Keine Weitergabe an externe KI").click()
+    expect(du).not_to_be_checked()
+    expect(page.get_by_text("Deine Fotos dürfen wieder an die externe KI")).to_be_visible()
+    for _ in range(50):  # the PUT lands right after the switch flips
+        if not only_user(live).ai_opt_out:
+            break
+        page.wait_for_timeout(100)
+    assert only_user(live).ai_opt_out is False
+    assert page.js_errors == []  # type: ignore[attr-defined]
+
+
+def test_the_explanation_is_there_without_external_ai(page: Page, live: LiveServer):
+    page.goto(live.entry("/"))
+    sheet = page.get_by_test_id("join")
+    expect(page.get_by_test_id("ai-opt-out")).to_have_count(0)
+    sheet.get_by_role("button", name="Mehr dazu").click()
+    expect(sheet).to_contain_text("externen KI-Dienst (Anthropic, USA)")
+    assert page.js_errors == []  # type: ignore[attr-defined]
+
+
+def test_display_name_in_the_du_sheet(page: Page, live: LiveServer):
+    page.goto(live.entry("/"))
+    accept_consent_in_browser(page, instagram="e2e.fred")
+    expect(page.get_by_test_id("guest-pass")).to_contain_text("@e2e.fred")
+    page.get_by_test_id("guest-pass").click()
+    sheet = page.get_by_test_id("guest-sheet")
+    field = sheet.get_by_label("Anzeigename")
+    expect(field).to_have_attribute("placeholder", "@e2e.fred")
+    # reserved: said at the field
+    field.fill("Admin")
+    sheet.get_by_role("button", name="Name speichern").click()
+    expect(sheet.get_by_text("Dieser Name geht leider nicht.")).to_be_visible()
+    shot(page, "du-display-name-error-phone")
+    field.fill("  Party   Fred ")
+    sheet.get_by_role("button", name="Name speichern").click()
+    expect(page.get_by_test_id("guest-sheet")).to_have_count(0)
+    expect(page.get_by_test_id("guest-pass")).to_contain_text("Party Fred")
+    user = only_user(live)
+    assert user.display_name == "Party Fred" and user.shown_name == "Party Fred"
+    page.get_by_test_id("guest-pass").click()
+    shot(page, "du-sheet-phone")
+    assert errors_besides(page, "400 (Bad Request) @ http://127.0.0.1") == []
+
+
+def test_delete_my_own_photo(page: Page, live: LiveServer):
+    page.goto(live.entry("/"))
+    accept_consent_in_browser(page)
+    photo = upload(page, "beer")["photo"]
+    reload(page)
+    page.get_by_test_id(f"photo-{photo['id']}").click()
+    viewer = page.get_by_test_id("photo-viewer")
+    expect(viewer).to_be_visible()
+    viewer.get_by_test_id("photo-delete").click()
+    confirm = page.get_by_test_id("photo-delete-confirm")
+    expect(confirm).to_contain_text("Das lässt sich nicht rückgängig machen.")
+    shot(page, "photo-delete-confirm-phone")
+    confirm.get_by_role("button", name="Foto löschen").click()
+    expect(page.get_by_text("Foto gelöscht.")).to_be_visible()
+    expect(page.get_by_test_id("photo-viewer")).to_have_count(0)
+    expect(page.get_by_test_id(f"photo-{photo['id']}")).to_have_count(0)
+    gone = live.core.repos.photos.get(photo["id"], include_deleted=True)
+    assert gone is not None and gone.deleted
     assert page.js_errors == []  # type: ignore[attr-defined]
