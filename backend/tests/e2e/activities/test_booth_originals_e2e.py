@@ -8,13 +8,13 @@ from __future__ import annotations
 
 import io
 import zipfile
-from collections.abc import Iterator
+from collections.abc import Callable, Iterator
 
 import pytest
 from PIL import Image, ImageChops, ImageStat
-from playwright.sync_api import Browser, Page, expect
+from playwright.sync_api import Browser, BrowserContext, Page, expect
 
-from ..admin.conftest import DESKTOP_VIEWPORT, admin_context, goto, login_api
+from ..admin.conftest import DESKTOP_VIEWPORT, admin_context, goto, login_api, wait_until
 from ..conftest import LiveServer, track_errors
 from .conftest import READY, open_booth, photos, select_filter, shoot
 
@@ -26,15 +26,26 @@ def diff(a: Image.Image, b: Image.Image) -> float:
 
 
 @pytest.fixture
-def admin(browser: Browser, live: LiveServer) -> Iterator[Page]:
-    ctx = admin_context(browser, DESKTOP_VIEWPORT)
-    page = track_errors(ctx.new_page())
-    login_api(page, live)
-    yield page
-    ctx.close()
+def open_admin(browser: Browser, live: LiveServer) -> Iterator[Callable[[], Page]]:
+    """The admin's page, opened only when asked: a second context opened before the
+    shot keeps Firefox's fake camera from the booth."""
+    contexts: list[BrowserContext] = []
+
+    def open_() -> Page:
+        ctx = admin_context(browser, DESKTOP_VIEWPORT)
+        contexts.append(ctx)
+        page = track_errors(ctx.new_page())
+        login_api(page, live)
+        return page
+
+    yield open_
+    for ctx in contexts:
+        ctx.close()
 
 
-def test_thermal_shot_keeps_its_original(guest: Page, live: LiveServer, admin: Page):
+def test_thermal_shot_keeps_its_original(
+    guest: Page, live: LiveServer, open_admin: Callable[[], Page]
+):
     page = guest
     open_booth(page, live)
     select_filter(page, "thermal")
@@ -51,6 +62,7 @@ def test_thermal_shot_keeps_its_original(guest: Page, live: LiveServer, admin: P
     raw_bytes = repo.path("booth", photo.raw_filename).read_bytes()
 
     # the admin: filtered by default, „Filter zeigen“ shows the original
+    admin = open_admin()
     goto(admin, live, f"/admin/manage?photo={photo.public_id}")
     inspector = admin.get_by_test_id("inspector")
     img = inspector.get_by_test_id("inspector-img")
@@ -64,9 +76,8 @@ def test_thermal_shot_keeps_its_original(guest: Page, live: LiveServer, admin: P
     expect(img).to_have_attribute("data-variant", "raw")
     expect(img).to_have_attribute("src", f"/media/{photo.public_id}?variant=raw")
     expect(tile).to_have_attribute("src", f"/media/{photo.public_id}?variant=raw&thumb=1")
-    admin.wait_for_function(
-        "el => el.complete && el.naturalWidth === 1080", arg=img.element_handle()
-    )
+    # (polled from here: the CSP forbids wait_for_function's eval in Firefox)
+    wait_until(lambda: img.evaluate("el => el.complete && el.naturalWidth === 1080"))
     # both downloads are offered
     expect(inspector.get_by_test_id("download-original")).to_have_attribute(
         "href", f"/media/{photo.public_id}?variant=raw&download=1"
