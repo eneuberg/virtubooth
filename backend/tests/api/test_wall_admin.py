@@ -366,7 +366,18 @@ def test_photo_analysis_summaries_for_the_live_screen(settings, demo_extension):
             # the poller (a fresh hub from rev 0) announces the finished analysis
             from virtubooth.extensions.wall.hub import WallHub
 
-            WallHub(core, EnrichmentService.of(core))._poll_once()
+            hub = WallHub(core, EnrichmentService.of(core))
+            hub._poll_once()
+            assert ("photo.analyzed", {"ids": [done]}) in seen
+            # a detection run that lands later (AI, local stand-in) is announced too
+            seen.clear()
+            with core.db.tx() as c:
+                c.execute(
+                    "INSERT INTO photo_detection_runs (photo_id, source, state, created_at)"
+                    " VALUES (?, 'claude', 'done', '2026-10-16T10:00:00Z')",
+                    (core.db.one("SELECT id FROM photos WHERE public_id=?", (done,))[0],),
+                )
+            assert hub._poll_once()
             assert ("photo.analyzed", {"ids": [done]}) in seen
     finally:
         app.state.core.db.close()

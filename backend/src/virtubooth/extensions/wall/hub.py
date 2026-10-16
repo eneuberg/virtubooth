@@ -88,6 +88,9 @@ class WallHub:
         # (lifecycle switched one off) is announced like a new poll
         self._auto_off: tuple[int, str] | None = None
         self._categories_force = False
+        # rowid of the newest object-detection run seen (AI detection and the local
+        # stand-in finish after the analysis itself and don't bump its rev)
+        self.runs_seen = 0
 
     # ------------------------------------------------------------- lifecycle
 
@@ -323,6 +326,7 @@ class WallHub:
 
     def _catch_up(self) -> int:
         self.llm_poll = engine.last_poll(self.core.db)
+        self.runs_seen = self._last_run_rowid()
         rev = self.rev
         for _ in range(10_000):
             new, ids = self.enrichment.changes_since(rev)
@@ -330,6 +334,21 @@ class WallHub:
                 return new
             rev = new
         return rev
+
+    def _last_run_rowid(self) -> int:
+        row = self.core.db.one("SELECT COALESCE(MAX(rowid), 0) FROM photo_detection_runs")
+        return int(row[0]) if row else 0
+
+    def _runs_since(self) -> list[int]:
+        """Photos with a detection run recorded since the last poll."""
+        rows = self.core.db.all(
+            "SELECT rowid, photo_id FROM photo_detection_runs WHERE rowid > ? ORDER BY rowid",
+            (self.runs_seen,),
+        )
+        if not rows:
+            return []
+        self.runs_seen = int(rows[-1]["rowid"])
+        return sorted({int(r["photo_id"]) for r in rows})
 
     def _announce_analyzed(self, ids: list[int]) -> None:
         """Tell the admin screens (Live) which photos have a new analysis."""
@@ -357,8 +376,14 @@ class WallHub:
             self._auto_off = switched
         new, ids = self.enrichment.changes_since(self.rev)
         self.rev = new
+        later = self._runs_since()
+        if later:
+            # the object list grew after the analysis: refresh those tiles too
+            extra = sorted(set(later) - set(ids))
+            if extra:
+                self._announce_analyzed(extra)
         if not ids:
-            return new_poll
+            return new_poll or bool(later)
         self._announce_analyzed(ids)
         config = load_config(self.core.repos.app_settings)
         photos = visible_by_ids(self.core, config, ids)
