@@ -10,9 +10,12 @@ import { editable } from './draft';
 import type {
   AnalysisImage,
   AnalysisStatus,
+  CategoriesFile,
+  CategoryImportResult,
   CategoryItem,
   CategoryPreview,
   CategorySpec,
+  OnConflict,
   PasswordState,
   PhotoAnalysis,
   PhotoAnalysisSummary,
@@ -92,6 +95,19 @@ export async function orderCategories(ids: string[]): Promise<CategoryItem[]> {
 
 export function restorePresets(): Promise<{ added: string[] }> {
   return wallFetch('/categories/restore-presets', { method: 'POST' });
+}
+
+/** „Exportieren“: these categories (none = all) with the properties they read. */
+export function exportCategories(ids: readonly string[] = []): Promise<CategoriesFile> {
+  const q = new URLSearchParams();
+  for (const id of ids) q.append('ids', id);
+  const query = q.toString();
+  return wallFetch(`/categories/export${query ? `?${query}` : ''}`);
+}
+
+/** „Importieren“ of a categories file (also v1); `replace`: an existing id is overwritten. */
+export function importCategories(file: unknown, onConflict: OnConflict): Promise<CategoryImportResult> {
+  return wallFetch('/categories/import', { method: 'POST', json: { file, on_conflict: onConflict } });
 }
 
 /** `specJson`: the spec as JSON text (the editor debounces on it). */

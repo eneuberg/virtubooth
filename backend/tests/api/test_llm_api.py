@@ -129,6 +129,40 @@ def test_status_shape(admin):
     assert body["usage"]["party"]["calls"] == 0 and body["usage"]["blocked"] is False
 
 
+def test_verdict_options_with_a_price_per_comment(admin):
+    from virtubooth.extensions.wall.llm import pricing, prompts
+
+    verdict = admin.get(BASE).json()["verdict"]
+    assert verdict["system_prompt"] == prompts.VERDICT_SYSTEM
+    assert "{title}" in verdict["default_prompt"] and verdict["max_chars"] == 160
+    assert verdict["default_model"] == "claude-haiku-5-5" and verdict["thinking"] is True
+    # Haiku and Sonnet class only (no Opus), cheapest first
+    models = {m["id"]: m for m in verdict["models"]}
+    assert list(models) == ["claude-haiku-5-5", "claude-sonnet-5-5"]
+    assert [m["tier"] for m in verdict["models"]] == ["small", "mid"]
+    haiku = {e["effort"]: e for e in models["claude-haiku-5-5"]["efforts"]}
+    sonnet = {e["effort"]: e for e in models["claude-sonnet-5-5"]["efforts"]}
+    # the formula in pricing.py, from the measured token counts
+    tokens_in, tokens_out = pricing.verdict_tokens("low")
+    assert (haiku["low"]["input_tokens"], haiku["low"]["output_tokens"]) == (tokens_in, tokens_out)
+    assert haiku["low"]["usd_per_comment"] == pytest.approx(
+        (tokens_in * 0.10 + tokens_out * 0.50) / 1e6, abs=1e-6
+    )
+    assert haiku["low"]["measured"] is True and haiku["high"]["measured"] is False
+    assert (
+        haiku["low"]["usd_per_comment"]
+        < haiku["medium"]["usd_per_comment"]
+        < (haiku["high"]["usd_per_comment"])
+    )
+    assert sonnet["low"]["usd_per_comment"] > 10 * haiku["low"]["usd_per_comment"]
+    # a provider without thinking: the effort changes nothing
+    r = admin.put(f"{BASE}/config", json={"provider": "mistral"}, headers=ORIGIN)
+    verdict = r.json()["verdict"]
+    assert verdict["thinking"] is False and verdict["default_model"] == "mistral-small-2506"
+    small = {e["effort"]: e["usd_per_comment"] for e in verdict["models"][0]["efforts"]}
+    assert small["low"] == small["high"] > 0
+
+
 def test_key_test(admin, core, anthropic_api):
     r = admin.post(f"{BASE}/key/test", headers=ORIGIN)
     assert r.status_code == 400 and r.json()["error"] == "llm_not_configured"

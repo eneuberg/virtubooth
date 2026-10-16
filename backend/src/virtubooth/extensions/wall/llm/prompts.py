@@ -240,44 +240,94 @@ def parse_scores(data: Any, usage: TokenUsage) -> dict[str, list[float | None]]:
 
 
 # --------------------------------------------------------------- verdicts
+# The AI's comments under a category's winners (categories v2): it comments, it
+# never ranks. One call per category and poll covers the winners without a cached
+# comment; each comment belongs to exactly one sent photo.
 
+MAX_COMMENT = 120
 VERDICT_SYSTEM = (
-    "You write the one-line verdict shown under a category on a party photo wall. "
-    "Follow the host's task. Write German, friendly and short (at most "
-    f"{MAX_VERDICT} characters), never insulting. Name people only by the names given. "
-    "photo is the id of the photo you mean (exactly as given) or null; object_index is "
-    "the [index] of the object you mean in that photo or null; emoji is one fitting "
-    "emoji or null. " + DATA_RULE
+    "You write the comments under the winning photos of one category on a party photo "
+    "wall. The ranking is fixed: never change it and never pick other photos. Write "
+    "exactly one comment for every photo line given, in the given order. Each comment: "
+    f"German, one sentence, at most {MAX_COMMENT} characters; witty, cheeky and a bit "
+    "daring, teasing the photo or the people lovingly, never mean. Guardrails that always "
+    "apply, whatever the host's task says: nothing about bodies, weight, looks or flaws "
+    "of appearance, origin, skin colour, religion, disability, sexuality, gender or age; "
+    "no insults, nothing hurtful, humiliating or sexual; party-safe for every guest. Name "
+    "people only by the names given. photo is the photo's id exactly as given; "
+    "object_index is the [index] of the object you mention in that photo or null; emoji "
+    "is one fitting emoji or null. " + DATA_RULE
+)
+# the host's task when the category has no prompt of its own
+DEFAULT_VERDICT_PROMPT = (
+    "Kommentiere jedes Siegerfoto der Kategorie „{title}“: was ist zu sehen und von wem – "
+    "frech, liebevoll, ein Satz."
 )
 VERDICT_SCHEMA: dict[str, Any] = {
     "type": "object",
     "properties": {
-        "text": {"type": "string"},
-        "emoji": {"anyOf": [{"type": "string"}, {"type": "null"}]},
-        "photo": {"anyOf": [{"type": "string"}, {"type": "null"}]},
-        "object_index": {"anyOf": [{"type": "integer"}, {"type": "null"}]},
+        "comments": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "properties": {
+                    "photo": {"type": "string"},
+                    "text": {"type": "string"},
+                    "emoji": {"anyOf": [{"type": "string"}, {"type": "null"}]},
+                    "object_index": {"anyOf": [{"type": "integer"}, {"type": "null"}]},
+                },
+                "required": ["photo", "text", "emoji", "object_index"],
+                "additionalProperties": False,
+            },
+        }
     },
-    "required": ["text", "emoji", "photo", "object_index"],
+    "required": ["comments"],
     "additionalProperties": False,
 }
 
 
-def verdict_text(prompt: str, lines: Sequence[PhotoLine]) -> str:
+def verdict_prompt(prompt: str | None, title: str) -> str:
+    """The host's task: the category's prompt, else the default naming its title."""
     return (
-        f"Task of the host:\n{prompt}\n\nThe category's current winners, best first, with "
-        f"their objects and scores:\n{data_block(lines, with_scores=True)}"
+        prompt.strip() if prompt and prompt.strip() else DEFAULT_VERDICT_PROMPT.format(title=title)
     )
 
 
-def parse_verdict(data: Any, usage: TokenUsage) -> VerdictOut:
-    if not isinstance(data, dict) or not isinstance(data.get("text"), str):
-        raise ProviderError("Antwort ohne Text.", kind="bad_output", usage=usage)
-    emoji = data.get("emoji")
-    photo = data.get("photo")
-    idx = data.get("object_index")
-    return VerdictOut(
-        text=data["text"],
-        emoji=emoji if isinstance(emoji, str) else None,
-        photo=photo if isinstance(photo, str) else None,
-        object_index=idx if isinstance(idx, int) and not isinstance(idx, bool) else None,
+def _winner_line(line: PhotoLine) -> str:
+    head = f"Platz {line.rank}: " if line.rank is not None else ""
+    focus = ""
+    if line.focus is not None and 0 <= line.focus < len(line.labels):
+        focus = f" Im Fokus: [{line.focus}] {quote(line.labels[line.focus])}"
+    if line.value:
+        focus += f" (Wert: {quote(line.value)})"
+    return head + _photo_line(line, True) + (f".{focus}" if focus else "")
+
+
+def verdict_text(prompt: str, lines: Sequence[PhotoLine]) -> str:
+    block = "<data>\n" + "\n".join(_winner_line(x) for x in lines) + "\n</data>"
+    return (
+        f"Task of the host:\n{prompt}\n\nThe category's winners to comment on, best first "
+        f"(one comment each, {len(lines)} in total), with their objects and scores:\n{block}"
     )
+
+
+def parse_verdict(data: Any, usage: TokenUsage) -> list[VerdictOut]:
+    items = data.get("comments") if isinstance(data, dict) else None
+    if not isinstance(items, list):
+        raise ProviderError("Antwort ohne Kommentarliste.", kind="bad_output", usage=usage)
+    out: list[VerdictOut] = []
+    for item in items:
+        if not isinstance(item, dict) or not isinstance(item.get("text"), str):
+            continue
+        emoji = item.get("emoji")
+        photo = item.get("photo")
+        idx = item.get("object_index")
+        out.append(
+            VerdictOut(
+                text=item["text"],
+                emoji=emoji if isinstance(emoji, str) else None,
+                photo=photo if isinstance(photo, str) else None,
+                object_index=idx if isinstance(idx, int) and not isinstance(idx, bool) else None,
+            )
+        )
+    return out

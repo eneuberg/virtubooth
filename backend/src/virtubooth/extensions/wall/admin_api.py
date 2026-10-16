@@ -8,8 +8,9 @@ list, create, change, delete, reorder, restore the presets, preview.
 # no `from __future__ import annotations`: FastAPI must resolve the routes'
 # annotations, and some name dependencies local to build_router()
 
+import dataclasses
 import re
-from collections.abc import Collection
+from collections.abc import Collection, Mapping
 from typing import Annotated, Any
 
 from fastapi import APIRouter, Depends, Query, Request
@@ -29,12 +30,16 @@ from .config import (
     parse_settings,
     store_config,
 )
-from .enrich import engine, jobs, objects, presets, values
-from .enrich.engine import InvalidCategory, PhotoFilter, Winner
+from .enrich import engine, jobs, lifecycle, objects, presets, transfer, values
+from .enrich.engine import Comment, InvalidCategory, PhotoFilter, Winner
 from .enrich.schemas import (
     AnalysisSummariesOut,
+    CategoriesFile,
     CategoriesOut,
+    CategoryCommentOut,
+    CategoryImportOut,
     CategoryItem,
+    CategoryLockOut,
     CategoryOrderIn,
     CategoryPreviewOut,
     CategorySpec,
@@ -48,6 +53,7 @@ from .enrich.schemas import (
     RestoreOut,
     SummaryBox,
     SummaryObject,
+    WinnerObject,
 )
 from .enrich.values import ValuesOut
 from .enrichment import BoardEntry, board
@@ -87,7 +93,10 @@ async def json_body(request: Request) -> Any:
 
 
 _CATEGORY_ID = re.compile(CATEGORY_ID_PATTERN)
-_SPEC_REF = {"$ref": "#/components/schemas/CategorySpec"}
+# a v2 spec (a v1 spec, deprecated, is still taken and converted)
+_SPEC_REF = {
+    "$ref": "#/components/schemas/CategorySpec",
+}
 
 
 def _body(properties: dict[str, Any], required: list[str]) -> dict[str, Any]:
@@ -103,6 +112,11 @@ _CREATE_BODY = _body(
 )  # fmt: skip
 _PUT_BODY = _body({"spec": _SPEC_REF, "enabled": {"type": "boolean"}}, ["spec", "enabled"])
 _PREVIEW_BODY = _body({"spec": _SPEC_REF}, ["spec"])
+_IMPORT_BODY = _body(
+    {"file": {"type": "object", "description": "A categories file („Exportieren“; v1 too)."},
+     "on_conflict": {"type": "string", "enum": ["copy", "replace"], "default": "copy"}},
+    ["file"],
+)  # fmt: skip
 
 
 # the category editor's input for a field the engine names in German (the
@@ -112,20 +126,34 @@ _FORM_FIELDS = (
     ("Emoji", "emoji"),
     ("Untertitel", "line"),
     ("Titel", "title"),
+    ("Bedingung", "pool"),
+    ("Rang: danach", "rank.then_by"),
+    ("Rang: Schwelle", "rank.threshold"),
+    ("Rang", "rank.by"),
+    ("Anzahl", "count"),
+    ("Ein Foto pro Gast", "one_per_guest"),
+    ("Beschriftung: Wert", "caption.value"),
+    ("Beschriftung: Einzahl", "one"),
+    ("Beschriftung: Mehrzahl", "many"),
+    ("Beschriftung: Objekt", "caption.show_object"),
+    ("Beschriftung", "caption"),
+    ("KI-Urteil", "verdict"),
+)
+# v1 field names (a v1 spec is validated as v1 first): the v1 editor's form keys
+_FORM_FIELDS_V1 = (
     ("Bedingung", "where"),
     ("Auswahl: danach", "then_by"),
     ("Auswahl", "by"),
-    ("Anzahl", "count"),
     ("Beschriftung: Wert", "label.value"),
-    ("Beschriftung: Einzahl", "one"),
-    ("Beschriftung: Mehrzahl", "many"),
     ("Urteil", "verdict"),
 )
 
 
-def invalid_category(field: str) -> errors.ApiError:
-    """400 naming the field in German, plus its form key in `field`."""
-    key = next((k for prefix, k in _FORM_FIELDS if field.startswith(prefix)), None)
+def invalid_category(field: str, version: int = 2) -> errors.ApiError:
+    """400 naming the field in German, plus its form key in `field` (the v1
+    editor's keys for a v1 spec)."""
+    fields = (*_FORM_FIELDS_V1, *_FORM_FIELDS) if version == 1 else _FORM_FIELDS
+    key = next((k for prefix, k in fields if field.startswith(prefix)), None)
     return errors.ApiError(400, "invalid_category", f"Ungültige Kategorie: {field}.", field=key)
 
 
@@ -133,7 +161,35 @@ def parse_spec(raw: Any) -> dict[str, Any]:
     try:
         return engine.validate(raw)
     except InvalidCategory as exc:
-        raise invalid_category(exc.field) from None
+        raise invalid_category(exc.field, exc.version) from None
+
+
+def ai_ready(core: Core) -> bool:
+    from .llm.service import LlmService
+
+    return LlmService.of(core).ai_ready()
+
+
+def lock_out(lock: lifecycle.Lock | None) -> CategoryLockOut | None:
+    if lock is None:
+        return None
+    return CategoryLockOut(reason=lock.reason, property=lock.detail, message=lock.text)
+
+
+def category_locked(lock: lifecycle.Lock) -> errors.ApiError:
+    return errors.ApiError(
+        409, "category_locked", f"Diese Kategorie lässt sich gerade nicht einschalten: {lock.text}"
+    )
+
+
+def after_change(core: Core) -> None:
+    """After a category change: switch off what is locked, and the poll looks
+    again (a newly read property is polled from its next run)."""
+    from .llm.service import LlmService
+
+    svc = LlmService.of(core)
+    lifecycle.reconcile(core.db, svc.ai_ready())
+    svc.changed()
 
 
 def category_infos(core: Core, hub: WallHub, config: WallConfig) -> list[WallCategoryInfo]:
@@ -159,23 +215,34 @@ def category_infos(core: Core, hub: WallHub, config: WallConfig) -> list[WallCat
     return out
 
 
+def _winner_object(w: Winner) -> WinnerObject | None:
+    o = w.object
+    if o is None:
+        return None
+    return WinnerObject(idx=o.idx, label=o.label, label_de=o.label_de, value=o.value,
+                        box=_object_box(o.box))  # fmt: skip
+
+
 def winners_out(
-    core: Core, config: WallConfig, winners: list[Winner], photos: dict[int, Any] | None = None
-) -> list[CategoryWinnerOut]:
+    core: Core, config: WallConfig, winners: list[Winner], photos: dict[int, Any] | None = None,
+    comments: Mapping[int, Comment] | None = None,
+) -> list[CategoryWinnerOut]:  # fmt: skip
     photos = photos if photos is not None else visible_by_ids(
         core, config, [w.photo_id for w in winners]
     )  # fmt: skip
-    return [
-        CategoryWinnerOut(
-            photo_id=photos[w.photo_id].public_id,
-            thumb_url=photos[w.photo_id].thumb_url,
-            value=w.value,
-            label=w.label,
-            object_idx=w.object_idx,
-        )
-        for w in winners
-        if w.photo_id in photos
-    ]
+    comments = comments or {}
+    out: list[CategoryWinnerOut] = []
+    for w in winners:
+        if w.photo_id not in photos:
+            continue
+        c = comments.get(w.photo_id)
+        out.append(CategoryWinnerOut(
+            photo_id=photos[w.photo_id].public_id, thumb_url=photos[w.photo_id].thumb_url,
+            value=w.value, label=w.label, headline=w.headline, detail=w.detail,
+            object_idx=w.object_idx, object=_winner_object(w),
+            comment=CategoryCommentOut(text=c.text, emoji=c.emoji) if c else None,
+        ))  # fmt: skip
+    return out
 
 
 def category_items(core: Core, hub: WallHub, config: WallConfig,
@@ -183,22 +250,32 @@ def category_items(core: Core, hub: WallHub, config: WallConfig,
     entries = board(core, hub.enrichment.active_analyzers(), photo_filter(core, config),
                     enabled_only=False, ids=ids)  # fmt: skip
     wanted = [w.photo_id for e in entries for w in e.winners]
-    wanted += [e.verdict.photo_id for e in entries if e.verdict and e.verdict.photo_id]
     photos = visible_by_ids(core, config, list(dict.fromkeys(wanted)))
-    return [_item(core, config, e, photos) for e in entries]
+    ready = ai_ready(core)
+    props = lifecycle.property_states(core.db)
+    return [_item(core, config, e, photos, ready, props) for e in entries]
 
 
-def _item(core: Core, config: WallConfig, e: BoardEntry, photos: dict[int, Any]) -> CategoryItem:
+def _item(core: Core, config: WallConfig, e: BoardEntry, photos: dict[int, Any], ready: bool,
+          props: Mapping[str, bool]) -> CategoryItem:  # fmt: skip
     cat = e.category
-    verdict = None
-    if e.verdict is not None:
-        shown = photos.get(e.verdict.photo_id) if e.verdict.photo_id else None
-        verdict = CategoryVerdictOut(text=e.verdict.text, emoji=e.verdict.emoji,
-                                     photo_id=shown.public_id if shown else None)  # fmt: skip
+    names = lifecycle.references(cat.spec)
+    winners = winners_out(core, config, e.winners, photos, e.comments)
+    first = next((w for w in winners if w.comment is not None), None)
+    verdict = (
+        CategoryVerdictOut(text=first.comment.text, emoji=first.comment.emoji,
+                           photo_id=first.photo_id)
+        if first is not None and first.comment is not None else None
+    )  # fmt: skip
     return CategoryItem(
         id=cat.id, enabled=cat.enabled, preset=cat.preset, position=cat.position,
-        spec=CategorySpec.model_validate(cat.spec), available=e.reason is None, reason=e.reason,
-        verdict=verdict, winners=winners_out(core, config, e.winners, photos),
+        spec=CategorySpec.model_validate(cat.spec),
+        explanation=engine.explain(cat.spec), needs_ai=bool(names), properties=names,
+        locked=lock_out(lifecycle.lock_of(cat.spec, props, ready)),
+        off_reason=cat.off_reason, off_detail=cat.off_detail,  # type: ignore[arg-type]
+        off_at=cat.off_at, available=e.reason is None, reason=e.reason,
+        verdict_paused=bool(cat.spec.get("verdict")) and not ready,
+        verdict=verdict, winners=winners,
     )  # fmt: skip
 
 
@@ -259,14 +336,16 @@ def analysis_summaries(core: Core, hub: WallHub, public_ids: list[str]) -> Analy
                     enabled_only=True)  # fmt: skip
     for e in entries:
         spec = e.category.spec
-        win = CategoryWin(id=e.category.id, emoji=spec["emoji"], title=spec["title"], verdict=False)
-        for w in e.winners:
+        for rank, w in enumerate(e.winners, start=1):
             if w.photo_id in wanted:
-                wins.setdefault(w.photo_id, []).append(win)
-        if e.verdict and e.verdict.photo_id in wanted:
-            pid = e.verdict.photo_id
-            if not any(x.id == win.id for x in wins.get(pid, [])):
-                wins.setdefault(pid, []).append(win.model_copy(update={"verdict": True}))
+                c = e.comments.get(w.photo_id)
+                wins.setdefault(w.photo_id, []).append(CategoryWin(
+                    id=e.category.id, emoji=spec["emoji"], title=spec["title"],
+                    verdict=c is not None, rank=rank, headline=w.headline, detail=w.detail,
+                    object_label=w.object.label_de if w.object is not None else None,
+                    comment=CategoryCommentOut(text=c.text, emoji=c.emoji) if c else None,
+                ))  # fmt: skip
+    off = objects.detection_off(db, internal)
     items: list[PhotoAnalysisSummary] = []
     for public_id in ids:
         r = by_public.get(public_id)
@@ -298,6 +377,7 @@ def analysis_summaries(core: Core, hub: WallHub, public_ids: list[str]) -> Analy
                 opt_out=OptOutState(
                     analysis=bool(r["analysis_opt_out"]), external_ai=bool(r["ai_opt_out"])
                 ),
+                objects_off=pid in off and not found.get(pid),
                 wins=wins.get(pid, []),
             )
         )
@@ -498,7 +578,10 @@ def build_router(wall: Wall) -> APIRouter:
     def create_category(
         core: CoreDep, hub: HubDep, admin: AdminDep, body: Annotated[Any, Depends(json_body)]
     ) -> CategoryItem:
-        """A new category (at the end). 409 `category_exists`, 400 `invalid_category`."""
+        """A new category (at the end). A category that cannot be switched on
+        right now (`locked`: a property missing or in the Papierkorb, the AI not
+        ready) is stored switched off with that reason. 409 `category_exists`,
+        400 `invalid_category`."""
         if not isinstance(body, dict):
             raise invalid_category("Kategorie")
         cid = body.get("id")
@@ -509,12 +592,20 @@ def build_router(wall: Wall) -> APIRouter:
             raise invalid_category("Eingeschaltet")
         spec = parse_spec(body.get("spec"))
         presets.ensure_seeded(core.db, core.repos.app_settings)
+        lock = lifecycle.lock_of(spec, lifecycle.property_states(core.db), ai_ready(core))
         with core.db.tx():
             if engine.get(core.db, cid) is not None:
                 raise errors.ApiError(409, "category_exists", "Diese Kennung gibt es schon.")
-            engine.insert(core.db, cid, spec, enabled=enabled, preset=None, by=admin.actor)
+            if enabled and lock is None:
+                presets.ensure_properties(core.db, spec, by=admin.actor)
+            if enabled and lock is not None:
+                engine.insert(core.db, cid, spec, enabled=False, preset=None, by=admin.actor,
+                              off_reason=lock.reason, off_detail=lock.detail)  # fmt: skip
+            else:
+                engine.insert(core.db, cid, spec, enabled=enabled, preset=None, by=admin.actor)
             audit(core, admin.actor, cid, "create")
             announce_categories(hub)
+        after_change(core)
         return one_item(core, hub, cid)
 
     @router.put("/categories/order")
@@ -534,7 +625,9 @@ def build_router(wall: Wall) -> APIRouter:
 
     @router.post("/categories/restore-presets")
     def restore_presets(core: CoreDep, hub: HubDep, admin: AdminDep) -> RestoreOut:
-        """„Vorlagen wiederherstellen“: add the presets that were deleted."""
+        """„Vorlagen wiederherstellen“: add the presets that were deleted (with
+        their default on/off) and the properties they need (nothing is polled
+        for them until such a category is switched on)."""
         presets.ensure_seeded(core.db, core.repos.app_settings)
         with core.db.tx():
             added = presets.restore(core.db, by=admin.actor)
@@ -543,11 +636,65 @@ def build_router(wall: Wall) -> APIRouter:
                 announce_categories(hub)
         return RestoreOut(added=added)
 
+    @router.get("/categories/export")
+    def export_categories(
+        core: CoreDep,
+        ids: Annotated[
+            list[str] | None,
+            Query(description="Category ids (repeat the parameter); none = every category."),
+        ] = None,
+    ) -> CategoriesFile:
+        """„Exportieren“: the categories (position order) with the properties they
+        read (name and prompt), as a file for „Importieren“."""
+        presets.ensure_seeded(core.db, core.repos.app_settings)
+        return CategoriesFile.model_validate(transfer.export(core.db, ids or []))
+
+    @router.post("/categories/import", openapi_extra=_IMPORT_BODY)
+    def import_categories(
+        core: CoreDep, hub: HubDep, admin: AdminDep, body: Annotated[Any, Depends(json_body)]
+    ) -> CategoryImportOut:
+        """„Importieren“ of a categories file (version 2, or 1: converted).
+        `on_conflict`: an id that exists is taken as a copy under a free id
+        (`copy`, the default) or overwrites it (`replace`). A property a
+        category reads is created from the file when it does not exist; one
+        that exists keeps its prompt (`prompt_conflicts`). A category the file
+        has on that cannot be switched on right now is imported off with the
+        reason; one whose property is missing everywhere is off with
+        `property_missing`. 400 `invalid_import` for a file that is not one."""
+        from .llm import properties as llm_properties
+
+        if not isinstance(body, dict):
+            raise errors.bad_request("Ungültiger Import.", "invalid_import")
+        on_conflict = body.get("on_conflict", "copy")
+        if on_conflict not in ("copy", "replace"):
+            raise errors.bad_request("on_conflict: copy oder replace.", "invalid_import")
+        presets.ensure_seeded(core.db, core.repos.app_settings)
+
+        def create_property(name: str, prompt: str) -> None:
+            llm_properties.create(core.db, core.repos.audit, name, prompt, actor=admin.actor)
+
+        try:
+            with core.db.tx():
+                result = transfer.run_import(
+                    core.db, body.get("file"), on_conflict, ai_ready=ai_ready(core),
+                    by=admin.actor, create_property=create_property,
+                )  # fmt: skip
+                if result.imported:
+                    core.repos.audit.log(admin.actor, "wall.category", "",
+                                         {"action": "import", **transfer.summary(result)},
+                                         at=now_iso())  # fmt: skip
+                    announce_categories(hub)
+        except transfer.InvalidFile as exc:
+            raise errors.bad_request(str(exc), "invalid_import") from None
+        after_change(core)
+        return CategoryImportOut.model_validate(dataclasses.asdict(result))
+
     @router.post("/categories/preview", openapi_extra=_PREVIEW_BODY)
     def preview_category(
         core: CoreDep, hub: HubDep, body: Annotated[Any, Depends(json_body)]
     ) -> CategoryPreviewOut:
-        """What a spec would pick right now (nothing is stored)."""
+        """What a spec would pick right now (nothing is stored), with the
+        stored scores also while the AI is off („Werte vom letzten Poll“)."""
         if not isinstance(body, dict):
             raise invalid_category("Kategorie")
         spec = parse_spec(body.get("spec"))
@@ -556,15 +703,24 @@ def build_router(wall: Wall) -> APIRouter:
         result = engine.run(core, spec, flt)
         props, external = engine.availability_context(core.db)
         reason = engine.spec_availability(spec, hub.enrichment.active_analyzers(), props, external)
-        return CategoryPreviewOut(winners=winners_out(core, config, result.winners),
-                                  matched=result.matched, reason=reason)  # fmt: skip
+        lock = lifecycle.lock_of(spec, lifecycle.property_states(core.db), ai_ready(core))
+        return CategoryPreviewOut(
+            winners=winners_out(core, config, result.winners), matched=result.matched,
+            reason=reason, explanation=engine.explain(spec),
+            spec=CategorySpec.model_validate(spec), locked=lock_out(lock),
+        )  # fmt: skip
 
-    @router.put("/categories/{cid}", openapi_extra=_PUT_BODY)
+    @router.put("/categories/{cid}", openapi_extra=_PUT_BODY, responses=error_responses(409))
     def put_category(
         cid: str, core: CoreDep, hub: HubDep, admin: AdminDep,
         body: Annotated[Any, Depends(json_body)],
     ) -> CategoryItem:  # fmt: skip
-        """Change a category's spec and on/off switch (presets too)."""
+        """Change a category's spec and on/off switch (presets too). 409
+        `category_locked` when it is to be on but cannot be (a property it reads
+        is missing or in the Papierkorb, or the external AI is not ready): it can
+        be saved switched off. Switching on creates the preset properties it reads
+        that do not exist yet. A changed verdict prompt, model or effort drops its
+        cached comments."""
         if engine.get(core.db, cid) is None:
             raise errors.not_found("Kategorie nicht gefunden.")
         if not isinstance(body, dict):
@@ -573,11 +729,18 @@ def build_router(wall: Wall) -> APIRouter:
         if not isinstance(enabled, bool):
             raise invalid_category("Eingeschaltet")
         spec = parse_spec(body.get("spec"))
+        if enabled:
+            lock = lifecycle.lock_of(spec, lifecycle.property_states(core.db), ai_ready(core))
+            if lock is not None:
+                raise category_locked(lock)
         with core.db.tx():
+            if enabled:
+                presets.ensure_properties(core.db, spec, by=admin.actor)
             if not engine.update(core.db, cid, spec, enabled=enabled, by=admin.actor):
                 raise errors.not_found("Kategorie nicht gefunden.")
             audit(core, admin.actor, cid, "update")
             announce_categories(hub)
+        after_change(core)
         return one_item(core, hub, cid)
 
     @router.delete("/categories/{cid}")

@@ -1,20 +1,20 @@
 """Properties („Eigenschaften“, PLAN-NIGHT N7): a name and a prompt the poll
 rates every object with. Name and prompt never change (DB trigger).
 
-Two independent states (migration 17):
-- `inactive_at` (the switch „aktiv“): an inactive property is not polled any
-  more; its scores stay and stay visible on photos and in categories.
-- `deleted_at` (the „Papierkorb“): not polled either, hidden from the list and
-  from the category value pickers, scores kept; „Wiederherstellen“ brings it
-  back as it was (the switch keeps its state). Only a property in the trash can
-  be deleted for good (`purge`): the row and its scores go, but never while a
-  category still uses it.
+There is no switch (categories v2, migration 18): a property is polled while it
+is not in the Papierkorb, the external AI is ready and an enabled category reads
+it (`polled`, enrich/lifecycle.py); its status is derived from that.
+`deleted_at` (the „Papierkorb“): not polled, hidden from the list and from the
+category editor, scores kept; trashing it switches the enabled categories that
+read it off (`property_trashed`); „Wiederherstellen“ brings it back (those
+categories stay off until the host switches them on). Only a property in the
+trash can be deleted for good (`purge`): the row and its scores go, but never
+while a category still reads it.
 
 A name stays taken (also in the trash) until the property is deleted for good."""
 
 from __future__ import annotations
 
-import json
 import re
 from dataclasses import dataclass
 from typing import Any
@@ -34,19 +34,9 @@ class Property:
     name: str
     prompt: str
     created_at: str
-    inactive_at: str | None
     deleted_at: str | None
     scored_photos: int
     last_scored_at: str | None
-
-    @property
-    def active(self) -> bool:
-        """The switch „aktiv“ (a property in the trash keeps its switch state)."""
-        return self.inactive_at is None
-
-    @property
-    def polled(self) -> bool:
-        return self.inactive_at is None and self.deleted_at is None
 
 
 _SELECT = (
@@ -62,7 +52,6 @@ def _row(r: Any) -> Property:
         name=r["name"],
         prompt=r["prompt"],
         created_at=r["created_at"],
-        inactive_at=r["inactive_at"],
         deleted_at=r["deleted_at"],
         scored_photos=r["n"],
         last_scored_at=r["last"],
@@ -70,24 +59,18 @@ def _row(r: Any) -> Property:
 
 
 def list_all(db: Database) -> list[Property]:
-    """Everything, the trash included: active ones first, then inactive ones,
-    then the trash; each group oldest first."""
-    return [
-        _row(r)
-        for r in db.all(
-            f"{_SELECT} ORDER BY lp.deleted_at IS NOT NULL, lp.inactive_at IS NOT NULL, lp.id"
-        )
-    ]
+    """Everything, the trash included: the others first, then the trash; each
+    group oldest first."""
+    return [_row(r) for r in db.all(f"{_SELECT} ORDER BY lp.deleted_at IS NOT NULL, lp.id")]
 
 
-def active(db: Database) -> list[Property]:
-    """The ones the poll asks about (switched on, not in the trash)."""
-    return [
-        _row(r)
-        for r in db.all(
-            f"{_SELECT} WHERE lp.inactive_at IS NULL AND lp.deleted_at IS NULL ORDER BY lp.id"
-        )
-    ]
+def polled(db: Database, ai_ready: bool = True) -> list[Property]:
+    """The ones the poll asks about: not in the trash, the AI ready (the poller
+    checks that itself), read by an enabled category; oldest first."""
+    from ..enrich import lifecycle
+
+    names = set(lifecycle.polled_names(db, ai_ready))
+    return [p for p in list_all(db) if p.name in names]
 
 
 def get(db: Database, name: str) -> Property | None:
@@ -119,7 +102,7 @@ def create(db: Database, audit: AuditRepo, name: str, prompt: str, *, actor: str
                 "Diese Eigenschaft liegt im Papierkorb: dort wiederherstellen oder endgültig "
                 "löschen, dann ist der Name wieder frei."
                 if row["deleted_at"] is not None
-                else "Diese Eigenschaft gibt es schon (auch inaktive zählen).",
+                else "Diese Eigenschaft gibt es schon.",
             )
         c.execute(
             "INSERT INTO llm_properties (name, prompt, created_at, created_by) VALUES (?,?,?,?)",
@@ -150,37 +133,31 @@ def _toggle(
     return get(db, name)
 
 
-def set_active(
-    db: Database, audit: AuditRepo, name: str, active: bool, *, actor: str
-) -> Property | None:
-    """The switch „aktiv“. None: no such property."""
-    return _toggle(db, audit, name, "inactive_at", not active,
-                   ("llm.property.deactivate", "llm.property.activate"), actor=actor)  # fmt: skip
-
-
 def set_trashed(
     db: Database, audit: AuditRepo, name: str, trashed: bool, *, actor: str
 ) -> Property | None:
     """„Löschen“ (into the Papierkorb) and „Wiederherstellen“ (back as it was).
-    None: no such property."""
-    return _toggle(db, audit, name, "deleted_at", trashed,
-                   ("llm.property.trash", "llm.property.restore"), actor=actor)  # fmt: skip
+    Trashing switches the enabled categories that read it off
+    (`property_trashed`, same transaction). None: no such property."""
+    from ..enrich import lifecycle
+
+    with db.tx():
+        found = _toggle(db, audit, name, "deleted_at", trashed,
+                        ("llm.property.trash", "llm.property.restore"), actor=actor)  # fmt: skip
+        if found is not None and trashed:
+            lifecycle.reconcile(db, ai_ready=True)
+    return found
 
 
 def using_categories(db: Database, name: str) -> list[tuple[str, str]]:
-    """(id, title) of the categories whose spec uses the property anywhere
-    (conditions, ranking, label), enabled or not."""
-    from .verdicts import referenced_properties  # verdicts imports the poller, which imports us
+    """(id, title) of the categories whose spec reads the property anywhere
+    (pool, ranking, caption), enabled or not."""
+    from ..enrich import lifecycle
 
     out: list[tuple[str, str]] = []
-    for r in db.all("SELECT id, spec FROM wall_categories ORDER BY position, id"):
-        try:
-            spec = json.loads(r["spec"])
-        except ValueError:
-            continue
-        if isinstance(spec, dict) and name in referenced_properties(spec):
-            title = spec.get("title")
-            out.append((r["id"], title if isinstance(title, str) and title else r["id"]))
+    for cat in lifecycle.users_of(db, name):
+        title = cat.spec.get("title")
+        out.append((cat.id, title if isinstance(title, str) and title else cat.id))
     return out
 
 

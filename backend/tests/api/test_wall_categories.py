@@ -1,6 +1,8 @@
-"""The wall's rule-based categories (PLAN-NIGHT §4.3): CRUD, order, presets,
-preview, audit, the screen's categories with verdicts, opt-outs, seeding
-from the old config, and the hub's `categories.changed` after an LLM poll."""
+"""The wall's rule-based categories (PLAN-NIGHT §4.3, categories v2): CRUD (v2
+specs; a v1 spec is converted), order, presets, preview, audit, locks (409
+`category_locked`, the AI switched off switches its categories off), the
+screen's categories with focus objects and comments, opt-outs, seeding from
+the old config, and the hub's `categories.changed` after an LLM poll."""
 
 from __future__ import annotations
 
@@ -80,14 +82,25 @@ def test_admin_only(client):
 def test_presets_are_seeded_once(admin, core):
     body = admin.get(BASE).json()["categories"]
     assert [c["id"] for c in body] == PRESET_IDS
-    assert [c["position"] for c in body] == list(range(20))
+    assert [c["position"] for c in body] == list(range(24))
     volles = body[0]
     assert volles["preset"] == "volles_haus" and volles["enabled"] is True
-    assert volles["spec"]["select"]["by"] == "people" and volles["winners"] == []
-    assert volles["verdict"] is None
-    cool = body[-1]
+    assert volles["spec"]["rank"]["by"] == {"kind": "value", "key": "people"}
+    assert volles["spec"]["rank"]["threshold"] == 3 and volles["winners"] == []
+    assert volles["verdict"] is None and volles["needs_ai"] is False
+    assert volles["explanation"] == "Höchster Wert bei „Personen“, mindestens 3"
+    assert "legacy_spec" not in volles  # the v1 bridge is gone with the v2 editor
+    cool = next(c for c in body if c["id"] == "coolstes_objekt")
     assert cool["enabled"] is False and cool["available"] is False
-    assert cool["spec"]["verdict"]["prompt"].startswith("Werte das coolste Objekt")
+    assert cool["needs_ai"] is True and cool["properties"] == ["coolness"]
+    assert cool["locked"] == {"reason": "ai_off", "property": None,
+                              "message": cool["locked"]["message"]}  # fmt: skip
+    assert cool["spec"]["verdict"] == {"prompt": None, "count": 1, "model": None,
+                                       "effort": "low"}  # fmt: skip
+    # the new presets are off; their properties are not created before they are switched on
+    new = ["albernstes_objekt", "am_unerwartetsten", "meiste_gesichter", "meiste_objekte"]
+    assert all(not c["enabled"] for c in body if c["id"] in new)
+    assert core.db.one("SELECT COUNT(*) FROM llm_properties")[0] == 0
     assert core.repos.app_settings.get(presets.SEEDED_KEY)["from_disabled"] == []
     # deleted presets stay deleted (seeding happens once)
     assert admin.delete(f"{BASE}/rock", headers=ORIGIN).json() == {"ok": True}
@@ -99,10 +112,12 @@ def test_crud_order_restore_and_audit(admin, core):
     assert r.status_code == 201, r.text
     item = r.json()
     assert (item["id"], item["enabled"], item["preset"], item["position"]) == (
-        "hutparty", True, None, 20,
+        "hutparty", True, None, 24,
     )  # fmt: skip
-    assert item["spec"]["select"] == {"by": "objects.count:hat", "order": "top", "count": 2,
-                                      "then_by": [], "one_per_guest": True}  # fmt: skip
+    # a v1 spec is stored converted
+    assert item["spec"]["version"] == 2
+    assert item["spec"]["rank"]["by"]["where"]["labels"] == ["hat"]
+    assert item["spec"]["select"] == {"count": 2, "one_per_guest": True}
     r = admin.post(BASE, json={"id": "hutparty", "spec": spec()}, headers=ORIGIN)
     assert r.status_code == 409 and r.json()["error"] == "category_exists"
     # change: spec and switch
@@ -117,7 +132,7 @@ def test_crud_order_restore_and_audit(admin, core):
     # order
     r = admin.put(f"{BASE}/order", json={"ids": ["hutparty", "prost"]}, headers=ORIGIN)
     ids = [c["id"] for c in r.json()["categories"]]
-    assert ids[:3] == ["hutparty", "prost", "volles_haus"] and len(ids) == 21
+    assert ids[:3] == ["hutparty", "prost", "volles_haus"] and len(ids) == 25
     r = admin.put(f"{BASE}/order", json={"ids": ["nope"]}, headers=ORIGIN)
     assert r.status_code == 400 and r.json()["error"] == "invalid_category"
     # delete, restore the presets
@@ -180,31 +195,32 @@ def test_winners_preview_and_the_screen(admin, guest, core):
     facts(core, c, people=3, colorfulness=80)
     body = {x["id"]: x for x in admin.get(BASE).json()["categories"]}
     winners = body["volles_haus"]["winners"]
-    assert [(w["photo_id"], w["value"], w["label"]) for w in winners] == [
-        (a2, 6.0, "6 Personen"), (b, 5.0, "5 Personen"), (c, 3.0, "3 Personen"),
+    assert [(w["photo_id"], w["value"], w["label"], w["headline"]) for w in winners] == [
+        (a2, 6.0, "6 Personen", "6 Personen"), (b, 5.0, "5 Personen", "5 Personen"),
+        (c, 3.0, "3 Personen", "3 Personen"),
     ]  # fmt: skip
     assert winners[0]["thumb_url"] == f"/media/{a2}?thumb=1" and winners[0]["object_idx"] is None
-    # preview: nothing stored
+    assert winners[0]["object"] is None and winners[0]["comment"] is None
+    # preview (a v1 spec): nothing stored
     r = admin.post(f"{BASE}/preview", json={"spec": spec(
         where=[{"value": "people", "op": "between", "operand": [4, 5]}],
         select={"by": "people", "order": "bottom", "count": 10, "one_per_guest": False},
         label={"style": "fixed", "one": "mittendrin"})}, headers=ORIGIN)  # fmt: skip
     assert r.status_code == 200, r.text
-    assert r.json() == {
-        "winners": [
-            {"photo_id": a, "thumb_url": f"/media/{a}?thumb=1", "value": 4.0,
-             "label": "mittendrin", "object_idx": None},
-            {"photo_id": b, "thumb_url": f"/media/{b}?thumb=1", "value": 5.0,
-             "label": "mittendrin", "object_idx": None},
-        ],
-        "matched": 2, "reason": None,
-    }  # fmt: skip
-    assert len(admin.get(BASE).json()["categories"]) == 20
+    out = r.json()
+    assert [(w["photo_id"], w["value"], w["label"]) for w in out["winners"]] == [
+        (a, 4.0, "mittendrin"), (b, 5.0, "mittendrin"),
+    ]  # fmt: skip
+    assert out["matched"] == 2 and out["reason"] is None and out["locked"] is None
+    assert out["explanation"] == "Niedrigster Wert bei „Personen“"
+    assert out["spec"]["caption"]["format"] == "text"
+    assert len(admin.get(BASE).json()["categories"]) == 24
     # the screen: enabled categories with winners, in order, up to `count`
     cats = admin.get("/livewall/api/categories").json()["categories"]
     assert [x["id"] for x in cats] == ["volles_haus", "farbexplosion", "eroeffnung"]
     assert [w["photo"]["id"] for w in cats[0]["winners"]] == [a2, b, c]
     assert cats[0]["verdict"] is None and cats[2]["winners"][0]["label"].startswith("um ")
+    assert cats[0]["winners"][0]["headline"] == "6 Personen" and cats[0]["line"]
     # the analysis opt-out (live) takes all of a guest's photos out
     with core.db.tx() as tx:
         tx.execute("UPDATE users SET analysis_opt_out=1 WHERE id=?", (user_of(core, g1).id,))
@@ -214,38 +230,112 @@ def test_winners_preview_and_the_screen(admin, guest, core):
     assert eroeffnung["winners"][0]["photo"]["id"] != a
 
 
-def test_the_verdict_reaches_the_screen(admin, guest, core):
-    g = guest()
-    pid_pub = upload(g)
-    age_photos(core)
+def coolest_photo(core, pid_pub: str) -> int:
+    """A photo with one object (a hat with a frame) scored 0.8 coolness."""
     pid = facts(core, pid_pub, people=1)
     with core.db.tx() as c:
-        c.execute("INSERT INTO photo_objects VALUES (?, 0, 'hat', 'Hut', 0.9, NULL, NULL, NULL, "
-                  "NULL, 'local', 'm@1', 'now')", (pid,))  # fmt: skip
+        c.execute("INSERT INTO photo_objects VALUES (?, 0, 'hat', 'Hut', 0.9, 0.1, 0.2, 0.3, "
+                  "0.4, 'local', 'm@1', 'now')", (pid,))  # fmt: skip
         c.execute("INSERT INTO photo_detection_runs VALUES (?, 'local', 'done', 'm@1', NULL, 1, "
                   "'now', NULL)", (pid,))  # fmt: skip
         c.execute("INSERT INTO llm_properties (id, name, prompt, created_at) "
                   "VALUES (1, 'coolness', 'p', 'now')")  # fmt: skip
         c.execute("INSERT INTO llm_polls (id, started_at, state) VALUES (1, 'now', 'done')")
         c.execute("INSERT INTO property_scores VALUES (1, ?, '[0.8]', 1, 'now')", (pid,))
-        c.execute("INSERT INTO wall_category_verdicts VALUES ('coolstes_objekt', "
-                  "'Der Hut von Otter 3!', '🎩', ?, 0, 1, 'now')", (pid,))  # fmt: skip
+    return pid
+
+
+def test_the_comment_reaches_the_screen(admin, guest, core):
+    from ..llm_fakes import setup_llm
+
+    g = guest()
+    pid_pub = upload(g)
+    age_photos(core)
+    pid = coolest_photo(core, pid_pub)
+    with core.db.tx() as c:
+        c.execute("INSERT INTO wall_category_comments VALUES ('coolstes_objekt', ?, 'h', "
+                  "'Der Hut von Otter 3!', '🎩', 0, 1, 'now')", (pid,))  # fmt: skip
     item = next(x for x in admin.get(BASE).json()["categories"] if x["id"] == "coolstes_objekt")
-    assert item["available"] is True
+    assert item["available"] is True and item["verdict_paused"] is True
     assert item["verdict"] == {"text": "Der Hut von Otter 3!", "emoji": "🎩", "photo_id": pid_pub}
-    assert [(w["photo_id"], w["label"], w["object_idx"]) for w in item["winners"]] == [
-        (pid_pub, "Hut", 0),
-    ]  # fmt: skip
+    (w,) = item["winners"]
+    assert (w["photo_id"], w["label"], w["headline"], w["detail"], w["object_idx"]) == (
+        pid_pub, "Hut · 0,80 Coolness", "Hut", "0,80 Coolness", 0,
+    )  # fmt: skip
+    assert w["object"] == {"idx": 0, "label": "hat", "label_de": "Hut", "value": 0.8,
+                           "box": {"x": 0.1, "y": 0.2, "w": 0.3, "h": 0.4}}  # fmt: skip
+    assert w["comment"] == {"text": "Der Hut von Otter 3!", "emoji": "🎩"}
+    # the AI is off: switching on is refused (409), it can be saved switched off
     r = admin.put(f"{BASE}/coolstes_objekt", json={"spec": item["spec"], "enabled": True},
                   headers=ORIGIN)  # fmt: skip
+    assert r.status_code == 409 and r.json()["error"] == "category_locked"
+    assert "Externe KI" in r.json()["message"]
+    r = admin.put(f"{BASE}/coolstes_objekt", json={"spec": item["spec"], "enabled": False},
+                  headers=ORIGIN)  # fmt: skip
     assert r.status_code == 200
+    svc = setup_llm(core)  # AI ready: it can be switched on
+    r = admin.put(f"{BASE}/coolstes_objekt", json={"spec": item["spec"], "enabled": True},
+                  headers=ORIGIN)  # fmt: skip
+    assert r.status_code == 200 and r.json()["locked"] is None
     cat = next(x for x in admin.get("/livewall/api/categories").json()["categories"]
                if x["id"] == "coolstes_objekt")  # fmt: skip
     assert cat["verdict"] == {"text": "Der Hut von Otter 3!", "emoji": "🎩", "photo_id": pid_pub}
-    assert cat["winners"][0]["label"] == "Hut" and cat["winners"][0]["object_idx"] == 0
-    # deleting the category drops its verdict
+    (ww,) = cat["winners"]
+    assert ww["comment"] == {"text": "Der Hut von Otter 3!", "emoji": "🎩"}
+    assert ww["object"] == {"idx": 0, "label_de": "Hut", "value": 0.8,
+                            "box": {"x": 0.1, "y": 0.2, "w": 0.3, "h": 0.4}}  # fmt: skip
+    assert (ww["headline"], ww["detail"]) == ("Hut", "0,80 Coolness")
+    assert cat["line"] == "Was die KI am coolsten findet"
+    # the Live tile's win chip has the place, the caption and the comment
+    summary = admin.get("/api/x/wall/admin/photos/analysis", params={"ids": pid_pub}).json()
+    win = next(w for w in summary["items"][0]["wins"] if w["id"] == "coolstes_objekt")
+    assert win == {"id": "coolstes_objekt", "emoji": "🏆", "title": "Das coolste Objekt",
+                   "verdict": True, "rank": 1, "headline": "Hut", "detail": "0,80 Coolness",
+                   "object_label": "Hut",
+                   "comment": {"text": "Der Hut von Otter 3!", "emoji": "🎩"}}  # fmt: skip
+    # the guest opts out of the external AI: the comment is not shown any more
+    with core.db.tx() as tx:
+        tx.execute("UPDATE users SET ai_opt_out=1 WHERE id=?", (user_of(core, g).id,))
+    cat = next(x for x in admin.get("/livewall/api/categories").json()["categories"]
+               if x["id"] == "coolstes_objekt")  # fmt: skip
+    assert cat["verdict"] is None and cat["winners"][0]["comment"] is None
+    # switching the AI off switches the category off (with the reason)
+    r = admin.put("/api/x/wall/admin/llm/config", json={"enabled": False}, headers=ORIGIN)
+    assert r.status_code == 200, r.text
+    item = next(x for x in admin.get(BASE).json()["categories"] if x["id"] == "coolstes_objekt")
+    assert item["enabled"] is False and item["off_reason"] == "ai_off"
+    assert item["locked"]["reason"] == "ai_off"
+    # a changed verdict prompt drops the cached comments; deleting the category too
+    spec2 = {**item["spec"], "verdict": {**item["spec"]["verdict"], "prompt": "Sei frech."}}
+    admin.put(f"{BASE}/coolstes_objekt", json={"spec": spec2, "enabled": False}, headers=ORIGIN)
+    assert core.db.one("SELECT COUNT(*) FROM wall_category_comments")[0] == 0
+    # the host's own save keeps the automatic reason while it stays off
+    item = next(x for x in admin.get(BASE).json()["categories"] if x["id"] == "coolstes_objekt")
+    assert item["off_reason"] == "ai_off"
     admin.delete(f"{BASE}/coolstes_objekt", headers=ORIGIN)
-    assert core.db.one("SELECT COUNT(*) FROM wall_category_verdicts")[0] == 0
+    del svc
+
+
+def test_switching_on_creates_the_preset_property(admin, core):
+    from ..llm_fakes import setup_llm
+
+    svc = setup_llm(core)
+    item = next(x for x in admin.get(BASE).json()["categories"]
+                if x["id"] == "albernstes_objekt")  # fmt: skip
+    assert item["locked"] is None  # missing, but the preset knows its prompt
+    r = admin.put(f"{BASE}/albernstes_objekt", json={"spec": item["spec"], "enabled": True},
+                  headers=ORIGIN)  # fmt: skip
+    assert r.status_code == 200, r.text
+    row = core.db.one("SELECT prompt FROM llm_properties WHERE name='goofiness'")
+    assert "ob eine Person dazuzählt, entscheidest du" in row["prompt"]
+    # a property nobody knows: locked (property_missing), created switched off
+    own = {"version": 2, "emoji": "🧪", "title": "Unbekannt",
+           "rank": {"by": {"kind": "objects", "field": "prop:unbekannt", "agg": "max"}}}  # fmt: skip
+    r = admin.post(BASE, json={"id": "unbekannt", "spec": own}, headers=ORIGIN)
+    assert r.status_code == 201, r.text
+    assert r.json()["enabled"] is False and r.json()["off_reason"] == "property_missing"
+    assert r.json()["locked"]["property"] == "unbekannt"
+    del svc
 
 
 def test_seeding_takes_over_the_old_disabled_list(settings, demo_extension):
@@ -281,18 +371,20 @@ def test_values_catalogue(admin, guest, core):
     with core.db.tx() as c:
         c.execute("INSERT INTO photo_objects VALUES (?, 0, 'hat', 'Hut', 0.9, NULL, NULL, NULL, "
                   "NULL, 'local', 'm@1', 'now')", (pid,))  # fmt: skip
-        c.execute("INSERT INTO llm_properties (name, prompt, created_at, inactive_at) "
-                  "VALUES ('lustigkeit', 'p', 'now', 'now')")  # fmt: skip
+        c.execute("INSERT INTO llm_properties (name, prompt, created_at) "
+                  "VALUES ('lustigkeit', 'p', 'now')")  # fmt: skip
     body = admin.get("/api/x/wall/admin/values").json()
-    values = {v["key"]: v for v in body["values"]}
-    assert values["people"]["title"] == "Personen" and values["people"]["kind"] == "count"
-    assert values["people"]["needs"] == ["objects", "faces"] and values["people"]["available"]
-    assert values["objects"]["kind"] == "labels"
-    assert values["photo.created_at"]["kind"] == "time"
-    assert values["prop.lustigkeit.max"]["inactive"] is True
-    assert values["prop.lustigkeit.count"]["kind"] == "count"
-    assert values["age_spread"]["available"] is False  # FairFace off in the fake
+    photo = {v["key"]: v for v in body["photo_values"]}
+    assert photo["people"]["title"] == "Personen" and photo["people"]["kind"] == "count"
+    assert photo["people"]["needs"] == ["objects", "faces"] and photo["people"]["available"]
+    assert photo["photo.created_at"]["kind"] == "time"
+    assert photo["age_spread"]["available"] is False  # FairFace off in the fake
+    assert [f["field"] for f in body["object_fields"]] == ["confidence", "prop:lustigkeit"]
+    aggs = {a["agg"]: a for a in body["aggregates"]}
+    assert aggs["top_k_mean"]["param"] == "k" and aggs["min"]["focus"] == "min"
+    assert aggs["count"]["needs_field"] is False and aggs["count"]["focus"] == "surest"
     assert body["labels"] == [{"label": "hat", "label_de": "Hut", "count": 1}]
+    assert "values" not in body  # the v1 editor's keys went with it
 
 
 def test_the_hub_announces_a_finished_llm_poll(core, fake):
@@ -305,4 +397,22 @@ def test_the_hub_announces_a_finished_llm_poll(core, fake):
     with core.db.tx() as c:
         c.execute("UPDATE llm_polls SET state='done' WHERE id=1")
     assert hub._poll_once() is True
+    assert hub._poll_once() is False
+
+
+def test_the_hub_announces_an_automatic_switch_off(core, fake):
+    from virtubooth.extensions.wall.enrich import engine, lifecycle
+
+    from ..llm_fakes import property_spec
+
+    hub = WallHub(core, fake)
+    hub._catch_up()
+    engine.insert(core.db, "cool", engine.validate(property_spec("coolness")), enabled=True,
+                  preset=None, by="t")  # fmt: skip
+    with core.db.tx() as c:
+        c.execute("INSERT INTO llm_properties (name, prompt, created_at) VALUES ('coolness', "
+                  "'p', 'now')")  # fmt: skip
+    assert hub._poll_once() is False
+    lifecycle.reconcile(core.db, ai_ready=False)
+    assert hub._poll_once() is True and hub._categories_force is True
     assert hub._poll_once() is False

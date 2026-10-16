@@ -145,17 +145,20 @@ def test_poll_verdict_reaches_the_wall_and_opted_out_guests_never_leave(live):
 
     stored = core.db.one("SELECT scores FROM property_scores WHERE photo_id=?", (cool_pid,))
     assert json.loads(stored["scores"]) == [0.1, 0.9, 0.1]  # + Claude's bow tie
-    verdict = core.db.one("SELECT text, photo_id, object_idx FROM wall_category_verdicts")
+    verdict = core.db.one("SELECT text, photo_id, object_idx FROM wall_category_comments")
     assert verdict["photo_id"] == cool_pid and "Partyfuchs" in verdict["text"]
 
-    # the admin's category list and the wall screen show the verdict
+    # the admin's category list and the wall screen show the comment under its winner
     item = next(c for c in admin.get(CATEGORIES).json()["categories"] if c["id"] == "coolstes")
     assert item["verdict"]["text"] == verdict["text"]
     assert [w["photo_id"] for w in item["winners"]] == [cool_photo]
+    assert item["winners"][0]["comment"]["text"] == verdict["text"]
     screen = wall.get("/livewall/api/categories").json()["categories"]
     shown = next(c for c in screen if c["id"] == "coolstes")
     assert shown["verdict"] == {"text": verdict["text"], "emoji": "🏆", "photo_id": cool_photo}
+    assert shown["winners"][0]["comment"] == {"text": verdict["text"], "emoji": "🏆"}
     assert shown["winners"][0]["label"] == "Sunglasses"  # style object: the best object
+    assert shown["winners"][0]["object"]["label_de"] == "Sunglasses"
 
     # nothing of the others ever left the server
     sent = _outbound(fake)
@@ -167,7 +170,8 @@ def test_poll_verdict_reaches_the_wall_and_opted_out_guests_never_leave(live):
     # opting out later takes the verdict naming the guest off the wall at once ...
     set_flags(core, ok, ai=True)
     screen = wall.get("/livewall/api/categories").json()["categories"]
-    assert next(c for c in screen if c["id"] == "coolstes")["verdict"] is None
+    cat = next(c for c in screen if c["id"] == "coolstes")
+    assert cat["verdict"] is None and cat["winners"][0]["comment"] is None
     # ... and leaves the guest out of the next poll
     last = core.db.one("SELECT COALESCE(MAX(id), 0) AS n FROM llm_polls")["n"]
     calls = len(fake.scored) + len(fake.verdicts)
@@ -217,7 +221,7 @@ def test_object_detection_is_either_or(settings, demo_extension):
         assert r.json()["detection"]["mode"] == "ai"
         assert not objects_on()
         people = next(
-            v for v in admin.get("/api/x/wall/admin/values").json()["values"]
+            v for v in admin.get("/api/x/wall/admin/values").json()["photo_values"]
             if v["key"] == "people"
         )  # fmt: skip
         assert "faces" in people["needs"]

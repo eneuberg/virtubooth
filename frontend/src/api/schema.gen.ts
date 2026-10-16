@@ -1344,9 +1344,60 @@ export interface paths {
         put?: never;
         /**
          * Create Category
-         * @description A new category (at the end). 409 `category_exists`, 400 `invalid_category`.
+         * @description A new category (at the end). A category that cannot be switched on
+         *     right now (`locked`: a property missing or in the Papierkorb, the AI not
+         *     ready) is stored switched off with that reason. 409 `category_exists`,
+         *     400 `invalid_category`.
          */
         post: operations["create_category_api_x_wall_admin_categories_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/x/wall/admin/categories/export": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Export Categories
+         * @description „Exportieren“: the categories (position order) with the properties they
+         *     read (name and prompt), as a file for „Importieren“.
+         */
+        get: operations["export_categories_api_x_wall_admin_categories_export_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/x/wall/admin/categories/import": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Import Categories
+         * @description „Importieren“ of a categories file (version 2, or 1: converted).
+         *     `on_conflict`: an id that exists is taken as a copy under a free id
+         *     (`copy`, the default) or overwrites it (`replace`). A property a
+         *     category reads is created from the file when it does not exist; one
+         *     that exists keeps its prompt (`prompt_conflicts`). A category the file
+         *     has on that cannot be switched on right now is imported off with the
+         *     reason; one whose property is missing everywhere is off with
+         *     `property_missing`. 400 `invalid_import` for a file that is not one.
+         */
+        post: operations["import_categories_api_x_wall_admin_categories_import_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1384,7 +1435,8 @@ export interface paths {
         put?: never;
         /**
          * Preview Category
-         * @description What a spec would pick right now (nothing is stored).
+         * @description What a spec would pick right now (nothing is stored), with the
+         *     stored scores also while the AI is off („Werte vom letzten Poll“).
          */
         post: operations["preview_category_api_x_wall_admin_categories_preview_post"];
         delete?: never;
@@ -1404,7 +1456,9 @@ export interface paths {
         put?: never;
         /**
          * Restore Presets
-         * @description „Vorlagen wiederherstellen“: add the presets that were deleted.
+         * @description „Vorlagen wiederherstellen“: add the presets that were deleted (with
+         *     their default on/off) and the properties they need (nothing is polled
+         *     for them until such a category is switched on).
          */
         post: operations["restore_presets_api_x_wall_admin_categories_restore_presets_post"];
         delete?: never;
@@ -1423,7 +1477,12 @@ export interface paths {
         get?: never;
         /**
          * Put Category
-         * @description Change a category's spec and on/off switch (presets too).
+         * @description Change a category's spec and on/off switch (presets too). 409
+         *     `category_locked` when it is to be on but cannot be (a property it reads
+         *     is missing or in the Papierkorb, or the external AI is not ready): it can
+         *     be saved switched off. Switching on creates the preset properties it reads
+         *     that do not exist yet. A changed verdict prompt, model or effort drops its
+         *     cached comments.
          */
         put: operations["put_category_api_x_wall_admin_categories__cid__put"];
         post?: never;
@@ -1647,27 +1706,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/x/wall/admin/llm/properties/{name}/active": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        /**
-         * Set Property Active
-         * @description The switch „aktiv“: an inactive property is not polled any more, its
-         *     scores stay (on the photos, in the categories).
-         */
-        put: operations["set_property_active_api_x_wall_admin_llm_properties__name__active_put"];
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/x/wall/admin/llm/properties/{name}/restore": {
         parameters: {
             query?: never;
@@ -1679,7 +1717,8 @@ export interface paths {
         put?: never;
         /**
          * Restore Property
-         * @description Out of the Papierkorb, back as it was (the switch „aktiv“ keeps its state).
+         * @description Out of the Papierkorb. The categories it switched off stay off (they can be
+         *     switched on again: `off_reason` stays until then).
          */
         post: operations["restore_property_api_x_wall_admin_llm_properties__name__restore_post"];
         delete?: never;
@@ -1700,7 +1739,8 @@ export interface paths {
         /**
          * Trash Property
          * @description „Löschen“: into the Papierkorb. Not polled, hidden from the list and
-         *     the category value pickers; the scores and the name stay.
+         *     the category editor; the scores and the name stay. The enabled categories
+         *     that read it are switched off (`property_trashed`; `used_by` names them).
          */
         post: operations["trash_property_api_x_wall_admin_llm_properties__name__trash_post"];
         delete?: never;
@@ -2344,6 +2384,34 @@ export interface components {
             /** User Agent */
             user_agent: string;
         };
+        /** AggregateInfo */
+        AggregateInfo: {
+            /**
+             * Agg
+             * @enum {string}
+             */
+            agg: "count" | "max" | "min" | "mean" | "sum" | "top_k_mean" | "count_ge";
+            /**
+             * Focus
+             * @description Which object a winner points at: the highest / lowest value, the surest one (count with a label filter).
+             */
+            focus: ("max" | "min" | "surest") | null;
+            /**
+             * Needs Field
+             * @description False: `count` also works without a field.
+             */
+            needs_field: boolean;
+            /**
+             * Param
+             * @description `k` (top_k_mean, 2–5) or `t` (count_ge, 0–1).
+             */
+            param: ("k" | "t") | null;
+            /**
+             * Title
+             * @description German.
+             */
+            title: string;
+        };
         /** AnalysisBox */
         AnalysisBox: {
             /** H */
@@ -2756,62 +2824,44 @@ export interface components {
             /** Unchanged */
             unchanged: string[];
         };
+        /**
+         * CategoriesFile
+         * @description „Exportieren“: the categories and the properties they read (by name).
+         */
+        CategoriesFile: {
+            /** Categories */
+            categories: components["schemas"]["CategoryFileEntry"][];
+            /** Exported At */
+            exported_at: string;
+            /**
+             * Format
+             * @constant
+             */
+            format: "virtubooth-categories";
+            /**
+             * Properties
+             * @description Each property a category reads, with its prompt.
+             */
+            properties: components["schemas"]["CategoryFileProperty"][];
+            /**
+             * Version
+             * @constant
+             */
+            version: 2;
+        };
         /** CategoriesOut */
         CategoriesOut: {
             /** Categories */
             categories: components["schemas"]["CategoryItem"][];
         };
-        /** CategoryCondition */
-        CategoryCondition: {
+        /** CategoryCaption */
+        CategoryCaption: {
             /**
-             * Op
+             * Format
+             * @default count
              * @enum {string}
              */
-            op: "gt" | "lt" | "gte" | "lte" | "eq" | "ne" | "between" | "exists" | "not_exists" | "contains" | "not_contains" | "contains_any";
-            /**
-             * Operand
-             * @description number (gt…ne), [a, b] (between), label (contains, not_contains), [labels] (contains_any), null (exists, not_exists).
-             */
-            operand?: number | string | [
-                number,
-                number
-            ] | string[] | null;
-            /**
-             * Value
-             * @description A value key (GET /admin/values), e.g. `people`, `objects.count:hat`, `prop.coolness.max`.
-             */
-            value: string;
-        };
-        /** CategoryItem */
-        CategoryItem: {
-            /** Available */
-            available: boolean;
-            /** Enabled */
-            enabled: boolean;
-            /** Id */
-            id: string;
-            /** Position */
-            position: number;
-            /**
-             * Preset
-             * @description The preset it came from; null = made by the host.
-             */
-            preset: string | null;
-            /**
-             * Reason
-             * @description Why it cannot win anything (German), or null.
-             */
-            reason: string | null;
-            spec: components["schemas"]["CategorySpec"];
-            verdict: components["schemas"]["CategoryVerdictOut"] | null;
-            /**
-             * Winners
-             * @description Right now, best first (≤ count).
-             */
-            winners: components["schemas"]["CategoryWinnerOut"][];
-        };
-        /** CategoryLabel */
-        CategoryLabel: {
+            format: "count" | "percent" | "decimal" | "number" | "time" | "text" | "none";
             /**
              * Many
              * @description Plural word.
@@ -2820,21 +2870,173 @@ export interface components {
             many: string;
             /**
              * One
-             * @description Singular word (or the fixed text).
+             * @description Singular word, the unit (decimal) or the text (text).
              * @default
              */
             one: string;
             /**
-             * Style
-             * @default count
-             * @enum {string}
+             * Show Object
+             * @description The headline is the focus object's name (the value its detail).
+             * @default false
              */
-            style: "count" | "percent" | "number" | "time" | "fixed" | "object";
+            show_object: boolean;
             /**
              * Value
-             * @description The value shown (and required); null = `select.by`.
+             * @description The value shown (and required); null = `rank.by`.
              */
-            value?: string | null;
+            value?: (components["schemas"]["MeasureValue"] | components["schemas"]["MeasureObjects"]) | null;
+        };
+        /** CategoryCommentOut */
+        CategoryCommentOut: {
+            /** Emoji */
+            emoji: string | null;
+            /**
+             * Text
+             * @description German, ≤ 160 chars: the AI's comment on this winner.
+             */
+            text: string;
+        };
+        /** CategoryCondition */
+        CategoryCondition: {
+            /** Measure */
+            measure: components["schemas"]["MeasureValue"] | components["schemas"]["MeasureObjects"];
+            /**
+             * Op
+             * @enum {string}
+             */
+            op: "gt" | "lt" | "gte" | "lte" | "eq" | "ne" | "between" | "exists" | "not_exists";
+            /**
+             * Operand
+             * @description number (gt…ne), [a, b] (between), null (exists, not_exists).
+             */
+            operand?: number | [
+                number,
+                number
+            ] | null;
+        };
+        /** CategoryFileEntry */
+        CategoryFileEntry: {
+            /** Enabled */
+            enabled: boolean;
+            /** Id */
+            id: string;
+            /** Preset */
+            preset: string | null;
+            spec: components["schemas"]["CategorySpec"];
+        };
+        /** CategoryFileProperty */
+        CategoryFileProperty: {
+            /** Name */
+            name: string;
+            /** Prompt */
+            prompt: string;
+        };
+        /** CategoryImportOut */
+        CategoryImportOut: {
+            /** Imported */
+            imported: components["schemas"]["ImportedCategory"][];
+            /**
+             * Notes
+             * @description German hints (e.g. an old file's `active`).
+             */
+            notes: string[];
+            /**
+             * Prompt Conflicts
+             * @description Properties that exist here with another prompt: theirs stays.
+             */
+            prompt_conflicts: string[];
+            /**
+             * Properties Created
+             * @description Created from the file (or a preset).
+             */
+            properties_created: string[];
+            /** Skipped */
+            skipped: components["schemas"]["SkippedCategory"][];
+            /**
+             * Switched Off
+             * @description Imported switched off although the file had them on (or a property is missing), and why.
+             */
+            switched_off: components["schemas"]["SwitchedOffCategory"][];
+        };
+        /** CategoryItem */
+        CategoryItem: {
+            /** Available */
+            available: boolean;
+            /** Enabled */
+            enabled: boolean;
+            /**
+             * Explanation
+             * @description The ranking in plain German (the wall's subtitle when `line` is empty).
+             */
+            explanation: string;
+            /** Id */
+            id: string;
+            /** @description Why it cannot be switched on (the switch is disabled), or null. */
+            locked: components["schemas"]["CategoryLockOut"] | null;
+            /**
+             * Needs Ai
+             * @description It reads an LLM property (external AI).
+             */
+            needs_ai: boolean;
+            /** Off At */
+            off_at: string | null;
+            /**
+             * Off Detail
+             * @description The property the reason is about.
+             */
+            off_detail: string | null;
+            /**
+             * Off Reason
+             * @description Switched off by the app (not the host), why; cleared when the host switches it.
+             */
+            off_reason: ("ai_off" | "property_trashed" | "property_missing" | "migrated_inactive") | null;
+            /** Position */
+            position: number;
+            /**
+             * Preset
+             * @description The preset it came from; null = made by the host.
+             */
+            preset: string | null;
+            /**
+             * Properties
+             * @description The properties it reads.
+             */
+            properties: string[];
+            /**
+             * Reason
+             * @description Why it cannot win anything (German), or null.
+             */
+            reason: string | null;
+            spec: components["schemas"]["CategorySpec"];
+            verdict: components["schemas"]["CategoryVerdictOut"] | null;
+            /**
+             * Verdict Paused
+             * @description It has an AI verdict but the AI is not ready: no comments meanwhile.
+             */
+            verdict_paused: boolean;
+            /**
+             * Winners
+             * @description Right now, best first (≤ count).
+             */
+            winners: components["schemas"]["CategoryWinnerOut"][];
+        };
+        /**
+         * CategoryLockOut
+         * @description Why the category cannot be switched on right now (409 `category_locked`).
+         */
+        CategoryLockOut: {
+            /**
+             * Message
+             * @description German.
+             */
+            message: string;
+            /** Property */
+            property: string | null;
+            /**
+             * Reason
+             * @enum {string}
+             */
+            reason: "ai_off" | "property_trashed" | "property_missing";
         };
         /** CategoryOrderIn */
         CategoryOrderIn: {
@@ -2847,8 +3049,15 @@ export interface components {
         /** CategoryPreviewOut */
         CategoryPreviewOut: {
             /**
+             * Explanation
+             * @description The ranking in plain German.
+             */
+            explanation: string;
+            /** @description It could be saved, but only switched off (and why). */
+            locked: components["schemas"]["CategoryLockOut"] | null;
+            /**
              * Matched
-             * @description Visible photos meeting every condition.
+             * @description Visible photos in the pool that pass the threshold.
              */
             matched: number;
             /**
@@ -2856,16 +3065,37 @@ export interface components {
              * @description Why it cannot win (German), or null.
              */
             reason: string | null;
+            /** @description The spec as validated (v2; a v1 input converted). */
+            spec: components["schemas"]["CategorySpec"];
             /** Winners */
             winners: components["schemas"]["CategoryWinnerOut"][];
         };
-        /** CategorySelect */
-        CategorySelect: {
+        /** CategoryRank */
+        CategoryRank: {
             /**
              * By
-             * @description The value to rank by (missing values rank last).
+             * @description Missing values rank last.
              */
-            by: string;
+            by: components["schemas"]["MeasureValue"] | components["schemas"]["MeasureObjects"];
+            /**
+             * Order
+             * @default desc
+             * @enum {string}
+             */
+            order: "desc" | "asc";
+            /**
+             * Then By
+             * @description ≤ 2 tie-breakers.
+             */
+            then_by?: components["schemas"]["CategoryThen"][];
+            /**
+             * Threshold
+             * @description Only photos with `by` ≥ threshold (desc) or ≤ threshold (asc).
+             */
+            threshold?: number | null;
+        };
+        /** CategorySelect */
+        CategorySelect: {
             /**
              * Count
              * @description 1–10 winners.
@@ -2877,37 +3107,33 @@ export interface components {
              * @default true
              */
             one_per_guest: boolean;
-            /**
-             * Order
-             * @default top
-             * @enum {string}
-             */
-            order: "top" | "bottom";
-            /**
-             * Then By
-             * @description ≤ 2 tie-breakers (a plain key string = top).
-             */
-            then_by?: components["schemas"]["CategoryThenBy"][];
         };
         /**
          * CategorySpec
-         * @description A rule-based wall category. Invalid input → 400 `invalid_category`
-         *     naming the field in German.
+         * @description A rule-based wall category, spec version 2. Invalid input → 400
+         *     `invalid_category` naming the field in German. Writes also take a spec in the
+         *     old version 1 shape (deprecated: converted).
          */
         CategorySpec: {
+            caption?: components["schemas"]["CategoryCaption"];
             /**
              * Emoji
              * @description One emoji.
              */
             emoji: string;
-            label?: components["schemas"]["CategoryLabel"];
             /**
              * Line
-             * @description 0–80 chars (the subtitle).
+             * @description 0–80 chars; empty = the explanation is generated.
              * @default
              */
             line: string;
-            select: components["schemas"]["CategorySelect"];
+            /**
+             * Pool
+             * @description 0–8 conditions, all must hold.
+             */
+            pool?: components["schemas"]["CategoryCondition"][];
+            rank: components["schemas"]["CategoryRank"];
+            select?: components["schemas"]["CategorySelect"];
             /**
              * Title
              * @description 1–40 chars.
@@ -2915,29 +3141,33 @@ export interface components {
             title: string;
             verdict?: components["schemas"]["CategoryVerdictSpec"] | null;
             /**
-             * Where
-             * @description 0–8 conditions, all must hold.
+             * Version
+             * @default 2
+             * @constant
              */
-            where?: components["schemas"]["CategoryCondition"][];
+            version: 2;
         };
-        /** CategoryThenBy */
-        CategoryThenBy: {
+        /** CategoryThen */
+        CategoryThen: {
             /** By */
-            by: string;
+            by: components["schemas"]["MeasureValue"] | components["schemas"]["MeasureObjects"];
             /**
              * Order
-             * @default top
+             * @default desc
              * @enum {string}
              */
-            order: "top" | "bottom";
+            order: "desc" | "asc";
         };
-        /** CategoryVerdictOut */
+        /**
+         * CategoryVerdictOut
+         * @description Deprecated: the best-ranked winner's comment (`winners[].comment`).
+         */
         CategoryVerdictOut: {
             /** Emoji */
             emoji: string | null;
             /**
              * Photo Id
-             * @description Public id of the photo it names (visible), or null.
+             * @description Public id of the photo it is about, or null.
              */
             photo_id: string | null;
             /**
@@ -2946,38 +3176,98 @@ export interface components {
              */
             text: string;
         };
-        /** CategoryVerdictSpec */
+        /**
+         * CategoryVerdictSpec
+         * @description The AI comments on the top `count` winners (one each); it never ranks.
+         */
         CategoryVerdictSpec: {
             /**
-             * Prompt
-             * @description 1–1000 chars: the LLM verdict prompt (each poll).
+             * Count
+             * @description 1–5 comments (the best winners).
+             * @default 3
              */
-            prompt: string;
+            count: number;
+            /**
+             * Effort
+             * @default low
+             * @enum {string}
+             */
+            effort: "low" | "medium" | "high";
+            /**
+             * Model
+             * @description A Haiku- or Sonnet-class model (`LlmStatus.verdict.models`); null = the provider's cheapest.
+             */
+            model?: string | null;
+            /**
+             * Prompt
+             * @description ≤ 1000 chars: the host's task; null = the default.
+             */
+            prompt?: string | null;
         };
         /** CategoryWin */
         CategoryWin: {
+            /** @description The AI's cached comment on this photo in this category. */
+            comment?: components["schemas"]["CategoryCommentOut"] | null;
+            /**
+             * Detail
+             * @description The value text when the headline is an object.
+             */
+            detail?: string | null;
             /** Emoji */
             emoji: string;
+            /**
+             * Headline
+             * @description The object's name or the value text.
+             * @default
+             */
+            headline: string;
             /**
              * Id
              * @description The category's id.
              */
             id: string;
+            /**
+             * Object Label
+             * @description The focus object's German name, if any.
+             */
+            object_label?: string | null;
+            /**
+             * Rank
+             * @description Its place among the category's winners (1 = best).
+             * @default 1
+             */
+            rank: number;
             /** Title */
             title: string;
             /**
              * Verdict
-             * @description Named by the external AI's verdict, not by a ranking.
+             * @description The AI commented on it in this category.
              */
             verdict: boolean;
         };
         /** CategoryWinnerOut */
         CategoryWinnerOut: {
-            /** Label */
+            /** @description The AI's cached comment on this winner (the best `verdict.count` only). */
+            comment: components["schemas"]["CategoryCommentOut"] | null;
+            /**
+             * Detail
+             * @description The value text when the headline is an object.
+             */
+            detail: string | null;
+            /**
+             * Headline
+             * @description The object's name (show_object) or the value text.
+             */
+            headline: string;
+            /**
+             * Label
+             * @description headline and detail together („Sonnenbrille · 0,93 …“).
+             */
             label: string;
+            object: components["schemas"]["WinnerObject"] | null;
             /**
              * Object Idx
-             * @description The object the value points at, if any.
+             * @description The focus object's idx, if any.
              */
             object_idx: number | null;
             /** Photo Id */
@@ -3369,7 +3659,7 @@ export interface components {
              * @description Machine-readable error code.
              * @enum {string}
              */
-            error: "scan_qr" | "needs_consent" | "banned" | "consent_outdated" | "invalid_instagram" | "join_closed" | "invalid_display_name" | "display_name_taken" | "wall_login_required" | "wall_no_password" | "wall_password_too_short" | "invalid_wall_config" | "invalid_category" | "category_exists" | "invalid_analyzer_settings" | "worker_off" | "ml_missing" | "uploads_paused" | "uploads_stopped" | "unsupported_type" | "too_large" | "invalid_meta" | "empty_upload" | "invalid_image" | "invalid_raw" | "raw_not_allowed" | "photo_limit" | "storage_full" | "invalid_pdf" | "invalid_layout" | "no_template" | "admin_required" | "wrong_password" | "login_locked" | "invalid_filter" | "unknown_analyzer" | "invalid_cursor" | "no_fingerprint" | "restore_required" | "host_guest" | "invalid_event_name" | "invalid_public_address" | "invalid_theme" | "password_too_short" | "password_unchanged" | "no_filter_enabled" | "unknown_filter" | "export_not_ready" | "export_running" | "invalid_token" | "token_taken" | "code_revoked" | "invalid_target" | "invalid_note" | "invalid_llm_config" | "llm_not_configured" | "llm_no_vision" | "llm_key_invalid" | "llm_budget_exhausted" | "ai_detection_unavailable" | "invalid_property" | "property_exists" | "property_not_in_trash" | "property_in_use" | "bad_origin" | "length_required" | "rate_limited" | "invalid_request" | "not_found" | "http_404" | "http_405";
+            error: "scan_qr" | "needs_consent" | "banned" | "consent_outdated" | "invalid_instagram" | "join_closed" | "invalid_display_name" | "display_name_taken" | "wall_login_required" | "wall_no_password" | "wall_password_too_short" | "invalid_wall_config" | "invalid_category" | "category_exists" | "category_locked" | "invalid_import" | "invalid_analyzer_settings" | "worker_off" | "ml_missing" | "uploads_paused" | "uploads_stopped" | "unsupported_type" | "too_large" | "invalid_meta" | "empty_upload" | "invalid_image" | "invalid_raw" | "raw_not_allowed" | "photo_limit" | "storage_full" | "invalid_pdf" | "invalid_layout" | "no_template" | "admin_required" | "wrong_password" | "login_locked" | "invalid_filter" | "unknown_analyzer" | "invalid_cursor" | "no_fingerprint" | "restore_required" | "host_guest" | "invalid_event_name" | "invalid_public_address" | "invalid_theme" | "password_too_short" | "password_unchanged" | "no_filter_enabled" | "unknown_filter" | "export_not_ready" | "export_running" | "invalid_token" | "token_taken" | "code_revoked" | "invalid_target" | "invalid_note" | "invalid_llm_config" | "llm_not_configured" | "llm_no_vision" | "llm_key_invalid" | "llm_budget_exhausted" | "ai_detection_unavailable" | "invalid_property" | "property_exists" | "property_not_in_trash" | "property_in_use" | "bad_origin" | "length_required" | "rate_limited" | "invalid_request" | "not_found" | "gone" | "http_404" | "http_405";
             /**
              * Field
              * @description The form field a 400 is about, when the answer names one (e.g. `invalid_category`: title, line, where, by, count, verdict, ...).
@@ -3895,6 +4185,28 @@ export interface components {
             /** Uid */
             uid?: string | null;
         };
+        /** ImportedCategory */
+        ImportedCategory: {
+            /** Enabled */
+            enabled: boolean;
+            /**
+             * From Id
+             * @description The id in the file when it was taken as a copy.
+             */
+            from_id: string | null;
+            /**
+             * Id
+             * @description Its id here (a copy: a free one, `<id>_2` …).
+             */
+            id: string;
+            /**
+             * Replaced
+             * @description It overwrote the category with that id.
+             */
+            replaced: boolean;
+            /** Title */
+            title: string;
+        };
         /** InstagramDoneData */
         InstagramDoneData: {
             /** Done */
@@ -4204,6 +4516,7 @@ export interface components {
             /** Providers */
             providers: components["schemas"]["ProviderOut"][];
             usage: components["schemas"]["Usage"];
+            verdict: components["schemas"]["VerdictOptionsOut"];
         };
         /** LoginIn */
         LoginIn: {
@@ -4246,6 +4559,47 @@ export interface components {
         /** MeOut */
         MeOut: {
             user: components["schemas"]["GuestUser"];
+        };
+        /**
+         * MeasureObjects
+         * @description An aggregate over the photo's objects (after `where`): `count` (without a
+         *     field: the objects; with one: those with a value), `max`, `min`, `mean`,
+         *     `sum`, `top_k_mean` (k 2–5), `count_ge` (t 0–1) of `field`.
+         */
+        MeasureObjects: {
+            /**
+             * Agg
+             * @enum {string}
+             */
+            agg: "count" | "max" | "min" | "mean" | "sum" | "top_k_mean" | "count_ge";
+            /**
+             * Field
+             * @description `confidence` or `prop:<name>`; null for count.
+             */
+            field?: string | null;
+            /** K */
+            k?: number | null;
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            kind: "objects";
+            /** T */
+            t?: number | null;
+            where?: components["schemas"]["ObjectFilter"];
+        };
+        /**
+         * MeasureValue
+         * @description A photo value: an analyzer's fact, `photo.created_at` or `photo.guest_photos`.
+         */
+        MeasureValue: {
+            /** Key */
+            key: string;
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            kind: "value";
         };
         /**
          * MergedObjectOut
@@ -4421,6 +4775,47 @@ export interface components {
              * @enum {string}
              */
             mode: "local" | "ai" | "off";
+        };
+        /** ObjectFieldInfo */
+        ObjectFieldInfo: {
+            /**
+             * Field
+             * @description `confidence` or `prop:<name>`.
+             */
+            field: string;
+            /**
+             * Property
+             * @description The property's name for `prop:<name>`.
+             */
+            property: string | null;
+            /**
+             * Title
+             * @description German.
+             */
+            title: string;
+            /**
+             * Unit
+             * @description „0–1“: both are scores.
+             */
+            unit: string;
+        };
+        /** ObjectFilter */
+        ObjectFilter: {
+            /**
+             * Exclude
+             * @description Never these labels.
+             */
+            exclude?: string[];
+            /**
+             * Labels
+             * @description Only these labels (any of them); empty = all.
+             */
+            labels?: string[];
+            /**
+             * Min Confidence
+             * @description 0–1: only objects at least this sure.
+             */
+            min_confidence?: number | null;
         };
         /** ObjectOut */
         ObjectOut: {
@@ -4779,6 +5174,12 @@ export interface components {
             };
             /** Objects */
             objects: components["schemas"]["SummaryObject"][];
+            /**
+             * Objects Off
+             * @description Analysed while object detection was „Aus“ (every detection run skipped as switched off, no objects): „Objekterkennung aus“, not „Nichts erkannt“.
+             * @default false
+             */
+            objects_off: boolean;
             opt_out: components["schemas"]["OptOutState"];
             /** Photo Id */
             photo_id: string;
@@ -4966,6 +5367,40 @@ export interface components {
             /** Uploads Paused */
             uploads_paused: boolean;
         };
+        /** PhotoValueInfo */
+        PhotoValueInfo: {
+            /** Available */
+            available: boolean;
+            /**
+             * Group
+             * @description German group heading (the analyzer, „Foto“).
+             */
+            group: string;
+            /**
+             * Key
+             * @description `{kind: value, key}`: an analyzer's fact or `photo.*`.
+             */
+            key: string;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "number" | "count" | "time";
+            /**
+             * Needs
+             * @description Analyzer names (any of them); empty = always there.
+             */
+            needs: string[];
+            /** Reason */
+            reason: string | null;
+            /**
+             * Title
+             * @description German.
+             */
+            title: string;
+            /** Unit */
+            unit: string;
+        };
         /** PollOut */
         PollOut: {
             /** Reason */
@@ -5104,11 +5539,6 @@ export interface components {
             /** Properties */
             properties: components["schemas"]["PropertyOut"][];
         };
-        /** PropertyActiveIn */
-        PropertyActiveIn: {
-            /** Active */
-            active: boolean;
-        };
         /** PropertyIn */
         PropertyIn: {
             /**
@@ -5124,25 +5554,15 @@ export interface components {
         };
         /** PropertyOut */
         PropertyOut: {
-            /**
-             * Active
-             * @description The switch „aktiv“: false = not polled, scores stay.
-             */
-            active: boolean;
             /** Created At */
             created_at: string;
             /**
              * Deleted At
-             * @description In the Papierkorb since (not polled, hidden from the value pickers); null = not in the Papierkorb. Restoring keeps the switch's state.
+             * @description In the Papierkorb since (not polled, hidden from the editor); null = not in the Papierkorb. Trashing switches the enabled categories that read it off.
              */
             deleted_at: string | null;
             /** Id */
             id: number;
-            /**
-             * Inactive At
-             * @description When it was switched off; null = active.
-             */
-            inactive_at: string | null;
             /** Last Scored At */
             last_scored_at: string | null;
             /** Name */
@@ -5151,12 +5571,23 @@ export interface components {
             prompt: string;
             /** Scored Photos */
             scored_photos: number;
+            /**
+             * Status
+             * @description Derived, never stored: polled (an enabled category reads it and the AI is ready), idle („ruht“: no enabled category reads it), paused (the external AI is not ready), trashed (in the Papierkorb; scores stay readable).
+             * @enum {string}
+             */
+            status: "polled" | "idle" | "paused" | "trashed";
+            /**
+             * Used By
+             * @description The categories that read it.
+             */
+            used_by: components["schemas"]["PropertyUser"][];
         };
         /** PropertyScores */
         PropertyScores: {
             /**
              * Inactive
-             * @description Not polled any more (switched off or in the Papierkorb).
+             * @description Not polled right now (no enabled category reads it, or in the Papierkorb).
              */
             inactive: boolean;
             /** Name */
@@ -5166,6 +5597,18 @@ export interface components {
              * @description Index = the object's idx.
              */
             scores: (number | null)[];
+        };
+        /** PropertyUser */
+        PropertyUser: {
+            /** Enabled */
+            enabled: boolean;
+            /**
+             * Id
+             * @description The category's id.
+             */
+            id: string;
+            /** Title */
+            title: string;
         };
         /** ProviderOut */
         ProviderOut: {
@@ -5312,6 +5755,19 @@ export interface components {
              * @enum {string}
              */
             type: "settings.event";
+        };
+        /** SkippedCategory */
+        SkippedCategory: {
+            /**
+             * Id
+             * @description The id in the file, or „Eintrag 3“.
+             */
+            id: string;
+            /**
+             * Reason
+             * @description German.
+             */
+            reason: string;
         };
         /**
          * SourceObject
@@ -5475,6 +5931,26 @@ export interface components {
              * @description Every source that found it.
              */
             sources: string[];
+        };
+        /** SwitchedOffCategory */
+        SwitchedOffCategory: {
+            /**
+             * Detail
+             * @description The property it is about.
+             */
+            detail: string | null;
+            /** Id */
+            id: string;
+            /**
+             * Message
+             * @description German.
+             */
+            message: string;
+            /**
+             * Reason
+             * @enum {string}
+             */
+            reason: "ai_off" | "property_trashed" | "property_missing";
         };
         /** TestImageOut */
         TestImageOut: {
@@ -5967,51 +6443,120 @@ export interface components {
             /** Error Type */
             type: string;
         };
-        /** ValueInfo */
-        ValueInfo: {
-            /** Available */
-            available: boolean;
-            /**
-             * Group
-             * @description German group heading (the analyzer, „Objekte“, …).
-             */
-            group: string;
-            /**
-             * Inactive
-             * @description A value of a property that is switched off (not polled; scores stay readable).
-             */
-            inactive: boolean;
-            /** Key */
-            key: string;
-            /**
-             * Kind
-             * @enum {string}
-             */
-            kind: "number" | "count" | "labels" | "time";
-            /**
-             * Needs
-             * @description Analyzer names (any of them) or `prop:<name>`; empty = always there.
-             */
-            needs: string[];
-            /** Reason */
-            reason: string | null;
-            /**
-             * Title
-             * @description German.
-             */
-            title: string;
-            /** Unit */
-            unit: string;
-        };
         /** ValuesOut */
         ValuesOut: {
+            /** Aggregates */
+            aggregates: components["schemas"]["AggregateInfo"][];
             /**
              * Labels
-             * @description Object labels seen so far, most frequent first: compose `objects.count:<label>` and `prop.<name>.at:<label>` with them.
+             * @description Object labels seen so far, most frequent first (for object filters).
              */
             labels: components["schemas"]["LabelInfo"][];
-            /** Values */
-            values: components["schemas"]["ValueInfo"][];
+            /**
+             * Object Fields
+             * @description What `objects.agg(field)` can read: `confidence` and every property not in the Papierkorb.
+             */
+            object_fields: components["schemas"]["ObjectFieldInfo"][];
+            /**
+             * Objects Available
+             * @description Object measures can have data.
+             */
+            objects_available: boolean;
+            /** Objects Reason */
+            objects_reason: string | null;
+            /** Photo Values */
+            photo_values: components["schemas"]["PhotoValueInfo"][];
+        };
+        /** VerdictEffortOut */
+        VerdictEffortOut: {
+            /**
+             * Effort
+             * @enum {string}
+             */
+            effort: "low" | "medium" | "high";
+            /**
+             * Input Tokens
+             * @description Estimated per comment (one call, one new winner).
+             */
+            input_tokens: number;
+            /**
+             * Measured
+             * @description From real token counts (low effort); false: the thinking is an assumption (pricing.py).
+             */
+            measured: boolean;
+            /**
+             * Output Tokens
+             * @description Including thinking (billed as output).
+             */
+            output_tokens: number;
+            /**
+             * Price Per Comment
+             * @description The same in the model's `currency`.
+             */
+            price_per_comment: number;
+            /**
+             * Usd Per Comment
+             * @description Estimated price of one comment in USD.
+             */
+            usd_per_comment: number;
+        };
+        /** VerdictModelOut */
+        VerdictModelOut: {
+            /** Currency */
+            currency: string;
+            /** Efforts */
+            efforts: components["schemas"]["VerdictEffortOut"][];
+            /** Id */
+            id: string;
+            /**
+             * Tier
+             * @description small: Haiku class, mid: Sonnet class.
+             * @enum {string}
+             */
+            tier: "small" | "mid";
+            /** Title */
+            title: string;
+        };
+        /**
+         * VerdictOptionsOut
+         * @description What the AI verdict of a category can use with the configured provider.
+         */
+        VerdictOptionsOut: {
+            /**
+             * Basis
+             * @description How the price is estimated (German).
+             */
+            basis: string;
+            /**
+             * Default Model
+             * @description The provider's cheapest (`model: null`).
+             */
+            default_model: string;
+            /**
+             * Default Prompt
+             * @description The host's task when a category has none; `{title}` is its title.
+             */
+            default_prompt: string;
+            /**
+             * Max Chars
+             * @description What a comment may be long (the prompt asks ≤ 120).
+             */
+            max_chars: number;
+            /**
+             * Models
+             * @description The configured provider's choices.
+             */
+            models: components["schemas"]["VerdictModelOut"][];
+            /**
+             * System Prompt
+             * @description Always sent: style and guardrails (English).
+             */
+            system_prompt: string;
+            /**
+             * Thinking
+             * @description The provider takes an effort („Denkaufwand“).
+             */
+            thinking: boolean;
         };
         /** WallAdminOut */
         WallAdminOut: {
@@ -6037,6 +6582,23 @@ export interface components {
              * @constant
              */
             wall_path: "/livewall";
+        };
+        /** WallBox */
+        WallBox: {
+            /** H */
+            h: number;
+            /** W */
+            w: number;
+            /**
+             * X
+             * @description 0..1 from the left of the photo
+             */
+            x: number;
+            /**
+             * Y
+             * @description 0..1 from the top
+             */
+            y: number;
         };
         /** WallByeData */
         WallByeData: {
@@ -6113,11 +6675,14 @@ export interface components {
             emoji: string;
             /** Id */
             id: string;
-            /** Line */
+            /**
+             * Line
+             * @description The host's subtitle, else the generated explanation.
+             */
             line: string;
             /** Title */
             title: string;
-            /** @description Only for categories with a verdict prompt, once a poll made one. */
+            /** @description Deprecated: the first winner's comment, when it has one. */
             verdict?: components["schemas"]["WallVerdict"] | null;
             /**
              * Winners
@@ -6144,6 +6709,16 @@ export interface components {
             reason: string | null;
             /** Title */
             title: string;
+        };
+        /** WallComment */
+        WallComment: {
+            /** Emoji */
+            emoji: string | null;
+            /**
+             * Text
+             * @description The AI's comment on this winner (German, ≤ 160 chars).
+             */
+            text: string;
         };
         /**
          * WallConfig
@@ -6600,28 +7175,45 @@ export interface components {
              */
             transition_ms: number;
         };
-        /** WallVerdict */
+        /**
+         * WallVerdict
+         * @description Deprecated: the best-ranked winner's comment (`winners[].comment`).
+         */
         WallVerdict: {
             /** Emoji */
             emoji: string | null;
             /**
              * Photo Id
-             * @description Public id of the photo it names, or null.
+             * @description Public id of the photo it is about, or null.
              */
             photo_id: string | null;
             /**
              * Text
-             * @description The LLM's verdict (German, ≤ 160 chars), shown below.
+             * @description The AI's comment (German, ≤ 160 chars), shown below.
              */
             text: string;
         };
         /** WallWinner */
         WallWinner: {
+            /** @description The AI's comment on this winner (only while the AI is ready). */
+            comment?: components["schemas"]["WallComment"] | null;
+            /**
+             * Detail
+             * @description The value text when the headline is an object.
+             */
+            detail?: string | null;
+            /**
+             * Headline
+             * @description The object's name or the value text.
+             * @default
+             */
+            headline: string;
             /**
              * Label
-             * @description German, e.g. „7 Personen“, „um 19:42“, „Sonnenbrille“.
+             * @description German, headline and detail together, e.g. „7 Personen“, „um 19:42“, „Sonnenbrille · 0,93 Coolness“ (compatibility).
              */
             label: string;
+            object?: components["schemas"]["WallWinnerObject"] | null;
             /**
              * Object Idx
              * @description The object in the photo's list the value points at, if any.
@@ -6629,6 +7221,45 @@ export interface components {
             object_idx?: number | null;
             photo: components["schemas"]["WallPhoto"];
             /** Value */
+            value: number | null;
+        };
+        /**
+         * WallWinnerObject
+         * @description The object the winner is about (the wall frames it).
+         */
+        WallWinnerObject: {
+            /** @description On the shown photo (same crop as the analysed one); null: no frame. */
+            box: components["schemas"]["WallBox"] | null;
+            /** Idx */
+            idx: number;
+            /** Label De */
+            label_de: string;
+            /**
+             * Value
+             * @description Its value (a property's score, else confidence).
+             */
+            value: number | null;
+        };
+        /**
+         * WinnerObject
+         * @description The focus object of a winner (what the wall frames).
+         */
+        WinnerObject: {
+            /** @description 0..1 on the analysed (= shown) photo; null: none. */
+            box: components["schemas"]["ObjectBox"] | null;
+            /**
+             * Idx
+             * @description Its idx in the photo's merged object list.
+             */
+            idx: number;
+            /** Label */
+            label: string;
+            /** Label De */
+            label_de: string;
+            /**
+             * Value
+             * @description The measure's value for it (score or confidence).
+             */
             value: number | null;
         };
         /** WorkerStatus */
@@ -13723,6 +14354,169 @@ export interface operations {
             };
         };
     };
+    export_categories_api_x_wall_admin_categories_export_get: {
+        parameters: {
+            query?: {
+                /** @description Category ids (repeat the parameter); none = every category. */
+                ids?: string[] | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CategoriesFile"];
+                };
+            };
+            /** @description Invalid input (see `error`) */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Needs consent or an admin session */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Forbidden: banned, paused, stopped, joining closed or a foreign Origin (CSRF) */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Not found, or no party access (`scan_qr`) */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Request validation failed (`invalid_request`) */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Rate limited (`Retry-After` header) */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    import_categories_api_x_wall_admin_categories_import_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /** @description A categories file („Exportieren“; v1 too). */
+                    file: Record<string, never>;
+                    /**
+                     * @default copy
+                     * @enum {string}
+                     */
+                    on_conflict?: "copy" | "replace";
+                };
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CategoryImportOut"];
+                };
+            };
+            /** @description Invalid input (see `error`) */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Needs consent or an admin session */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Forbidden: banned, paused, stopped, joining closed or a foreign Origin (CSRF) */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Not found, or no party access (`scan_qr`) */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Request validation failed (`invalid_request`) */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Rate limited (`Retry-After` header) */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
     order_categories_api_x_wall_admin_categories_order_put: {
         parameters: {
             query?: never;
@@ -14011,6 +14805,15 @@ export interface operations {
             };
             /** @description Not found, or no party access (`scan_qr`) */
             404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Conflict */
+            409: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -15138,95 +15941,6 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["PropertiesOut"];
-                };
-            };
-            /** @description Invalid input (see `error`) */
-            400: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorBody"];
-                };
-            };
-            /** @description Needs consent or an admin session */
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorBody"];
-                };
-            };
-            /** @description Forbidden: banned, paused, stopped, joining closed or a foreign Origin (CSRF) */
-            403: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorBody"];
-                };
-            };
-            /** @description Not found, or no party access (`scan_qr`) */
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorBody"];
-                };
-            };
-            /** @description Conflict */
-            409: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorBody"];
-                };
-            };
-            /** @description Request validation failed (`invalid_request`) */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorBody"];
-                };
-            };
-            /** @description Rate limited (`Retry-After` header) */
-            429: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorBody"];
-                };
-            };
-        };
-    };
-    set_property_active_api_x_wall_admin_llm_properties__name__active_put: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                name: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["PropertyActiveIn"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["PropertyOut"];
                 };
             };
             /** @description Invalid input (see `error`) */

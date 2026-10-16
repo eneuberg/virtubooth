@@ -33,9 +33,13 @@ def test_v16_archived_properties_become_inactive(tmp_path, monkeypatch):
         db.close()
 
     monkeypatch.undo()
+    # up to 17 only (18 drops `inactive_at` again: test_migration_v18.py)
+    v17 = tuple(step for step in dbmod.MIGRATIONS if step[0] <= 17)
+    monkeypatch.setattr(dbmod, "MIGRATIONS", v17)
+    monkeypatch.setattr(dbmod, "SCHEMA_VERSION", 17)
     db = Database(path)
     try:
-        assert db.one("PRAGMA user_version")[0] == dbmod.SCHEMA_VERSION
+        assert db.one("PRAGMA user_version")[0] == 17
         cols = {r[1] for r in db.all("PRAGMA table_info(llm_properties)")}
         assert {"inactive_at", "deleted_at"} <= cols and "archived_at" not in cols
         rows = db.all("SELECT name, inactive_at, deleted_at FROM llm_properties ORDER BY id")

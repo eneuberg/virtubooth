@@ -179,7 +179,11 @@ steht im „Protokoll“.
   lächeln“, Objekte, gewonnene Kategorien, die Wünsche des Gasts) und Rahmen
   über dem Vorschaubild, jedes Ding in seiner eigenen Farbe (gleiche Dinge gleiche
   Farbe, auch Gesicht und Hand; der Name steht am Rahmen, keine Legende). Das große
-  Foto zeigt die volle Analyse. Fertige Analysen erscheinen ohne Neuladen.
+  Foto zeigt die volle Analyse. Eine gewonnene Kategorie klappt auf (am Chip
+  und im großen Foto): Erklärung, Regel in Klartext, Platz und Wert dieses
+  Fotos, das Objekt, der KI-Kommentar, an/aus/gesperrt mit Grund und „Im Editor
+  öffnen“. Ein Foto, das mit Objekterkennung „Aus“ ausgewertet wurde, zeigt
+  „Objekterkennung aus“ statt „Nichts erkannt“. Fertige Analysen erscheinen ohne Neuladen.
   „Analyse zeigen“ blendet alles aus; der Browser merkt es sich.
 - **„Filter zeigen“** (wie in „Fotos“, eine Einstellung für die ganze
   Verwaltung): aus zeigt Kacheln und großes Foto ohne Fotobox-Filter.
@@ -414,7 +418,8 @@ Wänden.
     dazu z. B. „Fair: jeder Gast reihum“, „Kategorie-Highlights“).
   - **Galerie:** eine endlose Fotowand, 2 bis 6 Reihen.
   - **Kategorien:** die Gewinner der [Kategorien](#kategorien), 4 bis 60 s je
-    Kategorie, darunter das Urteil der KI, wenn es eins gibt.
+    Kategorie, ein Rahmen um das Objekt, um das es geht, und unter jedem
+    Gewinner der Kommentar der KI, wenn es einen gibt.
 - **Aussehen:** elf Übergänge (Überblenden, Glitch, Polaroid-Fall,
   Spielautomat, Konfetti, …) oder Zufall; animierte Hintergründe („Farbblasen“,
   „Polarlicht“, „Disco-Gitter“, „Konfetti-Regen“, „Ruhig“); die Farben folgen
@@ -455,19 +460,48 @@ Kategorien sind Regeln. Die Karte „Kategorien“ im Tab „Live-Wall“ zeigt 
 mit Schalter, Reihenfolge, den aktuellen Gewinnern und, wenn nichts gewinnen
 kann, warum.
 
-- **Eine Kategorie:** Emoji, Titel, Zeile, bis zu 8 Bedingungen, Auswahl
-  „Top“ oder „Bottom“ nach einem Wert, 1 bis 10 Gewinner, „Ein Foto pro Gast“,
-  die Beschriftung auf der Wall und optional ein „Urteil der KI (Prompt)“. Der
-  Editor zeigt die Gewinner schon beim Tippen.
-- **Werte:** jeder Analysewert, „Anzahl von <Objekt>“, die Werte der
-  [Eigenschaften](#ml-pipeline-und-externe-ki), Aufnahmezeit, Fotos des Gasts.
+- **Eine Kategorie:** Emoji, Titel, Zeile (leer: eine Erklärung aus der
+  Regel, z. B. „Höchster Wert bei „Personen“, mindestens 3“), bis zu 8
+  Bedingungen, wer gewinnt (höchster oder niedrigster Wert, optional „zählt erst
+  ab …“, bis zu 2 Werte bei Gleichstand, zuletzt das neuere Foto), 1 bis 10
+  Gewinner, „Ein Foto pro Gast“, die Beschriftung auf der Wall und optional ein
+  KI-Urteil. Der Editor zeigt die Gewinner schon beim Tippen.
+- **Messgrößen:** ein Fotowert (jeder Analysewert, Aufnahmezeit, Fotos des
+  Gasts) oder etwas über die Objekte des Fotos: Anzahl, höchster, niedrigster
+  Wert, Durchschnitt, Summe, Mittel der besten k oder Anzahl ab einem Wert, von
+  der Erkennungssicherheit oder einer [Eigenschaft](#ml-pipeline-und-externe-ki),
+  auf Wunsch nur für bestimmte Objekte oder ohne bestimmte. Zeigt der Wert auf
+  ein Objekt, rahmt die Wall es ein und nennt es („Sonnenbrille · 0,93“).
+- **KI-Urteil:** die KI kommentiert die besten 1 bis 5 Gewinner, einen frechen
+  Satz pro Foto; sie ändert die Rangfolge nie. Eigener Prompt oder der Standard,
+  Modell der Haiku- oder Sonnet-Klasse mit Denkaufwand; der Editor zeigt den
+  geschätzten Preis pro Kommentar. Ein Kommentar gilt pro Kategorie und Foto und
+  wird wiederverwendet; ein neuer Prompt oder ein anderes Modell schreibt neu.
+  Feste Leitplanken: nichts über Körper, Aussehen, Herkunft, Religion,
+  Behinderung oder Sexualität, nichts Verletzendes.
+- **Externe KI aus:** Kategorien mit Eigenschaft schalten sich aus, wenn die
+  externe KI, „Eigenschaften abfragen“ oder der Schlüssel wegfällt oder eine
+  genutzte Eigenschaft in den Papierkorb geht; die Karte nennt den Grund, wieder
+  ein schaltet nur der Host (ein Banner bietet „N Kategorien wieder
+  einschalten“, sobald der Grund weg ist). Ein KI-Urteil ohne Eigenschaft
+  pausiert nur. Budget leer schaltet nichts aus. Gespeichert werden darf eine
+  gesperrte Kategorie, aber nur ausgeschaltet.
+- **Exportieren / Importieren:** alle Kategorien oder eine als JSON, mit den
+  Eigenschaften, die sie nutzen (Name und Prompt). Beim Import wird eine
+  vorhandene Kennung als Kopie (`_2`) übernommen oder auf Wunsch ersetzt;
+  fehlende Eigenschaften entstehen aus der Datei, vorhandene behalten ihren
+  Prompt. Ohne Prompt für eine Eigenschaft oder bei gesperrter KI kommt die
+  Kategorie ausgeschaltet an, mit Grund. Ältere Dateien (Version 1) gehen auch.
 - **Vorlagen:** Volles Haus, Hände hoch!, Grinsekatzen, Herzschmerz-Pose,
   Ach du Schreck!, Brillenbande, Generationen-Foto, Dream-Team, Solo-Star,
   Peace!, Rock'n'Roll, Daumen hoch, Prost!, Hutparade, Gesangseinlage,
   Farbexplosion, Action-Shot, Eröffnungsfoto, Dauerauslöser und (aus) „Das
-  coolste Objekt“ mit KI-Urteil. Änderbar und löschbar; „Vorlagen
-  wiederherstellen“ holt sie zurück. Keine nennt die älteste oder jüngste
-  Person oder bewertet Aussehen.
+  coolste Objekt“, „Das albernste Objekt“, „Am unerwartetsten“, „Die meisten
+  Gesichter“, „Die meisten Objekte“. Ihre Eigenschaften (`coolness`,
+  `goofiness`, `unexpectedness`) entstehen erst beim Einschalten; ob ein Mensch
+  mitzählt, entscheidet die KI (ein Kostüm darf gewinnen). Änderbar und
+  löschbar; „Vorlagen wiederherstellen“ holt sie zurück. Keine nennt die älteste
+  oder jüngste Person oder bewertet Aussehen.
 - Gewinner sind nur sichtbare Fotos nach der Verzögerung, nie von Gästen, die
   die Auswertung abgeschaltet haben.
 
@@ -488,12 +522,14 @@ Tab „ML-Pipeline“:
   Hochladen lokal und/oder per KI. Der API-Schlüssel wird verschlüsselt
   gespeichert und nie wieder angezeigt.
 - **„Eigenschaften“:** z. B. `coolness` mit Prompt. Name und Prompt sind fest.
-  Schalter „aktiv“: aus = wird nicht mehr abgefragt, die Werte bleiben auf den
-  Fotos und in den Kategorien. „Löschen“ legt sie in den „Papierkorb“ (nicht
-  abgefragt, nicht mehr in der Werteauswahl der Kategorien, Werte bleiben,
-  Name bleibt belegt); dort „Wiederherstellen“ oder „Endgültig löschen“ (mit
-  Rückfrage; nicht, solange eine Kategorie sie benutzt). Export/Import als
-  JSON (`active`, `deleted`; ältere Dateien mit `archived` gehen auch).
+  Kein Schalter: abgefragt wird eine Eigenschaft, solange eine eingeschaltete
+  Kategorie sie nutzt („wird abgefragt (für: …)“, sonst „ruht“), mit „Genutzt
+  von …“. „Löschen“ fragt nach (und nennt die Kategorien, die dabei ausgehen) und legt sie in
+  den „Papierkorb“ (nicht abgefragt, nicht mehr im Kategorie-Editor, Werte
+  bleiben, Name bleibt belegt; Kategorien, die sie nutzen, gehen aus); dort
+  „Wiederherstellen“ oder „Endgültig löschen“ (mit Rückfrage; nicht, solange
+  eine Kategorie sie benutzt). Export/Import als JSON (`deleted`; `active` und
+  `archived` aus älteren Dateien werden ignoriert).
 - **„Budget“:** Grenzen in USD und/oder Aufrufen, für die Party und pro Tag,
   mit Verbrauch. Am Limit stoppt jeder Aufruf.
 
@@ -501,10 +537,10 @@ Was die externe KI tut, wenn sie an ist:
 
 - **Erkennung beim Hochladen:** das Foto geht verkleinert (≤ 1024 px, ohne
   Metadaten) an den Dienst; die gefundenen Objekte werden angehängt.
-- **Abfrage** (nur Text): pro Eigenschaft die Objektlisten der erlaubten Fotos;
-  zurück kommt ein Wert pro Objekt. Danach ein Urteil (höchstens 160 Zeichen)
-  pro Kategorie mit Prompt, das auf der Wall unter dem Gewinner steht. Ohne
-  Änderung keine Abfrage.
+- **Abfrage** (nur Text): pro genutzter Eigenschaft die Objektlisten der
+  erlaubten Fotos; zurück kommt ein Wert pro Objekt. Danach die Kommentare des
+  KI-Urteils (je Gewinner höchstens 160 Zeichen, unter dessen Foto auf der
+  Wall), nur für Gewinner ohne Kommentar. Ohne Änderung keine Abfrage.
 - **Nie hinaus** gehen Fotos, Objekte und Namen von Gästen mit „Keine
   Weitergabe an externe KI“ oder abgeschalteter Auswertung, von gesperrten
   Gästen sowie ausgeblendete und gelöschte Fotos, geprüft direkt vor jedem

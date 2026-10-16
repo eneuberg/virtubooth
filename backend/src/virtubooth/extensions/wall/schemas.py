@@ -75,29 +75,63 @@ class WallOk(BaseModel):
     ok: Literal[True]
 
 
+class WallBox(BaseModel):
+    x: float = Field(description="0..1 from the left of the photo")
+    y: float = Field(description="0..1 from the top")
+    w: float
+    h: float
+
+
+class WallWinnerObject(BaseModel):
+    """The object the winner is about (the wall frames it)."""
+
+    idx: int
+    label_de: str
+    value: float | None = Field(description="Its value (a property's score, else confidence).")
+    box: WallBox | None = Field(
+        description="On the shown photo (same crop as the analysed one); null: no frame."
+    )
+
+
+class WallComment(BaseModel):
+    text: str = Field(description="The AI's comment on this winner (German, ≤ 160 chars).")
+    emoji: str | None
+
+
 class WallWinner(BaseModel):
     photo: WallPhoto
     value: float | None
-    label: str = Field(description="German, e.g. „7 Personen“, „um 19:42“, „Sonnenbrille“.")
+    label: str = Field(
+        description="German, headline and detail together, e.g. „7 Personen“, „um 19:42“, "
+        "„Sonnenbrille · 0,93 Coolness“ (compatibility)."
+    )
+    headline: str = Field("", description="The object's name or the value text.")
+    detail: str | None = Field(None, description="The value text when the headline is an object.")
     object_idx: int | None = Field(
         None, description="The object in the photo's list the value points at, if any."
+    )
+    object: WallWinnerObject | None = None
+    comment: WallComment | None = Field(
+        None, description="The AI's comment on this winner (only while the AI is ready)."
     )
 
 
 class WallVerdict(BaseModel):
-    text: str = Field(description="The LLM's verdict (German, ≤ 160 chars), shown below.")
+    """Deprecated: the best-ranked winner's comment (`winners[].comment`)."""
+
+    text: str = Field(description="The AI's comment (German, ≤ 160 chars), shown below.")
     emoji: str | None
-    photo_id: str | None = Field(description="Public id of the photo it names, or null.")
+    photo_id: str | None = Field(description="Public id of the photo it is about, or null.")
 
 
 class WallCategory(BaseModel):
     id: str
     emoji: str
     title: str
-    line: str
+    line: str = Field(description="The host's subtitle, else the generated explanation.")
     winners: list[WallWinner] = Field(description="1–10, in order (best first).")
     verdict: WallVerdict | None = Field(
-        None, description="Only for categories with a verdict prompt, once a poll made one."
+        None, description="Deprecated: the first winner's comment, when it has one."
     )
 
 

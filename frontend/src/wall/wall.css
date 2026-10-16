@@ -480,7 +480,7 @@ body {
   animation-delay: 360ms;
 }
 
-/* as tall as the count allows, no taller than the row (minus the badge and the name
+/* as tall as the count allows, no taller than the row (minus the caption and the name
    under it: 14vmin) and narrow enough that all of them fit side by side */
 .wall-cat-pic {
   overflow: hidden;
@@ -541,7 +541,7 @@ body {
 /* (old TV browsers without container queries keep the plain heights above) */
 @supports (height: 1cqh) {
   .wall-cat-pic {
-    --room: calc(100cqh - 14vmin);
+    --room: calc(100cqh - 19vmin);
   }
 
   .wall-cat-winners[data-count='1'] .wall-cat-pic {
@@ -558,14 +558,14 @@ body {
 
   /* two lines of verdict under the photo need room too */
   .wall-cat-winners[data-verdict] .wall-cat-pic {
-    --room: calc(100cqh - 24vmin);
+    --room: calc(100cqh - 29vmin);
   }
 
-  /* two rows; each cell's label sits on the photo, the name under it (7vmin) */
+  /* two rows; under each cell its caption and the name (9vmin) */
   .wall-cat-winners[data-compact] .wall-cat-pic {
     height: min(
       34vh,
-      (100cqh - 4.4vmin - 14vmin) / 2,
+      (100cqh - 4.4vmin - 18vmin) / 2,
       (100cqw - (var(--cols, 3) - 1) * 2.6vmin) / var(--cols, 3) * 4 / 3
     );
   }
@@ -584,40 +584,126 @@ body {
   opacity: 1;
 }
 
+/* under the photo: [place] the main line (the object's name or the value text) and,
+   when the main line is an object, its value as a chip; then „von <Name>“ */
+.wall-cat-cap {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 0.6vmin 1.2vmin;
+  /* as wide as the photo, never wider (a long name is cut, the photo keeps its size) */
+  width: 0;
+  min-width: 100%;
+  margin-top: 1.6vmin;
+}
+
+.wall-cat-place {
+  display: grid;
+  flex: none;
+  place-items: center;
+  min-width: 4.2vmin;
+  height: 4.2vmin;
+  padding: 0 0.9vmin;
+  border-radius: 999px;
+  background: var(--wall-plate);
+  color: var(--wall-ink);
+  font-size: clamp(13px, 2.3vmin, 66px);
+  font-weight: 700;
+}
+
+.wall-cat-headline {
+  overflow: hidden;
+  min-width: 0;
+  font-size: clamp(17px, 3.3vmin, 96px);
+  font-weight: 740;
+  line-height: 1.15;
+  letter-spacing: -0.015em;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  color: var(--wall-ink);
+}
+
 .wall-cat-value {
-  position: absolute;
-  top: -2.4vmin;
-  right: -2.4vmin;
-  padding: 1vmin 2.2vmin;
+  flex: none;
+  padding: 0.6vmin 1.7vmin;
   border-radius: 999px;
   background: linear-gradient(135deg, var(--wall-accent), var(--wall-primary));
   color: var(--wall-on-accent);
-  font-size: clamp(15px, 2.9vmin, 88px);
+  font-size: clamp(14px, 2.4vmin, 72px);
   font-weight: 720;
   letter-spacing: -0.01em;
   white-space: nowrap;
-  transform: rotate(3deg);
+  transform: rotate(-2deg);
   box-shadow:
-    0 1vmin 2.5vmin rgb(0 0 0 / 0.4),
-    0 0 3vmin color-mix(in srgb, var(--wall-accent) 35%, transparent);
+    0 0.8vmin 2vmin rgb(0 0 0 / 0.35),
+    0 0 2.4vmin color-mix(in srgb, var(--wall-accent) 35%, transparent);
 }
 
 .wall-cat-by {
-  margin-top: 1.4vmin;
-  font-size: clamp(14px, 2.5vmin, 76px);
+  margin-top: 0.6vmin;
+  font-size: clamp(14px, 2.4vmin, 72px);
   font-weight: 560;
   text-align: center;
+  color: var(--wall-ink-muted);
+}
+
+/* the frame around the focus object, its name on a tag in its corner */
+.wall-cat-box {
+  position: absolute;
+  border: 0.5vmin solid var(--wall-accent);
+  border-radius: 1vmin;
+  box-shadow:
+    0 0 0 0.25vmin rgb(0 0 0 / 0.45),
+    0 0 2.6vmin color-mix(in srgb, var(--wall-accent) 55%, transparent);
+  pointer-events: none;
+  animation: wall-box-in 700ms cubic-bezier(0.34, 1.45, 0.64, 1) 1s both;
+}
+
+.wall-cat-box-tag {
+  position: absolute;
+  top: -0.5vmin;
+  left: -0.5vmin;
+  overflow: hidden;
+  max-width: 32vmin;
+  padding: 0.3vmin 1.1vmin;
+  border-radius: 1vmin 0 1vmin 0;
+  background: var(--wall-accent);
+  color: var(--wall-on-accent);
+  font-size: clamp(12px, 2vmin, 60px);
+  font-weight: 700;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+@keyframes wall-box-in {
+  from {
+    opacity: 0;
+    transform: scale(1.25);
+  }
+}
+
+.wall-cat-winners[data-compact] .wall-cat-cap {
+  flex-wrap: nowrap;
+  gap: 0.8vmin;
+  margin-top: 0.8vmin;
+}
+
+.wall-cat-winners[data-compact] .wall-cat-headline {
+  font-size: clamp(14px, 2.2vmin, 64px);
 }
 
 .wall-cat-winners[data-compact] .wall-cat-value {
-  top: -1.4vmin;
-  right: -1.4vmin;
-  padding: 0.6vmin 1.4vmin;
-  font-size: clamp(14px, 2vmin, 60px);
+  padding: 0.35vmin 1.1vmin;
+  font-size: clamp(13px, 1.8vmin, 54px);
+}
+
+.wall-cat-winners[data-compact] .wall-cat-box-tag {
+  font-size: clamp(11px, 1.5vmin, 44px);
 }
 
 .wall-cat-winners[data-compact] .wall-cat-by {
-  margin-top: 0.8vmin;
+  margin-top: 0.2vmin;
   overflow: hidden;
   max-width: 100%;
   font-size: clamp(14px, 1.9vmin, 56px);
@@ -650,24 +736,22 @@ body {
    photo out of the flow (it may be wider than the photo, the row keeps its width; the
    pictures leave room for it); under a compact grid it is the side column's last row */
 .wall-cat-verdict {
-  display: -webkit-box;
-  overflow: hidden;
   margin: 0;
+  padding: 0.8vmin 1.8vmin;
+  border-radius: 2.2vmin;
+  background: var(--wall-plate);
   font-size: clamp(16px, 2.6vmin, 78px);
   font-weight: 460;
   line-height: 1.3;
   letter-spacing: -0.005em;
   text-align: center;
   color: var(--wall-ink);
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 2;
-  line-clamp: 2;
   animation: wall-verdict-in 600ms cubic-bezier(0.22, 1, 0.36, 1) 0.9s both;
 }
 
 .wall-cat-photo .wall-cat-verdict {
   position: absolute;
-  top: calc(100% + 1.4vmin);
+  top: calc(100% + 1.2vmin);
   width: max-content;
   max-width: min(84vmin, 100cqw);
 }
@@ -688,9 +772,58 @@ body {
   margin-left: calc(min(84vmin, 100cqw) / -2);
 }
 
-.wall-cat-side > .wall-cat-verdict {
-  max-width: min(110vmin, 100%);
+/* several comments in a row: each as wide as its photo */
+.wall-cat-photo[data-many] .wall-cat-verdict {
+  right: 0;
+  left: 0;
+  width: auto;
+  max-width: none;
+  margin-left: 0;
+  font-size: clamp(14px, 2.1vmin, 64px);
+  text-align: center;
+}
+
+/* the compact grid's comments, under it */
+.wall-cat-verdicts {
+  display: grid;
+  justify-items: center;
+  gap: 1vmin;
   margin: 0 auto 2vmin;
+  max-width: min(110vmin, 100%);
+}
+
+/* the text in the bubble: two lines at most (one under the compact grid) */
+.wall-cat-verdict-text {
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+}
+
+.wall-cat-verdicts .wall-cat-verdict-text {
+  -webkit-line-clamp: 1;
+  line-clamp: 1;
+}
+
+/* the marker: the AI wrote it */
+.wall-cat-verdict-text::before {
+  content: 'KI';
+  display: inline-block;
+  margin-right: 0.7em;
+  padding: 0.1em 0.45em;
+  border-radius: 0.4em;
+  background: var(--wall-accent);
+  color: var(--wall-on-accent);
+  font-size: 0.62em;
+  font-weight: 760;
+  letter-spacing: 0.04em;
+  vertical-align: 0.2em;
+}
+
+.wall-cat-verdict-place {
+  margin-right: 0.5em;
+  font-weight: 760;
 }
 
 /* the compact cell the verdict is about */
@@ -1060,6 +1193,7 @@ body {
 
 @media (prefers-reduced-motion: reduce) {
   .wall-cat-emoji,
+  .wall-cat-box,
   .wall-cat-head,
   .wall-cat-photo,
   .wall-cat-verdict,

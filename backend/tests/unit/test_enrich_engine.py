@@ -1,7 +1,9 @@
-"""The category engine (PLAN-NIGHT §4.2): every operator, the value keys
-(facts, objects, counts per label, property aggregations, photo values),
-top/bottom, then_by, one per guest, ties, labels, visibility and opt-outs,
-validation (German field names), availability, the snapshot cache."""
+"""The category engine (categories v2; the specs here are mostly v1, which every
+write still takes and converts): every operator, the value keys (facts, objects,
+counts per label, property aggregations, photo values), top/bottom, then_by, one
+per guest, ties, captions, visibility and opt-outs, validation (German field
+names, v1 and v2), threshold, focus objects, the explanation, availability, the
+snapshot cache."""
 
 from __future__ import annotations
 
@@ -77,13 +79,12 @@ class Party:
             self.scores(pid, name, scores)
         return pid
 
-    def prop(self, name: str, *, inactive: bool = False) -> int:
+    def prop(self, name: str) -> int:
         if name not in self._props:
             with self.db.tx() as c:
                 c.execute(
-                    "INSERT INTO llm_properties (name, prompt, created_at, inactive_at) "
-                    "VALUES (?, 'p', ?, ?)",
-                    (name, T0, T0 if inactive else None),
+                    "INSERT INTO llm_properties (name, prompt, created_at) VALUES (?, 'p', ?)",
+                    (name, T0),
                 )
             self._props[name] = int(
                 self.db.one("SELECT id FROM llm_properties WHERE name=?", (name,))[0]
@@ -244,14 +245,26 @@ def test_photo_values(party):
     assert (busy.photo_id, busy.value, busy.label) == (newest, 5.0, "5 Fotos")
 
 
-def test_labels():
-    assert engine.label_text("count", 1, "Person", "Personen") == "1 Person"
-    assert engine.label_text("count", 7, "Person", "Personen") == "7 Personen"
-    assert engine.label_text("percent", 0.823, "Drama", "") == "82 % Drama"
-    assert engine.label_text("number", 73.4, "Farbwert", "") == "Farbwert 73"
-    assert engine.label_text("fixed", 3, "volle Bewegung", "") == "volle Bewegung"
-    assert engine.label_text("object", 0.9, "", "", "Sonnenbrille") == "Sonnenbrille"
-    assert engine.label_text("object", 0.9, "", "", None) == "Objekt"
+def test_captions():
+    vt = engine.value_text
+    assert vt("count", 1, "Person", "Personen") == "1 Person"
+    assert vt("count", 7, "Person", "Personen") == "7 Personen"
+    assert vt("percent", 0.823, "Drama", "") == "82 % Drama"
+    assert vt("number", 73.4, "Farbwert", "") == "Farbwert 73"
+    assert vt("decimal", 0.934, "Coolness", "") == "0,93 Coolness"
+    assert vt("text", 3, "volle Bewegung", "") == "volle Bewegung"
+    assert vt("none", 3, "x", "") == ""
+    obj = engine.FocusObject(2, "sunglasses", "Sonnenbrille", 0.93, None)
+
+    def cap(fmt: str, show: bool, one: str = "") -> dict[str, Any]:
+        return {"format": fmt, "one": one, "many": "", "show_object": show}
+
+    assert engine.caption(cap("decimal", True, "Coolness"), 0.93, obj) == (
+        "Sonnenbrille", "0,93 Coolness", "Sonnenbrille · 0,93 Coolness",
+    )  # fmt: skip
+    assert engine.caption(cap("none", True), 0.93, obj) == ("Sonnenbrille", None, "Sonnenbrille")
+    assert engine.caption(cap("none", True), 0.93, None) == ("Objekt", None, "Objekt")
+    assert engine.caption(cap("count", False, "Ding"), 1, obj) == ("1 Ding", None, "1 Ding")
 
 
 def test_only_visible_photos_and_never_opted_out_guests(party):
@@ -346,13 +359,134 @@ def test_emoji_graphemes(emoji):
 def test_validation_normalises():
     spec = engine.validate(base(title="  Volles   Haus ", select={"by": "people",
                                                                   "then_by": ["smiles"]}))  # fmt: skip
-    assert spec["title"] == "Volles Haus"
-    assert spec["select"] == {"by": "people", "order": "top", "count": 3,
-                              "then_by": [{"by": "smiles", "order": "top"}],
-                              "one_per_guest": True}  # fmt: skip
-    assert spec["label"] == {"value": None, "style": "count", "one": "", "many": ""}
-    assert spec["verdict"] is None
+    assert spec["title"] == "Volles Haus" and spec["version"] == 2
+    assert spec["rank"] == {"by": {"kind": "value", "key": "people"}, "order": "desc",
+                            "threshold": None,
+                            "then_by": [{"by": {"kind": "value", "key": "smiles"},
+                                      "order": "desc"}]}  # fmt: skip
+    assert spec["select"] == {"count": 3, "one_per_guest": True}
+    assert spec["caption"] == {"value": None, "format": "count", "one": "", "many": "",
+                               "show_object": False}  # fmt: skip
+    assert spec["verdict"] is None and spec["pool"] == []
     assert engine.validate(spec) == spec
+
+
+def v2(**changes: Any) -> dict[str, Any]:
+    spec: dict[str, Any] = {"version": 2, "emoji": "🏆", "title": "T",
+                            "rank": {"by": {"kind": "value", "key": "people"}}}  # fmt: skip
+    spec.update(changes)
+    return spec
+
+
+OBJ = {"kind": "objects", "field": "prop:coolness", "agg": "max"}
+
+
+@pytest.mark.parametrize(
+    ("spec", "field"),
+    [
+        (v2(version=3), "Version"),
+        (v2(version=True), "Version"),
+        (v2(extra=1), "Kategorie"),
+        (v2(rank={"by": {"kind": "value", "key": "nope"}}), "Rang: Messgröße"),
+        (v2(rank={"by": {"kind": "value", "key": "people"}, "order": "top"}), "Rang: Richtung"),
+        (v2(rank={"by": {"kind": "value", "key": "people"}, "threshold": "3"}),
+         "Rang: Schwelle"),
+        (v2(rank={"by": {"kind": "value", "key": "people"},
+                  "then_by": [{"by": OBJ}] * 3}), "Rang: danach"),
+        (v2(rank={"by": {"kind": "objects", "agg": "max"}}), "Rang: Messgröße"),  # no field
+        (v2(rank={"by": {**OBJ, "agg": "top_k_mean"}}), "Rang: Messgröße"),  # no k
+        (v2(rank={"by": {**OBJ, "agg": "top_k_mean", "k": 6}}), "Rang: Messgröße"),
+        (v2(rank={"by": {**OBJ, "k": 2}}), "Rang: Messgröße"),  # k only for top_k_mean
+        (v2(rank={"by": {**OBJ, "agg": "count_ge", "t": 1.5}}), "Rang: Messgröße"),
+        (v2(rank={"by": {**OBJ, "field": "prop:Bad"}}), "Rang: Messgröße"),
+        (v2(rank={"by": {**OBJ, "where": {"labels": [""]}}}), "Rang: Messgröße"),
+        (v2(rank={"by": {**OBJ, "where": {"min_confidence": 2}}}), "Rang: Messgröße"),
+        (v2(pool=[{"measure": OBJ, "op": "contains", "operand": 1}]), "Bedingung 1: Operator"),
+        (v2(pool=[{"measure": OBJ, "op": "gte", "operand": None}]),
+         "Bedingung 1: Vergleichswert"),
+        (v2(pool=[{"measure": {"kind": "value"}, "op": "exists"}]), "Bedingung 1: Messgröße"),
+        (v2(select={"count": 11}), "Anzahl"),
+        (v2(caption={"format": "fancy"}), "Beschriftung: Format"),
+        (v2(caption={"show_object": True}), "Beschriftung: Objekt zeigen"),  # a fact: no object
+        (v2(verdict={"count": 6}), "KI-Urteil: Anzahl"),
+        (v2(verdict={"model": "claude-opus-5-5"}), "KI-Urteil: Modell"),  # Opus class: no
+        (v2(verdict={"effort": "max"}), "KI-Urteil: Denkaufwand"),
+        (v2(verdict={"prompt": "x" * 1001}), "KI-Urteil: Prompt"),
+    ],
+)  # fmt: skip
+def test_invalid_v2_specs_name_the_field(spec, field):
+    with pytest.raises(InvalidCategory) as exc:
+        engine.validate(spec)
+    assert exc.value.field == field and exc.value.version == 2
+
+
+def test_v2_normalises_measures_and_labels():
+    spec = engine.validate(v2(
+        rank={"by": {"kind": "objects", "where": {"labels": [" Smartphone ", "phone"],
+                                                  "exclude": ["person"]},
+                     "agg": "count"}, "threshold": 2},
+        caption={"show_object": True, "format": "count", "one": "Handy", "many": "Handys"},
+        verdict={"prompt": "  ", "model": "claude-sonnet-5-5"}))  # fmt: skip
+    by = spec["rank"]["by"]
+    # synonyms become the canonical label, once
+    assert by == {"kind": "objects", "where": {"labels": ["cell phone"], "exclude": ["person"],
+                                               "min_confidence": None},
+                  "field": None, "agg": "count", "k": None, "t": None}  # fmt: skip
+    assert spec["rank"]["threshold"] == 2.0
+    assert spec["verdict"] == {"prompt": None, "count": 3, "model": "claude-sonnet-5-5",
+                               "effort": "low"}  # fmt: skip
+    assert engine.validate(spec) == spec
+
+
+def test_threshold_focus_object_and_box(party):
+    party.prop("coolness")
+    with_box = party.photo()
+    objects.append(party.db, with_box, "local", "m@1", [
+        DetectedObject("hat", "Hat", 0.9, None),
+        DetectedObject("sunglasses", "Sunglasses", 0.5, (0.1, 0.2, 0.3, 0.4)),
+    ])  # fmt: skip
+    party.scores(with_box, "coolness", [0.2, 0.93])
+    low = party.photo(objs=[("cup", 0.9)], props={"coolness": [0.4]})
+    party.photo(objs=[("cup", 0.9)], props={"coolness": [0.1]})
+    spec = engine.validate(v2(
+        rank={"by": OBJ, "threshold": 0.3},
+        caption={"format": "decimal", "one": "Coolness", "show_object": True}))  # fmt: skip
+    result = engine.run(party.core, spec, ALL)
+    assert result.matched == 2  # 0.1 is below the threshold
+    first, second = result.winners
+    assert (first.photo_id, first.headline, first.detail, first.label) == (
+        with_box, "Sunglasses", "0,93 Coolness", "Sunglasses · 0,93 Coolness",
+    )  # fmt: skip
+    assert first.object == engine.FocusObject(1, "sunglasses", "Sunglasses", 0.93,
+                                              (0.1, 0.2, 0.3, 0.4))  # fmt: skip
+    assert second.photo_id == low and second.object is not None and second.object.box is None
+    # asc: at most the threshold
+    spec = engine.validate(v2(rank={"by": OBJ, "order": "asc", "threshold": 0.3}))
+    assert [w.value for w in engine.evaluate(party.core, spec, ALL)] == [0.1]
+
+
+def test_explain():
+    def ex(**rank: Any) -> str:
+        return engine.explain(engine.validate(v2(rank=rank)))
+
+    assert ex(by={"kind": "value", "key": "people"}, threshold=3) == (
+        "Höchster Wert bei „Personen“, mindestens 3"
+    )
+    assert ex(by={"kind": "value", "key": "sharpness"}, order="asc", threshold=80) == (
+        "Niedrigster Wert bei „Schärfe“, höchstens 80"
+    )
+    assert ex(by={**OBJ, "where": {"exclude": ["person"]}}) == (
+        "Höchster coolness-Wert unter allen Objekten (ohne person)"
+    )
+    assert (
+        ex(by={"kind": "objects", "agg": "count"}, threshold=3)
+        == "Die meisten Objekte, mindestens 3"
+    )
+    assert ex(by={**OBJ, "agg": "top_k_mean", "k": 2}) == (
+        "Höchster Schnitt der besten 2 coolness-Werte"
+    )
+    assert ex(by={"kind": "value", "key": "photo.created_at"}, order="asc") == "Das früheste Foto"
+    assert ex(by={**OBJ, "agg": "count_ge", "t": 0.7}) == "Die meisten Objekte mit coolness ab 0,70"
 
 
 # ------------------------------------------------- availability and cache
@@ -376,7 +510,10 @@ def test_availability():
     assert reason("generationen", {"basic", "faces", "tags"}) is None
     assert reason("eroeffnung", set()) is None and reason("farbexplosion", {"basic"}) is None
     assert reason("coolstes_objekt", everything) == "Braucht die Eigenschaft „coolness“."
-    assert reason("coolstes_objekt", everything, {"coolness": True}) is None  # inactive: readable
+    assert reason("coolstes_objekt", everything, {"coolness": True}) is None  # trashed: readable
+    assert reason("coolstes_objekt", everything - {"objects"}, {"coolness": False}) == (
+        "Braucht die Analyse „Objekte“."
+    )
 
 
 def test_the_snapshot_is_cached_until_something_changes(party):

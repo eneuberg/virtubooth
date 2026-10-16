@@ -107,78 +107,128 @@ export interface CategoryInfo {
   reason: string | null;
 }
 
+/** The focus object of a winner (categories v2): what the wall frames. */
+export interface WinnerObject {
+  idx: number;
+  label: string;
+  label_de: string;
+  /** the measure's value for it (a property's score, else its confidence) */
+  value: number | null;
+  /** 0..1 on the analysed (= shown) photo; null: no frame */
+  box: { x: number; y: number; w: number; h: number } | null;
+}
+
 export interface CategoryWinner {
   photo_id: string;
   thumb_url: string;
   value: number | null;
+  /** headline and detail together („Sonnenbrille · 0,93 Coolness“) */
   label: string;
-  /** the object of the photo's object list the value came from (prop.*, objects.*) */
+  /** the object's name (show_object) or the value text */
+  headline: string;
+  /** the value text when the headline is an object */
+  detail: string | null;
+  /** the focus object's idx in the photo's object list */
   object_idx: number | null;
+  object: WinnerObject | null;
+  /** the AI's cached comment on this winner (the best `verdict.count` only) */
+  comment: { text: string; emoji: string | null } | null;
 }
 
-// ----------------------------------------------------------- category specs (§4.2)
+// ------------------------------------------------- category specs (categories v2)
 
-export const CONDITION_OPS = [
-  'gt',
-  'lt',
-  'gte',
-  'lte',
-  'eq',
-  'ne',
-  'between',
-  'exists',
-  'not_exists',
-  'contains',
-  'not_contains',
-  'contains_any',
-] as const;
-export type ConditionOp = (typeof CONDITION_OPS)[number];
-
-/** number ops: a number; between: [a, b]; exists/not_exists: null; contains*: a label / labels */
-export type Operand = number | [number, number] | string | string[] | null;
-
-export interface Condition {
-  value: string;
-  op: ConditionOp;
-  operand: Operand;
+export interface MeasureValue {
+  kind: 'value';
+  /** an analyzer's fact, `photo.created_at` or `photo.guest_photos` */
+  key: string;
 }
 
-export const SELECT_ORDERS = ['top', 'bottom'] as const;
-export type SelectOrder = (typeof SELECT_ORDERS)[number];
-
-/** a tie-breaker after `by` (contract: `then_by` ≤ 2; shape decided here, see report) */
-export interface ThenBy {
-  by: string;
-  order: SelectOrder;
+export interface ObjectFilter {
+  /** only these labels (any of them); empty = all */
+  labels: string[];
+  exclude: string[];
+  /** 0–1 */
+  min_confidence: number | null;
 }
 
-export interface Selection {
-  by: string;
-  order: SelectOrder;
-  count: number;
-  then_by: ThenBy[];
-  one_per_guest: boolean;
+export const AGGREGATES = ['count', 'max', 'min', 'mean', 'sum', 'top_k_mean', 'count_ge'] as const;
+export type Aggregate = (typeof AGGREGATES)[number];
+
+export interface MeasureObjects {
+  kind: 'objects';
+  where: ObjectFilter;
+  /** `confidence` or `prop:<name>`; null for a plain count */
+  field: string | null;
+  agg: Aggregate;
+  /** top_k_mean: 2–5 */
+  k: number | null;
+  /** count_ge: 0–1 */
+  t: number | null;
 }
 
-export const LABEL_STYLES = ['count', 'percent', 'number', 'time', 'fixed', 'object'] as const;
-export type LabelStyle = (typeof LABEL_STYLES)[number];
+export type Measure = MeasureValue | MeasureObjects;
 
-export interface LabelSpec {
-  /** the value the label shows; null = `select.by` */
-  value: string | null;
-  style: LabelStyle;
+export const POOL_OPS = ['gt', 'lt', 'gte', 'lte', 'eq', 'ne', 'between', 'exists', 'not_exists'] as const;
+export type PoolOp = (typeof POOL_OPS)[number];
+
+export interface PoolCondition {
+  measure: Measure;
+  op: PoolOp;
+  operand: number | [number, number] | null;
+}
+
+export type RankOrder = 'desc' | 'asc';
+
+export interface Rank {
+  by: Measure;
+  order: RankOrder;
+  /** desc: only ≥ threshold, asc: only ≤ threshold */
+  threshold: number | null;
+  then_by: { by: Measure; order: RankOrder }[];
+}
+
+export const CAPTION_FORMATS = ['count', 'percent', 'decimal', 'number', 'time', 'text', 'none'] as const;
+export type CaptionFormat = (typeof CAPTION_FORMATS)[number];
+
+export interface Caption {
+  /** null = rank.by */
+  value: Measure | null;
+  format: CaptionFormat;
   one: string;
   many: string;
+  show_object: boolean;
+}
+
+export interface VerdictSpec {
+  /** null = the default prompt */
+  prompt: string | null;
+  /** 1–5 comments, one per best winner */
+  count: number;
+  /** a Haiku/Sonnet-class model (LlmStatus.verdict.models); null = the provider's cheapest */
+  model: string | null;
+  effort: 'low' | 'medium' | 'high';
 }
 
 export interface CategorySpec {
+  version: 2;
   emoji: string;
   title: string;
+  /** empty = the generated explanation */
   line: string;
-  where: Condition[];
-  select: Selection;
-  label: LabelSpec;
-  verdict: { prompt: string } | null;
+  pool: PoolCondition[];
+  rank: Rank;
+  select: { count: number; one_per_guest: boolean };
+  caption: Caption;
+  verdict: VerdictSpec | null;
+}
+
+export type OffReason = 'ai_off' | 'property_trashed' | 'property_missing' | 'migrated_inactive';
+
+export interface CategoryLock {
+  reason: 'ai_off' | 'property_trashed' | 'property_missing';
+  property: string | null;
+  /** German */
+  message: string;
 }
 
 /** The LLM's verdict on a category (the latest poll), as the admin and the wall get it. */
@@ -196,34 +246,64 @@ export interface CategoryItem {
   preset: string | null;
   position: number;
   spec: CategorySpec;
+  /** the ranking in plain German (the wall's subtitle when `line` is empty) */
+  explanation: string;
+  /** it reads an LLM property */
+  needs_ai: boolean;
+  properties: string[];
+  /** why it cannot be switched on right now, or null */
+  locked: CategoryLock | null;
+  /** switched off by the app, why (until the host switches it) */
+  off_reason: OffReason | null;
+  off_detail: string | null;
+  off_at: string | null;
   available: boolean;
   reason: string | null;
+  /** an AI verdict while the AI is not ready: no comments meanwhile */
+  verdict_paused: boolean;
+  /** deprecated: the best-ranked winner's comment */
   verdict: CategoryVerdict | null;
   winners: CategoryWinner[];
 }
 
 export interface CategoryPreview {
   winners: CategoryWinner[];
-  /** photos that meet every condition */
+  /** photos in the pool that pass the threshold */
   matched: number;
   /** German, why nothing can win (an analyzer off, no property yet), else null */
   reason: string | null;
+  explanation: string;
+  /** the spec as validated (v2) */
+  spec: CategorySpec;
+  locked: CategoryLock | null;
 }
 
-export const VALUE_KINDS = ['number', 'count', 'labels', 'time'] as const;
-export type ValueKind = (typeof VALUE_KINDS)[number];
-
-export interface ValueInfo {
+/** A photo value for `{kind: value, key}` (categories v2). */
+export interface PhotoValueInfo {
   key: string;
   title: string;
   group: string;
-  kind: ValueKind;
-  unit: string | null;
-  /** the analyzer (or property) it needs; shape not pinned by the contract */
-  needs: string | string[] | null;
+  kind: 'number' | 'count' | 'time';
+  unit: string;
+  needs: string[];
   available: boolean;
   reason: string | null;
-  inactive: boolean;
+}
+
+export interface ObjectFieldInfo {
+  /** `confidence` or `prop:<name>` */
+  field: string;
+  title: string;
+  property: string | null;
+  unit: string;
+}
+
+export interface AggregateInfo {
+  agg: Aggregate;
+  title: string;
+  needs_field: boolean;
+  param: 'k' | 't' | null;
+  focus: 'max' | 'min' | 'surest' | null;
 }
 
 export interface LabelInfo {
@@ -234,8 +314,35 @@ export interface LabelInfo {
 }
 
 export interface ValuesOut {
-  values: ValueInfo[];
+  photo_values: PhotoValueInfo[];
+  object_fields: ObjectFieldInfo[];
+  aggregates: AggregateInfo[];
+  objects_available: boolean;
+  objects_reason: string | null;
   labels: LabelInfo[];
+}
+
+// ------------------------------------------------------- export / import (§2)
+
+export interface CategoriesFile {
+  format: 'virtubooth-categories';
+  version: 2;
+  exported_at: string;
+  /** each property a category reads (by name), with its prompt */
+  properties: Array<{ name: string; prompt: string }>;
+  categories: Array<{ id: string; enabled: boolean; preset: string | null; spec: CategorySpec }>;
+}
+
+export type OnConflict = 'copy' | 'replace';
+
+export interface CategoryImportResult {
+  imported: Array<{ id: string; title: string; enabled: boolean; from_id: string | null; replaced: boolean }>;
+  skipped: Array<{ id: string; reason: string }>;
+  properties_created: string[];
+  /** exist here with another prompt: theirs stays */
+  prompt_conflicts: string[];
+  switched_off: Array<{ id: string; reason: CategoryLock['reason']; detail: string | null; message: string }>;
+  notes: string[];
 }
 
 export interface WallAdminOut {
@@ -406,8 +513,26 @@ export interface PhotoAnalysisSummary {
   /** face and hand frames on the full photo (objects carry their own) */
   boxes: Array<{ kind: 'face' | 'hand'; x: number; y: number; w: number; h: number }>;
   opt_out: { analysis: boolean; external_ai: boolean };
-  /** the categories this photo currently wins (or the external AI's verdict names) */
-  wins: Array<{ id: string; emoji: string; title: string; verdict: boolean }>;
+  /** analysed while object detection was „Aus“: „Objekterkennung aus“, not „Nichts erkannt“ */
+  objects_off: boolean;
+  /** the categories this photo currently wins */
+  wins: CategoryWin[];
+}
+
+/** A category the photo wins right now (the Live chip, which expands). */
+export interface CategoryWin {
+  id: string;
+  emoji: string;
+  title: string;
+  /** the AI commented on it */
+  verdict: boolean;
+  /** its place among the winners, 1 = best */
+  rank: number;
+  headline: string;
+  detail: string | null;
+  /** the focus object's German name */
+  object_label: string | null;
+  comment: { text: string; emoji: string | null } | null;
 }
 
 export type ObjectSource = 'local' | 'claude' | 'mistral' | (string & {});

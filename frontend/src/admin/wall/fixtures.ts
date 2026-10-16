@@ -3,10 +3,14 @@
  * PLAN-NIGHT §4.2/§4.3 shapes (analyzers, objects, values, categories).
  */
 import type {
+  Aggregate,
   Analyzer,
   AnalysisStatus,
   CategoryItem,
   CategorySpec,
+  CategoryWinner,
+  Measure,
+  MeasureObjects,
   PhotoAnalysis,
   ValuesOut,
   WallAdminOut,
@@ -227,19 +231,40 @@ export function photoAnalysis(state: PhotoAnalysis['state'] = 'done'): PhotoAnal
 
 // ---------------------------------------------------------------- categories
 
+const pv = (
+  key: string,
+  title: string,
+  group: string,
+  kind: 'number' | 'count' | 'time',
+  unit = '',
+): ValuesOut['photo_values'][number] => ({
+  key,
+  title,
+  group,
+  kind,
+  unit,
+  needs: [],
+  available: true,
+  reason: null,
+});
+
 export const valuesOut: ValuesOut = {
-  values: [
-    v('people', 'Personen', 'Gesichter und Personen', 'count'),
-    v('smiles', 'Lächeln', 'Gesichter und Personen', 'count'),
-    v('colorfulness', 'Farbigkeit', 'Bild', 'number'),
-    v('sharpness', 'Schärfe', 'Bild', 'number'),
-    v('objects', 'Objekte (Liste)', 'Objekte', 'labels'),
-    v('objects.count', 'Anzahl Objekte', 'Objekte', 'count'),
-    v('prop.coolness.max', 'coolness (höchster)', 'Eigenschaften', 'number'),
-    v('prop.coolness.mean', 'coolness (Mittel)', 'Eigenschaften', 'number'),
-    v('photo.created_at', 'Aufnahmezeit', 'Foto', 'time'),
-    v('photo.guest_photos', 'Fotos des Gasts', 'Foto', 'count'),
+  photo_values: [
+    pv('people', 'Personen', 'Gesichter und Personen', 'count'),
+    pv('smiles', 'Lächeln', 'Gesichter und Personen', 'count'),
+    pv('happy_max', 'Fröhlichkeit (höchste)', 'Gesichter und Personen', 'number', '0–1'),
+    pv('colorfulness', 'Farbigkeit', 'Bild', 'number'),
+    pv('sharpness', 'Schärfe', 'Bild', 'number'),
+    pv('photo.created_at', 'Aufnahmezeit', 'Foto', 'time'),
+    pv('photo.guest_photos', 'Fotos dieses Gasts', 'Foto', 'count'),
   ],
+  object_fields: [
+    { field: 'confidence', title: 'Erkennungssicherheit', property: null, unit: '0–1' },
+    { field: 'prop:coolness', title: 'coolness', property: 'coolness', unit: '0–1' },
+  ],
+  aggregates: [],
+  objects_available: true,
+  objects_reason: null,
   labels: [
     { label: 'wine glass', label_de: 'Weinglas', count: 14 },
     { label: 'hat', label_de: 'Hut', count: 3 },
@@ -247,26 +272,65 @@ export const valuesOut: ValuesOut = {
   ],
 };
 
-function v(key: string, title: string, group: string, kind: ValuesOut['values'][number]['kind']) {
-  return { key, title, group, kind, unit: null, needs: null, available: true, reason: null, inactive: false };
-}
+const NO_FILTER = { labels: [], exclude: [], min_confidence: null };
+
+/** v2 measures for the fixtures */
+export const measure = {
+  value: (key: string): Measure => ({ kind: 'value', key }),
+  objects: (agg: Aggregate, field: string | null = null, labels: string[] = []): MeasureObjects => ({
+    kind: 'objects',
+    where: { ...NO_FILTER, labels },
+    field,
+    agg,
+    k: null,
+    t: null,
+  }),
+};
 
 export function spec(over: Partial<CategorySpec> = {}): CategorySpec {
   return {
+    version: 2,
     emoji: '👥',
     title: 'Volles Haus',
     line: 'Die meisten Leute auf einem Foto',
-    where: [{ value: 'people', op: 'gte', operand: 3 }],
-    select: { by: 'people', order: 'top', count: 3, then_by: [], one_per_guest: true },
-    label: { value: null, style: 'count', one: 'Person', many: 'Personen' },
+    pool: [],
+    rank: { by: measure.value('people'), order: 'desc', threshold: 3, then_by: [] },
+    select: { count: 3, one_per_guest: true },
+    caption: { value: null, format: 'count', one: 'Person', many: 'Personen', show_object: false },
     verdict: null,
     ...over,
+  };
+}
+
+const ITEM = {
+  explanation: 'Höchster Wert bei „Personen“, mindestens 3',
+  needs_ai: false,
+  properties: [],
+  locked: null,
+  off_reason: null,
+  off_detail: null,
+  off_at: null,
+  verdict_paused: false,
+} satisfies Partial<CategoryItem>;
+
+export function winner(photo: string, value: number, label: string): CategoryWinner {
+  return {
+    photo_id: photo,
+    thumb_url: `/media/${photo}?thumb=1`,
+    value,
+    label,
+    headline: label,
+    detail: null,
+    object_idx: null,
+    object: null,
+    comment: null,
   };
 }
 
 export function categoryItems(): CategoryItem[] {
   return [
     {
+      ...ITEM,
       id: 'volles_haus',
       enabled: true,
       preset: 'volles_haus',
@@ -275,11 +339,10 @@ export function categoryItems(): CategoryItem[] {
       available: true,
       reason: null,
       verdict: null,
-      winners: [
-        { photo_id: 'p1', thumb_url: '/media/p1?thumb=1', value: 7, label: '7 Personen', object_idx: null },
-      ],
+      winners: [winner('p1', 7, '7 Personen')],
     },
     {
+      ...ITEM,
       id: 'coolstes_objekt',
       enabled: false,
       preset: 'coolstes_objekt',
@@ -288,19 +351,26 @@ export function categoryItems(): CategoryItem[] {
         emoji: '🏆',
         title: 'Das coolste Objekt',
         line: 'Was die KI am coolsten findet',
-        where: [{ value: 'prop.coolness.max', op: 'exists', operand: null }],
-        select: { by: 'prop.coolness.max', order: 'top', count: 1, then_by: [], one_per_guest: false },
-        label: { value: null, style: 'object', one: '', many: '' },
+        rank: { by: measure.objects('max', 'prop:coolness'), order: 'desc', threshold: null, then_by: [] },
+        select: { count: 1, one_per_guest: false },
+        caption: { value: null, format: 'none', one: '', many: '', show_object: true },
         verdict: {
           prompt: 'Werte das coolste Objekt aus den Ergebnissen raus und sag mir, von wem und was.',
+          count: 1,
+          model: null,
+          effort: 'low',
         },
       }),
+      explanation: 'Höchster coolness-Wert unter allen Objekten',
+      needs_ai: true,
+      properties: ['coolness'],
       available: false,
       reason: 'Braucht die Eigenschaft „coolness“.',
       verdict: { text: 'Der Hut von Gast 3 ist unschlagbar.', emoji: '🎩', photo_id: 'p2' },
       winners: [],
     },
     {
+      ...ITEM,
       id: 'mein_prost',
       enabled: true,
       preset: null,
@@ -309,10 +379,17 @@ export function categoryItems(): CategoryItem[] {
         emoji: '🥂',
         title: 'Prost!',
         line: 'Die meisten Gläser',
-        where: [{ value: 'objects', op: 'contains', operand: 'wine glass' }],
-        select: { by: 'objects.count:wine glass', order: 'top', count: 3, then_by: [], one_per_guest: false },
-        label: { value: null, style: 'count', one: 'Glas', many: 'Gläser' },
+        pool: [{ measure: measure.objects('count', null, ['wine glass']), op: 'gte', operand: 1 }],
+        rank: {
+          by: measure.objects('count', null, ['wine glass']),
+          order: 'desc',
+          threshold: null,
+          then_by: [],
+        },
+        select: { count: 3, one_per_guest: false },
+        caption: { value: null, format: 'count', one: 'Glas', many: 'Gläser', show_object: false },
       }),
+      explanation: 'Die meisten Objekte (nur wine glass)',
       available: true,
       reason: null,
       verdict: null,

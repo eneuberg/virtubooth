@@ -441,6 +441,50 @@ WHEN OLD.deleted_at IS NULL
 BEGIN SELECT RAISE(ABORT, 'only properties in the trash can be deleted'); END;
 """
 
+# v18: categories v2. A category's spec becomes version 2 (measures, rank, caption;
+# converted in Python at start: presets.ensure_upgraded, idempotent, per row while
+# `spec_version` = 1); `spec_v1` keeps the old spec. The switch „aktiv“ of properties
+# goes: a property is polled while it is not in the Papierkorb, the AI is ready and an
+# enabled category reads it. An enabled category that read a property switched off
+# then would start costing money now: it is switched off with a reason (`off_reason`
+# `migrated_inactive`, or `property_trashed`; `off_detail`: the property). v1 specs name
+# properties as "prop.<name>.…": the dot after the name keeps prefixes from matching.
+# The AI's comments are cached per (category, photo) in `wall_category_comments`
+# (`config_hash`: the prompt, model and effort they were written with);
+# `wall_category_verdicts` stays as it was (no longer written). No object, score or
+# fact table changes.
+SCHEMA_V18 = """
+ALTER TABLE wall_categories ADD COLUMN spec_version INTEGER NOT NULL DEFAULT 1;
+ALTER TABLE wall_categories ADD COLUMN spec_v1 TEXT;
+UPDATE wall_categories SET spec_v1 = spec;
+ALTER TABLE wall_categories ADD COLUMN off_reason TEXT;
+ALTER TABLE wall_categories ADD COLUMN off_detail TEXT;
+ALTER TABLE wall_categories ADD COLUMN off_at TEXT;
+UPDATE wall_categories SET enabled = 0, off_at = strftime('%Y-%m-%dT%H:%M:%f+00:00', 'now'),
+  off_reason = CASE WHEN EXISTS (SELECT 1 FROM llm_properties p WHERE p.deleted_at IS NOT NULL
+                 AND instr(wall_categories.spec, '"prop.' || p.name || '.') > 0)
+               THEN 'property_trashed' ELSE 'migrated_inactive' END,
+  off_detail = (SELECT p.name FROM llm_properties p
+                WHERE (p.inactive_at IS NOT NULL OR p.deleted_at IS NOT NULL)
+                  AND instr(wall_categories.spec, '"prop.' || p.name || '.') > 0
+                ORDER BY p.deleted_at IS NULL, p.id LIMIT 1)
+WHERE enabled = 1 AND EXISTS (SELECT 1 FROM llm_properties p
+                              WHERE (p.inactive_at IS NOT NULL OR p.deleted_at IS NOT NULL)
+                                AND instr(wall_categories.spec, '"prop.' || p.name || '.') > 0);
+ALTER TABLE llm_properties DROP COLUMN inactive_at;
+CREATE TABLE wall_category_comments (
+    category_id TEXT    NOT NULL,
+    photo_id    INTEGER NOT NULL REFERENCES photos(id),
+    config_hash TEXT    NOT NULL,         -- prompt + model + effort it was written with
+    text        TEXT    NOT NULL,         -- German, ≤ 160 chars, shown under the photo
+    emoji       TEXT,
+    object_idx  INTEGER,
+    poll_id     INTEGER NOT NULL,
+    created_at  TEXT    NOT NULL,
+    PRIMARY KEY (category_id, photo_id)
+);
+"""
+
 # (version, script): each step upgrades the database from the version before.
 MIGRATIONS: tuple[tuple[int, str], ...] = (
     (1, SCHEMA),
@@ -458,6 +502,7 @@ MIGRATIONS: tuple[tuple[int, str], ...] = (
     (15, SCHEMA_V15),
     (16, SCHEMA_V16),
     (17, SCHEMA_V17),
+    (18, SCHEMA_V18),
 )
 SCHEMA_VERSION = MIGRATIONS[-1][0]
 

@@ -27,14 +27,7 @@ import { showToast } from '@/ui/Toast';
 import { errorText, showError } from '../common/usePhotoActions';
 import { Card } from '../wall/fields';
 import { wk } from '../wall/keys';
-import {
-  createProperty,
-  deleteProperty,
-  pollNow,
-  saveLlmConfig,
-  setPropertyActive,
-  trashProperty,
-} from './api';
+import { createProperty, deleteProperty, pollNow, saveLlmConfig, trashProperty } from './api';
 import { ExternalAiHint } from './ExternalAiHint';
 import { parseMinutes, PROPERTY_PROMPT_MAX, validateProperty } from './forms';
 import { useProperties } from './hooks';
@@ -47,6 +40,7 @@ import {
   PROPERTIES_FILE,
   type InvalidEntry,
 } from './propertiesJson';
+import { quoted, statusText } from './text';
 import type { LlmProperty, LlmStatus } from './types';
 
 /** „Eigenschaften abfragen“: switch and interval (one PUT /llm/config), then the poller's state. */
@@ -278,7 +272,7 @@ function NewPropertySheet({
   );
 }
 
-/** „Exportieren“ (all, inactive ones and the Papierkorb included) and „Importieren“ (only new names, never overwrites). */
+/** „Exportieren“ (all, the Papierkorb included) and „Importieren“ (only new names, never overwrites). */
 function PropertiesJson({
   props,
   ready,
@@ -311,7 +305,7 @@ function PropertiesJson({
       const done = await importProperties(
         parsed.entries,
         props.map((p) => p.name),
-        { create: createProperty, setActive: setPropertyActive, trash: trashProperty },
+        { create: createProperty, trash: trashProperty },
         errorText,
       );
       const result = { ...done, invalid: parsed.invalid };
@@ -395,53 +389,49 @@ function ScoredLine({ property: p }: { property: LlmProperty }) {
   );
 }
 
-/** After a change: the list and the category value pickers (the Papierkorb hides values). */
+/** After a change: the list, the category value pickers (the Papierkorb hides values) and the categories (trashing switches readers off). */
 function useRefresh() {
   const qc = useQueryClient();
   return async () => {
     await qc.invalidateQueries({ queryKey: wk.properties });
     void qc.invalidateQueries({ queryKey: wk.values });
+    void qc.invalidateQueries({ queryKey: wk.categories });
   };
 }
 
+const STATUS_TONE: Record<LlmProperty['status'], 'ok' | 'neutral' | 'mark'> = {
+  polled: 'ok',
+  idle: 'neutral',
+  paused: 'mark',
+  trashed: 'neutral',
+};
+
 function PropertyRow({ property: p }: { property: LlmProperty }) {
   const refresh = useRefresh();
-  const [busy, setBusy] = useState<'active' | 'trash' | null>(null);
-  const run = async (what: 'active' | 'trash', action: () => Promise<unknown>, done?: string) => {
-    setBusy(what);
-    try {
-      await action();
-      await refresh();
-      if (done) showToast({ message: done, tone: 'success' });
-    } catch (err) {
-      showError(err);
-    } finally {
-      setBusy(null);
-    }
-  };
+  const [confirm, setConfirm] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  // the categories that go off with it (§4a: trashing switches its enabled readers off)
+  const goOff = p.used_by.filter((u) => u.enabled).map((u) => u.title);
   return (
     <li data-property={p.name} className="grid gap-1 border-b border-line py-3">
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-        <span className={cx('font-mono font-semibold', !p.active && 'text-ink-muted')}>{p.name}</span>
-        {p.active ? null : <Badge tone="neutral">Inaktiv</Badge>}
+        <span className={cx('font-mono font-semibold', p.status !== 'polled' && 'text-ink-muted')}>
+          {p.name}
+        </span>
+        <span data-testid="ml-property-status" data-status={p.status} className="min-w-0">
+          <Badge tone={STATUS_TONE[p.status]} className="h-auto min-h-6 py-0.5 whitespace-normal">
+            {statusText(p)}
+          </Badge>
+        </span>
         <div className="ml-auto flex items-center gap-2">
-          <Switch
-            isSelected={p.active}
-            isPending={busy === 'active'}
-            onChange={(on) => void run('active', () => setPropertyActive(p.name, on))}
-            aria-label={`${p.name} aktiv`}
-            data-testid="ml-property-active"
-          >
-            aktiv
-          </Switch>
           <Button
             size="xs"
             variant="quiet"
             icon={Trash2}
-            isPending={busy === 'trash'}
-            onPress={() =>
-              void run('trash', () => trashProperty(p.name, true), `„${p.name}“ liegt jetzt im Papierkorb.`)
-            }
+            onPress={() => {
+              setError(null);
+              setConfirm(true);
+            }}
             data-testid="ml-property-trash"
           >
             Löschen
@@ -449,7 +439,42 @@ function PropertyRow({ property: p }: { property: LlmProperty }) {
         </div>
       </div>
       <p className="text-sm whitespace-pre-line">{p.prompt}</p>
+      <p className="text-xs text-ink-muted" data-testid="ml-property-used-by">
+        {p.used_by.length
+          ? `Genutzt von ${p.used_by.map((u) => `„${u.title}“${u.enabled ? '' : ' (aus)'}`).join(', ')}`
+          : 'Von keiner Kategorie genutzt'}
+      </p>
       <ScoredLine property={p} />
+      <ConfirmDialog
+        isOpen={confirm}
+        onOpenChange={setConfirm}
+        title={`„${p.name}“ in den Papierkorb?`}
+        confirmLabel="In den Papierkorb"
+        error={error}
+        onConfirm={async () => {
+          try {
+            await trashProperty(p.name, true);
+          } catch (err) {
+            setError(errorText(err));
+            throw err;
+          }
+          await refresh();
+          showToast({
+            message: goOff.length
+              ? `„${p.name}“ liegt jetzt im Papierkorb; ${goOff.length === 1 ? 'eine Kategorie ist' : `${goOff.length} Kategorien sind`} aus.`
+              : `„${p.name}“ liegt jetzt im Papierkorb.`,
+            tone: 'success',
+          });
+        }}
+        data-testid="ml-property-trash-confirm"
+      >
+        <p>
+          {goOff.length
+            ? `Das schaltet ${goOff.length === 1 ? 'die Kategorie' : 'die Kategorien'} ${quoted(goOff)} aus. `
+            : ''}
+          Sie wird nicht mehr abgefragt; die Werte bleiben, „Wiederherstellen“ holt sie zurück.
+        </p>
+      </ConfirmDialog>
     </li>
   );
 }

@@ -1,13 +1,23 @@
-"""Category verdicts: after the property scores, one call per enabled category
-whose spec has a `verdict` prompt. The top 5 winners (only photos the poll may
-send) go out with the author's shown name, their labels and the scores of the
-properties the spec refers to; the answer `{text, emoji, photo, object_index}`
-is checked (refs must be sent ones, the index must exist in that photo, text
-cleaned and ≤ 160 chars) and stored as the category's latest verdict.
+"""The AI verdict (categories v2): comments under a category's winners.
+
+The AI comments, it never ranks. Per enabled category with a `verdict`
+(`{prompt|null, count 1–5, model, effort}`) the top `count` winners (only photos
+the poll may send) each get exactly one comment, tied to that photo. Comments
+are cached per (category, photo) with the hash of what wrote them (system
+prompt, the host's task, the resolved model, the effort): a winner that already
+has a comment with the current hash keeps it (no call); only new pairs go out,
+in one call per category. A changed prompt, model or effort invalidates the
+category's comments (they are rewritten when needed).
+
+The call gets each photo's rank, author's shown name, objects with the scores of
+the properties the spec reads, its focus object and the displayed value; the
+answer's comments are checked (the photo must be one sent, the object index must
+exist in it, text cleaned and ≤ 160 chars) and stored.
 """
 
 from __future__ import annotations
 
+import hashlib
 import json
 import logging
 import re
@@ -16,7 +26,8 @@ from typing import TYPE_CHECKING, Any
 
 from ....core.clock import now_iso
 from ....db.database import Database
-from . import ports
+from ..enrich import engine
+from . import ports, pricing, prompts
 from .poller import PolledPhoto, still_allowed
 from .prompts import MAX_VERDICT, clean_text
 from .providers.base import PhotoLine, Provider, ProviderError, TokenUsage, VerdictOut
@@ -27,14 +38,12 @@ if TYPE_CHECKING:
 
 log = logging.getLogger("virtubooth.llm")
 
-TOP = 5
-_PROP_REF = re.compile(r"prop\.([a-z][a-z0-9_]{1,30})\.")
 _ASCII_WORD = re.compile(r"[A-Za-z0-9]")
 
 
 def referenced_properties(spec: Mapping[str, Any]) -> list[str]:
-    """Property names the spec uses (`prop.<name>.…` anywhere), in order."""
-    return list(dict.fromkeys(_PROP_REF.findall(json.dumps(spec, ensure_ascii=False))))
+    """Property names a (validated) spec reads, in order."""
+    return engine.references(spec)
 
 
 def scores_of(
@@ -55,53 +64,87 @@ def scores_of(
     return out
 
 
-def clean_verdict(
-    out: VerdictOut, sent: Mapping[str, PolledPhoto]
-) -> tuple[str, str | None, int | None, int | None] | None:
-    """(text, emoji, photo id, object idx) or None when the text is empty."""
+def verdict_model(cfg: LlmConfig, verdict: Mapping[str, Any]) -> str:
+    return pricing.resolve_verdict_model(cfg.provider, verdict.get("model"))
+
+
+def config_hash(spec: Mapping[str, Any], model: str) -> str:
+    """What a category's comments depend on: the system prompt, the host's task
+    (the default names the title), the model and the effort."""
+    verdict = spec.get("verdict") or {}
+    data = [
+        prompts.VERDICT_SYSTEM,
+        prompts.verdict_prompt(verdict.get("prompt"), str(spec.get("title", ""))),
+        model,
+        verdict.get("effort", "low"),
+    ]
+    return hashlib.sha256(json.dumps(data, ensure_ascii=False).encode()).hexdigest()[:32]
+
+
+def clean_comment(out: VerdictOut, photo: PolledPhoto) -> tuple[str, str | None, int | None] | None:
+    """(text, emoji, object idx) or None when the text is empty."""
     text = clean_text(out.text, MAX_VERDICT)
     if not text:
         return None
     emoji = clean_text(out.emoji, 16) if out.emoji else None
     if emoji is not None and (not emoji or _ASCII_WORD.search(emoji)):
         emoji = None
-    photo = sent.get(out.photo.strip()) if out.photo else None
     idx = out.object_index
-    if photo is None or idx is None or not 0 <= idx < len(photo.labels):
+    if idx is None or not 0 <= idx < len(photo.labels):
         idx = None
-    return text, emoji, (photo.id if photo else None), idx
+    return text, emoji, idx
 
 
 def _verdict_call(
     prompt: str, lines: list[PhotoLine], effort: str = "low"
-) -> Callable[[Provider, str], tuple[VerdictOut, TokenUsage]]:
-    def run(provider: Provider, model: str) -> tuple[VerdictOut, TokenUsage]:
+) -> Callable[[Provider, str], tuple[list[VerdictOut], TokenUsage]]:
+    def run(provider: Provider, model: str) -> tuple[list[VerdictOut], TokenUsage]:
         return provider.verdict(prompt, lines, model=model, effort=effort)
 
     return run
 
 
+def _cached(db: Database, cid: str) -> dict[int, str]:
+    """photo id → config hash of the category's stored comments."""
+    return {
+        int(r["photo_id"]): r["config_hash"]
+        for r in db.all(
+            "SELECT photo_id, config_hash FROM wall_category_comments WHERE category_id=?",
+            (cid,),
+        )
+    }
+
+
 def _store(
     db: Database,
-    category_id: str,
+    cid: str,
+    photo_id: int,
+    digest: str,
     poll_id: int,
-    value: tuple[str, str | None, int | None, int | None],
+    value: tuple[str, str | None, int | None],
 ) -> None:
-    text, emoji, photo_id, idx = value
+    text, emoji, idx = value
     with db.tx() as c:
         c.execute(
-            "INSERT INTO wall_category_verdicts (category_id, text, emoji, photo_id, object_idx, "
-            "poll_id, created_at) VALUES (?,?,?,?,?,?,?) ON CONFLICT(category_id) DO UPDATE SET "
-            "text=excluded.text, emoji=excluded.emoji, photo_id=excluded.photo_id, "
-            "object_idx=excluded.object_idx, poll_id=excluded.poll_id, "
-            "created_at=excluded.created_at",
-            (category_id, text, emoji, photo_id, idx, poll_id, now_iso()),
+            "INSERT INTO wall_category_comments (category_id, photo_id, config_hash, text, emoji, "
+            "object_idx, poll_id, created_at) VALUES (?,?,?,?,?,?,?,?) "
+            "ON CONFLICT(category_id, photo_id) DO UPDATE SET config_hash=excluded.config_hash, "
+            "text=excluded.text, emoji=excluded.emoji, object_idx=excluded.object_idx, "
+            "poll_id=excluded.poll_id, created_at=excluded.created_at",
+            (cid, photo_id, digest, text, emoji, idx, poll_id, now_iso()),
         )
 
 
-def _drop(db: Database, category_id: str) -> None:
+def _invalidate(db: Database, cid: str, digest: str) -> None:
     with db.tx() as c:
-        c.execute("DELETE FROM wall_category_verdicts WHERE category_id=?", (category_id,))
+        c.execute(
+            "DELETE FROM wall_category_comments WHERE category_id=? AND config_hash != ?",
+            (cid, digest),
+        )
+
+
+def _value_text(w: engine.Winner) -> str | None:
+    return w.label or None
 
 
 def run_verdicts(
@@ -121,54 +164,74 @@ def run_verdicts(
     errors: list[str] = []
     for cid, spec in cats:
         verdict = spec.get("verdict")
-        prompt = str(verdict.get("prompt", "")).strip() if isinstance(verdict, dict) else ""
-        if not prompt:
+        if not isinstance(verdict, dict):
             continue
+        count = int(verdict.get("count") or 1)
+        model = verdict_model(cfg, verdict)
+        digest = config_hash(spec, model)
+        _invalidate(db, cid, digest)
         try:
-            winners = ports.evaluate(svc.core, spec, limit=TOP)
+            winners = ports.evaluate(svc.core, spec, limit=count)
         except Exception:
             log.exception("llm verdict: evaluating %s failed", cid)
             errors.append(f"{cid}: Auswertung fehlgeschlagen")
             continue
+        cached = _cached(db, cid)
         # only photos the poll may send; the live flags once more right before it
         allowed = still_allowed(db, [w.photo_id for w in winners if w.photo_id in by_id])
-        chosen = [by_id[w.photo_id] for w in winners if w.photo_id in allowed][:TOP]
-        if not chosen:
-            _drop(db, cid)
+        todo = [
+            (rank, w)
+            for rank, w in enumerate(winners[:count], start=1)
+            if w.photo_id in allowed and cached.get(w.photo_id) != digest
+        ]
+        if not todo:
             continue
         names = referenced_properties(spec)
-        scores = scores_of(db, names, [p.id for p in chosen])
-        lines = [
-            PhotoLine(
-                ref=p.ref,
-                author=p.author,
-                labels=p.labels,
-                scores={
-                    n: scores[p.id][n]
-                    for n in names
-                    if n in scores.get(p.id, {}) and len(scores[p.id][n]) == len(p.labels)
-                },
-            )
-            for p in chosen
-        ]
-        sent = {p.ref: p for p in chosen}
+        scores = scores_of(db, names, [w.photo_id for _, w in todo])
+        lines: list[PhotoLine] = []
+        for rank, w in todo:
+            p = by_id[w.photo_id]
+            mine = scores.get(p.id, {})
+            lines.append(
+                PhotoLine(
+                    ref=p.ref,
+                    author=p.author,
+                    labels=p.labels,
+                    scores={n: mine[n] for n in names if n in mine and len(mine[n]) == len(p.labels)},
+                    rank=rank,
+                    focus=w.object_idx if w.object_idx is not None and w.object_idx < len(p.labels) else None,
+                    value=_value_text(w),
+                )
+            )  # fmt: skip
+        sent = {line.ref: by_id[w.photo_id] for line, (_, w) in zip(lines, todo, strict=True)}
+        prompt = prompts.verdict_prompt(verdict.get("prompt"), str(spec.get("title", "")))
+        effort = str(verdict.get("effort") or "low")
+        call_cfg = cfg.model_copy(update={"model": model, "effort": effort})
         calls += 1
         try:
-            out, _ = svc.call(
-                "verdict",
-                cid,
-                _verdict_call(prompt, lines, cfg.effort),
-                config=cfg,
-            )
+            out, _ = svc.call("verdict", cid, _verdict_call(prompt, lines, effort), config=call_cfg)
         except Unavailable as exc:
             return calls, ok, errors, exc.message
         except ProviderError as exc:
             errors.append(f"{cid}: {exc.message}")
             continue
-        value = clean_verdict(out, sent)
-        if value is None:
+        stored = 0
+        done: set[str] = set()
+        for item in out:
+            ref = (item.photo or "").strip()
+            photo = sent.get(ref)
+            if photo is None or ref in done:
+                continue
+            value = clean_comment(item, photo)
+            if value is None:
+                continue
+            done.add(ref)
+            _store(db, cid, photo.id, digest, poll_id, value)
+            stored += 1
+        if not stored:
             errors.append(f"{cid}: leere Antwort")
             continue
+        if stored < len(sent):
+            log.info("llm verdict %s: %d of %d comments", cid, stored, len(sent))
         ok += 1
-        _store(db, cid, poll_id, value)
     return calls, ok, errors, None

@@ -52,17 +52,24 @@ class ProviderError(Exception):
 @dataclass(frozen=True)
 class PhotoLine:
     """One photo as text: its reference (`P<public id>`), the author's shown
-    name, its object labels in list order and, for verdicts, property scores
-    (aligned with the labels)."""
+    name, its object labels in list order and, for comments, property scores
+    (aligned with the labels), its rank, its focus object's index and the
+    displayed value („0,93 Coolness“)."""
 
     ref: str
     author: str
     labels: tuple[str, ...]
     scores: Mapping[str, Sequence[float | None]] = field(default_factory=dict)
+    rank: int | None = None
+    focus: int | None = None
+    value: str | None = None
 
 
 @dataclass(frozen=True)
 class VerdictOut:
+    """One comment: on the photo `photo` (its reference), with an optional
+    object index in that photo and an emoji."""
+
     text: str
     emoji: str | None
     photo: str | None
@@ -91,7 +98,9 @@ class Provider(Protocol):
 
     def verdict(
         self, prompt: str, lines: Sequence[PhotoLine], *, model: str, effort: str = "low"
-    ) -> tuple[VerdictOut, TokenUsage]: ...
+    ) -> tuple[list[VerdictOut], TokenUsage]:
+        """One comment per line (the category's winners without a cached comment)."""
+        ...
 
     def ping(self, model: str) -> TokenUsage:
         """Check key and model as cheaply as the provider allows: its models list

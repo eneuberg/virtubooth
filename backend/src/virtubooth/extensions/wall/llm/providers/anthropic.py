@@ -115,7 +115,7 @@ class AnthropicProvider:
 
     def verdict(
         self, prompt: str, lines: Sequence[PhotoLine], *, model: str, effort: str = "low"
-    ) -> tuple[VerdictOut, TokenUsage]:
+    ) -> tuple[list[VerdictOut], TokenUsage]:
         data, usage = self._json(
             model,
             prompts.VERDICT_SYSTEM,

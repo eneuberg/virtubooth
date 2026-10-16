@@ -3,6 +3,53 @@
  */
 import type { LlmProperty, LlmStatus, TestImageResult } from './types';
 
+function effortRow(effort: 'low' | 'medium' | 'high', usd: number, measured: boolean) {
+  return {
+    effort,
+    input_tokens: 800,
+    output_tokens: effort === 'low' ? 120 : 900,
+    usd_per_comment: usd,
+    price_per_comment: usd,
+    measured,
+  };
+}
+
+export function verdictOptions(): LlmStatus['verdict'] {
+  return {
+    system_prompt: 'You write one short, cheeky, warm German sentence about a party photo.',
+    default_prompt:
+      'Schreib einen kurzen, freundlichen Satz zum Sieger der Kategorie „{title}“ und nenne, was und von wem.',
+    default_model: 'claude-haiku-5-5',
+    max_chars: 160,
+    thinking: true,
+    models: [
+      {
+        id: 'claude-haiku-5-5',
+        title: 'Claude Haiku 5.5',
+        tier: 'small',
+        currency: 'USD',
+        efforts: [
+          effortRow('low', 0.0014, true),
+          effortRow('medium', 0.0052, false),
+          effortRow('high', 0.011, false),
+        ],
+      },
+      {
+        id: 'claude-sonnet-5-5',
+        title: 'Claude Sonnet 5.5',
+        tier: 'mid',
+        currency: 'USD',
+        efforts: [
+          effortRow('low', 0.0042, true),
+          effortRow('medium', 0.016, false),
+          effortRow('high', 0.033, false),
+        ],
+      },
+    ],
+    basis: 'Geschätzt aus den Token-Zahlen echter Läufe.',
+  };
+}
+
 export function llmStatus(over: Partial<LlmStatus> = {}): LlmStatus {
   const status: LlmStatus = {
     config: {
@@ -139,6 +186,7 @@ export function llmStatus(over: Partial<LlmStatus> = {}): LlmStatus {
       blocked: false,
       reason: null,
     },
+    verdict: verdictOptions(),
     ...over,
   };
   // a given `key` is that provider's entry in `keys` too (as the server answers)
@@ -156,8 +204,8 @@ export function properties(): LlmProperty[] {
       name: 'coolness',
       prompt: 'Bewerte, wie cool jedes Objekt ist.',
       created_at: '2026-10-15T19:00:00Z',
-      active: true,
-      inactive_at: null,
+      status: 'polled',
+      used_by: [{ id: 'coolstes_objekt', title: 'Das coolste Objekt', enabled: true }],
       deleted_at: null,
       scored_photos: 42,
       last_scored_at: '2026-10-15T20:00:00Z',
@@ -167,8 +215,8 @@ export function properties(): LlmProperty[] {
       name: 'most_giraffe',
       prompt: 'Wie sehr erinnert das Objekt an eine Giraffe?',
       created_at: '2026-10-15T19:10:00Z',
-      active: false,
-      inactive_at: '2026-10-15T19:30:00Z',
+      status: 'idle',
+      used_by: [],
       deleted_at: null,
       scored_photos: 10,
       last_scored_at: '2026-10-15T19:25:00Z',
@@ -178,8 +226,8 @@ export function properties(): LlmProperty[] {
       name: 'old_vibe',
       prompt: 'Wie retro wirkt das Objekt?',
       created_at: '2026-10-15T18:00:00Z',
-      active: true,
-      inactive_at: null,
+      status: 'trashed',
+      used_by: [],
       deleted_at: '2026-10-15T19:40:00Z',
       scored_photos: 3,
       last_scored_at: '2026-10-15T18:30:00Z',

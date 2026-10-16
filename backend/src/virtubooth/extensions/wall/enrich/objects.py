@@ -262,6 +262,25 @@ def source_objects_of(db: Database, photo_id: int) -> dict[str, list[SourceObjec
     return out
 
 
+def detection_off(db: Database, photo_ids: Sequence[int]) -> set[int]:
+    """The photos whose every detection run was skipped as switched off (object
+    detection „Aus“ when they were analysed). The caller checks for objects."""
+    ids = list(dict.fromkeys(photo_ids))
+    if not ids:
+        return set()
+    marks = ", ".join("?" for _ in ids)
+    out: set[int] = set()
+    for r in db.all(
+        f"SELECT photo_id, SUM(CASE WHEN state = 'skipped' AND lower(COALESCE(error, '')) "
+        f"LIKE '%ausgeschaltet%' THEN 0 ELSE 1 END) AS other, COUNT(*) AS n "
+        f"FROM photo_detection_runs WHERE photo_id IN ({marks}) GROUP BY photo_id",
+        ids,
+    ):
+        if int(r["n"]) > 0 and int(r["other"]) == 0:
+            out.add(int(r["photo_id"]))
+    return out
+
+
 def runs_of(db: Database, photo_id: int) -> list[dict[str, str | int | None]]:
     """The photo's detection runs: {source, state, model, error, objects, image}."""
     return [

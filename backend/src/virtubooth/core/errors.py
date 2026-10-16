@@ -30,6 +30,8 @@ ErrorCode = Literal[
     # wall categories and analysis
     "invalid_category",
     "category_exists",
+    "category_locked",
+    "invalid_import",
     "invalid_analyzer_settings",
     "worker_off",
     "ml_missing",
@@ -93,6 +95,7 @@ ErrorCode = Literal[
     "rate_limited",
     "invalid_request",
     "not_found",
+    "gone",
     # framework (http_<status>)
     "http_404",
     "http_405",

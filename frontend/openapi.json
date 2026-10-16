@@ -872,6 +872,75 @@
         "title": "AdminUser",
         "type": "object"
       },
+      "AggregateInfo": {
+        "properties": {
+          "agg": {
+            "enum": [
+              "count",
+              "max",
+              "min",
+              "mean",
+              "sum",
+              "top_k_mean",
+              "count_ge"
+            ],
+            "title": "Agg",
+            "type": "string"
+          },
+          "focus": {
+            "anyOf": [
+              {
+                "enum": [
+                  "max",
+                  "min",
+                  "surest"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Which object a winner points at: the highest / lowest value, the surest one (count with a label filter).",
+            "title": "Focus"
+          },
+          "needs_field": {
+            "description": "False: `count` also works without a field.",
+            "title": "Needs Field",
+            "type": "boolean"
+          },
+          "param": {
+            "anyOf": [
+              {
+                "enum": [
+                  "k",
+                  "t"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "`k` (top_k_mean, 2–5) or `t` (count_ge, 0–1).",
+            "title": "Param"
+          },
+          "title": {
+            "description": "German.",
+            "title": "Title",
+            "type": "string"
+          }
+        },
+        "required": [
+          "agg",
+          "title",
+          "needs_field",
+          "param",
+          "focus"
+        ],
+        "title": "AggregateInfo",
+        "type": "object"
+      },
       "AnalysisBox": {
         "properties": {
           "h": {
@@ -1806,6 +1875,49 @@
         "title": "BulkOut",
         "type": "object"
       },
+      "CategoriesFile": {
+        "description": "„Exportieren“: the categories and the properties they read (by name).",
+        "properties": {
+          "categories": {
+            "items": {
+              "$ref": "#/components/schemas/CategoryFileEntry"
+            },
+            "title": "Categories",
+            "type": "array"
+          },
+          "exported_at": {
+            "title": "Exported At",
+            "type": "string"
+          },
+          "format": {
+            "const": "virtubooth-categories",
+            "title": "Format",
+            "type": "string"
+          },
+          "properties": {
+            "description": "Each property a category reads, with its prompt.",
+            "items": {
+              "$ref": "#/components/schemas/CategoryFileProperty"
+            },
+            "title": "Properties",
+            "type": "array"
+          },
+          "version": {
+            "const": 2,
+            "title": "Version",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "format",
+          "version",
+          "exported_at",
+          "properties",
+          "categories"
+        ],
+        "title": "CategoriesFile",
+        "type": "object"
+      },
       "CategoriesOut": {
         "properties": {
           "categories": {
@@ -1822,8 +1934,116 @@
         "title": "CategoriesOut",
         "type": "object"
       },
+      "CategoryCaption": {
+        "properties": {
+          "format": {
+            "default": "count",
+            "enum": [
+              "count",
+              "percent",
+              "decimal",
+              "number",
+              "time",
+              "text",
+              "none"
+            ],
+            "title": "Format",
+            "type": "string"
+          },
+          "many": {
+            "default": "",
+            "description": "Plural word.",
+            "title": "Many",
+            "type": "string"
+          },
+          "one": {
+            "default": "",
+            "description": "Singular word, the unit (decimal) or the text (text).",
+            "title": "One",
+            "type": "string"
+          },
+          "show_object": {
+            "default": false,
+            "description": "The headline is the focus object's name (the value its detail).",
+            "title": "Show Object",
+            "type": "boolean"
+          },
+          "value": {
+            "anyOf": [
+              {
+                "discriminator": {
+                  "mapping": {
+                    "objects": "#/components/schemas/MeasureObjects",
+                    "value": "#/components/schemas/MeasureValue"
+                  },
+                  "propertyName": "kind"
+                },
+                "oneOf": [
+                  {
+                    "$ref": "#/components/schemas/MeasureValue"
+                  },
+                  {
+                    "$ref": "#/components/schemas/MeasureObjects"
+                  }
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The value shown (and required); null = `rank.by`.",
+            "title": "Value"
+          }
+        },
+        "title": "CategoryCaption",
+        "type": "object"
+      },
+      "CategoryCommentOut": {
+        "properties": {
+          "emoji": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Emoji"
+          },
+          "text": {
+            "description": "German, ≤ 160 chars: the AI's comment on this winner.",
+            "title": "Text",
+            "type": "string"
+          }
+        },
+        "required": [
+          "text",
+          "emoji"
+        ],
+        "title": "CategoryCommentOut",
+        "type": "object"
+      },
       "CategoryCondition": {
         "properties": {
+          "measure": {
+            "discriminator": {
+              "mapping": {
+                "objects": "#/components/schemas/MeasureObjects",
+                "value": "#/components/schemas/MeasureValue"
+              },
+              "propertyName": "kind"
+            },
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/MeasureValue"
+              },
+              {
+                "$ref": "#/components/schemas/MeasureObjects"
+              }
+            ],
+            "title": "Measure"
+          },
           "op": {
             "enum": [
               "gt",
@@ -1834,10 +2054,7 @@
               "ne",
               "between",
               "exists",
-              "not_exists",
-              "contains",
-              "not_contains",
-              "contains_any"
+              "not_exists"
             ],
             "title": "Op",
             "type": "string"
@@ -1846,9 +2063,6 @@
             "anyOf": [
               {
                 "type": "number"
-              },
-              {
-                "type": "string"
               },
               {
                 "maxItems": 2,
@@ -1864,29 +2078,130 @@
                 "type": "array"
               },
               {
-                "items": {
-                  "type": "string"
-                },
-                "type": "array"
+                "type": "null"
+              }
+            ],
+            "description": "number (gt…ne), [a, b] (between), null (exists, not_exists).",
+            "title": "Operand"
+          }
+        },
+        "required": [
+          "measure",
+          "op"
+        ],
+        "title": "CategoryCondition",
+        "type": "object"
+      },
+      "CategoryFileEntry": {
+        "properties": {
+          "enabled": {
+            "title": "Enabled",
+            "type": "boolean"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "preset": {
+            "anyOf": [
+              {
+                "type": "string"
               },
               {
                 "type": "null"
               }
             ],
-            "description": "number (gt…ne), [a, b] (between), label (contains, not_contains), [labels] (contains_any), null (exists, not_exists).",
-            "title": "Operand"
+            "title": "Preset"
           },
-          "value": {
-            "description": "A value key (GET /admin/values), e.g. `people`, `objects.count:hat`, `prop.coolness.max`.",
-            "title": "Value",
+          "spec": {
+            "$ref": "#/components/schemas/CategorySpec"
+          }
+        },
+        "required": [
+          "id",
+          "enabled",
+          "preset",
+          "spec"
+        ],
+        "title": "CategoryFileEntry",
+        "type": "object"
+      },
+      "CategoryFileProperty": {
+        "properties": {
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "prompt": {
+            "title": "Prompt",
             "type": "string"
           }
         },
         "required": [
-          "value",
-          "op"
+          "name",
+          "prompt"
         ],
-        "title": "CategoryCondition",
+        "title": "CategoryFileProperty",
+        "type": "object"
+      },
+      "CategoryImportOut": {
+        "properties": {
+          "imported": {
+            "items": {
+              "$ref": "#/components/schemas/ImportedCategory"
+            },
+            "title": "Imported",
+            "type": "array"
+          },
+          "notes": {
+            "description": "German hints (e.g. an old file's `active`).",
+            "items": {
+              "type": "string"
+            },
+            "title": "Notes",
+            "type": "array"
+          },
+          "prompt_conflicts": {
+            "description": "Properties that exist here with another prompt: theirs stays.",
+            "items": {
+              "type": "string"
+            },
+            "title": "Prompt Conflicts",
+            "type": "array"
+          },
+          "properties_created": {
+            "description": "Created from the file (or a preset).",
+            "items": {
+              "type": "string"
+            },
+            "title": "Properties Created",
+            "type": "array"
+          },
+          "skipped": {
+            "items": {
+              "$ref": "#/components/schemas/SkippedCategory"
+            },
+            "title": "Skipped",
+            "type": "array"
+          },
+          "switched_off": {
+            "description": "Imported switched off although the file had them on (or a property is missing), and why.",
+            "items": {
+              "$ref": "#/components/schemas/SwitchedOffCategory"
+            },
+            "title": "Switched Off",
+            "type": "array"
+          }
+        },
+        "required": [
+          "imported",
+          "skipped",
+          "properties_created",
+          "prompt_conflicts",
+          "switched_off",
+          "notes"
+        ],
+        "title": "CategoryImportOut",
         "type": "object"
       },
       "CategoryItem": {
@@ -1899,9 +2214,71 @@
             "title": "Enabled",
             "type": "boolean"
           },
+          "explanation": {
+            "description": "The ranking in plain German (the wall's subtitle when `line` is empty).",
+            "title": "Explanation",
+            "type": "string"
+          },
           "id": {
             "title": "Id",
             "type": "string"
+          },
+          "locked": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CategoryLockOut"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Why it cannot be switched on (the switch is disabled), or null."
+          },
+          "needs_ai": {
+            "description": "It reads an LLM property (external AI).",
+            "title": "Needs Ai",
+            "type": "boolean"
+          },
+          "off_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Off At"
+          },
+          "off_detail": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The property the reason is about.",
+            "title": "Off Detail"
+          },
+          "off_reason": {
+            "anyOf": [
+              {
+                "enum": [
+                  "ai_off",
+                  "property_trashed",
+                  "property_missing",
+                  "migrated_inactive"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Switched off by the app (not the host), why; cleared when the host switches it.",
+            "title": "Off Reason"
           },
           "position": {
             "title": "Position",
@@ -1918,6 +2295,14 @@
             ],
             "description": "The preset it came from; null = made by the host.",
             "title": "Preset"
+          },
+          "properties": {
+            "description": "The properties it reads.",
+            "items": {
+              "type": "string"
+            },
+            "title": "Properties",
+            "type": "array"
           },
           "reason": {
             "anyOf": [
@@ -1944,6 +2329,11 @@
               }
             ]
           },
+          "verdict_paused": {
+            "description": "It has an AI verdict but the AI is not ready: no comments meanwhile.",
+            "title": "Verdict Paused",
+            "type": "boolean"
+          },
           "winners": {
             "description": "Right now, best first (≤ count).",
             "items": {
@@ -1959,42 +2349,31 @@
           "preset",
           "position",
           "spec",
+          "explanation",
+          "needs_ai",
+          "properties",
+          "locked",
+          "off_reason",
+          "off_detail",
+          "off_at",
           "available",
           "reason",
+          "verdict_paused",
           "verdict",
           "winners"
         ],
         "title": "CategoryItem",
         "type": "object"
       },
-      "CategoryLabel": {
+      "CategoryLockOut": {
+        "description": "Why the category cannot be switched on right now (409 `category_locked`).",
         "properties": {
-          "many": {
-            "default": "",
-            "description": "Plural word.",
-            "title": "Many",
+          "message": {
+            "description": "German.",
+            "title": "Message",
             "type": "string"
           },
-          "one": {
-            "default": "",
-            "description": "Singular word (or the fixed text).",
-            "title": "One",
-            "type": "string"
-          },
-          "style": {
-            "default": "count",
-            "enum": [
-              "count",
-              "percent",
-              "number",
-              "time",
-              "fixed",
-              "object"
-            ],
-            "title": "Style",
-            "type": "string"
-          },
-          "value": {
+          "property": {
             "anyOf": [
               {
                 "type": "string"
@@ -2003,11 +2382,24 @@
                 "type": "null"
               }
             ],
-            "description": "The value shown (and required); null = `select.by`.",
-            "title": "Value"
+            "title": "Property"
+          },
+          "reason": {
+            "enum": [
+              "ai_off",
+              "property_trashed",
+              "property_missing"
+            ],
+            "title": "Reason",
+            "type": "string"
           }
         },
-        "title": "CategoryLabel",
+        "required": [
+          "reason",
+          "property",
+          "message"
+        ],
+        "title": "CategoryLockOut",
         "type": "object"
       },
       "CategoryOrderIn": {
@@ -2030,8 +2422,24 @@
       },
       "CategoryPreviewOut": {
         "properties": {
+          "explanation": {
+            "description": "The ranking in plain German.",
+            "title": "Explanation",
+            "type": "string"
+          },
+          "locked": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CategoryLockOut"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "It could be saved, but only switched off (and why)."
+          },
           "matched": {
-            "description": "Visible photos meeting every condition.",
+            "description": "Visible photos in the pool that pass the threshold.",
             "title": "Matched",
             "type": "integer"
           },
@@ -2047,6 +2455,10 @@
             "description": "Why it cannot win (German), or null.",
             "title": "Reason"
           },
+          "spec": {
+            "$ref": "#/components/schemas/CategorySpec",
+            "description": "The spec as validated (v2; a v1 input converted)."
+          },
           "winners": {
             "items": {
               "$ref": "#/components/schemas/CategoryWinnerOut"
@@ -2058,18 +2470,73 @@
         "required": [
           "winners",
           "matched",
-          "reason"
+          "reason",
+          "explanation",
+          "spec",
+          "locked"
         ],
         "title": "CategoryPreviewOut",
         "type": "object"
       },
-      "CategorySelect": {
+      "CategoryRank": {
         "properties": {
           "by": {
-            "description": "The value to rank by (missing values rank last).",
-            "title": "By",
+            "description": "Missing values rank last.",
+            "discriminator": {
+              "mapping": {
+                "objects": "#/components/schemas/MeasureObjects",
+                "value": "#/components/schemas/MeasureValue"
+              },
+              "propertyName": "kind"
+            },
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/MeasureValue"
+              },
+              {
+                "$ref": "#/components/schemas/MeasureObjects"
+              }
+            ],
+            "title": "By"
+          },
+          "order": {
+            "default": "desc",
+            "enum": [
+              "desc",
+              "asc"
+            ],
+            "title": "Order",
             "type": "string"
           },
+          "then_by": {
+            "description": "≤ 2 tie-breakers.",
+            "items": {
+              "$ref": "#/components/schemas/CategoryThen"
+            },
+            "title": "Then By",
+            "type": "array"
+          },
+          "threshold": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Only photos with `by` ≥ threshold (desc) or ≤ threshold (asc).",
+            "title": "Threshold"
+          }
+        },
+        "required": [
+          "by"
+        ],
+        "title": "CategoryRank",
+        "type": "object"
+      },
+      "CategorySelect": {
+        "properties": {
           "count": {
             "default": 3,
             "description": "1–10 winners.",
@@ -2080,47 +2547,38 @@
             "default": true,
             "title": "One Per Guest",
             "type": "boolean"
-          },
-          "order": {
-            "default": "top",
-            "enum": [
-              "top",
-              "bottom"
-            ],
-            "title": "Order",
-            "type": "string"
-          },
-          "then_by": {
-            "description": "≤ 2 tie-breakers (a plain key string = top).",
-            "items": {
-              "$ref": "#/components/schemas/CategoryThenBy"
-            },
-            "title": "Then By",
-            "type": "array"
           }
         },
-        "required": [
-          "by"
-        ],
         "title": "CategorySelect",
         "type": "object"
       },
       "CategorySpec": {
-        "description": "A rule-based wall category. Invalid input → 400 `invalid_category`\nnaming the field in German.",
+        "description": "A rule-based wall category, spec version 2. Invalid input → 400\n`invalid_category` naming the field in German. Writes also take a spec in the\nold version 1 shape (deprecated: converted).",
         "properties": {
+          "caption": {
+            "$ref": "#/components/schemas/CategoryCaption"
+          },
           "emoji": {
             "description": "One emoji.",
             "title": "Emoji",
             "type": "string"
           },
-          "label": {
-            "$ref": "#/components/schemas/CategoryLabel"
-          },
           "line": {
             "default": "",
-            "description": "0–80 chars (the subtitle).",
+            "description": "0–80 chars; empty = the explanation is generated.",
             "title": "Line",
             "type": "string"
+          },
+          "pool": {
+            "description": "0–8 conditions, all must hold.",
+            "items": {
+              "$ref": "#/components/schemas/CategoryCondition"
+            },
+            "title": "Pool",
+            "type": "array"
+          },
+          "rank": {
+            "$ref": "#/components/schemas/CategoryRank"
           },
           "select": {
             "$ref": "#/components/schemas/CategorySelect"
@@ -2140,34 +2598,46 @@
               }
             ]
           },
-          "where": {
-            "description": "0–8 conditions, all must hold.",
-            "items": {
-              "$ref": "#/components/schemas/CategoryCondition"
-            },
-            "title": "Where",
-            "type": "array"
+          "version": {
+            "const": 2,
+            "default": 2,
+            "title": "Version",
+            "type": "integer"
           }
         },
         "required": [
           "emoji",
           "title",
-          "select"
+          "rank"
         ],
         "title": "CategorySpec",
         "type": "object"
       },
-      "CategoryThenBy": {
+      "CategoryThen": {
         "properties": {
           "by": {
-            "title": "By",
-            "type": "string"
+            "discriminator": {
+              "mapping": {
+                "objects": "#/components/schemas/MeasureObjects",
+                "value": "#/components/schemas/MeasureValue"
+              },
+              "propertyName": "kind"
+            },
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/MeasureValue"
+              },
+              {
+                "$ref": "#/components/schemas/MeasureObjects"
+              }
+            ],
+            "title": "By"
           },
           "order": {
-            "default": "top",
+            "default": "desc",
             "enum": [
-              "top",
-              "bottom"
+              "desc",
+              "asc"
             ],
             "title": "Order",
             "type": "string"
@@ -2176,10 +2646,11 @@
         "required": [
           "by"
         ],
-        "title": "CategoryThenBy",
+        "title": "CategoryThen",
         "type": "object"
       },
       "CategoryVerdictOut": {
+        "description": "Deprecated: the best-ranked winner's comment (`winners[].comment`).",
         "properties": {
           "emoji": {
             "anyOf": [
@@ -2201,7 +2672,7 @@
                 "type": "null"
               }
             ],
-            "description": "Public id of the photo it names (visible), or null.",
+            "description": "Public id of the photo it is about, or null.",
             "title": "Photo Id"
           },
           "text": {
@@ -2219,23 +2690,85 @@
         "type": "object"
       },
       "CategoryVerdictSpec": {
+        "description": "The AI comments on the top `count` winners (one each); it never ranks.",
         "properties": {
-          "prompt": {
-            "description": "1–1000 chars: the LLM verdict prompt (each poll).",
-            "title": "Prompt",
+          "count": {
+            "default": 3,
+            "description": "1–5 comments (the best winners).",
+            "title": "Count",
+            "type": "integer"
+          },
+          "effort": {
+            "default": "low",
+            "enum": [
+              "low",
+              "medium",
+              "high"
+            ],
+            "title": "Effort",
             "type": "string"
+          },
+          "model": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "A Haiku- or Sonnet-class model (`LlmStatus.verdict.models`); null = the provider's cheapest.",
+            "title": "Model"
+          },
+          "prompt": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "≤ 1000 chars: the host's task; null = the default.",
+            "title": "Prompt"
           }
         },
-        "required": [
-          "prompt"
-        ],
         "title": "CategoryVerdictSpec",
         "type": "object"
       },
       "CategoryWin": {
         "properties": {
+          "comment": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CategoryCommentOut"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The AI's cached comment on this photo in this category."
+          },
+          "detail": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The value text when the headline is an object.",
+            "title": "Detail"
+          },
           "emoji": {
             "title": "Emoji",
+            "type": "string"
+          },
+          "headline": {
+            "default": "",
+            "description": "The object's name or the value text.",
+            "title": "Headline",
             "type": "string"
           },
           "id": {
@@ -2243,12 +2776,30 @@
             "title": "Id",
             "type": "string"
           },
+          "object_label": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The focus object's German name, if any.",
+            "title": "Object Label"
+          },
+          "rank": {
+            "default": 1,
+            "description": "Its place among the category's winners (1 = best).",
+            "title": "Rank",
+            "type": "integer"
+          },
           "title": {
             "title": "Title",
             "type": "string"
           },
           "verdict": {
-            "description": "Named by the external AI's verdict, not by a ranking.",
+            "description": "The AI commented on it in this category.",
             "title": "Verdict",
             "type": "boolean"
           }
@@ -2264,9 +2815,48 @@
       },
       "CategoryWinnerOut": {
         "properties": {
+          "comment": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CategoryCommentOut"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The AI's cached comment on this winner (the best `verdict.count` only)."
+          },
+          "detail": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The value text when the headline is an object.",
+            "title": "Detail"
+          },
+          "headline": {
+            "description": "The object's name (show_object) or the value text.",
+            "title": "Headline",
+            "type": "string"
+          },
           "label": {
+            "description": "headline and detail together („Sonnenbrille · 0,93 …“).",
             "title": "Label",
             "type": "string"
+          },
+          "object": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/WinnerObject"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "object_idx": {
             "anyOf": [
@@ -2277,7 +2867,7 @@
                 "type": "null"
               }
             ],
-            "description": "The object the value points at, if any.",
+            "description": "The focus object's idx, if any.",
             "title": "Object Idx"
           },
           "photo_id": {
@@ -2305,7 +2895,11 @@
           "thumb_url",
           "value",
           "label",
-          "object_idx"
+          "headline",
+          "detail",
+          "object_idx",
+          "object",
+          "comment"
         ],
         "title": "CategoryWinnerOut",
         "type": "object"
@@ -3127,6 +3721,8 @@
               "invalid_wall_config",
               "invalid_category",
               "category_exists",
+              "category_locked",
+              "invalid_import",
               "invalid_analyzer_settings",
               "worker_off",
               "ml_missing",
@@ -3182,6 +3778,7 @@
               "rate_limited",
               "invalid_request",
               "not_found",
+              "gone",
               "http_404",
               "http_405"
             ],
@@ -4308,6 +4905,49 @@
         "title": "IdentifyIn",
         "type": "object"
       },
+      "ImportedCategory": {
+        "properties": {
+          "enabled": {
+            "title": "Enabled",
+            "type": "boolean"
+          },
+          "from_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The id in the file when it was taken as a copy.",
+            "title": "From Id"
+          },
+          "id": {
+            "description": "Its id here (a copy: a free one, `<id>_2` …).",
+            "title": "Id",
+            "type": "string"
+          },
+          "replaced": {
+            "description": "It overwrote the category with that id.",
+            "title": "Replaced",
+            "type": "boolean"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "title",
+          "enabled",
+          "from_id",
+          "replaced"
+        ],
+        "title": "ImportedCategory",
+        "type": "object"
+      },
       "InstagramDoneData": {
         "properties": {
           "done": {
@@ -5038,6 +5678,9 @@
           },
           "usage": {
             "$ref": "#/components/schemas/Usage"
+          },
+          "verdict": {
+            "$ref": "#/components/schemas/VerdictOptionsOut"
           }
         },
         "required": [
@@ -5048,7 +5691,8 @@
           "models",
           "poller",
           "detection",
-          "usage"
+          "usage",
+          "verdict"
         ],
         "title": "LlmStatus",
         "type": "object"
@@ -5137,6 +5781,92 @@
           "user"
         ],
         "title": "MeOut",
+        "type": "object"
+      },
+      "MeasureObjects": {
+        "description": "An aggregate over the photo's objects (after `where`): `count` (without a\nfield: the objects; with one: those with a value), `max`, `min`, `mean`,\n`sum`, `top_k_mean` (k 2–5), `count_ge` (t 0–1) of `field`.",
+        "properties": {
+          "agg": {
+            "enum": [
+              "count",
+              "max",
+              "min",
+              "mean",
+              "sum",
+              "top_k_mean",
+              "count_ge"
+            ],
+            "title": "Agg",
+            "type": "string"
+          },
+          "field": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "`confidence` or `prop:<name>`; null for count.",
+            "title": "Field"
+          },
+          "k": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "K"
+          },
+          "kind": {
+            "const": "objects",
+            "title": "Kind",
+            "type": "string"
+          },
+          "t": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "T"
+          },
+          "where": {
+            "$ref": "#/components/schemas/ObjectFilter"
+          }
+        },
+        "required": [
+          "kind",
+          "agg"
+        ],
+        "title": "MeasureObjects",
+        "type": "object"
+      },
+      "MeasureValue": {
+        "description": "A photo value: an analyzer's fact, `photo.created_at` or `photo.guest_photos`.",
+        "properties": {
+          "key": {
+            "title": "Key",
+            "type": "string"
+          },
+          "kind": {
+            "const": "value",
+            "title": "Kind",
+            "type": "string"
+          }
+        },
+        "required": [
+          "kind",
+          "key"
+        ],
+        "title": "MeasureValue",
         "type": "object"
       },
       "MergedObjectOut": {
@@ -5475,6 +6205,79 @@
           "mode"
         ],
         "title": "ObjectDetectionIn",
+        "type": "object"
+      },
+      "ObjectFieldInfo": {
+        "properties": {
+          "field": {
+            "description": "`confidence` or `prop:<name>`.",
+            "title": "Field",
+            "type": "string"
+          },
+          "property": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The property's name for `prop:<name>`.",
+            "title": "Property"
+          },
+          "title": {
+            "description": "German.",
+            "title": "Title",
+            "type": "string"
+          },
+          "unit": {
+            "description": "„0–1“: both are scores.",
+            "title": "Unit",
+            "type": "string"
+          }
+        },
+        "required": [
+          "field",
+          "title",
+          "property",
+          "unit"
+        ],
+        "title": "ObjectFieldInfo",
+        "type": "object"
+      },
+      "ObjectFilter": {
+        "properties": {
+          "exclude": {
+            "description": "Never these labels.",
+            "items": {
+              "type": "string"
+            },
+            "title": "Exclude",
+            "type": "array"
+          },
+          "labels": {
+            "description": "Only these labels (any of them); empty = all.",
+            "items": {
+              "type": "string"
+            },
+            "title": "Labels",
+            "type": "array"
+          },
+          "min_confidence": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "0–1: only objects at least this sure.",
+            "title": "Min Confidence"
+          }
+        },
+        "title": "ObjectFilter",
         "type": "object"
       },
       "ObjectOut": {
@@ -6234,6 +7037,12 @@
             "title": "Objects",
             "type": "array"
           },
+          "objects_off": {
+            "default": false,
+            "description": "Analysed while object detection was „Aus“ (every detection run skipped as switched off, no objects): „Objekterkennung aus“, not „Nichts erkannt“.",
+            "title": "Objects Off",
+            "type": "boolean"
+          },
           "opt_out": {
             "$ref": "#/components/schemas/OptOutState"
           },
@@ -6631,6 +7440,73 @@
         "title": "PhotoUser",
         "type": "object"
       },
+      "PhotoValueInfo": {
+        "properties": {
+          "available": {
+            "title": "Available",
+            "type": "boolean"
+          },
+          "group": {
+            "description": "German group heading (the analyzer, „Foto“).",
+            "title": "Group",
+            "type": "string"
+          },
+          "key": {
+            "description": "`{kind: value, key}`: an analyzer's fact or `photo.*`.",
+            "title": "Key",
+            "type": "string"
+          },
+          "kind": {
+            "enum": [
+              "number",
+              "count",
+              "time"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "needs": {
+            "description": "Analyzer names (any of them); empty = always there.",
+            "items": {
+              "type": "string"
+            },
+            "title": "Needs",
+            "type": "array"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason"
+          },
+          "title": {
+            "description": "German.",
+            "title": "Title",
+            "type": "string"
+          },
+          "unit": {
+            "title": "Unit",
+            "type": "string"
+          }
+        },
+        "required": [
+          "key",
+          "title",
+          "group",
+          "kind",
+          "unit",
+          "needs",
+          "available",
+          "reason"
+        ],
+        "title": "PhotoValueInfo",
+        "type": "object"
+      },
       "PollOut": {
         "properties": {
           "reason": {
@@ -6921,19 +7797,6 @@
         "title": "PropertiesOut",
         "type": "object"
       },
-      "PropertyActiveIn": {
-        "properties": {
-          "active": {
-            "title": "Active",
-            "type": "boolean"
-          }
-        },
-        "required": [
-          "active"
-        ],
-        "title": "PropertyActiveIn",
-        "type": "object"
-      },
       "PropertyIn": {
         "properties": {
           "name": {
@@ -6956,11 +7819,6 @@
       },
       "PropertyOut": {
         "properties": {
-          "active": {
-            "description": "The switch „aktiv“: false = not polled, scores stay.",
-            "title": "Active",
-            "type": "boolean"
-          },
           "created_at": {
             "title": "Created At",
             "type": "string"
@@ -6974,24 +7832,12 @@
                 "type": "null"
               }
             ],
-            "description": "In the Papierkorb since (not polled, hidden from the value pickers); null = not in the Papierkorb. Restoring keeps the switch's state.",
+            "description": "In the Papierkorb since (not polled, hidden from the editor); null = not in the Papierkorb. Trashing switches the enabled categories that read it off.",
             "title": "Deleted At"
           },
           "id": {
             "title": "Id",
             "type": "integer"
-          },
-          "inactive_at": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "description": "When it was switched off; null = active.",
-            "title": "Inactive At"
           },
           "last_scored_at": {
             "anyOf": [
@@ -7015,6 +7861,25 @@
           "scored_photos": {
             "title": "Scored Photos",
             "type": "integer"
+          },
+          "status": {
+            "description": "Derived, never stored: polled (an enabled category reads it and the AI is ready), idle („ruht“: no enabled category reads it), paused (the external AI is not ready), trashed (in the Papierkorb; scores stay readable).",
+            "enum": [
+              "polled",
+              "idle",
+              "paused",
+              "trashed"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "used_by": {
+            "description": "The categories that read it.",
+            "items": {
+              "$ref": "#/components/schemas/PropertyUser"
+            },
+            "title": "Used By",
+            "type": "array"
           }
         },
         "required": [
@@ -7022,8 +7887,8 @@
           "name",
           "prompt",
           "created_at",
-          "active",
-          "inactive_at",
+          "status",
+          "used_by",
           "deleted_at",
           "scored_photos",
           "last_scored_at"
@@ -7034,7 +7899,7 @@
       "PropertyScores": {
         "properties": {
           "inactive": {
-            "description": "Not polled any more (switched off or in the Papierkorb).",
+            "description": "Not polled right now (no enabled category reads it, or in the Papierkorb).",
             "title": "Inactive",
             "type": "boolean"
           },
@@ -7064,6 +7929,30 @@
           "scores"
         ],
         "title": "PropertyScores",
+        "type": "object"
+      },
+      "PropertyUser": {
+        "properties": {
+          "enabled": {
+            "title": "Enabled",
+            "type": "boolean"
+          },
+          "id": {
+            "description": "The category's id.",
+            "title": "Id",
+            "type": "string"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "title",
+          "enabled"
+        ],
+        "title": "PropertyUser",
         "type": "object"
       },
       "ProviderOut": {
@@ -7360,6 +8249,26 @@
           "data"
         ],
         "title": "SettingsEventEvent",
+        "type": "object"
+      },
+      "SkippedCategory": {
+        "properties": {
+          "id": {
+            "description": "The id in the file, or „Eintrag 3“.",
+            "title": "Id",
+            "type": "string"
+          },
+          "reason": {
+            "description": "German.",
+            "title": "Reason",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "reason"
+        ],
+        "title": "SkippedCategory",
         "type": "object"
       },
       "SourceObject": {
@@ -7719,6 +8628,48 @@
           "box"
         ],
         "title": "SummaryObject",
+        "type": "object"
+      },
+      "SwitchedOffCategory": {
+        "properties": {
+          "detail": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The property it is about.",
+            "title": "Detail"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "message": {
+            "description": "German.",
+            "title": "Message",
+            "type": "string"
+          },
+          "reason": {
+            "enum": [
+              "ai_off",
+              "property_trashed",
+              "property_missing"
+            ],
+            "title": "Reason",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "reason",
+          "detail",
+          "message"
+        ],
+        "title": "SwitchedOffCategory",
         "type": "object"
       },
       "TestImageOut": {
@@ -8811,45 +9762,37 @@
         "title": "ValidationError",
         "type": "object"
       },
-      "ValueInfo": {
+      "ValuesOut": {
         "properties": {
-          "available": {
-            "title": "Available",
-            "type": "boolean"
-          },
-          "group": {
-            "description": "German group heading (the analyzer, „Objekte“, …).",
-            "title": "Group",
-            "type": "string"
-          },
-          "inactive": {
-            "description": "A value of a property that is switched off (not polled; scores stay readable).",
-            "title": "Inactive",
-            "type": "boolean"
-          },
-          "key": {
-            "title": "Key",
-            "type": "string"
-          },
-          "kind": {
-            "enum": [
-              "number",
-              "count",
-              "labels",
-              "time"
-            ],
-            "title": "Kind",
-            "type": "string"
-          },
-          "needs": {
-            "description": "Analyzer names (any of them) or `prop:<name>`; empty = always there.",
+          "aggregates": {
             "items": {
-              "type": "string"
+              "$ref": "#/components/schemas/AggregateInfo"
             },
-            "title": "Needs",
+            "title": "Aggregates",
             "type": "array"
           },
-          "reason": {
+          "labels": {
+            "description": "Object labels seen so far, most frequent first (for object filters).",
+            "items": {
+              "$ref": "#/components/schemas/LabelInfo"
+            },
+            "title": "Labels",
+            "type": "array"
+          },
+          "object_fields": {
+            "description": "What `objects.agg(field)` can read: `confidence` and every property not in the Papierkorb.",
+            "items": {
+              "$ref": "#/components/schemas/ObjectFieldInfo"
+            },
+            "title": "Object Fields",
+            "type": "array"
+          },
+          "objects_available": {
+            "description": "Object measures can have data.",
+            "title": "Objects Available",
+            "type": "boolean"
+          },
+          "objects_reason": {
             "anyOf": [
               {
                 "type": "string"
@@ -8858,55 +9801,168 @@
                 "type": "null"
               }
             ],
-            "title": "Reason"
+            "title": "Objects Reason"
           },
-          "title": {
-            "description": "German.",
-            "title": "Title",
-            "type": "string"
-          },
-          "unit": {
-            "title": "Unit",
-            "type": "string"
-          }
-        },
-        "required": [
-          "key",
-          "title",
-          "group",
-          "kind",
-          "unit",
-          "needs",
-          "available",
-          "reason",
-          "inactive"
-        ],
-        "title": "ValueInfo",
-        "type": "object"
-      },
-      "ValuesOut": {
-        "properties": {
-          "labels": {
-            "description": "Object labels seen so far, most frequent first: compose `objects.count:<label>` and `prop.<name>.at:<label>` with them.",
+          "photo_values": {
             "items": {
-              "$ref": "#/components/schemas/LabelInfo"
+              "$ref": "#/components/schemas/PhotoValueInfo"
             },
-            "title": "Labels",
-            "type": "array"
-          },
-          "values": {
-            "items": {
-              "$ref": "#/components/schemas/ValueInfo"
-            },
-            "title": "Values",
+            "title": "Photo Values",
             "type": "array"
           }
         },
         "required": [
-          "values",
+          "photo_values",
+          "object_fields",
+          "aggregates",
+          "objects_available",
+          "objects_reason",
           "labels"
         ],
         "title": "ValuesOut",
+        "type": "object"
+      },
+      "VerdictEffortOut": {
+        "properties": {
+          "effort": {
+            "enum": [
+              "low",
+              "medium",
+              "high"
+            ],
+            "title": "Effort",
+            "type": "string"
+          },
+          "input_tokens": {
+            "description": "Estimated per comment (one call, one new winner).",
+            "title": "Input Tokens",
+            "type": "integer"
+          },
+          "measured": {
+            "description": "From real token counts (low effort); false: the thinking is an assumption (pricing.py).",
+            "title": "Measured",
+            "type": "boolean"
+          },
+          "output_tokens": {
+            "description": "Including thinking (billed as output).",
+            "title": "Output Tokens",
+            "type": "integer"
+          },
+          "price_per_comment": {
+            "description": "The same in the model's `currency`.",
+            "title": "Price Per Comment",
+            "type": "number"
+          },
+          "usd_per_comment": {
+            "description": "Estimated price of one comment in USD.",
+            "title": "Usd Per Comment",
+            "type": "number"
+          }
+        },
+        "required": [
+          "effort",
+          "input_tokens",
+          "output_tokens",
+          "usd_per_comment",
+          "price_per_comment",
+          "measured"
+        ],
+        "title": "VerdictEffortOut",
+        "type": "object"
+      },
+      "VerdictModelOut": {
+        "properties": {
+          "currency": {
+            "title": "Currency",
+            "type": "string"
+          },
+          "efforts": {
+            "items": {
+              "$ref": "#/components/schemas/VerdictEffortOut"
+            },
+            "title": "Efforts",
+            "type": "array"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "tier": {
+            "description": "small: Haiku class, mid: Sonnet class.",
+            "enum": [
+              "small",
+              "mid"
+            ],
+            "title": "Tier",
+            "type": "string"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "title",
+          "tier",
+          "currency",
+          "efforts"
+        ],
+        "title": "VerdictModelOut",
+        "type": "object"
+      },
+      "VerdictOptionsOut": {
+        "description": "What the AI verdict of a category can use with the configured provider.",
+        "properties": {
+          "basis": {
+            "description": "How the price is estimated (German).",
+            "title": "Basis",
+            "type": "string"
+          },
+          "default_model": {
+            "description": "The provider's cheapest (`model: null`).",
+            "title": "Default Model",
+            "type": "string"
+          },
+          "default_prompt": {
+            "description": "The host's task when a category has none; `{title}` is its title.",
+            "title": "Default Prompt",
+            "type": "string"
+          },
+          "max_chars": {
+            "description": "What a comment may be long (the prompt asks ≤ 120).",
+            "title": "Max Chars",
+            "type": "integer"
+          },
+          "models": {
+            "description": "The configured provider's choices.",
+            "items": {
+              "$ref": "#/components/schemas/VerdictModelOut"
+            },
+            "title": "Models",
+            "type": "array"
+          },
+          "system_prompt": {
+            "description": "Always sent: style and guardrails (English).",
+            "title": "System Prompt",
+            "type": "string"
+          },
+          "thinking": {
+            "description": "The provider takes an effort („Denkaufwand“).",
+            "title": "Thinking",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "system_prompt",
+          "default_prompt",
+          "default_model",
+          "max_chars",
+          "thinking",
+          "models",
+          "basis"
+        ],
+        "title": "VerdictOptionsOut",
         "type": "object"
       },
       "WallAdminOut": {
@@ -8961,6 +10017,36 @@
           "event_name"
         ],
         "title": "WallAdminOut",
+        "type": "object"
+      },
+      "WallBox": {
+        "properties": {
+          "h": {
+            "title": "H",
+            "type": "number"
+          },
+          "w": {
+            "title": "W",
+            "type": "number"
+          },
+          "x": {
+            "description": "0..1 from the left of the photo",
+            "title": "X",
+            "type": "number"
+          },
+          "y": {
+            "description": "0..1 from the top",
+            "title": "Y",
+            "type": "number"
+          }
+        },
+        "required": [
+          "x",
+          "y",
+          "w",
+          "h"
+        ],
+        "title": "WallBox",
         "type": "object"
       },
       "WallByeData": {
@@ -9081,6 +10167,7 @@
             "type": "string"
           },
           "line": {
+            "description": "The host's subtitle, else the generated explanation.",
             "title": "Line",
             "type": "string"
           },
@@ -9097,7 +10184,7 @@
                 "type": "null"
               }
             ],
-            "description": "Only for categories with a verdict prompt, once a poll made one."
+            "description": "Deprecated: the first winner's comment, when it has one."
           },
           "winners": {
             "description": "1–10, in order (best first).",
@@ -9167,6 +10254,32 @@
           "reason"
         ],
         "title": "WallCategoryInfo",
+        "type": "object"
+      },
+      "WallComment": {
+        "properties": {
+          "emoji": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Emoji"
+          },
+          "text": {
+            "description": "The AI's comment on this winner (German, ≤ 160 chars).",
+            "title": "Text",
+            "type": "string"
+          }
+        },
+        "required": [
+          "text",
+          "emoji"
+        ],
+        "title": "WallComment",
         "type": "object"
       },
       "WallConfig": {
@@ -10059,6 +11172,7 @@
         "type": "object"
       },
       "WallVerdict": {
+        "description": "Deprecated: the best-ranked winner's comment (`winners[].comment`).",
         "properties": {
           "emoji": {
             "anyOf": [
@@ -10080,11 +11194,11 @@
                 "type": "null"
               }
             ],
-            "description": "Public id of the photo it names, or null.",
+            "description": "Public id of the photo it is about, or null.",
             "title": "Photo Id"
           },
           "text": {
-            "description": "The LLM's verdict (German, ≤ 160 chars), shown below.",
+            "description": "The AI's comment (German, ≤ 160 chars), shown below.",
             "title": "Text",
             "type": "string"
           }
@@ -10099,10 +11213,49 @@
       },
       "WallWinner": {
         "properties": {
+          "comment": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/WallComment"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The AI's comment on this winner (only while the AI is ready)."
+          },
+          "detail": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The value text when the headline is an object.",
+            "title": "Detail"
+          },
+          "headline": {
+            "default": "",
+            "description": "The object's name or the value text.",
+            "title": "Headline",
+            "type": "string"
+          },
           "label": {
-            "description": "German, e.g. „7 Personen“, „um 19:42“, „Sonnenbrille“.",
+            "description": "German, headline and detail together, e.g. „7 Personen“, „um 19:42“, „Sonnenbrille · 0,93 Coolness“ (compatibility).",
             "title": "Label",
             "type": "string"
+          },
+          "object": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/WallWinnerObject"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "object_idx": {
             "anyOf": [
@@ -10137,6 +11290,100 @@
           "label"
         ],
         "title": "WallWinner",
+        "type": "object"
+      },
+      "WallWinnerObject": {
+        "description": "The object the winner is about (the wall frames it).",
+        "properties": {
+          "box": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/WallBox"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "On the shown photo (same crop as the analysed one); null: no frame."
+          },
+          "idx": {
+            "title": "Idx",
+            "type": "integer"
+          },
+          "label_de": {
+            "title": "Label De",
+            "type": "string"
+          },
+          "value": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Its value (a property's score, else confidence).",
+            "title": "Value"
+          }
+        },
+        "required": [
+          "idx",
+          "label_de",
+          "value",
+          "box"
+        ],
+        "title": "WallWinnerObject",
+        "type": "object"
+      },
+      "WinnerObject": {
+        "description": "The focus object of a winner (what the wall frames).",
+        "properties": {
+          "box": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ObjectBox"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "0..1 on the analysed (= shown) photo; null: none."
+          },
+          "idx": {
+            "description": "Its idx in the photo's merged object list.",
+            "title": "Idx",
+            "type": "integer"
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "label_de": {
+            "title": "Label De",
+            "type": "string"
+          },
+          "value": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The measure's value for it (score or confidence).",
+            "title": "Value"
+          }
+        },
+        "required": [
+          "idx",
+          "label",
+          "label_de",
+          "value",
+          "box"
+        ],
+        "title": "WinnerObject",
         "type": "object"
       },
       "WorkerStatus": {
@@ -18571,7 +19818,7 @@
         ]
       },
       "post": {
-        "description": "A new category (at the end). 409 `category_exists`, 400 `invalid_category`.",
+        "description": "A new category (at the end). A category that cannot be switched on\nright now (`locked`: a property missing or in the Papierkorb, the AI not\nready) is stored switched off with that reason. 409 `category_exists`,\n400 `invalid_category`.",
         "operationId": "create_category_api_x_wall_admin_categories_post",
         "requestBody": {
           "content": {
@@ -18688,6 +19935,220 @@
         ]
       }
     },
+    "/api/x/wall/admin/categories/export": {
+      "get": {
+        "description": "„Exportieren“: the categories (position order) with the properties they\nread (name and prompt), as a file for „Importieren“.",
+        "operationId": "export_categories_api_x_wall_admin_categories_export_get",
+        "parameters": [
+          {
+            "description": "Category ids (repeat the parameter); none = every category.",
+            "in": "query",
+            "name": "ids",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Category ids (repeat the parameter); none = every category.",
+              "title": "Ids"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CategoriesFile"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Invalid input (see `error`)"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Needs consent or an admin session"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Forbidden: banned, paused, stopped, joining closed or a foreign Origin (CSRF)"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Not found, or no party access (`scan_qr`)"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Request validation failed (`invalid_request`)"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Rate limited (`Retry-After` header)"
+          }
+        },
+        "summary": "Export Categories",
+        "tags": [
+          "extension:wall"
+        ]
+      }
+    },
+    "/api/x/wall/admin/categories/import": {
+      "post": {
+        "description": "„Importieren“ of a categories file (version 2, or 1: converted).\n`on_conflict`: an id that exists is taken as a copy under a free id\n(`copy`, the default) or overwrites it (`replace`). A property a\ncategory reads is created from the file when it does not exist; one\nthat exists keeps its prompt (`prompt_conflicts`). A category the file\nhas on that cannot be switched on right now is imported off with the\nreason; one whose property is missing everywhere is off with\n`property_missing`. 400 `invalid_import` for a file that is not one.",
+        "operationId": "import_categories_api_x_wall_admin_categories_import_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "properties": {
+                  "file": {
+                    "description": "A categories file („Exportieren“; v1 too).",
+                    "type": "object"
+                  },
+                  "on_conflict": {
+                    "default": "copy",
+                    "enum": [
+                      "copy",
+                      "replace"
+                    ],
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "file"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CategoryImportOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Invalid input (see `error`)"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Needs consent or an admin session"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Forbidden: banned, paused, stopped, joining closed or a foreign Origin (CSRF)"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Not found, or no party access (`scan_qr`)"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Request validation failed (`invalid_request`)"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Rate limited (`Retry-After` header)"
+          }
+        },
+        "summary": "Import Categories",
+        "tags": [
+          "extension:wall"
+        ]
+      }
+    },
     "/api/x/wall/admin/categories/order": {
       "put": {
         "description": "The wall's order: `ids` first, in this order; the others after them.",
@@ -18782,7 +20243,7 @@
     },
     "/api/x/wall/admin/categories/preview": {
       "post": {
-        "description": "What a spec would pick right now (nothing is stored).",
+        "description": "What a spec would pick right now (nothing is stored), with the\nstored scores also while the AI is off („Werte vom letzten Poll“).",
         "operationId": "preview_category_api_x_wall_admin_categories_preview_post",
         "requestBody": {
           "content": {
@@ -18882,7 +20343,7 @@
     },
     "/api/x/wall/admin/categories/restore-presets": {
       "post": {
-        "description": "„Vorlagen wiederherstellen“: add the presets that were deleted.",
+        "description": "„Vorlagen wiederherstellen“: add the presets that were deleted (with\ntheir default on/off) and the properties they need (nothing is polled\nfor them until such a category is switched on).",
         "operationId": "restore_presets_api_x_wall_admin_categories_restore_presets_post",
         "responses": {
           "200": {
@@ -19055,7 +20516,7 @@
         ]
       },
       "put": {
-        "description": "Change a category's spec and on/off switch (presets too).",
+        "description": "Change a category's spec and on/off switch (presets too). 409\n`category_locked` when it is to be on but cannot be (a property it reads\nis missing or in the Papierkorb, or the external AI is not ready): it can\nbe saved switched off. Switching on creates the preset properties it reads\nthat do not exist yet. A changed verdict prompt, model or effort drops its\ncached comments.",
         "operationId": "put_category_api_x_wall_admin_categories__cid__put",
         "parameters": [
           {
@@ -19140,6 +20601,16 @@
               }
             },
             "description": "Not found, or no party access (`scan_qr`)"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Conflict"
           },
           "422": {
             "content": {
@@ -20459,123 +21930,9 @@
         ]
       }
     },
-    "/api/x/wall/admin/llm/properties/{name}/active": {
-      "put": {
-        "description": "The switch „aktiv“: an inactive property is not polled any more, its\nscores stay (on the photos, in the categories).",
-        "operationId": "set_property_active_api_x_wall_admin_llm_properties__name__active_put",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "name",
-            "required": true,
-            "schema": {
-              "title": "Name",
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/PropertyActiveIn"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/PropertyOut"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "400": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorBody"
-                }
-              }
-            },
-            "description": "Invalid input (see `error`)"
-          },
-          "401": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorBody"
-                }
-              }
-            },
-            "description": "Needs consent or an admin session"
-          },
-          "403": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorBody"
-                }
-              }
-            },
-            "description": "Forbidden: banned, paused, stopped, joining closed or a foreign Origin (CSRF)"
-          },
-          "404": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorBody"
-                }
-              }
-            },
-            "description": "Not found, or no party access (`scan_qr`)"
-          },
-          "409": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorBody"
-                }
-              }
-            },
-            "description": "Conflict"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorBody"
-                }
-              }
-            },
-            "description": "Request validation failed (`invalid_request`)"
-          },
-          "429": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorBody"
-                }
-              }
-            },
-            "description": "Rate limited (`Retry-After` header)"
-          }
-        },
-        "summary": "Set Property Active",
-        "tags": [
-          "extension:wall",
-          "wall"
-        ]
-      }
-    },
     "/api/x/wall/admin/llm/properties/{name}/restore": {
       "post": {
-        "description": "Out of the Papierkorb, back as it was (the switch „aktiv“ keeps its state).",
+        "description": "Out of the Papierkorb. The categories it switched off stay off (they can be\nswitched on again: `off_reason` stays until then).",
         "operationId": "restore_property_api_x_wall_admin_llm_properties__name__restore_post",
         "parameters": [
           {
@@ -20679,7 +22036,7 @@
     },
     "/api/x/wall/admin/llm/properties/{name}/trash": {
       "post": {
-        "description": "„Löschen“: into the Papierkorb. Not polled, hidden from the list and\nthe category value pickers; the scores and the name stay.",
+        "description": "„Löschen“: into the Papierkorb. Not polled, hidden from the list and\nthe category editor; the scores and the name stay. The enabled categories\nthat read it are switched off (`property_trashed`; `used_by` names them).",
         "operationId": "trash_property_api_x_wall_admin_llm_properties__name__trash_post",
         "parameters": [
           {

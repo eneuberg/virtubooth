@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Literal
+from typing import Annotated, Literal
 
 from pydantic import BaseModel, Field
 
@@ -199,7 +199,9 @@ class OptOutState(BaseModel):
 
 class PropertyScores(BaseModel):
     name: str
-    inactive: bool = Field(description="Not polled any more (switched off or in the Papierkorb).")
+    inactive: bool = Field(
+        description="Not polled right now (no enabled category reads it, or in the Papierkorb)."
+    )
     scores: list[float | None] = Field(description="Index = the object's idx.")
 
 
@@ -264,7 +266,14 @@ class CategoryWin(BaseModel):
     id: str = Field(description="The category's id.")
     emoji: str
     title: str
-    verdict: bool = Field(description="Named by the external AI's verdict, not by a ranking.")
+    verdict: bool = Field(description="The AI commented on it in this category.")
+    rank: int = Field(1, description="Its place among the category's winners (1 = best).")
+    headline: str = Field("", description="The object's name or the value text.")
+    detail: str | None = Field(None, description="The value text when the headline is an object.")
+    object_label: str | None = Field(None, description="The focus object's German name, if any.")
+    comment: CategoryCommentOut | None = Field(
+        None, description="The AI's cached comment on this photo in this category."
+    )
 
 
 class PhotoAnalysisSummary(BaseModel):
@@ -282,6 +291,11 @@ class PhotoAnalysisSummary(BaseModel):
     objects: list[SummaryObject]
     boxes: list[SummaryBox] = Field(description="Face and hand frames (objects carry their own).")
     opt_out: OptOutState
+    objects_off: bool = Field(
+        False,
+        description="Analysed while object detection was „Aus“ (every detection run "
+        "skipped as switched off, no objects): „Objekterkennung aus“, not „Nichts erkannt“.",
+    )
     wins: list[CategoryWin]
 
 
@@ -291,81 +305,166 @@ class AnalysisSummariesOut(BaseModel):
     )
 
 
-# ------------------------------------------------- categories (PLAN-NIGHT §4.2)
+# ------------------------------------------- categories (v2: measures, rank, caption)
 
-CategoryOp = Literal[
-    "gt", "lt", "gte", "lte", "eq", "ne", "between", "exists", "not_exists", "contains",
-    "not_contains", "contains_any",
-]  # fmt: skip
-LabelStyle = Literal["count", "percent", "number", "time", "fixed", "object"]
+CategoryOp = Literal["gt", "lt", "gte", "lte", "eq", "ne", "between", "exists", "not_exists"]
+Aggregate = Literal["count", "max", "min", "mean", "sum", "top_k_mean", "count_ge"]
+CaptionFormat = Literal["count", "percent", "decimal", "number", "time", "text", "none"]
+Order = Literal["desc", "asc"]
+Effort = Literal["low", "medium", "high"]
+
+
+class MeasureValue(BaseModel):
+    """A photo value: an analyzer's fact, `photo.created_at` or `photo.guest_photos`."""
+
+    kind: Literal["value"]
+    key: str
+
+
+class ObjectFilter(BaseModel):
+    labels: list[str] = Field(
+        default_factory=list, description="Only these labels (any of them); empty = all."
+    )
+    exclude: list[str] = Field(default_factory=list, description="Never these labels.")
+    min_confidence: float | None = Field(None, description="0–1: only objects at least this sure.")
+
+
+class MeasureObjects(BaseModel):
+    """An aggregate over the photo's objects (after `where`): `count` (without a
+    field: the objects; with one: those with a value), `max`, `min`, `mean`,
+    `sum`, `top_k_mean` (k 2–5), `count_ge` (t 0–1) of `field`."""
+
+    kind: Literal["objects"]
+    where: ObjectFilter = Field(default_factory=ObjectFilter)
+    field: str | None = Field(None, description="`confidence` or `prop:<name>`; null for count.")
+    agg: Aggregate
+    k: int | None = None
+    t: float | None = None
+
+
+Measure = Annotated[MeasureValue | MeasureObjects, Field(discriminator="kind")]
 
 
 class CategoryCondition(BaseModel):
-    value: str = Field(description="A value key (GET /admin/values), e.g. `people`, "
-                       "`objects.count:hat`, `prop.coolness.max`.")  # fmt: skip
+    measure: Measure
     op: CategoryOp
-    operand: float | str | tuple[float, float] | list[str] | None = Field(
-        None,
-        description="number (gt…ne), [a, b] (between), label (contains, not_contains), "
-        "[labels] (contains_any), null (exists, not_exists).",
+    operand: float | tuple[float, float] | None = Field(
+        None, description="number (gt…ne), [a, b] (between), null (exists, not_exists)."
     )
 
 
-class CategoryThenBy(BaseModel):
-    by: str
-    order: Literal["top", "bottom"] = "top"
+class CategoryThen(BaseModel):
+    by: Measure
+    order: Order = "desc"
+
+
+class CategoryRank(BaseModel):
+    by: Measure = Field(description="Missing values rank last.")
+    order: Order = "desc"
+    threshold: float | None = Field(
+        None, description="Only photos with `by` ≥ threshold (desc) or ≤ threshold (asc)."
+    )
+    then_by: list[CategoryThen] = Field(default_factory=list, description="≤ 2 tie-breakers.")
 
 
 class CategorySelect(BaseModel):
-    by: str = Field(description="The value to rank by (missing values rank last).")
-    order: Literal["top", "bottom"] = "top"
     count: int = Field(3, description="1–10 winners.")
-    then_by: list[CategoryThenBy] = Field(
-        default_factory=list, description="≤ 2 tie-breakers (a plain key string = top)."
-    )
     one_per_guest: bool = True
 
 
-class CategoryLabel(BaseModel):
-    value: str | None = Field(
-        None, description="The value shown (and required); null = `select.by`."
+class CategoryCaption(BaseModel):
+    value: Measure | None = Field(
+        None, description="The value shown (and required); null = `rank.by`."
     )
-    style: LabelStyle = "count"
-    one: str = Field("", description="Singular word (or the fixed text).")
+    format: CaptionFormat = "count"
+    one: str = Field("", description="Singular word, the unit (decimal) or the text (text).")
     many: str = Field("", description="Plural word.")
+    show_object: bool = Field(
+        False, description="The headline is the focus object's name (the value its detail)."
+    )
 
 
 class CategoryVerdictSpec(BaseModel):
-    prompt: str = Field(description="1–1000 chars: the LLM verdict prompt (each poll).")
+    """The AI comments on the top `count` winners (one each); it never ranks."""
+
+    prompt: str | None = Field(
+        None, description="≤ 1000 chars: the host's task; null = the default."
+    )
+    count: int = Field(3, description="1–5 comments (the best winners).")
+    model: str | None = Field(
+        None, description="A Haiku- or Sonnet-class model (`LlmStatus.verdict.models`); null = "
+        "the provider's cheapest."
+    )  # fmt: skip
+    effort: Effort = "low"
 
 
 class CategorySpec(BaseModel):
-    """A rule-based wall category. Invalid input → 400 `invalid_category`
-    naming the field in German."""
+    """A rule-based wall category, spec version 2. Invalid input → 400
+    `invalid_category` naming the field in German. Writes also take a spec in the
+    old version 1 shape (deprecated: converted)."""
 
+    version: Literal[2] = 2
     emoji: str = Field(description="One emoji.")
     title: str = Field(description="1–40 chars.")
-    line: str = Field("", description="0–80 chars (the subtitle).")
-    where: list[CategoryCondition] = Field(
+    line: str = Field("", description="0–80 chars; empty = the explanation is generated.")
+    pool: list[CategoryCondition] = Field(
         default_factory=list, description="0–8 conditions, all must hold."
     )
-    select: CategorySelect
-    label: CategoryLabel = Field(default_factory=CategoryLabel)
+    rank: CategoryRank
+    select: CategorySelect = Field(default_factory=CategorySelect)
+    caption: CategoryCaption = Field(default_factory=CategoryCaption)
     verdict: CategoryVerdictSpec | None = None
+
+
+# ------------------------------------------------------ category answers
+
+
+class WinnerObject(BaseModel):
+    """The focus object of a winner (what the wall frames)."""
+
+    idx: int = Field(description="Its idx in the photo's merged object list.")
+    label: str
+    label_de: str
+    value: float | None = Field(description="The measure's value for it (score or confidence).")
+    box: ObjectBox | None = Field(description="0..1 on the analysed (= shown) photo; null: none.")
+
+
+class CategoryCommentOut(BaseModel):
+    text: str = Field(description="German, ≤ 160 chars: the AI's comment on this winner.")
+    emoji: str | None
 
 
 class CategoryWinnerOut(BaseModel):
     photo_id: str
     thumb_url: str
     value: float | None
-    label: str
-    object_idx: int | None = Field(description="The object the value points at, if any.")
+    label: str = Field(description="headline and detail together („Sonnenbrille · 0,93 …“).")
+    headline: str = Field(description="The object's name (show_object) or the value text.")
+    detail: str | None = Field(description="The value text when the headline is an object.")
+    object_idx: int | None = Field(description="The focus object's idx, if any.")
+    object: WinnerObject | None
+    comment: CategoryCommentOut | None = Field(
+        description="The AI's cached comment on this winner (the best `verdict.count` only)."
+    )
 
 
 class CategoryVerdictOut(BaseModel):
+    """Deprecated: the best-ranked winner's comment (`winners[].comment`)."""
+
     text: str = Field(description="German, ≤ 160 chars.")
     emoji: str | None
-    photo_id: str | None = Field(description="Public id of the photo it names (visible), or null.")
+    photo_id: str | None = Field(description="Public id of the photo it is about, or null.")
+
+
+OffReason = Literal["ai_off", "property_trashed", "property_missing", "migrated_inactive"]
+
+
+class CategoryLockOut(BaseModel):
+    """Why the category cannot be switched on right now (409 `category_locked`)."""
+
+    reason: Literal["ai_off", "property_trashed", "property_missing"]
+    property: str | None
+    message: str = Field(description="German.")
 
 
 class CategoryItem(BaseModel):
@@ -374,8 +473,24 @@ class CategoryItem(BaseModel):
     preset: str | None = Field(description="The preset it came from; null = made by the host.")
     position: int
     spec: CategorySpec
+    explanation: str = Field(description="The ranking in plain German (the wall's subtitle "
+                             "when `line` is empty).")  # fmt: skip
+    needs_ai: bool = Field(description="It reads an LLM property (external AI).")
+    properties: list[str] = Field(description="The properties it reads.")
+    locked: CategoryLockOut | None = Field(
+        description="Why it cannot be switched on (the switch is disabled), or null."
+    )
+    off_reason: OffReason | None = Field(
+        description="Switched off by the app (not the host), why; cleared when the host "
+        "switches it."
+    )
+    off_detail: str | None = Field(description="The property the reason is about.")
+    off_at: str | None
     available: bool
     reason: str | None = Field(description="Why it cannot win anything (German), or null.")
+    verdict_paused: bool = Field(
+        description="It has an AI verdict but the AI is not ready: no comments meanwhile."
+    )
     verdict: CategoryVerdictOut | None
     winners: list[CategoryWinnerOut] = Field(description="Right now, best first (≤ count).")
 
@@ -390,8 +505,13 @@ class CategoryOrderIn(BaseModel):
 
 class CategoryPreviewOut(BaseModel):
     winners: list[CategoryWinnerOut]
-    matched: int = Field(description="Visible photos meeting every condition.")
+    matched: int = Field(description="Visible photos in the pool that pass the threshold.")
     reason: str | None = Field(description="Why it cannot win (German), or null.")
+    explanation: str = Field(description="The ranking in plain German.")
+    spec: CategorySpec = Field(description="The spec as validated (v2; a v1 input converted).")
+    locked: CategoryLockOut | None = Field(
+        description="It could be saved, but only switched off (and why)."
+    )
 
 
 class RestoreOut(BaseModel):
@@ -400,3 +520,64 @@ class RestoreOut(BaseModel):
 
 class OkOut(BaseModel):
     ok: Literal[True]
+
+
+# ------------------------------------------------------ export / import
+
+
+class CategoryFileProperty(BaseModel):
+    name: str
+    prompt: str
+
+
+class CategoryFileEntry(BaseModel):
+    id: str
+    enabled: bool
+    preset: str | None
+    spec: CategorySpec
+
+
+class CategoriesFile(BaseModel):
+    """„Exportieren“: the categories and the properties they read (by name)."""
+
+    format: Literal["virtubooth-categories"]
+    version: Literal[2]
+    exported_at: str
+    properties: list[CategoryFileProperty] = Field(
+        description="Each property a category reads, with its prompt."
+    )
+    categories: list[CategoryFileEntry]
+
+
+class ImportedCategory(BaseModel):
+    id: str = Field(description="Its id here (a copy: a free one, `<id>_2` …).")
+    title: str
+    enabled: bool
+    from_id: str | None = Field(description="The id in the file when it was taken as a copy.")
+    replaced: bool = Field(description="It overwrote the category with that id.")
+
+
+class SkippedCategory(BaseModel):
+    id: str = Field(description="The id in the file, or „Eintrag 3“.")
+    reason: str = Field(description="German.")
+
+
+class SwitchedOffCategory(BaseModel):
+    id: str
+    reason: Literal["ai_off", "property_trashed", "property_missing"]
+    detail: str | None = Field(description="The property it is about.")
+    message: str = Field(description="German.")
+
+
+class CategoryImportOut(BaseModel):
+    imported: list[ImportedCategory]
+    skipped: list[SkippedCategory]
+    properties_created: list[str] = Field(description="Created from the file (or a preset).")
+    prompt_conflicts: list[str] = Field(
+        description="Properties that exist here with another prompt: theirs stays."
+    )
+    switched_off: list[SwitchedOffCategory] = Field(
+        description="Imported switched off although the file had them on (or a property "
+        "is missing), and why."
+    )
+    notes: list[str] = Field(description="German hints (e.g. an old file's `active`).")

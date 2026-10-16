@@ -15,7 +15,7 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING, Protocol
 
 from .enrich import engine, presets
-from .enrich.engine import PhotoFilter, StoredCategory, Verdict, Winner
+from .enrich.engine import Comment, PhotoFilter, StoredCategory, Winner
 from .enrich.service import EnrichmentService, PhotoSummary
 
 if TYPE_CHECKING:
@@ -55,7 +55,16 @@ class BoardEntry:
     category: StoredCategory
     reason: str | None  # why it cannot win (German), None: available
     winners: list[Winner]
-    verdict: Verdict | None  # the LLM's latest verdict, when the spec asks for one
+    # photo id → the AI's cached comment, for the best `verdict.count` winners
+    comments: Mapping[int, Comment]
+
+    def first_comment(self) -> tuple[int, Comment] | None:
+        """The best-ranked winner's comment (the deprecated single verdict)."""
+        for w in self.winners:
+            found = self.comments.get(w.photo_id)
+            if found is not None:
+                return w.photo_id, found
+        return None
 
 
 def board(
@@ -63,17 +72,23 @@ def board(
     ids: Collection[str] | None = None,
 ) -> list[BoardEntry]:  # fmt: skip
     """The categories (position order; seeded on first use) with their
-    winners under `flt` and their verdicts."""
+    winners under `flt` and the AI's comments on them."""
     db = core.db
     presets.ensure_seeded(db, core.repos.app_settings)
     props, external = engine.availability_context(db)
-    verdicts = engine.verdicts(db)
+    cached = engine.comments(db)
     out: list[BoardEntry] = []
     for cat in engine.stored(db):
         if (enabled_only and not cat.enabled) or (ids is not None and cat.id not in ids):
             continue
         reason = engine.spec_availability(cat.spec, active, props, external)
         winners = engine.evaluate(core, cat.spec, flt)
-        verdict = verdicts.get(cat.id) if cat.spec.get("verdict") else None
-        out.append(BoardEntry(cat, reason, winners, verdict))
+        verdict = cat.spec.get("verdict")
+        comments: dict[int, Comment] = {}
+        if verdict:
+            for w in winners[: int(verdict.get("count") or 1)]:
+                found = cached.get((cat.id, w.photo_id))
+                if found is not None:
+                    comments[w.photo_id] = found
+        out.append(BoardEntry(cat, reason, winners, comments))
     return out

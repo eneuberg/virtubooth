@@ -16,8 +16,8 @@ from ....api.deps import AdminDep, CoreDep, require_admin
 from ....core import errors
 from ....core.clock import now_iso
 from ....runtime import Core
-from ..enrich import jobs
-from . import budget, crypto, ports, pricing, properties, testimage
+from ..enrich import jobs, lifecycle
+from . import budget, crypto, ports, pricing, prompts, properties, testimage
 from .config import LlmConfigIn, ProviderId, load_notice, merged, save_config
 from .properties import Property
 from .providers import BY_ID as PROVIDERS
@@ -35,14 +35,17 @@ from .schemas import (
     PollerOut,
     PollOut,
     PropertiesOut,
-    PropertyActiveIn,
     PropertyIn,
     PropertyOut,
+    PropertyUser,
     ProviderOut,
     TestImageOut,
     Usage,
     UsageByKind,
     UsageTotals,
+    VerdictEffortOut,
+    VerdictModelOut,
+    VerdictOptionsOut,
 )
 from .service import LlmService, Unavailable
 
@@ -181,7 +184,40 @@ def status_of(svc: LlmService) -> LlmStatus:
             notice_at=notice_at,
         ),
         usage=usage_of(svc),
+        verdict=verdict_options(svc),
     )
+
+
+PRICE_BASIS = (
+    "Geschätzt aus echten Token-Zahlen: Eingabe aus den bisherigen Erkennungsaufrufen "
+    "(Zeichen je Token, inkl. Overhead), Ausgabe aus deren Antwortlängen; ein Aufruf "
+    "kommentiert meist einen neuen Sieger. Denkaufwand mittel/hoch ist angenommen, nicht "
+    "gemessen."
+)
+
+
+def verdict_options(svc: LlmService) -> VerdictOptionsOut:
+    cfg = svc.config()
+    thinking = PROVIDERS[cfg.provider].thinking
+    models = []
+    for m in pricing.verdict_models(cfg.provider):
+        efforts = []
+        for effort in pricing.EFFORTS:
+            tokens_in, tokens_out = pricing.verdict_tokens(effort, thinking=thinking)
+            usd = pricing.verdict_comment_usd(m.id, effort, thinking=thinking)
+            efforts.append(VerdictEffortOut(
+                effort=effort, input_tokens=tokens_in, output_tokens=tokens_out,  # type: ignore[arg-type]
+                usd_per_comment=round(usd, 6),
+                price_per_comment=round(usd / pricing.RATES[m.currency], 6),
+                measured=pricing.VERDICT_MEASURED[effort] or not thinking,
+            ))  # fmt: skip
+        models.append(VerdictModelOut(id=m.id, title=m.title, tier=m.tier,  # type: ignore[arg-type]
+                                      currency=m.currency, efforts=efforts))  # fmt: skip
+    return VerdictOptionsOut(
+        system_prompt=prompts.VERDICT_SYSTEM, default_prompt=prompts.DEFAULT_VERDICT_PROMPT,
+        default_model=pricing.resolve_verdict_model(cfg.provider, None),
+        max_chars=prompts.MAX_VERDICT, thinking=thinking, models=models, basis=PRICE_BASIS,
+    )  # fmt: skip
 
 
 def _last_poll(core: Core) -> str | None:
@@ -189,18 +225,34 @@ def _last_poll(core: Core) -> str | None:
     return row["at"] if row else None
 
 
-def _property(p: Property) -> PropertyOut:
-    return PropertyOut(
-        id=p.id,
-        name=p.name,
-        prompt=p.prompt,
-        created_at=p.created_at,
-        active=p.active,
-        inactive_at=p.inactive_at,
-        deleted_at=p.deleted_at,
-        scored_photos=p.scored_photos,
-        last_scored_at=p.last_scored_at,
-    )
+def _property(p: Property, core: Core) -> PropertyOut:
+    return _properties([p], core)[0]
+
+
+def _properties(found: list[Property], core: Core) -> list[PropertyOut]:
+    """With the derived status and the categories that read each."""
+    svc = LlmService.of(core)
+    ready = svc.ai_ready()
+    users = lifecycle.used_by(core.db)
+    out: list[PropertyOut] = []
+    for p in found:
+        mine = users.get(p.name, [])
+        if p.deleted_at is not None:
+            status = "trashed"
+        elif not any(enabled for _, _, enabled in mine):
+            status = "idle"
+        elif not ready:
+            status = "paused"
+        else:
+            status = "polled"
+        out.append(PropertyOut(
+            id=p.id, name=p.name, prompt=p.prompt, created_at=p.created_at,
+            status=status,  # type: ignore[arg-type]
+            used_by=[PropertyUser(id=c, title=t, enabled=e) for c, t, e in mine],
+            deleted_at=p.deleted_at, scored_photos=p.scored_photos,
+            last_scored_at=p.last_scored_at,
+        ))  # fmt: skip
+    return out
 
 
 # ------------------------------------------------------------ status, config
@@ -229,6 +281,8 @@ def set_llm_config(body: LlmConfigIn, core: CoreDep, admin: AdminDep) -> LlmStat
             # either/or: the AI detector on switches the local one off
             ports.set_local_objects(core, False, by=admin.actor)
         core.repos.audit.log(admin.actor, "llm.config", "", {"changed": changed}, at=now_iso())
+        # AI off (master switch, poll, provider without key): its categories go off
+        svc.reconcile()
     svc.forget_provider()
     # „KI“ chosen but no longer possible (switched off, a provider without key): „Lokal“
     svc.check_detection(by=admin.actor)
@@ -310,7 +364,7 @@ def llm_usage(core: CoreDep) -> Usage:
 
 @router.get("/admin/llm/properties")
 def list_properties(core: CoreDep) -> PropertiesOut:
-    return PropertiesOut(properties=[_property(p) for p in properties.list_all(core.db)])
+    return PropertiesOut(properties=_properties(properties.list_all(core.db), core))
 
 
 @router.post("/admin/llm/properties", status_code=201)
@@ -320,14 +374,14 @@ def create_property(body: PropertyIn, core: CoreDep, admin: AdminDep) -> Propert
         core.db, core.repos.audit, body.name, body.prompt, actor=admin.actor
     )
     LlmService.of(core).changed()
-    return _property(created)
+    return _property(created, core)
 
 
 @router.get("/admin/llm/properties/{name}")
 def get_property(name: str, core: CoreDep) -> PropertyOut:
     """One property (also one in the Papierkorb). There is no PUT (405): name
     and prompt never change."""
-    return _property(_found(properties.get(core.db, name)))
+    return _property(_found(properties.get(core.db, name)), core)
 
 
 def _found(p: Property | None) -> Property:
@@ -336,36 +390,37 @@ def _found(p: Property | None) -> Property:
     return p
 
 
-@router.put("/admin/llm/properties/{name}/active")
-def set_property_active(
-    name: str, body: PropertyActiveIn, core: CoreDep, admin: AdminDep
-) -> PropertyOut:
-    """The switch „aktiv“: an inactive property is not polled any more, its
-    scores stay (on the photos, in the categories)."""
-    found = _found(
-        properties.set_active(core.db, core.repos.audit, name, body.active, actor=admin.actor)
+@router.put("/admin/llm/properties/{name}/active", include_in_schema=False)
+def set_property_active(name: str) -> None:
+    """Gone (categories v2): a property has no switch any more. It is polled
+    while an enabled category reads it; switch the categories instead."""
+    raise errors.ApiError(
+        410,
+        "gone",
+        "Eigenschaften haben keinen Schalter mehr: sie werden abgefragt, solange eine "
+        "eingeschaltete Kategorie sie nutzt.",
     )
-    LlmService.of(core).changed()
-    return _property(found)
 
 
 @router.post("/admin/llm/properties/{name}/trash")
 def trash_property(name: str, core: CoreDep, admin: AdminDep) -> PropertyOut:
     """„Löschen“: into the Papierkorb. Not polled, hidden from the list and
-    the category value pickers; the scores and the name stay."""
+    the category editor; the scores and the name stay. The enabled categories
+    that read it are switched off (`property_trashed`; `used_by` names them)."""
     found = _found(properties.set_trashed(core.db, core.repos.audit, name, True, actor=admin.actor))
     LlmService.of(core).changed()
-    return _property(found)
+    return _property(found, core)
 
 
 @router.post("/admin/llm/properties/{name}/restore")
 def restore_property(name: str, core: CoreDep, admin: AdminDep) -> PropertyOut:
-    """Out of the Papierkorb, back as it was (the switch „aktiv“ keeps its state)."""
+    """Out of the Papierkorb. The categories it switched off stay off (they can be
+    switched on again: `off_reason` stays until then)."""
     found = _found(
         properties.set_trashed(core.db, core.repos.audit, name, False, actor=admin.actor)
     )
     LlmService.of(core).changed()
-    return _property(found)
+    return _property(found, core)
 
 
 @router.delete("/admin/llm/properties/{name}", responses=errors.error_responses(409))

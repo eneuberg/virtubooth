@@ -1,157 +1,176 @@
 import { describe, expect, it } from 'vitest';
-import { categoryItems, spec, valuesOut } from '../fixtures';
-import { CONDITION_OPS, LABEL_STYLES, type CategorySpec } from '../types';
+import { verdictOptions } from '../../ml/fixtures';
+import { categoryItems, measure, spec, valuesOut } from '../fixtures';
+import { CAPTION_FORMATS, POOL_OPS, type CategorySpec, type Measure } from '../types';
 import {
+  captionParts,
+  conditionText,
+  describe as describeMeasure,
+  draftProperties,
   emptyCondition,
   emptyDraft,
+  emptyMeasure,
+  explainRank,
+  FORMAT_LABELS,
   freeId,
   fromSpec,
   graphemes,
-  kindOf,
+  hasFocus,
   localToUnix,
+  measureDraft,
+  measureSpec,
   moveId,
   OP_LABELS,
-  operandShape,
-  opsFor,
   parseDecimal,
+  priceText,
+  ruleText,
   serverField,
   slugify,
-  splitKey,
-  STYLE_LABELS,
+  suggestCaption,
+  thresholdWord,
   toSpec,
   unixToLocal,
   validate,
-  valueChoices,
+  valueText,
+  verdictPrice,
   type CategoryDraft,
+  type MeasureDraft,
 } from './spec';
 
-const choices = valueChoices(valuesOut.values);
-const then = (by: string) => ({ uid: 1, by, param: '', order: 'top' as const });
-const ctx = { choices };
+const ctx = { values: valuesOut };
 
 function valid(over: Partial<CategoryDraft> = {}): CategoryDraft {
   return {
     ...emptyDraft(),
     id: 'meine',
     title: 'Meine',
-    by: 'people',
+    by: emptyMeasure('value', 'people'),
     one: 'Person',
     many: 'Personen',
     ...over,
   };
 }
 
-describe('operators', () => {
-  it('has a German symbol for every op', () => {
-    for (const op of CONDITION_OPS) expect(OP_LABELS[op]).toBeTruthy();
-    expect(OP_LABELS.gte).toBe('≥');
-    expect(OP_LABELS.ne).toBe('≠');
-    expect(OP_LABELS.contains_any).toBe('enthält eins von');
-    for (const style of LABEL_STYLES) expect(STYLE_LABELS[style]).toBeTruthy();
+const objects = (over: Partial<MeasureDraft> = {}): MeasureDraft => ({ ...emptyMeasure('objects'), ...over });
+
+const tie = () => ({ uid: 1, by: emptyMeasure('value', 'smiles'), order: 'desc' as const });
+const say = (m: Measure, order: 'desc' | 'asc' = 'desc') => describeMeasure(m, order, valuesOut);
+
+/** a spec through the editor and back */
+const roundTrip = (s: CategorySpec) => toSpec(fromSpec('x', s, valuesOut), valuesOut);
+
+describe('labels', () => {
+  it('names every comparison and format', () => {
+    for (const op of POOL_OPS) expect(OP_LABELS[op]).toBeTruthy();
+    for (const f of CAPTION_FORMATS) expect(FORMAT_LABELS[f]).toBeTruthy();
   });
 
-  it('offers number ops for numbers, counts and times, label ops for lists', () => {
-    for (const kind of ['number', 'count', 'time'] as const) {
-      expect(opsFor(kind)).toEqual(['gte', 'gt', 'lte', 'lt', 'eq', 'ne', 'between', 'exists', 'not_exists']);
+  it('says „mindestens“ for the highest and „höchstens“ for the lowest', () => {
+    expect(thresholdWord('desc')).toBe('mindestens');
+    expect(thresholdWord('asc')).toBe('höchstens');
+  });
+});
+
+describe('draft ⇄ spec', () => {
+  it('round-trips every fixture category unchanged', () => {
+    for (const item of categoryItems()) expect(roundTrip(item.spec)).toEqual(item.spec);
+  });
+
+  it('round-trips measures with filters, k and t', () => {
+    const top: Measure = {
+      kind: 'objects',
+      where: { labels: ['hat'], exclude: ['person'], min_confidence: 0.4 },
+      field: 'prop:coolness',
+      agg: 'top_k_mean',
+      k: 3,
+      t: null,
+    };
+    const ge: Measure = { ...top, agg: 'count_ge', k: null, t: 0.75 };
+    const conf: Measure = { ...top, field: 'confidence', agg: 'min', k: null };
+    for (const m of [top, ge, conf, measure.objects('count'), measure.value('smiles')]) {
+      expect(measureSpec(measureDraft(m))).toEqual(m);
     }
-    expect(opsFor('labels')).toEqual(['contains', 'not_contains', 'contains_any']);
-    // every op is reachable from some kind
-    const all = new Set([...opsFor('number'), ...opsFor('labels')]);
-    expect([...all].toSorted()).toEqual([...CONDITION_OPS].toSorted());
+    expect(measureDraft(top).minConfidence).toBe('0,4');
+    expect(measureDraft(ge).t).toBe('0,75');
   });
 
-  it('knows the operand per op', () => {
-    expect(operandShape('gt')).toBe('number');
-    expect(operandShape('between')).toBe('range');
-    expect(operandShape('exists')).toBe('none');
-    expect(operandShape('not_exists')).toBe('none');
-    expect(operandShape('contains')).toBe('label');
-    expect(operandShape('not_contains')).toBe('label');
-    expect(operandShape('contains_any')).toBe('labels');
-  });
-});
-
-describe('value catalogue', () => {
-  it('adds the parametrised values as templates', () => {
-    const ids = choices.map((c) => c.id);
-    expect(ids).toContain('objects.count:');
-    expect(ids).toContain('prop.coolness.at:');
-    expect(ids.filter((id) => id === 'prop.coolness.at:')).toHaveLength(1);
-    expect(kindOf('objects.count:hat', choices)).toBe('count');
-    expect(kindOf('prop.coolness.at:hat', choices)).toBe('number');
-    expect(kindOf('objects', choices)).toBe('labels');
-    expect(kindOf('nope', choices)).toBeNull();
-    expect(splitKey('objects.count:wine glass')).toEqual({ base: 'objects.count:', param: 'wine glass' });
-    expect(splitKey('people')).toEqual({ base: 'people', param: null });
-  });
-});
-
-describe('numbers and times', () => {
-  it('reads German and English decimals', () => {
-    expect(parseDecimal('0,5')).toBe(0.5);
-    expect(parseDecimal(' 3 ')).toBe(3);
-    expect(parseDecimal('-1.25')).toBe(-1.25);
-    expect(parseDecimal('')).toBeNaN();
-    expect(parseDecimal('3a')).toBeNaN();
-  });
-
-  it('turns local date-times into unix seconds and back', () => {
-    const unix = localToUnix('2026-10-15T19:42');
-    expect(unixToLocal(unix)).toBe('2026-10-15T19:42');
-    expect(localToUnix('19:42')).toBeNaN();
-  });
-});
-
-describe('round trip', () => {
-  it('keeps every preset spec unchanged', () => {
-    for (const item of categoryItems()) {
-      const draft = fromSpec(item.id, item.spec);
-      expect(validate(draft, ctx)).toEqual({});
-      expect(toSpec(draft, choices)).toEqual(item.spec);
-    }
-  });
-
-  it('serialises every operand shape', () => {
-    const s: CategorySpec = spec({
-      where: [
-        { value: 'people', op: 'between', operand: [2, 4] },
-        { value: 'colorfulness', op: 'gt', operand: 40.5 },
-        { value: 'smiles', op: 'exists', operand: null },
-        { value: 'objects', op: 'not_contains', operand: 'hat' },
-        { value: 'objects', op: 'contains_any', operand: ['hat', 'wine glass'] },
-        { value: 'objects.count:hat', op: 'gte', operand: 2 },
-        { value: 'prop.coolness.at:hat', op: 'lt', operand: 0.5 },
-        { value: 'photo.created_at', op: 'gte', operand: localToUnix('2026-10-15T22:00') },
+  it('round-trips a full spec: pool rows, threshold, tie-breakers, caption measure, verdict', () => {
+    const s = spec({
+      pool: [
+        { measure: measure.value('smiles'), op: 'between', operand: [1, 4] },
+        { measure: measure.objects('count', null, ['hat']), op: 'gte', operand: 1 },
+        { measure: measure.objects('count', null, ['wine glass']), op: 'eq', operand: 0 },
+        { measure: measure.objects('max', 'prop:coolness'), op: 'gte', operand: 0.5 },
+        { measure: measure.value('happy_max'), op: 'exists', operand: null },
       ],
-      select: {
-        by: 'prop.coolness.max',
-        order: 'bottom',
-        count: 10,
-        then_by: [
-          { by: 'smiles', order: 'top' },
-          { by: 'objects.count:hat', order: 'bottom' },
-        ],
-        one_per_guest: false,
+      rank: {
+        by: measure.objects('max', 'prop:coolness'),
+        order: 'asc',
+        threshold: 0.2,
+        then_by: [{ by: measure.value('people'), order: 'desc' }],
       },
-      label: { value: 'people', style: 'percent', one: 'Drama', many: '' },
-      verdict: { prompt: 'Wer ist am coolsten?' },
+      select: { count: 5, one_per_guest: false },
+      caption: {
+        value: measure.value('people'),
+        format: 'count',
+        one: 'Person',
+        many: 'Personen',
+        show_object: false,
+      },
+      verdict: { prompt: 'Sei frech.', count: 2, model: 'claude-sonnet-5-5', effort: 'medium' },
     });
-    const draft = fromSpec('x', s, (key) => key === 'photo.created_at');
-    expect(draft.where[0]?.a).toBe('2');
-    expect(draft.where[1]?.a).toBe('40,5');
-    expect(draft.where[5]).toMatchObject({ value: 'objects.count:', param: 'hat' });
-    expect(draft.where[7]?.a).toBe('2026-10-15T22:00');
-    expect(validate(draft, ctx)).toEqual({});
-    expect(toSpec(draft, choices)).toEqual(s);
+    expect(roundTrip(s)).toEqual(s);
+    const d = fromSpec('x', s, valuesOut);
+    expect(d.pool.map((c) => c.type)).toEqual(['value', 'has', 'has_not', 'objects', 'value']);
+    expect(d.threshold).toBe('0,2');
+    expect(d.captionSame).toBe(false);
   });
 
-  it('trims texts and drops an empty verdict', () => {
-    const out = toSpec(valid({ title: '  Hallo ', verdict: '   ', emoji: ' 🎉 ' }), choices);
+  it('writes „enthält (kein) Objekt“ as a count with ≥ 1 / = 0', () => {
+    const has = { ...emptyCondition('has'), measure: objects({ labels: ['hat'] }) };
+    const hasNot = { ...emptyCondition('has_not'), measure: objects({ labels: ['hat', 'wine glass'] }) };
+    const out = toSpec(valid({ pool: [has, hasNot] }), valuesOut);
+    expect(out.pool).toEqual([
+      { measure: measure.objects('count', null, ['hat']), op: 'gte', operand: 1 },
+      { measure: measure.objects('count', null, ['hat', 'wine glass']), op: 'eq', operand: 0 },
+    ]);
+  });
+
+  it('takes times as local date and time', () => {
+    const at = localToUnix('2026-10-16T19:42');
+    const s = spec({
+      rank: { by: measure.value('photo.created_at'), order: 'asc', threshold: at, then_by: [] },
+    });
+    const d = fromSpec('x', s, valuesOut);
+    expect(d.threshold).toBe('2026-10-16T19:42');
+    expect(unixToLocal(at)).toBe('2026-10-16T19:42');
+    expect(roundTrip(s).rank.threshold).toBe(at);
+  });
+
+  it('trims texts, drops the caption object without a focus, and the verdict when off', () => {
+    const out = toSpec(
+      valid({ title: '  Hallo ', emoji: ' 🎉 ', showObject: true, verdictOn: false }),
+      valuesOut,
+    );
     expect(out.title).toBe('Hallo');
     expect(out.emoji).toBe('🎉');
+    expect(out.caption.show_object).toBe(false); // a photo value has no object
     expect(out.verdict).toBeNull();
-    expect(out.label.value).toBeNull();
-    expect(out.select.count).toBe(3);
+    expect(out.rank.threshold).toBeNull();
+    const on = toSpec(valid({ verdictOn: true, verdictPrompt: '  ', verdictCount: '4' }), valuesOut);
+    expect(on.verdict).toEqual({ prompt: null, count: 4, model: null, effort: 'low' });
+  });
+
+  it('knows the properties a draft reads and whether a measure has an object', () => {
+    const d = valid({
+      by: objects({ field: 'prop:coolness', agg: 'max' }),
+      pool: [{ ...emptyCondition('objects', 'prop:glitzer') }],
+    });
+    expect(draftProperties(d)).toEqual(['glitzer', 'coolness']);
+    expect(hasFocus(measure.objects('count'))).toBe(false);
+    expect(hasFocus(measure.objects('count', null, ['hat']))).toBe(true);
+    expect(hasFocus(measure.objects('mean', 'confidence'))).toBe(true);
+    expect(hasFocus(measure.value('people'))).toBe(false);
   });
 });
 
@@ -163,17 +182,18 @@ describe('validation', () => {
   it('checks id, emoji, title, line and count', () => {
     const errors = validate(
       valid({ id: 'Neu!', emoji: '🎉🎉', title: '', line: 'x'.repeat(81), count: '11' }),
-      { ...ctx, isNew: true },
+      {
+        ...ctx,
+        isNew: true,
+      },
     );
     expect(Object.keys(errors).toSorted()).toEqual(['count', 'emoji', 'id', 'line', 'title']);
     expect(validate(valid({ id: 'meine' }), { ...ctx, isNew: true, taken: ['meine'] }).id).toBe(
       'Diese Kennung gibt es schon.',
     );
-    // existing categories keep their id
     expect(validate(valid({ id: 'Neu!' }), ctx).id).toBeUndefined();
     expect(validate(valid({ count: '0' }), ctx).count).toBeTruthy();
     expect(validate(valid({ count: '10' }), ctx).count).toBeUndefined();
-    expect(validate(valid({ title: 'x'.repeat(41) }), ctx).title).toBeTruthy();
   });
 
   it('counts an emoji with a skin tone or ZWJ as one', () => {
@@ -183,49 +203,200 @@ describe('validation', () => {
     expect(validate(valid({ emoji: '' }), ctx).emoji).toBeTruthy();
   });
 
-  it('checks every condition by its shape', () => {
-    const where = [
-      { ...emptyCondition('people', 'gte'), a: 'drei' },
-      { ...emptyCondition('people', 'between'), a: '5', b: '2' },
-      { ...emptyCondition('objects', 'contains') },
-      { ...emptyCondition('objects', 'contains_any') },
-      { ...emptyCondition('objects', 'gte'), a: '1' },
-      { ...emptyCondition('objects.count:', 'gte'), a: '1' },
-      { ...emptyCondition('', 'gte') },
-      { ...emptyCondition('weg', 'gte'), a: '1' },
+  it('checks every pool row by its kind', () => {
+    const pool = [
+      { ...emptyCondition('value'), measure: emptyMeasure('value', 'people'), a: 'drei' },
+      {
+        ...emptyCondition('value'),
+        measure: emptyMeasure('value', 'people'),
+        op: 'between' as const,
+        a: '5',
+        b: '2',
+      },
+      { ...emptyCondition('has') },
+      { ...emptyCondition('value') },
+      { ...emptyCondition('value'), measure: emptyMeasure('value', 'weg'), a: '1' },
+      { ...emptyCondition('objects'), measure: objects({ minConfidence: '2' }), a: '1' },
+      { ...emptyCondition('value'), measure: emptyMeasure('value', 'smiles'), op: 'exists' as const },
     ];
-    const errors = validate(valid({ where }), ctx);
-    expect(errors).toEqual({
-      'where.0.a': 'Bitte eine Zahl.',
-      'where.1.b': 'Muss mindestens so groß sein.',
-      'where.2.a': 'Bitte ein Objekt wählen.',
-      'where.3.labels': 'Bitte mindestens ein Objekt wählen.',
-      'where.4.op': 'Dieser Vergleich passt nicht zum Wert.',
-      'where.5.value.param': 'Bitte ein Objekt wählen.',
-      'where.6.value': 'Bitte einen Wert wählen.',
-      'where.7.value': 'Diesen Wert gibt es nicht (mehr).',
+    expect(validate(valid({ pool }), ctx)).toEqual({
+      'pool.0.a': 'Bitte eine Zahl.',
+      'pool.1.b': 'Muss mindestens so groß sein.',
+      'pool.2': 'Bitte ein Objekt wählen.',
+      'pool.3': 'Bitte einen Wert wählen.',
+      'pool.4': 'Diesen Wert gibt es nicht (mehr).',
+      'pool.5.min': 'Eine Zahl von 0 bis 1.',
     });
-    const nine = Array.from({ length: 9 }, () => ({ ...emptyCondition('smiles', 'exists') }));
-    expect(validate(valid({ where: nine }), ctx).where).toBe('Höchstens 8 Bedingungen.');
+    const nine = Array.from({ length: 9 }, () => ({
+      ...emptyCondition('value'),
+      measure: emptyMeasure('value', 'smiles'),
+      op: 'exists' as const,
+    }));
+    expect(validate(valid({ pool: nine }), ctx).pool).toBe('Höchstens 8 Bedingungen.');
   });
 
-  it('sorts only by numbers, at most two tie-breakers', () => {
-    expect(validate(valid({ by: 'objects' }), ctx).by).toBe('Nach einer Liste lässt sich nicht sortieren.');
-    expect(validate(valid({ by: '' }), ctx).by).toBe('Bitte einen Wert wählen.');
+  it('checks the ranking: measure, k, t, threshold, at most two tie-breakers', () => {
+    expect(validate(valid({ by: emptyMeasure('value') }), ctx)['rank.by']).toBe('Bitte einen Wert wählen.');
     expect(
-      validate(valid({ thenBy: [then('smiles'), then('people'), then('sharpness')] }), ctx).then_by,
-    ).toBe('Höchstens 2.');
-    expect(validate(valid({ thenBy: [then('objects')] }), ctx)['then_by.0']).toBeTruthy();
+      validate(valid({ by: objects({ field: 'prop:coolness', agg: 'top_k_mean', k: '7' }) }), ctx)[
+        'rank.by.k'
+      ],
+    ).toBe('k: 2 bis 5.');
+    expect(
+      validate(valid({ by: objects({ field: 'prop:coolness', agg: 'count_ge', t: '1,5' }) }), ctx)[
+        'rank.by.t'
+      ],
+    ).toBeTruthy();
+    expect(validate(valid({ threshold: 'viele' }), ctx)['rank.threshold']).toBe('Bitte eine Zahl.');
+    expect(validate(valid({ threshold: '3' }), ctx)['rank.threshold']).toBeUndefined();
+    expect(validate(valid({ thenBy: [tie(), tie(), tie()] }), ctx)['rank.then_by']).toBe('Höchstens 2.');
+    expect(
+      validate(valid({ thenBy: [{ ...tie(), by: emptyMeasure('value') }] }), ctx)['rank.then_by.0'],
+    ).toBeTruthy();
+    // a property that is not there (any more) is the lock's business, not the form's
+    expect(validate(valid({ by: objects({ field: 'prop:weg', agg: 'max' }) }), ctx)).toEqual({});
   });
 
-  it('asks for the label words the style needs', () => {
+  it('asks for the caption words the format needs, and checks the comments', () => {
     expect(validate(valid({ one: '', many: '' }), ctx)).toMatchObject({
       one: expect.any(String),
       many: expect.any(String),
     });
-    expect(validate(valid({ style: 'fixed', one: '', many: '' }), ctx)).toEqual({ one: 'Bitte den Text.' });
-    expect(validate(valid({ style: 'object', one: '', many: '' }), ctx)).toEqual({});
-    expect(validate(valid({ verdict: 'x'.repeat(1001) }), ctx).verdict).toBeTruthy();
+    expect(validate(valid({ format: 'text', one: '', many: '' }), ctx)).toEqual({ one: 'Bitte den Text.' });
+    expect(validate(valid({ format: 'decimal', one: '', many: '' }), ctx)).toEqual({});
+    expect(validate(valid({ verdictOn: true, verdictPrompt: 'x'.repeat(1001) }), ctx).verdict).toBeTruthy();
+    expect(validate(valid({ verdictOn: true, verdictCount: '6' }), ctx)['verdict.count']).toBeTruthy();
+    expect(validate(valid({ verdictOn: false, verdictCount: '6' }), ctx)['verdict.count']).toBeUndefined();
+  });
+});
+
+describe('plain German', () => {
+  it('describes measures as the server does', () => {
+    expect(say(measure.value('people'))).toBe('Höchster Wert bei „Personen“');
+    expect(say(measure.value('photo.created_at'), 'asc')).toBe('Das früheste Foto');
+    expect(say(measure.objects('max', 'prop:coolness'))).toBe('Höchster coolness-Wert unter allen Objekten');
+    expect(say(measure.objects('min', 'prop:coolness'), 'desc')).toBe(
+      'Niedrigster coolness-Wert unter allen Objekten',
+    );
+    expect(
+      say({ ...measure.objects('count'), where: { labels: [], exclude: ['person'], min_confidence: 0.5 } }),
+    ).toBe('Die meisten Objekte (ohne Person; Sicherheit ab 50 %)');
+    expect(say(measure.objects('count', null, ['hat']), 'asc')).toBe('Die wenigsten Objekte (nur Hut)');
+    expect(say({ ...measure.objects('top_k_mean', 'prop:coolness'), k: 2 })).toBe(
+      'Höchster Schnitt der besten 2 coolness-Werte',
+    );
+    expect(say({ ...measure.objects('count_ge', 'confidence'), t: 0.8 })).toBe(
+      'Die meisten Objekte mit Erkennungssicherheit ab 0,80',
+    );
+  });
+
+  it('explains the ranking with its threshold', () => {
+    expect(explainRank(spec().rank, valuesOut)).toBe('Höchster Wert bei „Personen“, mindestens 3');
+    const blur = { by: measure.value('sharpness'), order: 'asc' as const, threshold: 80, then_by: [] };
+    expect(explainRank(blur, valuesOut)).toBe('Niedrigster Wert bei „Schärfe“, höchstens 80');
+  });
+
+  it('says the whole rule: pool, rank, tie-breakers, how many', () => {
+    const s = spec({
+      pool: [
+        { measure: measure.objects('count', null, ['hat']), op: 'gte', operand: 1 },
+        { measure: measure.value('smiles'), op: 'between', operand: [1, 4] },
+      ],
+      rank: {
+        by: measure.value('people'),
+        order: 'desc',
+        threshold: 3,
+        then_by: [{ by: measure.value('smiles'), order: 'desc' }],
+      },
+      select: { count: 1, one_per_guest: true },
+    });
+    expect(ruleText(s, valuesOut)).toEqual({
+      pool: 'enthält Hut und Lächeln zwischen 1 und 4',
+      rank: 'Höchster Wert bei „Personen“, mindestens 3',
+      ties: ['Höchster Wert bei „Lächeln“'],
+      select: 'Ein Gewinner, ein Foto pro Gast',
+    });
+    expect(ruleText(spec({ select: { count: 3, one_per_guest: false } }), valuesOut).pool).toBe('Alle Fotos');
+    expect(
+      conditionText(
+        { measure: measure.objects('count', null, ['wine glass']), op: 'eq', operand: 0 },
+        valuesOut,
+      ),
+    ).toBe('enthält kein Weinglas');
+    expect(
+      conditionText({ measure: measure.objects('max', 'prop:coolness'), op: 'gte', operand: 0.5 }, valuesOut),
+    ).toBe('coolness: höchster Wert ≥ 0,5');
+  });
+});
+
+describe('caption', () => {
+  it('suggests the format from the measure', () => {
+    expect(suggestCaption(measure.value('people'), valuesOut)).toEqual({
+      format: 'count',
+      showObject: false,
+    });
+    expect(suggestCaption(measure.value('happy_max'), valuesOut)).toEqual({
+      format: 'decimal',
+      showObject: false,
+    });
+    expect(suggestCaption(measure.value('colorfulness'), valuesOut)).toEqual({
+      format: 'number',
+      showObject: false,
+    });
+    expect(suggestCaption(measure.value('photo.created_at'), valuesOut)).toEqual({
+      format: 'time',
+      showObject: false,
+    });
+    expect(suggestCaption(measure.objects('count'), valuesOut)).toEqual({
+      format: 'count',
+      showObject: false,
+    });
+    expect(suggestCaption(measure.objects('max', 'prop:coolness'), valuesOut)).toEqual({
+      format: 'decimal',
+      showObject: true,
+    });
+    expect(suggestCaption(measure.objects('mean', 'prop:coolness'), valuesOut)).toEqual({
+      format: 'decimal',
+      showObject: false,
+    });
+  });
+
+  it('writes the value as the wall does', () => {
+    expect(valueText('count', 7, 'Person', 'Personen')).toBe('7 Personen');
+    expect(valueText('count', 1, 'Person', 'Personen')).toBe('1 Person');
+    expect(valueText('percent', 0.82, 'Drama', '')).toBe('82 % Drama');
+    expect(valueText('decimal', 0.931, 'Coolness', '')).toBe('0,93 Coolness');
+    expect(valueText('number', 73.2, 'Farbwert', '')).toBe('Farbwert 73');
+    expect(valueText('text', 5, 'volle Bewegung', '')).toBe('volle Bewegung');
+    expect(valueText('none', 5, 'x', '')).toBe('');
+    expect(valueText('time', localToUnix('2026-10-16T19:42'), '', '')).toBe('um 19:42');
+    const cap = { format: 'decimal' as const, one: 'Coolness', many: '', show_object: true };
+    expect(captionParts(cap, 0.93, 'Sonnenbrille')).toEqual({
+      headline: 'Sonnenbrille',
+      detail: '0,93 Coolness',
+    });
+    expect(captionParts({ ...cap, show_object: false }, 0.93, 'Sonnenbrille')).toEqual({
+      headline: '0,93 Coolness',
+      detail: null,
+    });
+  });
+});
+
+describe('AI comments', () => {
+  it('prices a comment for the chosen model and effort, estimates marked', () => {
+    const opts = verdictOptions();
+    expect(verdictPrice(opts, '', 'low')).toMatchObject({
+      model: 'claude-haiku-5-5',
+      price: 0.0014,
+      measured: true,
+    });
+    expect(verdictPrice(opts, 'claude-sonnet-5-5', 'high')).toMatchObject({ price: 0.033, measured: false });
+    // a provider without thinking: the low row
+    expect(verdictPrice({ ...opts, thinking: false }, 'claude-sonnet-5-5', 'high')).toMatchObject({
+      price: 0.0042,
+    });
+    expect(verdictPrice(undefined, '', 'low')).toBeNull();
+    expect(priceText(0.0014, 'USD')).toMatch(/^≈ 0,0014\s\$$/);
   });
 });
 
@@ -238,13 +409,21 @@ describe('helpers', () => {
     expect(freeId('Prost', ['prost', 'prost_2'])).toBe('prost_3');
   });
 
+  it('parses German decimals', () => {
+    expect(parseDecimal('0,5')).toBe(0.5);
+    expect(parseDecimal(' 3 ')).toBe(3);
+    expect(parseDecimal('drei')).toBeNaN();
+  });
+
   it('finds the field a server error is about', () => {
+    expect(serverField('egal', { error: 'invalid_category', field: 'rank.threshold' })).toBe(
+      'rank.threshold',
+    );
     expect(serverField('Titel: höchstens 40 Zeichen.')).toBe('title');
-    expect(serverField('Untertitel: zu lang.')).toBe('line');
-    expect(serverField('Bedingung 2: unbekannter Wert.')).toBe('where');
-    expect(serverField('Anzahl: 1 bis 10.')).toBe('count');
+    expect(serverField('Bedingung 2: Messgröße.')).toBe('pool');
+    expect(serverField('Rang: Schwelle.')).toBe('rank.threshold');
+    expect(serverField('Rang: Messgröße.')).toBe('rank.by');
     expect(serverField('Etwas anderes.')).toBeNull();
-    expect(serverField('egal', { error: 'invalid_category', field: 'emoji' })).toBe('emoji');
   });
 
   it('moves ids up and down', () => {

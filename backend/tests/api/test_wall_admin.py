@@ -274,7 +274,8 @@ def test_photo_analysis_shows_objects_runs_and_opt_outs(settings, demo_extension
             ]  # fmt: skip
             assert body["opt_out"] == {"analysis": False, "external_ai": True}
             assert body["opt_out_at_analysis"] is False
-            assert body["properties"] == [{"name": "coolness", "inactive": False, "scores": [0.7]}]
+            # no enabled category reads it: not polled right now (its scores stay readable)
+            assert body["properties"] == [{"name": "coolness", "inactive": True, "scores": [0.7]}]
             assert body["durations_ms"] == {"objects": 81}
     finally:
         app.state.core.db.close()
@@ -357,6 +358,16 @@ def test_photo_analysis_summaries_for_the_live_screen(settings, demo_extension):
             assert items[0]["objects"] == [] and items[0]["boxes"] == []
             assert items[1]["opt_out"] == {"analysis": True, "external_ai": False}
             assert items[1]["wins"] == []
+            assert items[0]["objects_off"] is False and items[1]["objects_off"] is False
+            # analysed with object detection „Aus“: every run skipped as switched off
+            with core.db.tx() as c:
+                c.execute(
+                    "INSERT INTO photo_detection_runs (photo_id, source, state, error, created_at)"
+                    " VALUES (?, 'local', 'skipped', 'ausgeschaltet', 'now')",
+                    (internal_id(core, waiting),),
+                )
+            r = admin.get("/api/x/wall/admin/photos/analysis", params={"ids": waiting})
+            assert r.json()["items"][0]["objects_off"] is True
 
             too_many = [("ids", f"x{i}") for i in range(101)]
             r = admin.get("/api/x/wall/admin/photos/analysis", params=too_many)

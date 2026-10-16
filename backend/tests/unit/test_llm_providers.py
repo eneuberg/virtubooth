@@ -165,29 +165,52 @@ def test_anthropic_unusable_answers_still_report_usage(answer, stop, kind):
 
 
 def test_anthropic_verdict():
-    out, _ = anthropic_with(
-        lambda r: httpx2.Response(
+    sent = []
+
+    def answer(r):
+        sent.append(json.loads(r.content))
+        return httpx2.Response(
             200,
             json=message(
                 {
-                    "text": "Lena mit der Discokugel!",
-                    "emoji": "🪩",
-                    "photo": "Pab",
-                    "object_index": 1,
+                    "comments": [
+                        {
+                            "photo": "Pab",
+                            "text": "Lena mit der Discokugel!",
+                            "emoji": "🪩",
+                            "object_index": 1,
+                        },
+                        {"photo": "Pcd", "text": "Hut ab!", "emoji": None, "object_index": None},
+                    ]
                 }
             ),
         )
-    ).verdict(
+
+    out, _ = anthropic_with(answer).verdict(
         "Wer?",
-        [PhotoLine("Pab", "Lena", ("person", "disco ball"), {"coolness": [0.1, 0.9]})],
+        [
+            PhotoLine(
+                "Pab",
+                "Lena",
+                ("person", "disco ball"),
+                {"coolness": [0.1, 0.9]},
+                rank=1,
+                focus=1,
+                value="Disco Ball · 0,90",
+            ),
+            PhotoLine("Pcd", "Tom", ("hat",), {"coolness": [0.5]}, rank=2),
+        ],
         model="m",
     )
-    assert (out.text, out.emoji, out.photo, out.object_index) == (
-        "Lena mit der Discokugel!",
-        "🪩",
-        "Pab",
-        1,
-    )
+    assert [(o.text, o.emoji, o.photo, o.object_index) for o in out] == [
+        ("Lena mit der Discokugel!", "🪩", "Pab", 1),
+        ("Hut ab!", None, "Pcd", None),
+    ]
+    body = sent[0]
+    assert "Guardrails" in body["system"] and "exactly one comment" in body["system"]
+    text = body["messages"][0]["content"][0]["text"]
+    assert "Platz 1: Pab" in text and "Platz 2: Pcd" in text and "2 in total" in text
+    assert 'Im Fokus: [1] "disco ball"' in text and "coolness=0.90" in text
 
 
 # ------------------------------------------------------------------ mistral
