@@ -297,6 +297,13 @@ def test_live_wall_analysis_opt_out(page: Page, live: LiveServer):
 
 
 def _external_ai_on(live: LiveServer) -> None:
+    from virtubooth.extensions.wall.llm.service import LlmService
+
+    # „KI“ only stays chosen with a key for the provider (else the server switches to local)
+    LlmService.of(live.core).keys.put(
+        "anthropic", "sk-ant-api03-e2e-join-0123456789", by="test",
+        at="2026-10-15T20:00:00.000+00:00",
+    )  # fmt: skip
     live.core.repos.app_settings.put(
         "x.llm.config",
         {"enabled": True, "detect": {"local": True, "external": True}},

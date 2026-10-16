@@ -1,17 +1,22 @@
 /**
  * "Modelle": the analysis worker (state, heartbeat, queue) and every analyzer with
  * what it does, its size, on/off, its settings and its numbers. Object detection is
- * either/or: where „Objekte“ sits, one choice „Objekterkennung: Lokal / KI / Aus“ (PUT
- * /llm/object-detection) over two rows, the local detector and „Objekte mit KI“ (the
- * external AI as a step of the pipeline, from GET /llm). Own requests; polls every 5 s
- * while on screen. Analyses are made once (N3): changes apply to new photos.
+ * either/or: where „Objekte“ sits, one framed block „Objekterkennung“ with its choice
+ * „Lokal / KI / Aus“ (PUT /llm/object-detection) on top and both detectors right under
+ * it, the local one and „Objekte mit KI“ (the external AI as a step of the pipeline, from
+ * GET /llm); the one not chosen is greyed out („inaktiv“). „KI“ while the AI cannot
+ * detect is refused by the server (it stays „Lokal“, a red error says why), and when the
+ * AI becomes unavailable later the server switches to „Lokal“ by itself (a red notice
+ * says why). Own requests; polls every 5 s while on screen. Analyses are made once (N3):
+ * changes apply to new photos.
  */
 import { useQueryClient } from '@tanstack/react-query';
-import { Boxes, Save, Sparkles } from 'lucide-react';
+import { Boxes, CircleAlert, Save, Sparkles } from 'lucide-react';
 import { useState, type FormEvent, type ReactNode } from 'react';
 import { formatDateTime } from '@/lib/format';
 import { Badge } from '@/ui/Badge';
 import { Button } from '@/ui/Button';
+import { cx } from '@/ui/cx';
 import { SegmentedControl } from '@/ui/SegmentedControl';
 import { Spinner } from '@/ui/Spinner';
 import { Switch } from '@/ui/Switch';
@@ -209,15 +214,22 @@ function AnalyzerRow({
   busy,
   onToggle,
   control,
+  inactive = false,
 }: {
   analyzer: Analyzer;
   busy: boolean;
   onToggle: (on: boolean) => void;
   /** in place of the switch (the local detector: switched by the shared choice above it) */
   control?: ReactNode;
+  /** greyed out: the other detector is the chosen one */
+  inactive?: boolean;
 }) {
   return (
-    <li data-analyzer={a.name} className="grid gap-1.5 border-b border-line py-3">
+    <li
+      data-analyzer={a.name}
+      data-inactive={inactive || undefined}
+      className={cx('grid gap-1.5 border-b border-line py-3', inactive && 'opacity-55')}
+    >
       <div className="flex flex-wrap items-start justify-between gap-x-3 gap-y-1">
         <div className="grid min-w-0 flex-1 gap-0.5">
           <p className="flex flex-wrap items-center gap-2 font-semibold">
@@ -266,10 +278,10 @@ function AnalyzerRow({
 
 const MODE_LABELS: Record<DetectionMode, string> = { local: 'Lokal', ai: 'KI', off: 'Aus' };
 
-/** „aktiv“ / „aus“ in place of a switch: the shared choice above decides. */
+/** „aktiv“ / „inaktiv“ in place of a switch: the shared choice above decides. */
 const ActiveBadge = ({ on, testId }: { on: boolean; testId: string }) => (
   <span data-testid={testId}>
-    <Badge tone={on ? 'ok' : 'neutral'}>{on ? 'aktiv' : 'aus'}</Badge>
+    <Badge tone={on ? 'ok' : 'neutral'}>{on ? 'aktiv' : 'inaktiv'}</Badge>
   </span>
 );
 
@@ -280,8 +292,10 @@ function AiDetectorRow({ llm }: { llm: LlmStatus }) {
   const provider = llm.providers.find((p) => p.id === config.provider);
   const model = llm.models.find((m) => m.id === config.model);
   return (
-    <li data-analyzer="objects-ai" className="grid gap-1.5 border-b border-line py-3">
-      <div className="flex flex-wrap items-start justify-between gap-x-3 gap-y-1">
+    <li data-analyzer="objects-ai" data-inactive={!active || undefined} className="grid gap-1.5 py-3">
+      <div
+        className={cx('flex flex-wrap items-start justify-between gap-x-3 gap-y-1', !active && 'opacity-55')}
+      >
         <div className="grid min-w-0 flex-1 gap-0.5">
           <p className="flex flex-wrap items-center gap-2 font-semibold">
             Objekte mit KI
@@ -303,13 +317,19 @@ function AiDetectorRow({ llm }: { llm: LlmStatus }) {
         <ActiveBadge on={active} testId="ml-ai-detect-active" />
       </div>
       {active ? <ExternalAiHint status={llm} /> : null}
-      <p className="flex flex-wrap items-center gap-2 text-xs" data-testid="ml-ai-detect-state">
+      <p
+        className={cx('flex flex-wrap items-center gap-2 text-xs', !active && 'opacity-55')}
+        data-testid="ml-ai-detect-state"
+      >
         <PartState status={llm} part="detection" state={detection.state} partOn={active} />
         <span className="text-ink-muted tabular">
           {detection.done} fertig · {detection.pending} warten · {detection.failed} fehlgeschlagen
         </span>
       </p>
-      <p className="text-xs text-ink-muted tabular" data-testid="ml-ai-detect-stats">
+      <p
+        className={cx('text-xs text-ink-muted tabular', !active && 'opacity-55')}
+        data-testid="ml-ai-detect-stats"
+      >
         {statsText(detection.stats)} · bisher {usdText(detection.cost_usd)}
       </p>
       <AiFallback detection={detection} active={active} />
@@ -389,7 +409,32 @@ function AnalysisImageChoice({ value }: { value: AnalysisImage }) {
   );
 }
 
-/** The either/or: one choice over the local detector's row and the AI's row. */
+/** A red line with an icon (refusal, automatic switch, why „KI“ can't be chosen). */
+function DangerLine({
+  children,
+  testId,
+  alert = false,
+}: {
+  children: ReactNode;
+  testId: string;
+  alert?: boolean;
+}) {
+  return (
+    <p
+      role={alert ? 'alert' : undefined}
+      className="flex items-start gap-1.5 text-sm text-danger"
+      data-testid={testId}
+    >
+      <CircleAlert aria-hidden="true" className="mt-0.5 size-4 shrink-0" />
+      <span>{children}</span>
+    </p>
+  );
+}
+
+/**
+ * The either/or as one framed block: the choice on top, both detectors right under it
+ * (the one not chosen greyed out), „Erkennung auf“ at its foot.
+ */
 function ObjectDetection({
   analyzer,
   llm,
@@ -405,63 +450,88 @@ function ObjectDetection({
 }) {
   const qc = useQueryClient();
   const [pending, setPending] = useState(false);
-  const mode = llm.detection.mode;
-  const provider = llm.providers.find((p) => p.id === llm.config.provider);
-  const noVision = provider !== undefined && !provider.vision;
+  const [refused, setRefused] = useState<string | null>(null);
+  const { mode, notice, notice_at: noticeAt, ai_unavailable: unavailable } = llm.detection;
 
   const choose = async (next: DetectionMode) => {
     if (next === mode) return;
     setPending(true);
+    setRefused(null);
     try {
       qc.setQueryData<LlmStatus>(wk.llm, await setObjectDetection(next));
+    } catch (err) {
+      // „KI“ refused (no key, external AI off, budget …): the server keeps „Lokal“
+      setRefused(errorText(err));
+      void qc.invalidateQueries({ queryKey: wk.llm });
+    } finally {
+      setPending(false);
       void qc.invalidateQueries({ queryKey: wk.analysis });
       void qc.invalidateQueries({ queryKey: wk.categories });
       void qc.invalidateQueries({ queryKey: wk.values });
-    } catch (err) {
-      showError(err);
-    } finally {
-      setPending(false);
     }
   };
 
   return (
-    <li className="grid border-b border-line" data-testid="ml-object-detection-block">
-      <div className="grid gap-1.5 py-3">
-        <p className="font-semibold">Objekterkennung</p>
-        <SegmentedControl
-          label="Objekterkennung"
-          size="sm"
-          options={DETECTION_MODES.map((id) => ({
-            id,
-            label: MODE_LABELS[id],
-            isDisabled: id === 'ai' && noVision,
-          }))}
-          value={mode}
-          onChange={(m) => void choose(m)}
-          isDisabled={pending}
-          className="justify-self-start"
-          data-testid="ml-object-detection"
-        />
-        <p className="text-xs text-ink-muted">
-          Entweder das lokale Modell oder die externe KI, nie beide. Gilt nur für Fotos, die ab jetzt
-          hochgeladen werden; ältere Fotos werden nicht nachträglich geschickt.
-        </p>
-        {noVision ? (
-          <p className="text-xs text-ink-muted" data-testid="ml-ai-detect-no-vision">
-            „KI“ geht nicht: {provider.title} kann keine Fotos ansehen.
+    <li className="py-3" data-testid="ml-object-detection-block">
+      <section
+        aria-label="Objekterkennung"
+        className="rounded-lg grid border border-line-strong bg-surface-sunk/40"
+      >
+        <div className="grid gap-2 border-b border-line px-3 py-3">
+          <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
+            <p className="font-semibold">Objekterkennung</p>
+            <SegmentedControl
+              label="Objekterkennung"
+              size="sm"
+              options={DETECTION_MODES.map((id) => ({ id, label: MODE_LABELS[id] }))}
+              value={mode}
+              onChange={(m) => void choose(m)}
+              isDisabled={pending}
+              data-testid="ml-object-detection"
+            />
+          </div>
+          <p className="text-xs text-ink-muted">
+            Entweder das lokale Modell oder die externe KI, nie beide: es arbeitet nur das gewählte, das
+            andere ist inaktiv. Gilt für Fotos, die ab jetzt hochgeladen werden; ältere Fotos werden nicht
+            nachträglich geschickt.
           </p>
-        ) : null}
-        <AnalysisImageChoice value={image} />
-      </div>
-      <ul className="grid border-t border-line" aria-label="Objekterkennung">
-        <AnalyzerRow
-          analyzer={analyzer}
-          busy={busy}
-          onToggle={onToggle}
-          control={<ActiveBadge on={mode === 'local'} testId="ml-local-detect-active" />}
-        />
-        <AiDetectorRow llm={llm} />
-      </ul>
+          {refused ? (
+            <DangerLine testId="ml-object-detection-error" alert>
+              {refused}
+            </DangerLine>
+          ) : null}
+          {notice && mode !== 'ai' ? (
+            <DangerLine testId="ml-object-detection-notice" alert>
+              Automatisch auf „Lokal“ umgestellt
+              {noticeAt ? (
+                <>
+                  {' '}
+                  (<time dateTime={noticeAt}>{formatDateTime(noticeAt)}</time>)
+                </>
+              ) : null}
+              : {notice} Wähle „KI“ wieder, sobald das behoben ist.
+            </DangerLine>
+          ) : null}
+          {unavailable && mode !== 'ai' && !refused && !notice ? (
+            <p className="text-xs text-danger" data-testid="ml-ai-detect-unavailable">
+              „KI“ geht gerade nicht: {unavailable}
+            </p>
+          ) : null}
+        </div>
+        <ul className="grid px-3" aria-label="Detektoren">
+          <AnalyzerRow
+            analyzer={analyzer}
+            busy={busy}
+            onToggle={onToggle}
+            inactive={mode !== 'local'}
+            control={<ActiveBadge on={mode === 'local'} testId="ml-local-detect-active" />}
+          />
+          <AiDetectorRow llm={llm} />
+        </ul>
+        <div className="border-t border-line px-3 py-3">
+          <AnalysisImageChoice value={image} />
+        </div>
+      </section>
     </li>
   );
 }

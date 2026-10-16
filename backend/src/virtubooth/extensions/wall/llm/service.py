@@ -18,9 +18,9 @@ from typing import TYPE_CHECKING, TypeVar
 
 from ....core.clock import now_iso
 from ....core.ratelimit import RateLimiter
-from . import budget, crypto, redact
+from . import budget, crypto, pricing, redact
 from .budget import Kind
-from .config import LlmConfig, load_config
+from .config import LlmConfig, clear_notice, load_config, save_notice, set_ai_detection
 from .config import migrate as config_migrate
 from .providers import BY_ID as PROVIDERS
 from .providers import ProviderInfo, make_provider
@@ -36,8 +36,11 @@ log = logging.getLogger("virtubooth.llm")
 T = TypeVar("T")
 ProviderFactory = Callable[[str, str], Provider]
 
-NOT_CONFIGURED = "Externe KI ist nicht eingerichtet: API-Schlüssel fehlt."
 KEY_UNREADABLE = "Schlüssel ungültig, bitte neu eingeben."
+
+
+def no_key(provider: str) -> str:
+    return f"Kein API-Schlüssel für {PROVIDERS[provider].title} gesetzt."
 
 
 class Unavailable(Exception):
@@ -130,6 +133,14 @@ class LlmService:
 
     def start(self) -> None:
         redact.install()
+        # one key per provider: a stored key from before is filed under its provider
+        try:
+            moved = self.keys.migrate()
+        except Exception:
+            log.exception("llm key migration failed")
+        else:
+            if moved:
+                log.info("llm key: stored key filed under %s", moved)
         # a config from before the either/or: resolve it once (config.migrate)
         try:
             outcome = config_migrate(self.core.repos.app_settings)
@@ -166,15 +177,9 @@ class LlmService:
         """The configured provider with the stored key; Unavailable without one."""
         key = self.keys.load(config.provider)
         if key is None:
-            status = self.keys.status()
-            if status.set and not status.valid:
+            if self.keys.status(config.provider).set:
                 raise Unavailable("llm_key_invalid", KEY_UNREADABLE)
-            if status.set:
-                raise Unavailable(
-                    "llm_not_configured",
-                    "Der gespeicherte Schlüssel gehört zu einem anderen Anbieter.",
-                )
-            raise Unavailable("llm_not_configured", NOT_CONFIGURED)
+            raise Unavailable("llm_not_configured", no_key(config.provider))
         with self._cache_lock:
             if (
                 self._cached is not None
@@ -193,6 +198,78 @@ class LlmService:
     def blocked_reason(self, config: LlmConfig | None = None) -> str | None:
         cfg = config or self.config()
         return budget.blocked(self.core.db, cfg.budget, self.timezone)
+
+    # ------------------------------------------------- object detection
+
+    def ai_unavailable(self, config: LlmConfig | None = None) -> str | None:
+        """Why „KI“ cannot be the object detector right now (German), None when
+        it can: the master switch, a provider without vision, no (readable or
+        accepted) key for the provider, the budget."""
+        cfg = config or self.config()
+        info = PROVIDERS[cfg.provider]
+        if not cfg.enabled:
+            return "Die externe KI ist ausgeschaltet (Karte „Externe KI“)."
+        if not info.vision:
+            return f"{info.title} kann keine Fotos ansehen."
+        why = self.detector.unable(cfg)
+        return why[1] if why is not None else None
+
+    def fall_back_to_local(self, reason: str, *, by: str = "system") -> bool:
+        """The AI cannot detect any more: the stored choice becomes „Lokal“ (the
+        `objects` analyzer on, the AI's switch off), audit-logged, with `reason`
+        kept as the notice Modelle shows. False when „KI“ was not chosen."""
+        from . import ports
+
+        repo = self.core.repos.app_settings
+        at = now_iso()
+        with self.core.db.tx():
+            if not load_config(repo).detect.external:
+                return False
+            set_ai_detection(repo, False, by=by)
+            ports.set_local_objects(self.core, True, by=by)
+            save_notice(repo, reason, at=at)
+            self.core.repos.audit.log(
+                by, "llm.detection", "", {"mode": "local", "auto": True, "reason": reason}, at=at
+            )
+        log.warning("llm detect: switched to the local detector (%s)", reason)
+        self.changed()
+        return True
+
+    def check_detection(self, *, by: str = "system") -> str | None:
+        """After a change (config, key): „KI“ chosen but no longer possible →
+        „Lokal“ (fall_back_to_local). Returns the reason when it switched."""
+        cfg = self.config()
+        if not cfg.detect.external:
+            return None
+        why = self.ai_unavailable(cfg)
+        if why is not None and self.fall_back_to_local(why, by=by):
+            return why
+        return None
+
+    def set_detection(self, mode: str, *, actor: str) -> None:
+        """„Objekterkennung: Lokal / KI / Aus“ chosen by the host (either/or).
+        `ai` while the AI cannot detect raises Unavailable
+        (`ai_detection_unavailable`) after storing „Lokal“."""
+        from . import ports
+
+        repo = self.core.repos.app_settings
+        why = self.ai_unavailable() if mode == "ai" else None
+        stored = "local" if why is not None else mode
+        at = now_iso()
+        with self.core.db.tx():
+            set_ai_detection(repo, stored == "ai", by=actor)
+            ports.set_local_objects(self.core, stored == "local", by=actor)
+            clear_notice(repo)
+            detail: dict[str, str] = {"mode": stored}
+            if why is not None:
+                detail.update({"refused": "ai", "reason": why})
+            self.core.repos.audit.log(actor, "llm.detection", "", detail, at=at)
+        self.changed()
+        if why is not None:
+            raise Unavailable(
+                "ai_detection_unavailable",
+                f"„KI“ geht gerade nicht: {why} Die Objekterkennung bleibt beim lokalen Modell.",
+            )
 
     # -------------------------------------------------------------- calls
 
@@ -263,6 +340,7 @@ class LlmService:
     # ---------------------------------------------------------------- key
 
     def set_key(self, provider: str, key: str, *, actor: str) -> crypto.KeyStatus:
+        """Store `provider`'s key (the other providers' keys stay)."""
         at = now_iso()
         with self.core.db.tx():
             self.keys.put(provider, key, by=actor, at=at)
@@ -271,34 +349,52 @@ class LlmService:
             )
         self.forget_provider()
         self.changed()
-        return self.keys.status()
+        return self.keys.status(provider)
 
-    def clear_key(self, *, actor: str) -> crypto.KeyStatus:
+    def clear_key(self, provider: str, *, actor: str) -> crypto.KeyStatus:
         at = now_iso()
         with self.core.db.tx():
-            self.keys.clear()
-            self.core.repos.audit.log(actor, "llm.key", "", {"mode": "clear"}, at=at)
+            self.keys.clear(provider)
+            self.core.repos.audit.log(
+                actor, "llm.key", "", {"mode": "clear", "provider": provider}, at=at
+            )
         self.forget_provider()
+        self.check_detection(by=actor)
         self.changed()
-        return self.keys.status()
+        return self.keys.status(provider)
 
-    def test_key(self) -> tuple[bool, str]:
-        """Ask the provider whether key and model work (free: the models list).
-        Raises Unavailable without a usable key; (False, message) on failure."""
+    def test_key(self, provider: str | None = None, model: str | None = None) -> tuple[bool, str]:
+        """Ask `provider` (default: the configured one) whether its stored key
+        and `model` (default: the configured model, or the provider's default)
+        work: its models list (free), one token when the model is not listed.
+        Raises Unavailable without a usable key or when the key is rejected;
+        (False, message) for any other failure (model unknown, unreachable)."""
         cfg = self.config()
-        provider = self.provider(cfg)
+        pid = provider or cfg.provider
+        if (
+            model is None
+            or pricing.BY_ID.get(model) is None
+            or pricing.BY_ID[model].provider != pid
+        ):
+            model = cfg.model if pid == cfg.provider else pricing.DEFAULT_BY_PROVIDER[pid]
+        current = pid == cfg.provider
+        cfg = cfg.model_copy(update={"provider": pid, "model": model})
+        client = self.provider(cfg)
+        title = PROVIDERS[pid].title
         try:
-            usage = provider.ping(cfg.model)
+            usage = client.ping(model)
         except ProviderError as exc:
             self._meter("test", "key", cfg, exc.usage, ok=False)
+            message = redact.redact(exc.message)
             if exc.kind == "auth":
-                raise Unavailable("llm_key_invalid", exc.message) from None
-            return False, redact.redact(exc.message)
+                raise Unavailable("llm_key_invalid", f"{title}: {message}") from None
+            return False, f"{title}: {message}"
         self._meter("test", "key", cfg, usage, ok=True)
-        # a key the detection saw rejected works again: photos go to the AI again
-        self.detector.key_ok()
-        self.detector.poke()
-        return True, "Schlüssel funktioniert."
+        if current:
+            # a key the detection saw rejected works again
+            self.detector.key_ok()
+            self.detector.poke()
+        return True, f"Schlüssel funktioniert ({title}, {model})."
 
 
 class LlmRuntime:

@@ -6,8 +6,9 @@ Non-streaming Messages API calls with structured output
 effort („Denkaufwand“, default low: this is labelling and rating, not
 reasoning). Thinking is billed as output tokens and already counted in
 `usage.output_tokens`; more effort gets more `max_tokens` and time. Images go
-in as base64 JPEG blocks. `ping` reads the model's entry from the Models API
-(free) to check the key.
+in as base64 JPEG blocks. `ping` reads the Models API's list (free) to check
+the key and asks for one token only when the model is not listed there (an
+alias, or DeutschlandGPT, which has no models list).
 
 DeutschlandGPT (deutschlandgpt.py) is this class with its base URL and
 `structured = False`.
@@ -25,7 +26,16 @@ from anthropic.types import MessageParam, OutputConfigParam
 
 from .. import prompts
 from ..ports import DetectedObject
-from .base import PhotoLine, ProviderError, TokenUsage, VerdictOut
+from .base import (
+    KEY_FORBIDDEN,
+    KEY_REJECTED,
+    PING_PROMPT,
+    PhotoLine,
+    ProviderError,
+    TokenUsage,
+    VerdictOut,
+    model_unknown,
+)
 
 MAX_RETRIES = 2
 EFFORTS = ("low", "medium", "high")
@@ -117,11 +127,31 @@ class AnthropicProvider:
         return prompts.parse_verdict(data, usage), usage
 
     def ping(self, model: str) -> TokenUsage:
+        listed: set[str] = set()
         try:
-            self.client.models.retrieve(model)
+            listed = {m.id for m in self.client.models.list(limit=1000).data}
+        except anthropic.NotFoundError:
+            pass  # no models list at this endpoint: the one-token request decides
         except anthropic.APIError as exc:
             raise _error(exc) from exc
-        return TokenUsage()
+        if model in listed or any(m.startswith(model + "-") for m in listed):
+            return TokenUsage()
+        try:
+            msg = self.client.messages.create(
+                model=model,
+                max_tokens=1,
+                messages=[{"role": "user", "content": PING_PROMPT}],
+                timeout=TIMEOUT_S["low"],
+            )
+        except anthropic.NotFoundError:
+            raise ProviderError(model_unknown(model), kind="model") from None
+        except anthropic.BadRequestError as exc:
+            if "model" in str(exc.message).lower():
+                raise ProviderError(model_unknown(model), kind="model") from None
+            raise _error(exc) from exc
+        except anthropic.APIError as exc:
+            raise _error(exc) from exc
+        return TokenUsage(msg.usage.input_tokens or 0, msg.usage.output_tokens or 0)
 
     # ---------------------------------------------------------- internals
 
@@ -168,12 +198,14 @@ class AnthropicProvider:
 
 def _error(exc: anthropic.APIError) -> ProviderError:
     """A ProviderError with a short German message (never the request, never the key)."""
-    if isinstance(exc, anthropic.AuthenticationError | anthropic.PermissionDeniedError):
-        return ProviderError("Der API-Schlüssel wurde abgelehnt.", kind="auth")
+    if isinstance(exc, anthropic.AuthenticationError):
+        return ProviderError(KEY_REJECTED, kind="auth")
+    if isinstance(exc, anthropic.PermissionDeniedError):
+        return ProviderError(KEY_FORBIDDEN, kind="auth")
     if isinstance(exc, anthropic.RateLimitError):
         return ProviderError("Zu viele Anfragen beim KI-Dienst (Limit).", kind="rate")
     if isinstance(exc, anthropic.NotFoundError):
-        return ProviderError("Modell nicht gefunden.", kind="other")
+        return ProviderError("Modell beim Anbieter nicht gefunden.", kind="model")
     if isinstance(exc, anthropic.APIStatusError):
         if exc.status_code == 402:
             # DeutschlandGPT: credit used up or the key's spending limit reached

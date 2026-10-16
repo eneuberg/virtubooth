@@ -2777,6 +2777,18 @@
       "DetectionOut": {
         "description": "„Objekte mit KI“ (a step of the pipeline while it is the active detector).",
         "properties": {
+          "ai_unavailable": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Why „KI“ cannot be chosen right now (German: external AI off, no key for the provider, key rejected, budget, no vision); None while it can.",
+            "title": "Ai Unavailable"
+          },
           "cost_usd": {
             "description": "What detection has cost so far (estimate).",
             "title": "Cost Usd",
@@ -2853,6 +2865,29 @@
             "title": "Mode",
             "type": "string"
           },
+          "notice": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Why the choice switched from „KI“ to „Lokal“ by itself (the AI became unavailable); cleared when the host chooses again.",
+            "title": "Notice"
+          },
+          "notice_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Notice At"
+          },
           "pending": {
             "description": "Photos the external detector will still look at.",
             "title": "Pending",
@@ -2885,7 +2920,9 @@
           "fallback_reason",
           "fallback_now",
           "stats",
-          "cost_usd"
+          "cost_usd",
+          "ai_unavailable",
+          "notice"
         ],
         "title": "DetectionOut",
         "type": "object"
@@ -3135,6 +3172,7 @@
               "llm_no_vision",
               "llm_key_invalid",
               "llm_budget_exhausted",
+              "ai_detection_unavailable",
               "invalid_property",
               "property_exists",
               "bad_origin",
@@ -4615,7 +4653,7 @@
         "type": "object"
       },
       "KeyOut": {
-        "description": "Never the key itself: whether one is stored, and whether it can be read.",
+        "description": "Never the key itself: whether one is stored for `provider`, and whether it\ncan be read. One key per provider.",
         "properties": {
           "provider": {
             "anyOf": [
@@ -4656,6 +4694,41 @@
           "valid"
         ],
         "title": "KeyOut",
+        "type": "object"
+      },
+      "KeyTestIn": {
+        "description": "`POST /llm/key/test`: which provider's key to test, with which model\n(defaults: the configured provider; its configured or default model).",
+        "properties": {
+          "model": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Model"
+          },
+          "provider": {
+            "anyOf": [
+              {
+                "enum": [
+                  "anthropic",
+                  "mistral",
+                  "deutschlandgpt",
+                  "scaleway"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Provider"
+          }
+        },
+        "title": "KeyTestIn",
         "type": "object"
       },
       "KeyTestOut": {
@@ -4933,7 +5006,16 @@
             "$ref": "#/components/schemas/DetectionOut"
           },
           "key": {
-            "$ref": "#/components/schemas/KeyOut"
+            "$ref": "#/components/schemas/KeyOut",
+            "description": "The configured provider's key."
+          },
+          "keys": {
+            "description": "Every provider's key state (one key each).",
+            "items": {
+              "$ref": "#/components/schemas/KeyOut"
+            },
+            "title": "Keys",
+            "type": "array"
           },
           "models": {
             "items": {
@@ -4959,6 +5041,7 @@
         "required": [
           "config",
           "key",
+          "keys",
           "providers",
           "models",
           "poller",
@@ -19419,7 +19502,32 @@
     },
     "/api/x/wall/admin/llm/key": {
       "delete": {
+        "description": "Delete `provider`'s key (default: the configured provider's).",
         "operationId": "clear_llm_key_api_x_wall_admin_llm_key_delete",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "provider",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "anthropic",
+                    "mistral",
+                    "deutschlandgpt",
+                    "scaleway"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Provider"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "content": {
@@ -19509,7 +19617,7 @@
         ]
       },
       "put": {
-        "description": "Store the key encrypted (write-only). 400 `llm_key_invalid` for an\nobviously malformed one (more than 400 characters, whitespace).",
+        "description": "Store `provider`'s key encrypted (write-only; one key per provider, the\nothers stay). 400 `llm_key_invalid` for an obviously malformed one (more\nthan 400 characters, whitespace).",
         "operationId": "set_llm_key_api_x_wall_admin_llm_key_put",
         "requestBody": {
           "content": {
@@ -19612,8 +19720,25 @@
     },
     "/api/x/wall/admin/llm/key/test": {
       "post": {
-        "description": "Ask the provider whether the key works (no tokens used).\n400 `llm_not_configured` without a key, `llm_key_invalid` when refused.",
+        "description": "Ask the provider whether its stored key and the model work: its models\nlist (free), one token when the model is not listed there. `ok: false`\nwith a German reason (model unknown, unreachable, wrong address/project).\n400 `llm_not_configured` without a key, `llm_key_invalid` when refused.",
         "operationId": "test_llm_key_api_x_wall_admin_llm_key_test_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/KeyTestIn"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Body"
+              }
+            }
+          }
+        },
         "responses": {
           "200": {
             "content": {
@@ -19705,7 +19830,7 @@
     },
     "/api/x/wall/admin/llm/object-detection": {
       "put": {
-        "description": "„Objekterkennung: Lokal / KI / Aus“ (either/or): `local` switches the\n`objects` analyzer on and the AI detector off, `ai` the other way round, `off`\nboth off. Applies to photos the pipeline finishes from now on: older photos\nare never sent to the AI afterwards. 400 `invalid_llm_config` when the\nprovider can't look at photos (`ai`).",
+        "description": "„Objekterkennung: Lokal / KI / Aus“ (either/or): `local` switches the\n`objects` analyzer on and the AI detector off, `ai` the other way round, `off`\nboth off. Applies to photos the pipeline finishes from now on: older photos\nare never sent to the AI afterwards. 409 `ai_detection_unavailable` for `ai`\nwhile the AI cannot detect (external AI off, no key for the provider, key\nrejected, budget used up, a provider without vision): „Lokal“ is stored\nthen. Clears the notice of an automatic switch to „Lokal“.",
         "operationId": "set_object_detection_api_x_wall_admin_llm_object_detection_put",
         "requestBody": {
           "content": {

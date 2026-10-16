@@ -10,7 +10,8 @@ from .config import BudgetConfig, LlmConfig, ProviderId
 
 
 class KeyOut(BaseModel):
-    """Never the key itself: whether one is stored, and whether it can be read."""
+    """Never the key itself: whether one is stored for `provider`, and whether it
+    can be read. One key per provider."""
 
     set: bool
     set_at: str | None
@@ -21,6 +22,14 @@ class KeyOut(BaseModel):
 class KeyIn(BaseModel):
     provider: ProviderId
     key: str = Field(description="At most 400 characters, no whitespace. Write-only.")
+
+
+class KeyTestIn(BaseModel):
+    """`POST /llm/key/test`: which provider's key to test, with which model
+    (defaults: the configured provider; its configured or default model)."""
+
+    provider: ProviderId | None = None
+    model: str | None = None
 
 
 class KeyTestOut(BaseModel):
@@ -95,6 +104,15 @@ class DetectionOut(BaseModel):
     )
     stats: DetectStatsOut
     cost_usd: float = Field(description="What detection has cost so far (estimate).")
+    ai_unavailable: str | None = Field(
+        description="Why „KI“ cannot be chosen right now (German: external AI off, no key "
+        "for the provider, key rejected, budget, no vision); None while it can."
+    )
+    notice: str | None = Field(
+        description="Why the choice switched from „KI“ to „Lokal“ by itself (the AI became "
+        "unavailable); cleared when the host chooses again."
+    )
+    notice_at: str | None = None
 
 
 class ObjectDetectionIn(BaseModel):
@@ -127,7 +145,8 @@ class Usage(BaseModel):
 
 class LlmStatus(BaseModel):
     config: LlmConfig
-    key: KeyOut
+    key: KeyOut = Field(description="The configured provider's key.")
+    keys: list[KeyOut] = Field(description="Every provider's key state (one key each).")
     providers: list[ProviderOut]
     models: list[ModelOut]
     poller: PollerOut

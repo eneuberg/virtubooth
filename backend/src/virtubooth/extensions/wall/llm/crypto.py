@@ -1,13 +1,15 @@
-"""The host's API key at rest (PLAN-NIGHT N11).
+"""The host's API keys at rest (PLAN-NIGHT N11), one per provider.
 
-Settings key `x.llm.key` = `{v: 1, provider, nonce, ct, set_at, by}`:
-AES-256-GCM with a key derived from VB_SECRET_KEY (HKDF-SHA256, salt
-`virtubooth`, info `llm-key-v1`), the provider id as associated data. Nothing
-outside this module sees the plain key except the provider client it is
-handed to; the API only ever answers `{set, set_at, provider, valid}`. A
-changed VB_SECRET_KEY makes the stored key unreadable → `valid: false`
-(„Schlüssel ungültig, bitte neu eingeben“). Archives drop the row
-(tools/export.py SCRUBBED_SETTINGS_SQL).
+Settings key `x.llm.key` = `{v: 2, keys: {<provider>: {v: 1, provider, nonce,
+ct, set_at, by}}}`: each key AES-256-GCM with a key derived from VB_SECRET_KEY
+(HKDF-SHA256, salt `virtubooth`, info `llm-key-v1`), the provider id as
+associated data. Switching the provider keeps the other providers' keys. Before
+v2 the row held one record (`{v: 1, provider, …}`): it reads as that provider's
+key and `migrate` rewrites it once. Nothing outside this module sees a plain
+key except the provider client it is handed to; the API only ever answers
+`{set, set_at, provider, valid}` per provider. A changed VB_SECRET_KEY makes a
+stored key unreadable → `valid: false` („Schlüssel ungültig, bitte neu
+eingeben“). Archives drop the row (tools/export.py SCRUBBED_SETTINGS_SQL).
 """
 
 from __future__ import annotations
@@ -23,6 +25,7 @@ from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 from cryptography.hazmat.primitives.kdf.hkdf import HKDF
 
+from ....core.clock import now_iso
 from ....repositories.app_settings import AppSettingsRepo
 from . import redact
 
@@ -87,6 +90,24 @@ def decrypt(secret: str, record: dict[str, Any]) -> str:
     return plain
 
 
+def _records(raw: Any) -> dict[str, dict[str, Any]]:
+    """provider → its encrypted record, from the stored row (either shape)."""
+    if not isinstance(raw, dict):
+        return {}
+    keys = raw.get("keys")
+    if raw.get("v") == 2 and isinstance(keys, dict):
+        return {str(p): r for p, r in keys.items() if isinstance(r, dict)}
+    provider = raw.get("provider")
+    if raw.get("v") == 1 and isinstance(provider, str):
+        return {provider: raw}
+    return {}
+
+
+def stored_providers(app_settings: AppSettingsRepo) -> set[str]:
+    """The providers with a stored key (readable or not; no secret needed)."""
+    return set(_records(app_settings.get(KEY_KEY)))
+
+
 class KeyStore:
     """Reads and writes `x.llm.key`. `secret` is VB_SECRET_KEY."""
 
@@ -94,39 +115,65 @@ class KeyStore:
         self.app_settings = app_settings
         self._secret = secret
 
-    def status(self) -> KeyStatus:
-        record = self.app_settings.get(KEY_KEY)
-        if not record:
-            return KeyStatus(set=False, set_at=None, provider=None, valid=False)
+    def _all(self) -> dict[str, dict[str, Any]]:
+        return _records(self.app_settings.get(KEY_KEY))
+
+    def status(self, provider: str) -> KeyStatus:
+        record = self._all().get(provider)
+        if record is None:
+            return KeyStatus(set=False, set_at=None, provider=provider, valid=False)
         try:
             decrypt(self._secret, record)
             valid = True
         except KeyUnreadable:
             valid = False
-        set_at, provider = record.get("set_at"), record.get("provider")
+        set_at = record.get("set_at")
         return KeyStatus(
             set=True,
             set_at=set_at if isinstance(set_at, str) else None,
-            provider=provider if isinstance(provider, str) else None,
+            provider=provider,
             valid=valid,
         )
 
     def load(self, provider: str) -> str | None:
-        """The plain key for `provider`; None when none is stored, it belongs to
-        another provider or cannot be decrypted."""
-        record = self.app_settings.get(KEY_KEY)
-        if not record or record.get("provider") != provider:
+        """The plain key for `provider`; None when none is stored for it or it
+        cannot be decrypted."""
+        record = self._all().get(provider)
+        if record is None or record.get("provider") != provider:
             return None
         try:
             return decrypt(self._secret, record)
         except KeyUnreadable:
             return None
 
+    def _save(self, records: dict[str, dict[str, Any]], at: str) -> None:
+        if records:
+            self.app_settings.put(KEY_KEY, {"v": 2, "keys": records}, at=at)
+        else:
+            self.app_settings.delete(KEY_KEY)
+
     def put(self, provider: str, key: str, *, by: str, at: str) -> None:
+        """Store (or replace) `provider`'s key; the others stay."""
         record = encrypt(self._secret, provider, key)
         record.update({"set_at": at, "by": by})
         redact.remember(key)
-        self.app_settings.put(KEY_KEY, record, at=at)
+        self._save({**self._all(), provider: record}, at)
 
-    def clear(self) -> bool:
-        return self.app_settings.delete(KEY_KEY)
+    def clear(self, provider: str) -> bool:
+        records = self._all()
+        if records.pop(provider, None) is None:
+            return False
+        self._save(records, now_iso())
+        return True
+
+    def migrate(self) -> str | None:
+        """A row from before v2 (one key with its provider) becomes that provider's
+        entry. Returns the provider it was filed under, None when nothing to do."""
+        raw = self.app_settings.get(KEY_KEY)
+        if not isinstance(raw, dict) or raw.get("v") != 1:
+            return None
+        records = _records(raw)
+        if not records:
+            return None
+        self._save(records, now_iso())
+        return next(iter(records))

@@ -16,6 +16,9 @@ from . import pricing
 from .providers import BY_ID as PROVIDERS
 
 CONFIG_KEY: Final = "x.llm.config"
+# why the object detection was switched from „KI“ to „Lokal“ by itself (the AI
+# became unavailable): `{reason, at}`, shown in Modelle until the host chooses again
+NOTICE_KEY: Final = "x.llm.detect_notice"
 ProviderId = Literal["anthropic", "mistral", "deutschlandgpt", "scaleway"]
 Effort = Literal["low", "medium", "high"]
 
@@ -210,3 +213,22 @@ def set_ai_detection(app_settings: AppSettingsRepo, on: bool, *, by: str) -> Llm
     if on:
         new = LlmConfig.model_validate(new.model_dump())  # the provider must see photos
     return save_config(app_settings, new, by=by)
+
+
+def load_notice(app_settings: AppSettingsRepo) -> tuple[str | None, str | None]:
+    """(reason, at) of the last automatic switch to the local detector, if any."""
+    raw = app_settings.get(NOTICE_KEY)
+    reason = raw.get("reason") if raw else None
+    at = raw.get("at") if raw else None
+    return (
+        reason if isinstance(reason, str) else None,
+        at if isinstance(at, str) else None,
+    )
+
+
+def save_notice(app_settings: AppSettingsRepo, reason: str, *, at: str) -> None:
+    app_settings.put(NOTICE_KEY, {"reason": reason, "at": at}, at=at)
+
+
+def clear_notice(app_settings: AppSettingsRepo) -> None:
+    app_settings.delete(NOTICE_KEY)

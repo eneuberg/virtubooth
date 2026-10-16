@@ -46,14 +46,57 @@ def test_wrong_secret_or_tampering_is_unreadable():
 def test_changed_secret_shows_invalid(core):
     store = crypto.KeyStore(core.repos.app_settings, SECRET_KEY)
     store.put("anthropic", API_KEY, by="admin:x", at="2026-10-15T20:00:00.000+00:00")
-    assert store.status() == crypto.KeyStatus(
+    assert store.status("anthropic") == crypto.KeyStatus(
         set=True, set_at="2026-10-15T20:00:00.000+00:00", provider="anthropic", valid=True
     )
     assert store.load("anthropic") == API_KEY
     assert store.load("mistral") is None
+    assert store.status("mistral") == crypto.KeyStatus(
+        set=False, set_at=None, provider="mistral", valid=False
+    )
     other = crypto.KeyStore(core.repos.app_settings, "a-new-secret-key-0123456789abcdef01234")
-    assert other.status().set is True and other.status().valid is False
+    assert other.status("anthropic").set is True and other.status("anthropic").valid is False
     assert other.load("anthropic") is None
+
+
+def test_one_key_per_provider(core):
+    """Each provider keeps its own key: switching the provider loses none."""
+    store = crypto.KeyStore(core.repos.app_settings, SECRET_KEY)
+    store.put("anthropic", API_KEY, by="t", at="2026-10-15T20:00:00.000+00:00")
+    store.put("scaleway", "scw-secret-0123456789", by="t", at="2026-10-15T21:00:00.000+00:00")
+    assert store.load("anthropic") == API_KEY
+    assert store.load("scaleway") == "scw-secret-0123456789"
+    assert crypto.stored_providers(core.repos.app_settings) == {"anthropic", "scaleway"}
+    # replacing one leaves the other
+    store.put("scaleway", "scw-new-0123456789", by="t", at="2026-10-15T22:00:00.000+00:00")
+    assert store.load("anthropic") == API_KEY and store.load("scaleway") == "scw-new-0123456789"
+    assert store.clear("anthropic") and not store.clear("anthropic")
+    assert store.load("anthropic") is None and store.load("scaleway") == "scw-new-0123456789"
+    assert store.clear("scaleway")
+    assert core.repos.app_settings.get(crypto.KEY_KEY) == {}
+
+
+def test_a_key_from_before_is_filed_under_its_provider(core):
+    """Before v2 the row held one record: it reads as its provider's key, and the
+    service's start rewrites it into the per-provider shape."""
+    from virtubooth.extensions.wall.llm.service import LlmService
+
+    old = crypto.encrypt(SECRET_KEY, "scaleway", API_KEY)
+    old.update({"set_at": "2026-10-15T21:05:47.947+00:00", "by": "admin:x"})
+    core.repos.app_settings.put(crypto.KEY_KEY, old, at="x")
+    store = crypto.KeyStore(core.repos.app_settings, SECRET_KEY)
+    assert store.load("scaleway") == API_KEY and store.load("anthropic") is None
+    assert store.status("scaleway").set_at == "2026-10-15T21:05:47.947+00:00"
+    svc = LlmService.of(core)
+    svc.start()
+    try:
+        raw = core.repos.app_settings.get(crypto.KEY_KEY)
+        assert raw["v"] == 2 and set(raw["keys"]) == {"scaleway"}
+        assert raw["keys"]["scaleway"]["set_at"] == "2026-10-15T21:05:47.947+00:00"
+        assert store.load("scaleway") == API_KEY
+        assert store.migrate() is None  # idempotent
+    finally:
+        svc.stop()
 
 
 def test_stored_row_holds_no_plain_key(core):
@@ -79,14 +122,24 @@ def test_api_never_returns_the_key(admin, core):
         assert API_KEY not in body and API_KEY[-12:] not in body, path
     status = admin.get(BASE).json()
     assert status["key"]["set"] is True and status["key"]["valid"] is True
+    keys = {k["provider"]: k["set"] for k in status["keys"]}
+    assert keys == {"anthropic": True, "mistral": False, "deutschlandgpt": False,
+                    "scaleway": False}  # fmt: skip
     # the audit entry says what happened, never the key
     entry = core.repos.audit.list(5)[0]
     assert entry.action == "llm.key" and entry.details == {"mode": "set", "provider": "anthropic"}
     assert API_KEY not in str(core.repos.audit.list(50))
 
-    r = admin.delete(f"{BASE}/key", headers=ORIGIN)
-    assert r.json()["set"] is False
-    assert core.repos.audit.list(1)[0].details == {"mode": "clear"}
+    # another provider's key: stored beside it, deleted on its own
+    r = admin.put(f"{BASE}/key", json={"provider": "scaleway", "key": "scw-0123456789"},
+                  headers=ORIGIN)  # fmt: skip
+    assert r.json()["provider"] == "scaleway" and r.json()["set"] is True
+    r = admin.delete(f"{BASE}/key?provider=scaleway", headers=ORIGIN)
+    assert r.json() == {"set": False, "set_at": None, "provider": "scaleway", "valid": False}
+    assert admin.get(BASE).json()["key"]["set"] is True  # anthropic's stays
+    r = admin.delete(f"{BASE}/key", headers=ORIGIN)  # the configured provider's
+    assert r.json()["set"] is False and r.json()["provider"] == "anthropic"
+    assert core.repos.audit.list(1)[0].details == {"mode": "clear", "provider": "anthropic"}
 
 
 @pytest.mark.parametrize(
@@ -117,4 +170,5 @@ def test_archive_copy_drops_the_key(core, tmp_path):
     assert crypto.KEY_KEY not in keys
     raw = snap.db_file.read_bytes()
     record = core.repos.app_settings.get(crypto.KEY_KEY)
-    assert record["ct"].encode() not in raw and API_KEY.encode() not in raw
+    ct = record["keys"]["anthropic"]["ct"]
+    assert ct.encode() not in raw and API_KEY.encode() not in raw

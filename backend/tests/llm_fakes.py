@@ -251,6 +251,11 @@ def setup_llm(core: Core, fake: FakeProvider | None = None, **changes: Any) -> L
     return svc
 
 
+def store_key(core: Core, provider: str = "anthropic", key: str = API_KEY) -> None:
+    """A key for `provider` in the app's key store (one key per provider)."""
+    LlmService.of(core).keys.put(provider, key, by="test", at=iso(datetime.now(UTC)))
+
+
 def add_property(core: Core, name: str = "coolness", prompt: str = "Wie cool ist das?") -> int:
     from virtubooth.extensions.wall.llm import properties
 

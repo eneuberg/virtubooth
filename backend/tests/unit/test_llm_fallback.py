@@ -1,8 +1,10 @@
-"""The local detector as fallback for the AI detection: photos queued for the AI
-that it cannot deliver (no key, key unreadable or rejected, budget used up, the
-provider down for minutes, an error about the photo) get the local detector's
-list in a second worker pass; facts stay frozen, the merged list holds that one
-source; when the AI recovers new photos go to it again, fallen-back ones stay."""
+"""The local detector as fallback for the AI detection: when the AI cannot
+detect any more (no key, key unreadable or rejected, budget used up, the
+provider down for minutes, a model it does not know) the stored choice becomes
+„Lokal“ by itself (persisted, audit-logged, with a notice) and photos still
+queued for the AI get the local detector's list in a second worker pass; so
+does a photo the AI fails on. Facts stay frozen, the merged list holds that one
+source; once „KI“ is chosen again new photos go to it, fallen-back ones stay."""
 
 from __future__ import annotations
 
@@ -20,7 +22,9 @@ from virtubooth.extensions.wall.llm import admin_api, config, crypto, ports
 from virtubooth.extensions.wall.llm import detect as detect_mod
 from virtubooth.extensions.wall.llm.detect import DetectionRunner
 from virtubooth.extensions.wall.llm.providers.base import ProviderError
+from virtubooth.extensions.wall.llm.service import Unavailable
 
+from ..conftest import ORIGIN
 from ..llm_fakes import API_KEY, FakeProvider, add_guest, add_photo, set_flags, setup_llm
 from .test_llm_either_or import AI, FakeDetector
 
@@ -53,7 +57,28 @@ def ai_mode(core, fake: FakeProvider | None = None, **changes):
     ports.set_local_objects(core, False, by="t")
     runner = DetectionRunner(svc)
     runner.clock = Clock()
+    svc.detector = runner
     return svc, runner
+
+
+def mode(core) -> str:
+    cfg = config.load_config(core.repos.app_settings)
+    if cfg.detect.external:
+        return "ai"
+    return "off" if "objects" in jobs.disabled_analyzers(core.repos.app_settings) else "local"
+
+
+def notice(core) -> str | None:
+    return config.load_notice(core.repos.app_settings)[0]
+
+
+def assert_switched_to_local(core, reason: str) -> None:
+    """The stored choice is „Lokal“ now, with the reason as notice and in the audit."""
+    assert mode(core) == "local"
+    assert notice(core) is not None and notice(core).startswith(reason)
+    entry = next(e for e in core.repos.audit.list(20) if e.action == "llm.detection")
+    assert entry.actor == "system" and entry.details["auto"] is True
+    assert entry.details["mode"] == "local" and entry.details["reason"] == notice(core)
 
 
 def queued(core, uid=None) -> int:
@@ -105,7 +130,7 @@ def assert_local_only(core, pid, reason):
 
 
 def _no_key(core, svc):
-    svc.keys.clear()
+    svc.keys.clear("anthropic")
 
 
 def _unreadable_key(core, svc):
@@ -120,8 +145,9 @@ def _budget(core, svc):
 @pytest.mark.parametrize(
     ("cause", "reason", "error"),
     [
-        (_no_key, jobs.NO_KEY, "Kein API-Schlüssel gesetzt."),
-        (_unreadable_key, jobs.KEY_INVALID, "Schlüssel nicht lesbar."),
+        (_no_key, jobs.NO_KEY, "Kein API-Schlüssel für Anthropic (Claude, USA) gesetzt."),
+        (_unreadable_key, jobs.KEY_INVALID, "Der API-Schlüssel für Anthropic (Claude, USA) ist "
+                                            "nicht lesbar"),  # fmt: skip
         (_budget, jobs.BUDGET, "Budget erreicht"),
     ],
 )
@@ -135,6 +161,7 @@ def test_queued_photos_fall_back_at_once_while_the_ai_cannot_take_any(core, caus
     assert runner.fallback_now() == reason
     assert runner.run_once() == "done"
     assert fake.detected == []  # nothing went out
+    assert_switched_to_local(core, error)
     assert objects.count_eligible_for_external(core.db, "claude") == 0
     for pid in (first, second):
         run = run_of(core, pid)
@@ -144,30 +171,35 @@ def test_queued_photos_fall_back_at_once_while_the_ai_cannot_take_any(core, caus
         assert_local_only(core, pid, reason)
         assert frozen(core, pid) == before[pid]  # facts, data, versions untouched
     # nothing left for either side
-    assert runner.run_once() in ("idle", "blocked") and local_pass(core) == []
+    assert runner.run_once() == "idle" and local_pass(core) == []
 
 
-def test_a_rejected_key_hands_the_photo_back_and_is_not_tried_again(core):
+def test_a_rejected_key_switches_to_local_and_hands_the_queue_back(core):
     fake = FakeProvider(objects=AI, fail=ProviderError("Der API-Schlüssel wurde abgelehnt.",
                                                        kind="auth"))  # fmt: skip
     svc, runner = ai_mode(core, fake)
     uid = add_guest(core)
-    first = queued(core, uid)
+    first, second = queued(core, uid), queued(core, uid)
     assert runner.run_once() == "done" and len(fake.detected) == 1
-    assert run_of(core, first) == {"state": "failed", "objects": 0,
-                                   "error": "Der API-Schlüssel wurde abgelehnt."}  # fmt: skip
-    assert runner.fallback_now() == jobs.KEY_INVALID
-    # the next photos are handed back without asking the provider again
-    second = queued(core, uid)
-    assert runner.run_once() == "done" and len(fake.detected) == 1
-    assert run_of(core, second)["state"] == "skipped"
+    # the newest was tried and failed, the other one is handed back without asking
+    assert run_of(core, second) == {"state": "failed", "objects": 0,
+                                    "error": "Der API-Schlüssel wurde abgelehnt."}  # fmt: skip
+    assert run_of(core, first)["state"] == "skipped"
+    assert_switched_to_local(core, "Der API-Schlüssel wurde abgelehnt.")
     local_pass(core)
     for pid in (first, second):
         assert_local_only(core, pid, jobs.KEY_INVALID)
-    # a new key: photos go to the AI again; the fallen-back ones stay local
+    # „KI“ again with the same key: refused, it stays „Lokal“
+    assert "abgelehnt" in (svc.ai_unavailable() or "")
+    with pytest.raises(Unavailable) as exc:
+        svc.set_detection("ai", actor="admin:t")
+    assert exc.value.code == "ai_detection_unavailable" and mode(core) == "local"
+    assert notice(core) is None  # the host chose: the old notice is gone
+    # a new key: „KI“ can be chosen again, new photos go to the AI, the old ones stay local
     fake.fail = None
     svc.set_key("anthropic", API_KEY + "-new", actor="t")
-    assert runner.fallback_now() is None
+    assert svc.ai_unavailable() is None
+    svc.set_detection("ai", actor="admin:t")
     third = queued(core, uid)
     assert runner.run_once() == "done" and len(fake.detected) == 2
     assert [o.source for o in ports.objects_of(core.db, [third])[third]] == ["claude"]
@@ -181,48 +213,72 @@ def test_a_rejected_key_is_tried_again_after_a_while_or_a_passing_test(core):
     svc, runner = ai_mode(core, fake)
     queued(core)
     runner.run_once()
-    assert runner.fallback_now() == jobs.KEY_INVALID
+    assert mode(core) == "local" and "abgelehnt" in (svc.ai_unavailable() or "")
     runner.clock.now += detect_mod.AUTH_RETRY_S
-    assert runner.fallback_now() is None  # the same key gets another try
-    runner.run_once()  # nothing queued: nothing tried
-    runner._rejected = ("x", runner.clock.now)
+    assert svc.ai_unavailable() is None  # the same key gets another try
+    runner._rejected = (runner._fingerprint(API_KEY), runner.clock.now)
+    assert svc.ai_unavailable() is not None
     fake.fail = None
-    svc.detector = runner
-    assert svc.test_key()[0] and runner.fallback_now() is None
+    assert svc.test_key()[0] and svc.ai_unavailable() is None
+
+
+def test_an_unknown_model_switches_to_local(core):
+    fake = FakeProvider(objects=AI, fail=ProviderError("Modell beim Anbieter nicht gefunden.",
+                                                       kind="model"))  # fmt: skip
+    _, runner = ai_mode(core, fake)
+    pid = queued(core)
+    assert runner.run_once() == "done"
+    assert_switched_to_local(core, "Modell beim Anbieter nicht gefunden.")
+    local_pass(core)
+    assert_local_only(core, pid, jobs.MODEL_UNKNOWN)
+
+
+def test_a_photo_queued_while_the_choice_changed_goes_local(core):
+    """The worker was mid-photo when the host chose „Lokal“: the photo it queued for
+    the AI afterwards gets the local list, it is not stranded."""
+    fake = FakeProvider(objects=AI)
+    svc, runner = ai_mode(core, fake)
+    pid = queued(core)
+    svc.set_detection("local", actor="admin:t")
+    assert runner.run_once() == "done" and fake.detected == []
+    local_pass(core)
+    assert_local_only(core, pid, jobs.AI_OFF)
+    # „Aus“: nothing stands in (no local detector chosen)
+    svc.set_detection("ai", actor="admin:t")
+    other = queued(core)
+    svc.set_detection("off", actor="admin:t")
+    assert runner.run_once() == "idle" and run_of(core, other) is None
 
 
 # ------------------------------------------------------- provider trouble
 
 
-def test_provider_trouble_falls_back_after_a_few_minutes(core):
+def test_provider_trouble_switches_to_local_after_a_few_minutes(core):
     fake = FakeProvider(objects=AI, fail=ProviderError("KI-Dienst nicht erreichbar.",
                                                        kind="network"))  # fmt: skip
-    _, runner = ai_mode(core, fake)
+    svc, runner = ai_mode(core, fake)
     uid = add_guest(core)
     pid = queued(core, uid)
     assert runner.run_once() == "backoff"
     runner.clock.now += detect_mod.FALLBACK_AFTER_S - 1
     assert runner.run_once() == "backoff"
     assert run_of(core, pid) is None and runner.fallback_now() is None
-    # a newer photo arrives: it is the one tried now, the first one waits
+    assert mode(core) == "ai"  # a short outage changes nothing
     newer = queued(core, uid)
     runner.clock.now += 1
     assert runner.fallback_now() == jobs.UNREACHABLE
-    # the trouble is old now: every queued photo but the newest goes local at once,
-    # the newest is still tried (it tells when the provider is back)
-    assert runner.run_once() == "backoff"
-    assert run_of(core, pid) == {"state": "failed", "objects": 0,
-                                 "error": "KI-Dienst nicht erreichbar."}  # fmt: skip
-    assert run_of(core, newer) is None
-    # its own failure is old now too: it falls back as well
-    runner.clock.now += detect_mod.FALLBACK_AFTER_S
+    # the trouble is old now: „Lokal“, every queued photo goes local
     assert runner.run_once() == "done"
-    assert run_of(core, newer)["state"] == "failed"
+    assert_switched_to_local(core, "Der KI-Dienst antwortet seit 5 Minuten nicht "
+                                   "(KI-Dienst nicht erreichbar).")  # fmt: skip
+    for p in (pid, newer):
+        assert run_of(core, p)["state"] == "skipped"
     assert local_pass(core) == [newer, pid]
     for p in (pid, newer):
         assert_local_only(core, p, jobs.UNREACHABLE)
-    # the provider is back: the next photo goes to the AI, the trouble is over
+    # the provider is back and „KI“ chosen again: the next photo goes to the AI
     fake.fail = None
+    svc.set_detection("ai", actor="admin:t")
     newest = queued(core, uid)
     assert runner.run_once() == "done"
     assert [o.source for o in ports.objects_of(core.db, [newest])[newest]] == ["claude"]
@@ -276,20 +332,26 @@ def test_an_unreadable_photo_falls_back(core):
 # --------------------------------------------------------------- recovery
 
 
-def test_budget_raised_new_photos_go_to_the_ai_again(core):
+def test_budget_used_up_switches_to_local_until_chosen_again(core):
     fake = FakeProvider(objects=AI)
     svc, runner = ai_mode(core, fake)
     uid = add_guest(core)
     old = queued(core, uid)
     _budget(core, svc)
     runner.run_once()
+    assert_switched_to_local(core, "Budget erreicht")
     local_pass(core)
     assert_local_only(core, old, jobs.BUDGET)
-    # while it lasts, the worker gives new photos the local list right away
+    # „Lokal“ now: new photos get the local list as such (no fallback mark)
     direct = analyse_new(core, uid)
-    assert jobs.get(core.db, direct).data[jobs.AI_FALLBACK] == jobs.BUDGET
-    setup_llm(core, None, detect={"external": True}, budget=dict(LIMITS))
-    assert runner.fallback_now() is None
+    assert jobs.AI_FALLBACK not in jobs.get(core.db, direct).data
+    assert [o.source for o in ports.objects_of(core.db, [direct])[direct]] == ["local"]
+    # „KI“ is refused while the budget lasts
+    with pytest.raises(Unavailable):
+        svc.set_detection("ai", actor="admin:t")
+    # budget raised, „KI“ chosen again: new photos go to the AI
+    setup_llm(core, None, budget=dict(LIMITS))
+    svc.set_detection("ai", actor="admin:t")
     new = queued(core, uid)
     assert runner.run_once() == "done" and len(fake.detected) == 1
     assert runner.run_once() == "idle" and len(fake.detected) == 1
@@ -314,7 +376,7 @@ def test_the_worker_loop_runs_the_local_pass(core):
     fake = FakeProvider(objects=AI)
     svc, runner = ai_mode(core, fake)
     pid = queued(core)
-    svc.keys.clear()
+    svc.keys.clear("anthropic")
     runner.run_once()
     assert jobs.fallback_due(core.db)
     assert worker(core).run(once=True) == 0
@@ -339,7 +401,7 @@ def test_a_photo_with_its_local_run_decided_stays_queued(core):
     fake = FakeProvider(objects=AI)
     svc, runner = ai_mode(core, fake)
     pid, _ = add_photo(core, add_guest(core), ai_detect=True)  # with a local list
-    svc.keys.clear()
+    svc.keys.clear("anthropic")
     assert runner.run_once() == "idle"
     assert run_of(core, pid) is None and "objects_fallback" not in jobs.get(core.db, pid).data
     assert objects.count_eligible_for_external(core.db, "claude") == 1
@@ -381,22 +443,31 @@ def test_the_status_and_the_photo_show_the_fallback(admin, core):
     pid = queued(core, uid)
     body = admin.get("/api/x/wall/admin/llm").json()["detection"]
     assert (body["fallback"], body["fallback_reason"], body["fallback_now"]) == (0, None, None)
-    svc.keys.clear()
-    svc.detector = runner
+    assert (body["mode"], body["notice"], body["ai_unavailable"]) == ("ai", None, None)
+    svc.keys.clear("anthropic")
     runner.run_once()
     local_pass(core)
+    no_key = "Kein API-Schlüssel für Anthropic (Claude, USA) gesetzt."
     body = admin.get("/api/x/wall/admin/llm").json()["detection"]
     assert body["fallback"] == 1 and body["fallback_reason"] == jobs.NO_KEY
-    assert body["fallback_now"] == jobs.NO_KEY
+    # the choice is „Lokal“ now, with the reason; „KI“ would be refused for the same one
+    assert body["mode"] == "local" and body["fallback_now"] is None
+    assert body["notice"] == no_key and body["notice_at"] is not None
+    assert body["ai_unavailable"] == no_key
     public_id = core.db.one("SELECT public_id FROM photos WHERE id=?", (pid,))[0]
     photo = admin.get(f"/api/x/wall/admin/photos/{public_id}/analysis").json()
     assert photo["objects_fallback"] == jobs.NO_KEY
     assert [o["source"] for o in photo["objects"]] == ["local"]
-    # the key is back: no fallback now, the count stays
+    # the key is back: „KI“ possible again, the notice stays until the host chooses
     svc.set_key("anthropic", API_KEY, actor="t")
     body = admin.get("/api/x/wall/admin/llm").json()["detection"]
-    assert body["fallback"] == 1 and body["fallback_now"] is None
-    # an AI photo has none
+    assert body["ai_unavailable"] is None and body["notice"] == no_key
+    r = admin.put("/api/x/wall/admin/llm/object-detection", json={"mode": "ai"},
+                  headers=ORIGIN)  # fmt: skip
+    assert r.status_code == 200, r.text
+    body = r.json()["detection"]
+    assert body["mode"] == "ai" and body["notice"] is None and body["fallback"] == 1
+    # an AI photo has no fallback
     new = queued(core, uid)
     runner.run_once()
     public_id = core.db.one("SELECT public_id FROM photos WHERE id=?", (new,))[0]
@@ -404,6 +475,3 @@ def test_the_status_and_the_photo_show_the_fallback(admin, core):
         admin.get(f"/api/x/wall/admin/photos/{public_id}/analysis").json()["objects_fallback"]
         is None
     )
-    # the AI detection switched off: nothing stands in
-    config.set_ai_detection(core.repos.app_settings, False, by="t")
-    assert runner.fallback_now() is None

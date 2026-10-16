@@ -31,12 +31,17 @@ export function setLlmKey(provider: string, key: string): Promise<LlmKeyState> {
   return wallFetch('/llm/key', { method: 'PUT', json: { provider, key } });
 }
 
-export function clearLlmKey(): Promise<LlmKeyState> {
-  return wallFetch('/llm/key', { method: 'DELETE' });
+/** Deletes this provider's key only (the others stay). */
+export function clearLlmKey(provider: string): Promise<LlmKeyState> {
+  return wallFetch(`/llm/key?provider=${encodeURIComponent(provider)}`, { method: 'DELETE' });
 }
 
-export function testLlmKey(): Promise<{ ok: boolean; message: string }> {
-  return wallFetch('/llm/key/test', { method: 'POST' });
+/**
+ * Asks `provider` whether its stored key and `model` work (the models list, one token
+ * when the model is not listed). `ok: false` names what is wrong.
+ */
+export function testLlmKey(provider: string, model: string): Promise<{ ok: boolean; message: string }> {
+  return wallFetch('/llm/key/test', { method: 'POST', json: { provider, model } });
 }
 
 export function pollNow(): Promise<{ started: boolean; reason: string | null }> {

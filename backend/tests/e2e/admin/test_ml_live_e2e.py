@@ -145,7 +145,8 @@ def test_ml_pipeline_categories_and_the_wall_verdict(
     # object detection either/or: „KI“ in Modelle switches the local detector off
     page.get_by_test_id("ml-object-detection").get_by_text("KI", exact=True).click()
     expect(page.get_by_test_id("ml-ai-detect-active")).to_have_text("aktiv")
-    expect(page.get_by_test_id("ml-local-detect-active")).to_have_text("aus")
+    expect(page.get_by_test_id("ml-local-detect-active")).to_have_text("inaktiv")
+    expect(page.get_by_test_id("ml-object-detection-error")).to_have_count(0)
     assert "objects" in jobs.disabled_analyzers(live.core.repos.app_settings)
     # only photos the pipeline finishes from now on go out (no backfill of the two above),
     # and of those only Fuchs's (Otter opted out)

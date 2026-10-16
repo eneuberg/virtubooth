@@ -1,8 +1,8 @@
 /**
  * "Externe KI": the external AI's master switch (off: nothing leaves the server),
  * provider, model and „Denkaufwand“ (one PUT /llm/config with just these), then the API
- * key (set / replace / delete / test; it is never shown or prefilled, after saving only
- * „gesetzt“). What the AI does lives with the features: „Objekte mit KI“ in Modelle,
+ * key of the provider picked here (one key per provider, switching keeps them; set /
+ * replace / delete / test; it is never shown or prefilled, after saving only „gesetzt“). What the AI does lives with the features: „Objekte mit KI“ in Modelle,
  * „Eigenschaften abfragen“ in Eigenschaften, each with a red hint while this is off.
  */
 import { useQueryClient } from '@tanstack/react-query';
@@ -40,19 +40,42 @@ function fieldsOf(c: LlmConfig): Fields {
 
 const sameFields = (a: Fields, b: Fields) => JSON.stringify(a) === JSON.stringify(b);
 
-function KeyBlock({ status }: { status: LlmStatus }) {
+const NO_KEY: Omit<LlmKeyState, 'provider'> = { set: false, set_at: null, valid: false };
+
+/** The stored key state of one provider (one key each). */
+export function keyOf(status: LlmStatus, provider: string): LlmKeyState {
+  return (
+    status.keys.find((k) => k.provider === provider) ??
+    (status.key.provider === provider ? status.key : { ...NO_KEY, provider })
+  );
+}
+
+/** The provider's name without the parenthesis: „Scaleway“, „Anthropic“. */
+const shortTitle = (title: string) => title.split(' (')[0] ?? title;
+
+function KeyBlock({ status, provider, model }: { status: LlmStatus; provider: string; model: string }) {
   const qc = useQueryClient();
-  const key = status.key;
+  const key = keyOf(status, provider);
+  const title = status.providers.find((p) => p.id === provider)?.title ?? provider;
   const [editing, setEditing] = useState(false);
   const [value, setValue] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState<'save' | 'test' | null>(null);
+  const [result, setResult] = useState<{ ok: boolean; message: string } | null>(null);
   const [confirm, setConfirm] = useState(false);
   const [clearError, setClearError] = useState<string | null>(null);
   const open = !key.set || editing;
 
   const store = (state: LlmKeyState) =>
-    qc.setQueryData<LlmStatus>(wk.llm, (old) => (old ? { ...old, key: state } : old));
+    qc.setQueryData<LlmStatus>(wk.llm, (old) =>
+      old
+        ? {
+            ...old,
+            key: state.provider === old.config.provider ? state : old.key,
+            keys: [...old.keys.filter((k) => k.provider !== state.provider), state],
+          }
+        : old,
+    );
 
   const submit = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -63,8 +86,9 @@ function KeyBlock({ status }: { status: LlmStatus }) {
     }
     setBusy('save');
     setError(null);
+    setResult(null);
     try {
-      store(await setLlmKey(status.config.provider, k));
+      store(await setLlmKey(provider, k));
       setValue('');
       setEditing(false);
       showToast({ message: 'API-Schlüssel gespeichert.', tone: 'success' });
@@ -78,13 +102,15 @@ function KeyBlock({ status }: { status: LlmStatus }) {
 
   const test = async () => {
     setBusy('test');
+    setResult(null);
     try {
-      const out = await testLlmKey();
-      showToast({
-        message: out.message || (out.ok ? 'Der Schlüssel funktioniert.' : 'Fehlgeschlagen.'),
-        tone: out.ok ? 'success' : 'error',
-      });
+      const out = await testLlmKey(provider, model);
+      const message = out.message || (out.ok ? 'Der Schlüssel funktioniert.' : 'Fehlgeschlagen.');
+      setResult({ ok: out.ok, message });
+      showToast({ message, tone: out.ok ? 'success' : 'error' });
     } catch (err) {
+      // key rejected, none stored: the server's German reason
+      setResult({ ok: false, message: errorText(err) });
       showError(err);
     } finally {
       setBusy(null);
@@ -94,7 +120,9 @@ function KeyBlock({ status }: { status: LlmStatus }) {
   return (
     <div className="grid gap-2 border-t border-line pt-3" data-testid="ml-key">
       <p className="flex flex-wrap items-center gap-2 text-sm">
-        <span className="font-semibold">API-Schlüssel</span>
+        <span className="font-semibold">
+          API-Schlüssel <span className="font-normal text-ink-muted">für {shortTitle(title)}</span>
+        </span>
         <Badge tone={key.set && key.valid ? 'ok' : 'mark'} icon={key.set ? ShieldCheck : undefined}>
           <span data-testid="ml-key-state">{keyStatusText(key)}</span>
         </Badge>
@@ -189,16 +217,40 @@ function KeyBlock({ status }: { status: LlmStatus }) {
           </Button>
         </div>
       )}
+      {result ? (
+        <p
+          role={result.ok ? 'status' : 'alert'}
+          className={cx('text-sm', result.ok ? 'text-ok' : 'text-danger')}
+          data-testid="ml-key-test-result"
+        >
+          {result.message}
+        </p>
+      ) : null}
+      <p className="text-xs text-ink-muted" data-testid="ml-key-overview">
+        Jeder Anbieter hat seinen eigenen Schlüssel; beim Wechsel bleiben die anderen gespeichert.{' '}
+        {status.providers.map((p, i) => {
+          const k = keyOf(status, p.id);
+          return (
+            <span key={p.id} data-provider={p.id} data-set={k.set}>
+              {i > 0 ? ' · ' : ''}
+              {shortTitle(p.title)}: {k.set ? (k.valid ? 'gesetzt' : 'ungültig') : '–'}
+            </span>
+          );
+        })}
+      </p>
       <ConfirmDialog
         isOpen={confirm}
         onOpenChange={setConfirm}
-        title="API-Schlüssel löschen?"
+        title={`API-Schlüssel für ${shortTitle(title)} löschen?`}
         confirmLabel="Schlüssel löschen"
         error={clearError}
         onConfirm={async () => {
           try {
-            store(await clearLlmKey());
-            showToast({ message: 'API-Schlüssel gelöscht. Die externe KI ist aus.', tone: 'success' });
+            store(await clearLlmKey(provider));
+            setResult(null);
+            showToast({ message: `API-Schlüssel für ${shortTitle(title)} gelöscht.`, tone: 'success' });
+            // „KI“ may have switched to „Lokal“ without this key
+            void qc.invalidateQueries({ queryKey: wk.llm });
           } catch (err) {
             setClearError(errorText(err));
             throw err;
@@ -206,7 +258,10 @@ function KeyBlock({ status }: { status: LlmStatus }) {
         }}
         data-testid="confirm"
       >
-        <p>Ohne Schlüssel schickt der Server nichts mehr an den KI-Dienst.</p>
+        <p>
+          Ohne Schlüssel schickt der Server nichts mehr an {shortTitle(title)}. Die Schlüssel anderer Anbieter
+          bleiben.
+        </p>
       </ConfirmDialog>
     </div>
   );
@@ -341,7 +396,8 @@ export function LlmCard({ status }: { status: LlmStatus }) {
           {error}
         </p>
       ) : null}
-      <KeyBlock status={status} />
+      {/* the key of the provider picked above (also before saving the switch) */}
+      <KeyBlock key={f.provider} status={status} provider={f.provider} model={f.model} />
     </Card>
   );
 }

@@ -47,8 +47,11 @@ class MlFake(FakeWall):
             "updated_at": None,
             "by": None,
         }
-        self.key: dict[str, Any] = {"set": False, "set_at": None, "provider": None, "valid": False}
+        self.key: dict[str, Any] = {"set": False, "set_at": None, "provider": "anthropic",
+                                    "valid": False}  # fmt: skip
         self.blocked = False
+        # why „KI“ switched to „Lokal“ by itself (the server's x.llm.detect_notice)
+        self.notice: str | None = None
         self.props: list[dict[str, Any]] = [
             {
                 "id": 1,
@@ -61,10 +64,26 @@ class MlFake(FakeWall):
             }
         ]
 
+    def ai_unavailable(self) -> str | None:
+        """Why the server refuses „KI“ (service.ai_unavailable), as far as faked."""
+        if not self.llm["enabled"]:
+            return "Die externe KI ist ausgeschaltet (Karte „Externe KI“)."
+        if not self.key["set"]:
+            return "Kein API-Schlüssel für Anthropic (Claude, USA) gesetzt."
+        if self.blocked:
+            return "Das Party-Budget ist aufgebraucht."
+        return None
+
     def llm_status(self) -> dict[str, Any]:
+        if self.blocked and self.llm["detect"]["external"]:
+            # the server switches „KI“ to „Lokal“ by itself when the AI becomes unavailable
+            self.llm = {**self.llm, "detect": {"external": False}}
+            self.disabled_analyzers = [n for n in self.disabled_analyzers if n != "objects"]
+            self.notice = "Das Party-Budget ist aufgebraucht."
         return {
             "config": self.llm,
             "key": self.key,
+            "keys": [self.key],
             "providers": [
                 {"id": "anthropic", "title": "Anthropic (Claude, USA)", "eu": False,
                  "available": True, "reason": None, "vision": True, "thinking": True,
@@ -90,12 +109,14 @@ class MlFake(FakeWall):
                           "state": "idle" if self.mode() == "ai" else "off",
                           "pending": 0, "done": 4, "failed": 0, "last_run_at": None,
                           "last_error": None,
-                          # the local detector stands in while the budget is used up
+                          # the local detector took the queued photos when the budget ran out
                           "fallback": 2 if self.blocked else 0,
                           "fallback_reason": "Budget aufgebraucht" if self.blocked else None,
-                          "fallback_now": "Budget aufgebraucht" if self.blocked else None,
+                          "fallback_now": None,
                           "stats": {"processed": 4, "errors": 0, "avg_ms": 2400, "last_ms": 1900},
-                          "cost_usd": 0.4},
+                          "cost_usd": 0.4, "ai_unavailable": self.ai_unavailable(),
+                          "notice": self.notice,
+                          "notice_at": "2026-10-16T09:40:00Z" if self.notice else None},
             "usage": {
                 "party": {"calls": 12, "input_tokens": 30000, "output_tokens": 4000,
                           "cost_usd": 5.0 if self.blocked else 1.25},
@@ -125,9 +146,17 @@ class MlFake(FakeWall):
                 return 200, self.llm_status()
             case "PUT", "/llm/object-detection":
                 mode = body["mode"]
+                self.notice = None
+                why = self.ai_unavailable() if mode == "ai" else None
+                if why is not None:
+                    mode = "local"  # refused: „Lokal“ is stored
                 self.llm = {**self.llm, "detect": {"external": mode == "ai"}}
                 rest = [n for n in self.disabled_analyzers if n != "objects"]
                 self.disabled_analyzers = rest if mode == "local" else [*rest, "objects"]
+                if why is not None:
+                    return 409, {"error": "ai_detection_unavailable",
+                                 "message": f"„KI“ geht gerade nicht: {why} Die Objekterkennung "
+                                            "bleibt beim lokalen Modell."}  # fmt: skip
                 return 200, self.llm_status()
             case "PUT", "/llm/config":
                 self.llm = {**self.llm, **body, "rev": self.llm["rev"] + 1}
@@ -137,10 +166,11 @@ class MlFake(FakeWall):
                             "provider": body["provider"], "valid": True}  # fmt: skip
                 return 200, self.key
             case "DELETE", "/llm/key":
-                self.key = {"set": False, "set_at": None, "provider": None, "valid": False}
+                self.key = {"set": False, "set_at": None, "provider": "anthropic", "valid": False}
                 return 200, self.key
             case "POST", "/llm/key/test":
-                return 200, {"ok": True, "message": "Der Schlüssel funktioniert."}
+                return 200, {"ok": True, "message": "Schlüssel funktioniert (Anthropic (Claude, "
+                                                    "USA), claude-haiku-5-5)."}  # fmt: skip
             case "POST", "/llm/poll":
                 return 200, {"started": True, "reason": None}
             case "GET", "/llm/properties":
@@ -275,7 +305,11 @@ def test_key_shows_only_gesetzt_after_save(
     expect(page.get_by_label("Neuer API-Schlüssel")).to_have_value("")
     page.get_by_role("button", name="Abbrechen").click()
     page.get_by_test_id("ml-key-test").click()
-    expect(toast(page)).to_contain_text("Der Schlüssel funktioniert.")
+    expect(toast(page)).to_contain_text("Schlüssel funktioniert (Anthropic")
+    expect(page.get_by_test_id("ml-key-test-result")).to_contain_text("Schlüssel funktioniert")
+    assert ml.sent("POST", "/llm/key/test") == [
+        {"provider": "anthropic", "model": "claude-haiku-5-5"}
+    ]
     page.get_by_test_id("ml-key-clear").click()
     page.get_by_test_id("confirm").get_by_role("button", name="Schlüssel löschen").click()
     expect(state).to_have_text("nicht gesetzt")
@@ -301,19 +335,33 @@ def test_external_ai_detection_poll_properties_and_budget(
     assert cfg == {"enabled": True, "provider": "anthropic", "model": "claude-sonnet-5-5",
                    "effort": "medium"}  # fmt: skip
 
-    # Modelle: object detection either/or, the AI row next to the local one
+    # Modelle: object detection either/or in one block, the AI row under the local one
+    block = page.get_by_test_id("ml-object-detection-block")
     choice = page.get_by_test_id("ml-object-detection")
     expect(choice.get_by_role("radio", name="Lokal")).to_be_checked()
     expect(page.get_by_test_id("ml-local-detect-active")).to_have_text("aktiv")
+    expect(page.get_by_test_id("ml-ai-detect-active")).to_have_text("inaktiv")
+    expect(block.locator("[data-analyzer=objects-ai]")).to_have_attribute("data-inactive", "true")
+    # no key yet: said up front, and „KI“ is refused in red, „Lokal“ stays
+    expect(page.get_by_test_id("ml-ai-detect-unavailable")).to_contain_text("Kein API-Schlüssel")
+    choice.get_by_text("KI", exact=True).click()
+    expect(page.get_by_test_id("ml-object-detection-error")).to_contain_text(
+        "„KI“ geht gerade nicht: Kein API-Schlüssel für Anthropic"
+    )
+    expect(choice.get_by_role("radio", name="Lokal")).to_be_checked()
+    expect(page.get_by_test_id("ml-local-detect-active")).to_have_text("aktiv")
+    expect(page.get_by_test_id("ml-part-poll").get_by_test_id("ml-ai-off-hint")).to_be_visible()
+    # with a key „KI“ works: the local row is greyed out now
+    card.get_by_label("API-Schlüssel", exact=True).fill(SECRET)
+    card.get_by_test_id("ml-key-save").click()
+    expect(card.get_by_test_id("ml-key-state")).to_have_text("gesetzt")
     choice.get_by_text("KI", exact=True).click()
     expect(page.get_by_test_id("ml-ai-detect-active")).to_have_text("aktiv")
-    expect(page.get_by_test_id("ml-local-detect-active")).to_have_text("aus")
+    expect(page.get_by_test_id("ml-local-detect-active")).to_have_text("inaktiv")
+    expect(block.locator("[data-analyzer=objects]")).to_have_attribute("data-inactive", "true")
+    expect(page.get_by_test_id("ml-object-detection-error")).to_have_count(0)
     expect(page.get_by_test_id("ml-detection-state")).to_have_text("bereit")
-    assert ml.sent("PUT", "/llm/object-detection") == [{"mode": "ai"}]
-    # no key yet: the red hint at the AI row and at the poll
-    hint = page.locator("[data-analyzer=objects-ai]").get_by_test_id("ml-ai-off-hint")
-    expect(hint).to_contain_text("Kein gültiger API-Schlüssel")
-    expect(page.get_by_test_id("ml-part-poll").get_by_test_id("ml-ai-off-hint")).to_be_visible()
+    assert ml.sent("PUT", "/llm/object-detection") == [{"mode": "ai"}, {"mode": "ai"}]
 
     # Eigenschaften: the poll's switch and interval, saved on their own
     poll = page.get_by_test_id("ml-part-poll")
@@ -349,13 +397,19 @@ def test_external_ai_detection_poll_properties_and_budget(
     expect(page.get_by_test_id("ml-budget-blocked")).to_contain_text(
         "Budget erreicht – externe KI pausiert"
     )
-    # meanwhile the local detector stands in for the AI: the AI row says so
+    # the server switched „KI“ to „Lokal“ by itself: the block shows local, with the reason
+    expect(page.get_by_test_id("ml-object-detection").get_by_role("radio", name="Lokal")
+           ).to_be_checked()  # fmt: skip
+    expect(page.get_by_test_id("ml-local-detect-active")).to_have_text("aktiv")
+    expect(page.get_by_test_id("ml-object-detection-notice")).to_contain_text(
+        "Automatisch auf „Lokal“ umgestellt"
+    )
+    expect(page.get_by_test_id("ml-object-detection-notice")).to_contain_text(
+        "Das Party-Budget ist aufgebraucht."
+    )
     ai_row = page.locator("[data-analyzer=objects-ai]")
     expect(ai_row.get_by_test_id("ml-ai-detect-fallback-count")).to_have_text(
         "2 Fotos lokal statt KI · zuletzt: Budget aufgebraucht"
-    )
-    expect(ai_row.get_by_test_id("ml-ai-detect-fallback-now")).to_contain_text(
-        "Gerade erkennt das lokale Modell statt der KI (Budget aufgebraucht)"
     )
     expect(page.get_by_test_id("ml-usage-table")).to_contain_text("Eigenschaft „coolness“")
     assert errors(page) == []

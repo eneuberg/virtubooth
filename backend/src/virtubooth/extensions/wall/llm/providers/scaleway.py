@@ -17,7 +17,7 @@ import base64
 import json
 import os
 import re
-from typing import Any
+from typing import Any, ClassVar
 
 from .. import prompts
 from ..ports import DetectedObject
@@ -36,6 +36,7 @@ _ARRAY = re.compile(r"\[.*\]", re.S)
 
 class ScalewayProvider(MistralProvider):
     id = "scaleway"
+    ping_extra: ClassVar[dict[str, Any]] = {"reasoning_effort": "none"}
 
     def __init__(self, api_key: str, **kwargs: Any) -> None:
         kwargs.setdefault("base_url", os.environ.get("VB_SCALEWAY_BASE_URL") or BASE_URL)

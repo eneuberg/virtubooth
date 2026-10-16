@@ -16,18 +16,20 @@ are read again right before sending → the photo goes out downscaled (long
 edge ≤ `image_max_px`, JPEG q80, no metadata) → its objects are appended
 after the local ones (idx continues). Each source runs once per photo.
 
-The local detector as fallback: a queued photo the AI cannot deliver goes back
-to the worker, which adds the local detector's list (`jobs.hand_to_local`; the
-AI's run is recorded `skipped`/`failed` with the reason, so it is never sent
-later). Immediately while no key is usable, the provider rejected the key
-(401/403; remembered for that key until it changes, a key test passes or
-AUTH_RETRY_S passed) or the budget is used up: every queued photo. For an
-error about one photo (unreadable, bad answer, refusal): that photo. Provider
-trouble (network, 5xx, 429) is retried every BACKOFF_S; a photo that has been
-failing for FALLBACK_AFTER_S falls back, and while the trouble lasts that long
-every other queued photo does too, only the newest is still tried (it tells
-when the provider is back). Once it is, new photos go to the AI again; photos
-that fell back keep their local list.
+„KI“ only while the AI can detect: chosen while it cannot (external AI off,
+no key for the provider, key unreadable or rejected, budget used up, provider
+without vision) the choice is refused and stays „Lokal“ (service.set_detection).
+Should the AI become unable later (the same reasons, the provider failing for
+FALLBACK_AFTER_S, a model it does not know), the stored choice switches to
+„Lokal“ by itself (`fall_back_to_local`: persisted, audit-logged, the reason
+shown in Modelle), so the admin never shows „KI“ while the local detector runs.
+Photos still queued for the AI then get the local detector's list
+(`jobs.hand_to_local`; the AI's run is recorded `skipped`/`failed` with the
+reason, so it is never sent later), as does a photo the AI fails on (unreadable,
+bad answer, refusal). A rejected key is remembered (until it changes, a key test
+passes or AUTH_RETRY_S passed), so „KI“ cannot be chosen again with it.
+Provider trouble (network, 5xx, 429) is retried every BACKOFF_S until it lasted
+FALLBACK_AFTER_S.
 """
 
 from __future__ import annotations
@@ -98,9 +100,8 @@ class DetectionRunner:
         self.blocked: str | None = None
         self.running = False
         self.clock: Callable[[], float] = time.monotonic
-        # provider trouble: since when (current streak), and per photo its first failure
+        # provider trouble: since when (current streak)
         self.trouble_since: float | None = None
-        self._first_failure: dict[int, float] = {}
         # (fingerprint of the key the provider rejected, when)
         self._rejected: tuple[str, float] | None = None
         self._ticker = Ticker("llm-detect", self.step)
@@ -169,20 +170,29 @@ class DetectionRunner:
             self.trouble_since is not None and self.clock() - self.trouble_since >= FALLBACK_AFTER_S
         )
 
-    def _unable(self, cfg: LlmConfig) -> tuple[str, str] | None:
-        """Why no queued photo can go to the AI now: (short reason, detail), None
-        while they can (provider trouble aside: that shows per call)."""
+    def unable(self, cfg: LlmConfig) -> tuple[str, str] | None:
+        """Why the AI cannot detect objects now: (short reason, German detail),
+        None while it can (provider trouble aside: that shows per call)."""
+        from .service import no_key
+
         svc = self.service
+        info = PROVIDERS[cfg.provider]
+        if not cfg.enabled:
+            return jobs.EXTERNAL_OFF, "Die externe KI ist ausgeschaltet (Karte „Externe KI“)."
+        if not info.vision:
+            return jobs.NO_VISION, f"{info.title} kann keine Fotos ansehen."
         key = svc.keys.load(cfg.provider)
         if key is None:
-            status = svc.keys.status()
-            if status.set and not status.valid:
-                return jobs.KEY_INVALID, "Schlüssel nicht lesbar."
-            return jobs.NO_KEY, "Kein API-Schlüssel gesetzt."
+            if svc.keys.status(cfg.provider).set:
+                return (
+                    jobs.KEY_INVALID,
+                    f"Der API-Schlüssel für {info.title} ist nicht lesbar: bitte neu eingeben.",
+                )
+            return jobs.NO_KEY, no_key(cfg.provider)
         if self._rejected is not None:
             fingerprint, at = self._rejected
             if fingerprint == self._fingerprint(key) and self.clock() - at < AUTH_RETRY_S:
-                return jobs.KEY_INVALID, "Der API-Schlüssel wurde abgelehnt."
+                return jobs.KEY_INVALID, f"Der API-Schlüssel für {info.title} wurde abgelehnt."
             self._rejected = None
         blocked = svc.blocked_reason(cfg)
         if blocked is not None:
@@ -194,51 +204,66 @@ class DetectionRunner:
         cfg = self.service.config()
         if not self.active(cfg):
             return None
-        why = self._unable(cfg)
+        why = self.unable(cfg)
         if why is not None:
             return why[0]
         return jobs.UNREACHABLE if self._outage() else None
 
+    def _give_up(self, cfg: LlmConfig, why: tuple[str, str]) -> bool:
+        """The AI cannot detect any more: the choice becomes „Lokal“ (stored, with
+        the notice) and every photo still queued for the AI gets the local
+        detector's list. True when photos were handed back."""
+        self.service.fall_back_to_local(why[1])
+        self.trouble_since = None
+        return self._hand_back_queued(PROVIDERS[cfg.provider].source, why)
+
+    def _hand_back_queued(self, source: str, why: tuple[str, str]) -> bool:
+        db = self.service.core.db
+        ids = ports.eligible_for_external(db, source, HANDOVER_BATCH)
+        handed = [self._hand_over(pid, source, "skipped", None, why[1], why[0]) for pid in ids]
+        return any(handed)
+
     def run_once(self) -> str:
         """One step: `idle` (nothing to do or switched off), `done` (one photo
-        handled, or photos handed to the local detector), `blocked` (budget, with
-        nothing to hand back) or `backoff` (provider trouble)."""
+        handled, or photos handed to the local detector) or `backoff` (provider
+        trouble). „KI“ chosen but the AI cannot detect (switched off, no key,
+        key rejected, budget used up, the provider failing for minutes): the
+        choice becomes „Lokal“ by itself and the queued photos go local."""
         from .service import Unavailable
 
         svc = self.service
         cfg = svc.config()
+        self.blocked = None
+        if cfg.detect.external:
+            why = self.unable(cfg)
+            if why is None and self._outage():
+                minutes = round(FALLBACK_AFTER_S / 60)
+                last = f" ({self.last_error.rstrip('.')})" if self.last_error else ""
+                why = (
+                    jobs.UNREACHABLE,
+                    f"Der KI-Dienst antwortet seit {minutes} Minuten nicht{last}.",
+                )
+            if why is not None:
+                return "done" if self._give_up(cfg, why) else "idle"
         if not self.active(cfg):
-            self.blocked = None
+            # photos queued while „KI“ was active (the worker was mid-photo when it
+            # changed): the local detector takes them, once it is the chosen one
+            local = "objects" not in jobs.disabled_analyzers(svc.core.repos.app_settings)
+            if local and self._hand_back_queued(
+                PROVIDERS[cfg.provider].source,
+                (jobs.AI_OFF, "Die KI-Erkennung war beim Senden nicht mehr aktiv."),
+            ):
+                return "done"
             return "idle"
         source = PROVIDERS[cfg.provider].source
         db = svc.core.db
-        unable = self._unable(cfg)
-        self.blocked = unable[1] if unable is not None and unable[0] == jobs.BUDGET else None
-        ids = ports.eligible_for_external(db, source, HANDOVER_BATCH)
+        ids = ports.eligible_for_external(db, source, 1)
         if not ids:
-            return "blocked" if self.blocked else "idle"
-        if unable is not None:
-            # the AI cannot take any: every queued photo gets the local detector
-            handed = [
-                self._hand_over(pid, source, "skipped", None, unable[1], unable[0]) for pid in ids
-            ]
-            if any(handed):
-                return "done"
-            return "blocked" if self.blocked else "idle"
-        if self._outage():
-            # the provider has been failing for minutes: only the newest is still tried
-            for pid in ids[1:]:
-                self._hand_over(pid, source, "failed", cfg.model,
-                                self.last_error or jobs.UNREACHABLE, jobs.UNREACHABLE)  # fmt: skip
+            return "idle"
         photo = self._sendable(ids[0])
         if photo is None:
             # opted out or hidden since the query: never sent, looked at again later
             return "idle"
-        first = self._first_failure.get(photo.id)
-        if first is not None and self.clock() - first >= FALLBACK_AFTER_S:
-            self._hand_over(photo.id, source, "failed", cfg.model,
-                            self.last_error or jobs.UNREACHABLE, jobs.UNREACHABLE, photo.image)  # fmt: skip
-            return "done"
         try:
             raw = svc.core.repos.photos.path(photo.path_ext, photo.filename).read_bytes()
             image = downscale(raw, cfg.image_max_px)
@@ -256,22 +281,24 @@ class DetectionRunner:
                 config=cfg,
             )
         except Unavailable:
-            # key or budget changed since `_unable`: the next step hands the photos back
+            # key or budget changed since `unable`: the next step switches to local
             return "done"
         except ProviderError as exc:
-            if exc.kind == "auth":
-                key = svc.keys.load(cfg.provider)
-                if key is not None:
-                    self._rejected = (self._fingerprint(key), self.clock())
+            if exc.kind in ("auth", "model"):
+                reason = jobs.KEY_INVALID if exc.kind == "auth" else jobs.MODEL_UNKNOWN
+                if exc.kind == "auth":
+                    key = svc.keys.load(cfg.provider)
+                    if key is not None:
+                        self._rejected = (self._fingerprint(key), self.clock())
                 self.last_error = exc.message
                 log.warning("llm detect: %s (local detector takes over)", exc.message)
                 self._hand_over(photo.id, source, "failed", cfg.model, exc.message,
-                                jobs.KEY_INVALID, photo.image)  # fmt: skip
+                                reason, photo.image)  # fmt: skip
+                self._give_up(cfg, (reason, exc.message))
                 return "done"
             if exc.transient:
                 now = self.clock()
                 self.last_error = exc.message
-                self._first_failure.setdefault(photo.id, now)
                 if self.trouble_since is None:
                     self.trouble_since = now
                 log.warning("llm detect: %s (retrying later)", exc.message)
@@ -283,7 +310,6 @@ class DetectionRunner:
             self.running = False
         self.last_error = None
         self.trouble_since = None
-        self._first_failure.clear()
         try:
             with db.tx():
                 ports.append(db, photo.id, source, cfg.model, objs, image=photo.image)
@@ -310,7 +336,6 @@ class DetectionRunner:
         lists) cannot fall back: it stays queued, and only an error about the photo
         itself is recorded (as before). True when the photo left the queue."""
         db = self.service.core.db
-        self._first_failure.pop(photo_id, None)
         try:
             with db.tx():
                 if has_run(db, photo_id, "local"):

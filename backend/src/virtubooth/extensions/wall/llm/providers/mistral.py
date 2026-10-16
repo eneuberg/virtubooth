@@ -3,7 +3,8 @@
 Chat Completions with JSON-schema output (`response_format` json_schema,
 strict), images as base64 data URLs. Same timeout and retry policy as the
 Anthropic provider (60 s; 2 retries on 408/409/429/5xx and connection
-errors). `ping` reads the model's entry (free). See night/d2/EU-PROVIDER.md
+errors). `ping` reads the models list (free) and asks for one token only when the
+model is not listed. See night/d2/EU-PROVIDER.md
 for why this provider exists and what is unverified.
 """
 
@@ -13,13 +14,22 @@ import base64
 import json
 import time
 from collections.abc import Sequence
-from typing import Any
+from typing import Any, ClassVar
 
 import httpx2
 
 from .. import prompts
 from ..ports import DetectedObject
-from .base import PhotoLine, ProviderError, TokenUsage, VerdictOut
+from .base import (
+    KEY_FORBIDDEN,
+    KEY_REJECTED,
+    PING_PROMPT,
+    PhotoLine,
+    ProviderError,
+    TokenUsage,
+    VerdictOut,
+    model_unknown,
+)
 
 BASE_URL = "https://api.mistral.ai/v1"
 TIMEOUT_S = 60.0
@@ -30,6 +40,8 @@ MAX_TOKENS = {"detect": 4000, "score": 16000, "verdict": 1000}
 
 class MistralProvider:
     id = "mistral"
+    # extra fields for the one-token ping request (Scaleway: thinking off)
+    ping_extra: ClassVar[dict[str, Any]] = {}
 
     def __init__(
         self,
@@ -88,8 +100,39 @@ class MistralProvider:
         return prompts.parse_verdict(data, usage), usage
 
     def ping(self, model: str) -> TokenUsage:
-        self._request("GET", f"/models/{model}", None)
-        return TokenUsage()
+        r = self._send("GET", "/models", None)
+        if r.status_code == 404:
+            raise ProviderError(
+                "Adresse des KI-Dienstes nicht gefunden (HTTP 404): Basis-URL bzw. Projekt prüfen.",
+                kind="other",
+            )
+        if r.status_code >= 400:
+            raise _status_error(r.status_code)
+        try:
+            listed = {str(m.get("id")) for m in r.json().get("data") or [] if isinstance(m, dict)}
+        except (ValueError, AttributeError):
+            listed = set()
+        if model in listed:
+            return TokenUsage()
+        # not in the list (or no list): one token tells whether the model answers
+        body = {
+            "model": model,
+            "max_tokens": 1,
+            "messages": [{"role": "user", "content": PING_PROMPT}],
+            **self.ping_extra,
+        }
+        r = self._send("POST", "/chat/completions", body)
+        if r.status_code == 404 or (r.status_code in (400, 422) and "model" in r.text.lower()):
+            raise ProviderError(model_unknown(model), kind="model")
+        if r.status_code >= 400:
+            raise _status_error(r.status_code)
+        try:
+            raw = r.json().get("usage") or {}
+        except (ValueError, AttributeError):
+            raw = {}
+        return TokenUsage(
+            int(raw.get("prompt_tokens") or 0), int(raw.get("completion_tokens") or 0)
+        )
 
     # ---------------------------------------------------------- internals
 
@@ -133,6 +176,17 @@ class MistralProvider:
         return prompts.parse_json(text, usage), usage
 
     def _request(self, method: str, path: str, body: dict[str, Any] | None) -> Any:
+        r = self._send(method, path, body)
+        if r.status_code >= 400:
+            raise _status_error(r.status_code)
+        try:
+            return r.json()
+        except ValueError:
+            raise ProviderError("Antwort war kein gültiges JSON.", kind="bad_output") from None
+
+    def _send(self, method: str, path: str, body: dict[str, Any] | None) -> httpx2.Response:
+        """The response, after retrying 408/409/429/5xx and connection errors;
+        ProviderError (`network`) when the service cannot be reached."""
         for attempt in range(MAX_RETRIES + 1):
             last = attempt == MAX_RETRIES
             try:
@@ -152,26 +206,21 @@ class MistralProvider:
                 if last:
                     raise ProviderError("KI-Dienst nicht erreichbar.", kind="network") from None
             else:
-                if r.status_code < 400:
-                    try:
-                        return r.json()
-                    except ValueError:
-                        raise ProviderError(
-                            "Antwort war kein gültiges JSON.", kind="bad_output"
-                        ) from None
                 if r.status_code not in RETRY_STATUS or last:
-                    raise _status_error(r.status_code)
+                    return r
             time.sleep(self._wait * (2**attempt))
         raise ProviderError("KI-Dienst nicht erreichbar.", kind="network")  # pragma: no cover
 
 
 def _status_error(status: int) -> ProviderError:
-    if status in (401, 403):
-        return ProviderError("Der API-Schlüssel wurde abgelehnt.", kind="auth")
+    if status == 401:
+        return ProviderError(KEY_REJECTED, kind="auth")
+    if status == 403:
+        return ProviderError(KEY_FORBIDDEN, kind="auth")
     if status == 429:
         return ProviderError("Zu viele Anfragen beim KI-Dienst (Limit).", kind="rate")
     if status == 404:
-        return ProviderError("Modell nicht gefunden.", kind="other")
+        return ProviderError("Modell beim Anbieter nicht gefunden.", kind="model")
     if status >= 500:
         return ProviderError(f"KI-Dienst gestört (HTTP {status}).", kind="server")
     return ProviderError(f"Anfrage abgelehnt (HTTP {status}).", kind="other")

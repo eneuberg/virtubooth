@@ -100,7 +100,10 @@ export type LlmConfigChange = Partial<
 
 export interface LlmStatus {
   config: LlmConfig;
+  /** the configured provider's key (never the key itself) */
   key: LlmKeyState;
+  /** every provider's key state: one key per provider, switching keeps them */
+  keys: LlmKeyState[];
   providers: LlmProvider[];
   models: LlmModel[];
   poller: LlmPoller;
