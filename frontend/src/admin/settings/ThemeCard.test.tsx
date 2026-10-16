@@ -78,7 +78,7 @@ afterEach(() => {
 describe('ThemeCard (Erscheinungsbild)', () => {
   it('shows the saved theme in the preview; nothing to save yet', () => {
     renderCard();
-    expect(screen.getByRole('heading', { name: 'Erscheinungsbild' })).toBeTruthy();
+    expect(screen.getByRole('heading', { name: 'Farben und Stil' })).toBeTruthy();
     expect(previewVar('--t-background')).toBe('#1b1b1a');
     expect(previewVar('--t-on-primary')).toBe('#000000');
     expect(save().hasAttribute('disabled') || save().getAttribute('data-disabled') !== null).toBe(true);

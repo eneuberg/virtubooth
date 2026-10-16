@@ -115,7 +115,7 @@ export type WallCursor = string | number | null;
 export interface WallFeed {
   /** the look's colours are always set here (the server fills in the theme) */
   config: WallConfig;
-  /** the guest UI's theme (Allgemeines → Erscheinungsbild); older servers send none */
+  /** the guest UI's theme (Erscheinungsbild); older servers send none */
   theme?: PublicTheme;
   event_name: string;
   /** `overlay.qr` on and the code active, else null */

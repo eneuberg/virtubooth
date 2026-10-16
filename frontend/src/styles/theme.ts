@@ -1,5 +1,5 @@
 /**
- * The theme (Allgemeines → Erscheinungsbild): the guest UI's and the Live Wall's
+ * The theme (Erscheinungsbild): the guest UI's and the Live Wall's
  * colours as CSS custom properties `--t-<name>` on <html>.
  *
  * Before the first paint they come from `/api/theme.css`, which the server links in

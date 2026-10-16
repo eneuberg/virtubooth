@@ -73,7 +73,7 @@ export interface WallConfig {
   show_instagram: boolean;
   look: {
     preset: LookPreset;
-    /** null: wie Theme (Allgemeines → Erscheinungsbild: primary / accent / background) */
+    /** null: wie Theme (Erscheinungsbild: primary / accent / background) */
     primary: string | null;
     secondary: string | null;
     background: string | null;

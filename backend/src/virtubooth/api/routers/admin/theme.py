@@ -1,4 +1,4 @@
-"""Allgemeines → Erscheinungsbild: the theme of the guest UI and the Live Wall
+"""Erscheinungsbild: the theme of the guest UI and the Live Wall
 (`/api/admin/theme`). The admin UI itself keeps its look."""
 
 from __future__ import annotations

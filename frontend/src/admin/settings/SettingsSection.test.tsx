@@ -8,8 +8,6 @@ import { bodyField, json, must, stubApi, testClient, type Route } from '../testi
 import type { AdminSettings } from './api';
 import { settingsKey } from './keys';
 import { SettingsSection } from './SettingsSection';
-import { themeKey } from './themeApi';
-import { NEON_NACHT } from '@/styles/theme';
 
 const AUTO: AdminSettings['public_address'] = {
   address: null,
@@ -27,21 +25,6 @@ const SETTINGS: AdminSettings = {
 function renderSection(routes: Record<string, Route> = {}, settings: AdminSettings = SETTINGS) {
   const qc = testClient();
   qc.setQueryData(settingsKey, settings);
-  // the Erscheinungsbild card's own query (ThemeCard.test.tsx covers it)
-  qc.setQueryData(themeKey, {
-    theme: {
-      preset: 'neon_nacht',
-      colors: NEON_NACHT,
-      on_primary: '#000000',
-      on_accent: '#1b1b1a',
-      primary_ink: '#cc4ffe',
-      rev: 0,
-      custom: false,
-      updated_at: null,
-      by: null,
-    },
-    presets: [{ id: 'neon_nacht', label: 'Neon Nacht', colors: NEON_NACHT }],
-  });
   const requests = stubApi(routes);
   render(
     <QueryClientProvider client={qc}>
@@ -70,13 +53,15 @@ afterEach(() => {
 });
 
 describe('Allgemeines', () => {
-  it('shows the three blocks, no Fotobox filters', () => {
+  it('shows the three blocks, no Fotobox filters, no Erscheinungsbild', () => {
     renderSection();
     expect(screen.getByRole('heading', { level: 1, name: 'Allgemeines' })).toBeTruthy();
     expect(screen.getByRole('heading', { name: 'Eventname' })).toBeTruthy();
     expect(screen.getByRole('heading', { name: 'Öffentliche Adresse' })).toBeTruthy();
     expect(screen.getByRole('heading', { name: 'Admin-Passwort' })).toBeTruthy();
     expect(screen.queryByTestId('settings-booth-filters')).toBeNull();
+    // the Erscheinungsbild has its own section (LookSection)
+    expect(screen.queryByTestId('settings-theme')).toBeNull();
     expect(screen.getByTestId('password-source').textContent).toBe(
       'Gerade gilt das Passwort aus VB_ADMIN_PASSWORD.',
     );

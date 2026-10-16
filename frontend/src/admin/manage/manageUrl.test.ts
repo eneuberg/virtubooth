@@ -21,8 +21,10 @@ describe('manage URL state', () => {
     expect(sectionHref('sperren')).toBe('/manage?tab=sperren');
   });
 
-  it('opens Allgemeines and Fotobox; the old Einstellungen bookmark opens Allgemeines', () => {
+  it('opens Allgemeines, Erscheinungsbild and Fotobox; the old Einstellungen bookmark opens Allgemeines', () => {
     expect(parseSection('allgemein')).toBe('allgemein');
+    expect(parseSection('erscheinungsbild')).toBe('erscheinungsbild');
+    expect(sectionHref('erscheinungsbild')).toBe('/manage?tab=erscheinungsbild');
     expect(parseSection('fotobox')).toBe('fotobox');
     expect(parseSection('einstellungen')).toBe('allgemein');
     expect(parseSection('constructor')).toBe('fotos');
@@ -35,6 +37,7 @@ describe('manage URL state', () => {
       [
         'uebersicht',
         'allgemein',
+        'erscheinungsbild',
         'fotos',
         'gaeste',
         'instagram',

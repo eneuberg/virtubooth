@@ -1,8 +1,8 @@
 /**
  * /admin/manage?tab=allgemein („Allgemeines“, old bookmarks: tab=einstellungen): the
- * event name, the admin password, the public address and the guest pages'
- * Erscheinungsbild (theme). The Fotobox's filters have
- * their own section (admin/booth).
+ * event name, the admin password and the public address. The guest pages'
+ * Erscheinungsbild (theme) has its own section (LookSection.tsx), so have the
+ * Fotobox's filters (admin/booth).
  */
 import { Settings2 } from 'lucide-react';
 import { Button } from '@/ui/Button';
@@ -12,13 +12,10 @@ import { useSettings } from './api';
 import { EventNameCard } from './EventNameCard';
 import { PasswordCard } from './PasswordCard';
 import { PublicAddressCard } from './PublicAddressCard';
-import { ThemeCard } from './ThemeCard';
-import { useAdminTheme } from './themeApi';
 
 export function SettingsSection() {
   const settings = useSettings();
   const data = settings.data;
-  const theme = useAdminTheme();
   return (
     <section
       aria-labelledby="section-title"
@@ -39,7 +36,6 @@ export function SettingsSection() {
           <EventNameCard event={data.event} />
           <PublicAddressCard state={data.public_address} />
           <PasswordCard state={data.password} />
-          {theme.data ? <ThemeCard data={theme.data} /> : null}
         </div>
       ) : settings.isError ? (
         <EmptyState
