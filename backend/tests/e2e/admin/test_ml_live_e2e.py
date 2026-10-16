@@ -175,9 +175,10 @@ def test_ml_pipeline_categories_and_the_wall_verdict(
     row.get_by_test_id("category-edit").click()
     dlg = page.get_by_test_id("category-sheet").get_by_role("dialog")  # the editor
     expect(dlg.get_by_role("heading", name="Kategorie bearbeiten")).to_be_visible()
-    expect(dlg.get_by_test_id("category-verdict-prompt")).to_have_value(
-        re.compile("coolste Objekt")
-    )
+    # the preset leaves the task empty: the default task, shown as the placeholder
+    prompt = dlg.get_by_test_id("category-verdict-prompt")
+    expect(prompt).to_have_value("")
+    expect(prompt).to_have_attribute("placeholder", re.compile("coolste Objekt"))
     dlg.get_by_test_id("category-save").click()
     expect(toast(page)).to_contain_text("„Das coolste Objekt“ gespeichert.")
     row.get_by_text("Zeigen", exact=True).click()
@@ -188,7 +189,7 @@ def test_ml_pipeline_categories_and_the_wall_verdict(
     page.get_by_test_id("ml-poll-now").click()
     expect(toast(page)).to_contain_text("Die Abfrage läuft.")
     wait_until(
-        lambda: live.core.db.one("SELECT 1 FROM wall_category_verdicts") is not None,
+        lambda: live.core.db.one("SELECT 1 FROM wall_category_comments") is not None,
         timeout=10, what="verdict",
     )  # fmt: skip
     sent = json.dumps(
@@ -197,7 +198,7 @@ def test_ml_pipeline_categories_and_the_wall_verdict(
         ensure_ascii=False,
     )
     assert "Partyfuchs" in sent and "Otter" not in sent and "hat" not in sent
-    verdict = live.core.db.one("SELECT text FROM wall_category_verdicts")["text"]
+    verdict = live.core.db.one("SELECT text FROM wall_category_comments")["text"]
     assert "Partyfuchs" in verdict
     page.reload(wait_until=LOADED)
     expect(page.get_by_test_id("ml-usage-table")).to_contain_text("Eigenschaft „coolness“")
@@ -221,7 +222,9 @@ def test_ml_pipeline_categories_and_the_wall_verdict(
         login.get_by_label("Passwort").fill(WALL_PASSWORD)
         login.get_by_role("button", name="Live-Wall starten").click()
         expect(tv.get_by_test_id("wall-verdict")).to_contain_text(verdict, timeout=15_000)
-        expect(tv.locator(".wall-cat-value")).to_have_text(["Sonnenbrille"])
+        # the winning object is the headline, its score the value chip
+        expect(tv.locator(".wall-cat-headline")).to_have_text(["Sonnenbrille"])
+        expect(tv.locator(".wall-cat-value")).to_have_text([re.compile(r"0,9\d* Coolness")])
     finally:
         ctx.close()
     assert errors(page) == []
