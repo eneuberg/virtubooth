@@ -8,7 +8,9 @@ test_wall_admin_e2e.py plus the external-AI routes of PLAN-NIGHT §4.4.
 from __future__ import annotations
 
 import copy
+import json
 import re
+from pathlib import Path
 from typing import Any
 
 import pytest
@@ -356,6 +358,46 @@ def test_external_ai_detection_poll_properties_and_budget(
         "Gerade erkennt das lokale Modell statt der KI (Budget aufgebraucht)"
     )
     expect(page.get_by_test_id("ml-usage-table")).to_contain_text("Eigenschaft „coolness“")
+    assert errors(page) == []
+
+
+def test_properties_export_import_round_trip(
+    desktop_page: Page, live: LiveServer, ml: MlFake, tmp_path: Path
+) -> None:
+    page = desktop_page
+    ml.props.append({**ml.props[0], "id": 2, "name": "old_one", "prompt": "Alt.",
+                     "archived_at": "2026-10-15T19:30:00Z"})  # fmt: skip
+    goto(page, live, "/admin/manage?tab=ml")
+    expect(page.locator("[data-property=old_one]")).to_contain_text("Archiviert")
+    with page.expect_download() as dl:
+        page.get_by_role("button", name="Exportieren").click()
+    assert dl.value.suggested_filename == "eigenschaften.json"
+    exported = json.loads(Path(dl.value.path()).read_text())
+    assert exported == {"version": 1, "properties": [
+        {"name": "coolness", "prompt": "Bewerte, wie cool jedes Objekt ist.", "archived": False},
+        {"name": "old_one", "prompt": "Alt.", "archived": True},
+    ]}  # fmt: skip
+
+    # import the export plus one new archived, one new active and one bad entry
+    exported["properties"] += [
+        {"name": "shiny", "prompt": "Wie glänzend?", "archived": True},
+        {"name": "fresh", "prompt": "Wie frisch?"},
+        {"name": "Bad Name", "prompt": "x"},
+    ]
+    upload = tmp_path / "eigenschaften.json"
+    upload.write_text(json.dumps(exported))
+    with page.expect_file_chooser() as fc:
+        page.get_by_role("button", name="Importieren").click()
+    fc.value.set_files(upload)
+    expect(toast(page)).to_contain_text("2 importiert, 2 übersprungen (gibt es schon), 1 ungültig")
+    expect(page.get_by_test_id("ml-properties-import-problems")).to_contain_text("Bad Name")
+    assert ml.sent("POST", "/llm/properties") == [
+        {"name": "shiny", "prompt": "Wie glänzend?"},
+        {"name": "fresh", "prompt": "Wie frisch?"},
+    ]
+    assert len(ml.sent("POST", "/llm/properties/shiny/archive")) == 1
+    expect(page.locator("[data-property=shiny]")).to_contain_text("Archiviert")
+    expect(page.locator("[data-property=fresh]")).not_to_contain_text("Archiviert")
     assert errors(page) == []
 
 
