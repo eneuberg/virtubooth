@@ -3,7 +3,9 @@ editor) and the inspector's Analyse panel.
 
 The wall backend (PLAN-WALL §4.3/§4.4, PLAN-NIGHT §4.3) is built elsewhere, so
 `page.route` serves a stateful fake of `/api/x/wall/admin/**`, and the extension list
-gets a loaded `wall`. test_ml_pipeline_e2e.py reuses the fake.
+gets a loaded `wall`. test_ml_pipeline_e2e.py reuses the fake. Categories come in the
+v2 shape (categories v2: `spec` v2, `legacy_spec` v1 for the v1 editor, winners with
+headline/object/comment), converted with the server's own converter.
 """
 
 from __future__ import annotations
@@ -19,6 +21,7 @@ import pytest
 from playwright.sync_api import Locator, Page, Route, expect
 
 from virtubooth.extensions.sdk import discover_extensions
+from virtubooth.extensions.wall.enrich import engine, spec_v1
 
 from ..conftest import LiveServer, shot
 from .conftest import Guest, errors, goto, no_horizontal_scroll, toast
@@ -109,10 +112,23 @@ PRESETS: dict[str, dict[str, Any]] = {
 }  # fmt: skip
 UNAVAILABLE = {"grinsekatzen": "Braucht die Gesichtserkennung (KI)."}
 
+
+def both(spec: dict[str, Any]) -> dict[str, Any]:
+    """`spec` (v2) and `legacy_spec` (v1 or None) of a v1 or v2 spec, as the server keeps it."""
+    v2 = engine.validate(spec)
+    return {"spec": v2, "legacy_spec": spec_v1.downgrade(v2)}
+
+
 VALUES = {
+    "photo_values": [],
+    "object_fields": [{"field": "confidence", "title": "Erkennungssicherheit",
+                       "property": None, "unit": "0–1"}],
+    "aggregates": [],
+    "objects_available": True,
+    "objects_reason": None,
     "values": [
         {"key": k, "title": t, "group": g, "kind": kind, "unit": None, "needs": None,
-         "available": True, "reason": None, "inactive": False}
+         "available": True, "reason": None}
         for k, t, g, kind in [
             ("people", "Personen", "Gesichter und Personen", "count"),
             ("smiles", "Lächeln", "Gesichter und Personen", "count"),
@@ -132,6 +148,12 @@ VALUES = {
 
 def now() -> str:
     return datetime.now(UTC).isoformat(timespec="seconds")
+
+
+def winner(photo: str, value: float, label: str) -> dict[str, Any]:
+    return {"photo_id": photo, "thumb_url": f"/media/{photo}?thumb=1", "value": value,
+            "label": label, "headline": label, "detail": None, "object_idx": None,
+            "object": None, "comment": None}  # fmt: skip
 
 
 class FakeWall:
@@ -157,7 +179,7 @@ class FakeWall:
         self.requests: list[tuple[str, str, Any]] = []
         self.open_walls = 2
         self.cats: list[dict[str, Any]] = [
-            {"id": cid, "enabled": True, "preset": cid, "spec": copy.deepcopy(s)}
+            {"id": cid, "enabled": True, "preset": cid, **both(copy.deepcopy(s))}
             for cid, s in PRESETS.items()
         ]
 
@@ -167,16 +189,23 @@ class FakeWall:
     def item(self, cat: dict[str, Any]) -> dict[str, Any]:
         cid = cat["id"]
         winners = (
-            [{"photo_id": w, "thumb_url": f"/media/{w}?thumb=1", "value": i + 1,
-              "label": f"um 19:4{i}", "object_idx": None}
+            [winner(w, i + 1, f"um 19:4{i}")
              for i, w in enumerate(self.winners[: cat["spec"]["select"]["count"]])]
             if cid == "eroeffnung" else []
         )  # fmt: skip
         return {
             **cat,
             "position": self.cats.index(cat),
+            "explanation": engine.explain(cat["spec"]),
+            "needs_ai": False,
+            "properties": [],
+            "locked": None,
+            "off_reason": None,
+            "off_detail": None,
+            "off_at": None,
             "available": cid not in UNAVAILABLE,
             "reason": UNAVAILABLE.get(cid),
+            "verdict_paused": False,
             "verdict": None,
             "winners": winners,
         }
@@ -356,7 +385,7 @@ class FakeWall:
                     return 400, {"error": "invalid_category",
                                  "message": "Titel: Dieser Titel geht nicht."}  # fmt: skip
                 cat = {"id": body["id"], "enabled": body.get("enabled", True), "preset": None,
-                       "spec": body["spec"]}  # fmt: skip
+                       **both(body["spec"])}  # fmt: skip
                 self.cats.append(cat)
                 return 201, self.item(cat)
             case "PUT", "/categories/order":
@@ -366,13 +395,14 @@ class FakeWall:
             case "POST", "/categories/restore-presets":
                 added = [cid for cid in PRESETS if not self.find(cid)]
                 self.cats += [{"id": cid, "enabled": True, "preset": cid,
-                               "spec": copy.deepcopy(PRESETS[cid])} for cid in added]  # fmt: skip
+                               **both(copy.deepcopy(PRESETS[cid]))} for cid in added]  # fmt: skip
                 return 200, {"added": added}
             case "POST", "/categories/preview":
-                winners = [{"photo_id": w, "thumb_url": f"/media/{w}?thumb=1", "value": 7,
-                            "label": "7 Personen", "object_idx": None}
-                           for w in self.winners[: body["spec"]["select"]["count"]]]  # fmt: skip
-                return 200, {"winners": winners, "matched": 5, "reason": None}
+                spec = both(body["spec"])["spec"]
+                winners = [winner(w, 7, "7 Personen")
+                           for w in self.winners[: spec["select"]["count"]]]  # fmt: skip
+                return 200, {"winners": winners, "matched": 5, "reason": None,
+                             "explanation": engine.explain(spec), "spec": spec, "locked": None}  # fmt: skip
             case "GET", "/values":
                 return 200, VALUES
             case "GET", "/analysis":
@@ -382,7 +412,7 @@ class FakeWall:
         m = re.fullmatch(r"/categories/([a-z0-9_]+)", path)
         if m and (cat := self.find(m[1])):
             if method == "PUT":
-                cat.update(spec=body["spec"], enabled=body["enabled"])
+                cat.update(both(body["spec"]), enabled=body["enabled"])
                 return 200, self.item(cat)
             if method == "DELETE":
                 self.cats.remove(cat)

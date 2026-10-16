@@ -18,6 +18,14 @@ from playwright.sync_api import Page, expect
 from ..conftest import BROWSER_NAME, LOADED, shot, wait_until_ready
 from .conftest import PASSWORD, WallFake, css_var, js_errors, shots_dir, wall_photo
 
+
+def winner(photo: dict[str, Any], value: float, label: str,
+           comment: dict[str, Any] | None = None) -> dict[str, Any]:  # fmt: skip
+    """A WallWinner as the server sends it (categories v2: headline, focus object, comment)."""
+    return {"photo": photo, "value": value, "label": label, "headline": label, "detail": None,
+            "object_idx": None, "object": None, "comment": comment}  # fmt: skip
+
+
 pytestmark = pytest.mark.e2e
 
 # deterministic spotlight: the newest photo first, no change during a test
@@ -145,7 +153,7 @@ def test_playlist_rotates_through_the_modes(tv_page: Page, wall_fake: WallFake) 
             "emoji": "👥",
             "title": "Volles Haus",
             "line": "Die meisten Leute auf einem Foto",
-            "winners": [{"photo": wall_fake.photos[2], "value": 7, "label": "7 Personen"}],
+            "winners": [winner(wall_fake.photos[2], 7, "7 Personen")],
         }
     ]
     # shorter than the admin allows (10 s): the screen does not check
@@ -236,10 +244,7 @@ def test_categories_stay_clear_of_the_corner(
             "emoji": "👥",
             "title": "Volles Haus",
             "line": "Die meisten Leute auf einem Foto",
-            "winners": [
-                {"photo": wall_fake.photos[k], "value": 7, "label": "7 Personen"}
-                for k in range(count)
-            ],
+            "winners": [winner(wall_fake.photos[k], 7, "7 Personen") for k in range(count)],
         }
     ]
     open_wall(tv_page, wall_fake)
@@ -293,7 +298,12 @@ def test_category_verdict_under_the_winner(tv_page: Page, wall_fake: WallFake, c
             "title": "Das coolste Objekt",
             "line": "Was die KI am coolsten findet",
             "winners": [
-                {"photo": p, "value": 1 - k / 20, "label": f"Hut {k + 1}"}
+                winner(
+                    p,
+                    1 - k / 20,
+                    f"Hut {k + 1}",
+                    {"text": VERDICT_TEXT, "emoji": "🎩"} if p["id"] == target else None,
+                )
                 for k, p in enumerate(winners)
             ],
             "verdict": {"text": VERDICT_TEXT, "emoji": "🎩", "photo_id": target},
@@ -374,7 +384,7 @@ def _seed_party(fake: WallFake) -> None:
             "title": title,
             "line": line,
             "winners": [
-                {"photo": by_id[f"ph{(i * 3 + k + 2):04d}"], "value": 7 - k, "label": label}
+                winner(by_id[f"ph{(i * 3 + k + 2):04d}"], 7 - k, label)
                 for k in range(min(i + 1, 3))
             ],
         }
