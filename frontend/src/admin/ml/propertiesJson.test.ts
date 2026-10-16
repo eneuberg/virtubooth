@@ -98,13 +98,14 @@ describe('Eigenschaften import: validation', () => {
   });
 });
 
+const entry = (name: string, prompt: string, active = true, deleted = false): PropertyEntry => ({
+  name,
+  prompt,
+  active,
+  deleted,
+});
+
 describe('Eigenschaften import: create, skip, switch off, Papierkorb', () => {
-  const entry = (name: string, prompt: string, active = true, deleted = false): PropertyEntry => ({
-    name,
-    prompt,
-    active,
-    deleted,
-  });
   const entries: PropertyEntry[] = [
     entry('coolness', 'anders'),
     entry('shiny', 'Wie glänzend?'),
