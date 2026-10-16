@@ -210,8 +210,18 @@ const EMPTY: Record<ObjectView, string> = {
   merged: 'Keine Objekte erkannt.',
 };
 
+/** Object detection was set to „Aus“ when this photo was analysed: every run skipped as off. */
+export function detectionWasOff(analysis: PhotoAnalysis): boolean {
+  return (
+    analysis.objects.length === 0 &&
+    analysis.runs.length > 0 &&
+    analysis.runs.every((r) => r.state === 'skipped' && /ausgeschaltet/i.test(r.error ?? ''))
+  );
+}
+
 function Objects({ photoId, analysis }: { photoId: string; analysis: PhotoAnalysis }) {
   const setHovered = useHovered((s) => s.set);
+  const off = detectionWasOff(analysis);
   const view = useObjectView((s) => s.view);
   const setView = useObjectView((s) => s.set);
   const props = analysis.properties;
@@ -228,9 +238,11 @@ function Objects({ photoId, analysis }: { photoId: string; analysis: PhotoAnalys
       </h4>
       {analysis.objects.length === 0 ? (
         <p className="text-sm text-ink-muted">
-          {analysis.runs.length === 0
-            ? 'Keine Objektliste: das Foto wurde ohne Objekterkennung ausgewertet (z. B. vor dem Update).'
-            : 'Keine Objekte erkannt.'}
+          {off
+            ? 'Objekterkennung war ausgeschaltet, als dieses Foto ausgewertet wurde (Einstellung „Aus“ unter ML-Pipeline → Modelle).'
+            : analysis.runs.length === 0
+              ? 'Keine Objektliste: das Foto wurde ohne Objekterkennung ausgewertet (z. B. vor dem Update).'
+              : 'Keine Objekte erkannt.'}
         </p>
       ) : (
         <ObjectViewTabs
@@ -242,7 +254,7 @@ function Objects({ photoId, analysis }: { photoId: string; analysis: PhotoAnalys
           properties={props}
         />
       )}
-      {analysis.runs.length > 0 ? (
+      {analysis.runs.length > 0 && !off ? (
         <ul
           className="grid gap-0.5 text-xs text-ink-muted"
           data-testid="analysis-runs"

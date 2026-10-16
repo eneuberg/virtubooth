@@ -220,6 +220,17 @@ describe('AnalysisPanel', () => {
     expect(screen.queryByTestId('analysis-fallback')).toBeNull();
   });
 
+  it('says when object detection was switched off', async () => {
+    const runs = photoAnalysis().runs.map((r) => ({
+      ...r,
+      state: 'skipped' as const,
+      error: 'ausgeschaltet',
+    }));
+    renderPanel({ [PATH]: () => ({ ...photoAnalysis(), objects: [], runs }) });
+    expect(await screen.findByText(/Objekterkennung war ausgeschaltet/)).toBeTruthy();
+    expect(screen.queryByTestId('analysis-runs')).toBeNull();
+  });
+
   it("marks the guest's opt-outs", async () => {
     renderPanel({
       [PATH]: () => ({ ...photoAnalysis(), opt_out: { analysis: true, external_ai: true } }),
