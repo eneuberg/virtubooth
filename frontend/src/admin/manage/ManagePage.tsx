@@ -12,6 +12,7 @@ import {
   Images,
   LayoutGrid,
   LogOut,
+  Palette,
   Printer,
   Radio,
   QrCode,
@@ -40,6 +41,7 @@ import { PosterSection } from '../poster/PosterSection';
 import { logout } from '../store/actions';
 import { useStats } from '../store/hooks';
 import { HostGuestButton } from '../hostGuest/HostGuestButton';
+import { LookSection } from '../settings/LookSection';
 import { SettingsSection } from '../settings/SettingsSection';
 import { PartyControls } from '../uploads/PartyControls';
 import { WallSection } from '../wall/WallSection';
@@ -66,6 +68,7 @@ const SECTION_VIEW: Record<Section, ComponentType> = {
   export: ExportSection,
   uebersicht: OverviewSection,
   allgemein: SettingsSection,
+  erscheinungsbild: LookSection,
 };
 
 function navItem(id: Section, label: string, icon: typeof Images, count?: number) {
@@ -76,6 +79,7 @@ function navItems(stats: AdminStats | undefined) {
   return [
     navItem('uebersicht', 'Übersicht', Gauge),
     navItem('allgemein', 'Allgemeines', Settings2),
+    navItem('erscheinungsbild', 'Erscheinungsbild', Palette),
     navItem('fotos', 'Fotos', Images, stats?.photos),
     navItem('gaeste', 'Gäste', Users, stats?.guests),
     navItem('instagram', 'Instagram', AtSign, stats?.instagram_handles),

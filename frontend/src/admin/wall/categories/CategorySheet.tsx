@@ -69,7 +69,7 @@ const SAME_AS_BY: ValueChoice = {
   kind: 'number',
   available: true,
   reason: null,
-  archived: false,
+  inactive: false,
 };
 
 function Section({ title, children, testid }: { title: string; children: ReactNode; testid?: string }) {

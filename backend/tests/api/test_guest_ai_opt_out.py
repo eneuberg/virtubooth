@@ -86,7 +86,10 @@ def test_external_ai_active(core):
         "RETURNING id"
     )
     assert external_ai_active(repos) is True
-    core.db.one("UPDATE llm_properties SET archived_at='y' RETURNING id")
+    core.db.one("UPDATE llm_properties SET inactive_at='y' RETURNING id")
+    assert external_ai_active(repos) is False
+    # in the Papierkorb but switched on: not polled either
+    core.db.one("UPDATE llm_properties SET inactive_at=NULL, deleted_at='y' RETURNING id")
     assert external_ai_active(repos) is False
     # an enabled category with a verdict
     spec = {"title": "Coolstes", "verdict": {"prompt": "Wer?"}}

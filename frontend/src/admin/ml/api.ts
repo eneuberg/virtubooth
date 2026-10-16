@@ -51,9 +51,22 @@ export function createProperty(name: string, prompt: string): Promise<LlmPropert
   return wallFetch('/llm/properties', { method: 'POST', json: { name, prompt } });
 }
 
-export function archiveProperty(name: string, archive: boolean): Promise<LlmProperty> {
-  const action = archive ? 'archive' : 'unarchive';
-  return wallFetch(`/llm/properties/${encodeURIComponent(name)}/${action}`, { method: 'POST' });
+const propertyPath = (name: string) => `/llm/properties/${encodeURIComponent(name)}`;
+
+/** The switch „aktiv“: inactive = not polled any more, the scores stay. */
+export function setPropertyActive(name: string, active: boolean): Promise<LlmProperty> {
+  return wallFetch(`${propertyPath(name)}/active`, { method: 'PUT', json: { active } });
+}
+
+/** „Löschen“ (into the Papierkorb) or „Wiederherstellen“ (back as it was). */
+export function trashProperty(name: string, trash: boolean): Promise<LlmProperty> {
+  return wallFetch(`${propertyPath(name)}/${trash ? 'trash' : 'restore'}`, { method: 'POST' });
+}
+
+/** „Endgültig löschen“ (only from the Papierkorb): the property and its scores. */
+export async function deleteProperty(name: string): Promise<LlmProperty[]> {
+  return (await wallFetch<{ properties: LlmProperty[] }>(propertyPath(name), { method: 'DELETE' }))
+    .properties;
 }
 
 /**

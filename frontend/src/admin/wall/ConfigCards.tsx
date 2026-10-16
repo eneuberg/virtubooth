@@ -265,7 +265,7 @@ export function LookCard({ draft, update, errors }: DraftProps & { defaults: Wal
   const look = draft.look;
   const set = (patch: Partial<WallConfig['look']>) =>
     update((c) => ({ ...c, look: { ...c.look, ...patch } }));
-  // a colour left at null follows the theme (Allgemeines → Erscheinungsbild)
+  // a colour left at null follows the theme (Erscheinungsbild)
   const theme: ThemeColors = useAdminTheme().data?.theme.colors ?? NEON_NACHT;
   const resolved = {
     ...look,

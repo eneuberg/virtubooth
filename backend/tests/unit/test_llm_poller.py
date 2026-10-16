@@ -82,18 +82,24 @@ def test_out_of_range_values_are_clamped_by_the_parser():
     assert parsed == {"Pa": [1.0, 0.0, None, None, 0.25]}
 
 
-def test_archived_properties_are_not_polled(core):
+def test_inactive_and_trashed_properties_are_not_polled(core):
     from virtubooth.extensions.wall.llm import properties
 
     fake = FakeProvider()
     svc = setup_llm(core, fake)
     prop = add_property(core)
     add_property(core, "lustigkeit", "Wie lustig?")
+    add_property(core, "weg", "Im Papierkorb?")
     add_photo(core, add_guest(core))
-    properties.set_archived(core.db, core.repos.audit, "lustigkeit", True, actor="t")
+    properties.set_active(core.db, core.repos.audit, "lustigkeit", False, actor="t")
+    properties.set_trashed(core.db, core.repos.audit, "weg", True, actor="t")
+    assert [p.name for p in properties.active(core.db)] == ["coolness"]
     poll_once(svc)
     assert [p for p, _, _ in fake.scored] == ["Wie cool ist das?"]
     assert len(scores(core, prop)) == 1
+    # a trashed property that is still switched on is not polled either
+    properties.set_trashed(core.db, core.repos.audit, "coolness", True, actor="t")
+    assert properties.active(core.db) == []
 
 
 def test_latest_values_only_and_skip_when_unchanged(core):

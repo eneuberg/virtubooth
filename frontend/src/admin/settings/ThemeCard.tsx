@@ -1,5 +1,5 @@
 /**
- * „Erscheinungsbild“: the colours of the guest pages and the Live Wall (the admin keeps
+ * „Erscheinungsbild“ (its own section, LookSection.tsx): the colours of the guest pages and the Live Wall (the admin keeps
  * its look). A preset („Neon Nacht“, „Klassisch“, „Rummel“) or own colours and a style
  * (Ruhig, Party, Verspielt; the default is Neon Nacht, Verspielt), with a live preview
  * of a guest card and a wall tile. The server checks that text stays readable (4.5:1);
@@ -123,7 +123,7 @@ export function ThemeCard({ data }: { data: AdminThemeOut }) {
 
   return (
     <div className="md:col-span-2 xl:col-span-3">
-      <SettingsCard title="Erscheinungsbild" icon={Palette} testid="settings-theme">
+      <SettingsCard title="Farben und Stil" icon={Palette} testid="settings-theme">
         <p className="max-w-prose text-sm text-ink-muted">
           Farben der Gästeseiten und der Live-Wall. Die Verwaltung behält ihr Aussehen. Gäste sehen neue
           Farben, sobald sie die Seite wieder öffnen; die Live-Wall sofort.

@@ -84,6 +84,8 @@ ErrorCode = Literal[
     "llm_budget_exhausted",
     "invalid_property",
     "property_exists",
+    "property_not_in_trash",
+    "property_in_use",
     # request guards
     "bad_origin",
     "length_required",

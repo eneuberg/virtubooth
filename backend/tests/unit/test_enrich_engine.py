@@ -77,13 +77,13 @@ class Party:
             self.scores(pid, name, scores)
         return pid
 
-    def prop(self, name: str, *, archived: bool = False) -> int:
+    def prop(self, name: str, *, inactive: bool = False) -> int:
         if name not in self._props:
             with self.db.tx() as c:
                 c.execute(
-                    "INSERT INTO llm_properties (name, prompt, created_at, archived_at) "
+                    "INSERT INTO llm_properties (name, prompt, created_at, inactive_at) "
                     "VALUES (?, 'p', ?, ?)",
-                    (name, T0, T0 if archived else None),
+                    (name, T0, T0 if inactive else None),
                 )
             self._props[name] = int(
                 self.db.one("SELECT id FROM llm_properties WHERE name=?", (name,))[0]
@@ -376,7 +376,7 @@ def test_availability():
     assert reason("generationen", {"basic", "faces", "tags"}) is None
     assert reason("eroeffnung", set()) is None and reason("farbexplosion", {"basic"}) is None
     assert reason("coolstes_objekt", everything) == "Braucht die Eigenschaft „coolness“."
-    assert reason("coolstes_objekt", everything, {"coolness": True}) is None  # archived: readable
+    assert reason("coolstes_objekt", everything, {"coolness": True}) is None  # inactive: readable
 
 
 def test_the_snapshot_is_cached_until_something_changes(party):

@@ -45,7 +45,8 @@ def make_users(live: LiveServer, n: int) -> None:
     [("fotos", "Fotos"), ("gaeste", "Gäste"), ("instagram", "Instagram"),
      ("fotobox", "Fotobox"), ("livewall", "Live-Wall"), ("sperren", "Sperren"),
      ("protokoll", "Protokoll"), ("qr", "QR-Codes"), ("plakat", "Plakat"), ("export", "Export"),
-     ("allgemein", "Allgemeines"), ("einstellungen", "Allgemeines"), ("nope", "Fotos")],
+     ("allgemein", "Allgemeines"), ("einstellungen", "Allgemeines"),
+     ("erscheinungsbild", "Erscheinungsbild"), ("nope", "Fotos")],
 )  # fmt: skip
 def test_tab_deep_links(desktop_page: Page, live: LiveServer, tab: str, heading: str) -> None:
     goto(desktop_page, live, f"/admin/manage?tab={tab}")
@@ -59,14 +60,16 @@ def test_tab_deep_links(desktop_page: Page, live: LiveServer, tab: str, heading:
 
 
 def test_nav_order_and_no_settings_footer_link(desktop_page: Page, live: LiveServer) -> None:
-    """N17: Übersicht · Allgemeines · Fotos · Gäste · Instagram · Fotobox · Live-Wall · …"""
+    """N17: Übersicht · Allgemeines · Erscheinungsbild · Fotos · Gäste · Instagram · Fotobox ·
+    Live-Wall · …"""
     page = desktop_page
     goto(page, live, "/admin/manage")
     nav = page.get_by_role("navigation", name="Verwaltung")
     expect(nav.get_by_role("link", name="Fotobox")).to_be_visible()
     labels = [t.strip() for t in nav.get_by_role("link").all_inner_texts()]
     names = [re.sub(r"\s*\d+$", "", t) for t in labels]
-    order = ["Übersicht", "Allgemeines", "Fotos", "Gäste", "Instagram", "Fotobox", "Live-Wall"]
+    order = ["Übersicht", "Allgemeines", "Erscheinungsbild", "Fotos", "Gäste", "Instagram",
+             "Fotobox", "Live-Wall"]  # fmt: skip
     assert [n for n in names if n in order] == order, names
     assert "Einstellungen" not in names
     expect(page.get_by_test_id("settings-link")).to_have_count(0)

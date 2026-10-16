@@ -73,7 +73,7 @@ export interface WallConfig {
   show_instagram: boolean;
   look: {
     preset: LookPreset;
-    /** null: wie Theme (Allgemeines → Erscheinungsbild: primary / accent / background) */
+    /** null: wie Theme (Erscheinungsbild: primary / accent / background) */
     primary: string | null;
     secondary: string | null;
     background: string | null;
@@ -223,7 +223,7 @@ export interface ValueInfo {
   needs: string | string[] | null;
   available: boolean;
   reason: string | null;
-  archived: boolean;
+  inactive: boolean;
 }
 
 export interface LabelInfo {
@@ -381,7 +381,7 @@ export interface PhotoAnalysis {
   /** the guest's LIVE opt-out flags */
   opt_out: { analysis: boolean; external_ai: boolean };
   /** the latest property scores, one per object (index = idx) */
-  properties: Array<{ name: string; archived: boolean; scores: Array<number | null> }>;
+  properties: Array<{ name: string; inactive: boolean; scores: Array<number | null> }>;
   durations_ms: Record<string, number>;
 }
 

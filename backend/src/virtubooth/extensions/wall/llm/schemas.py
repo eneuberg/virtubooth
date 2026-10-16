@@ -140,12 +140,21 @@ class PropertyIn(BaseModel):
     prompt: str = Field(description="1–2000 characters, immutable")
 
 
+class PropertyActiveIn(BaseModel):
+    active: bool
+
+
 class PropertyOut(BaseModel):
     id: int
     name: str
     prompt: str
     created_at: str
-    archived_at: str | None
+    active: bool = Field(description="The switch „aktiv“: false = not polled, scores stay.")
+    inactive_at: str | None = Field(description="When it was switched off; null = active.")
+    deleted_at: str | None = Field(
+        description="In the Papierkorb since (not polled, hidden from the value pickers); "
+        "null = not in the Papierkorb. Restoring keeps the switch's state."
+    )
     scored_photos: int
     last_scored_at: str | None
 

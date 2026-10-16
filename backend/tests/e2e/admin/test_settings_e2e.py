@@ -49,6 +49,7 @@ def test_the_event_name_reaches_the_guests_and_goes_back(
     expect(field).to_have_value("E2E Party")
     expect(admin.get_by_role("heading", name="Öffentliche Adresse")).to_be_visible()
     expect(admin.get_by_test_id("settings-booth-filters")).to_have_count(0)
+    expect(admin.get_by_test_id("settings-theme")).to_have_count(0)
     shot(admin, "admin-settings-desktop")
     expect(admin.get_by_test_id("event-name-reset")).to_have_count(0)
     field.fill("  Gartenfest   2026 ")
@@ -221,9 +222,15 @@ def test_the_theme_reaches_the_guests_but_not_the_admin(
     desktop_page: Page, browser: Browser, live: LiveServer
 ) -> None:
     admin = desktop_page
-    open_settings(admin, live)
+    goto(admin, live, "/admin/manage")
+    # its own section, right after Allgemeines (no longer a card there)
+    admin.get_by_role("navigation", name="Verwaltung").get_by_role(
+        "link", name="Erscheinungsbild"
+    ).click()
+    expect(admin.get_by_role("heading", name="Erscheinungsbild", level=1)).to_be_visible()
+    assert admin.url.endswith("/admin/manage?tab=erscheinungsbild")
     card = admin.get_by_test_id("settings-theme")
-    expect(card.get_by_role("heading", name="Erscheinungsbild")).to_be_visible()
+    expect(card.get_by_role("heading", name="Farben und Stil")).to_be_visible()
     # the default: Neon Nacht in the style „Verspielt“
     expect(card.get_by_role("radio", name="Neon Nacht")).to_be_checked()
     expect(card.get_by_role("radio", name="Verspielt")).to_be_checked()

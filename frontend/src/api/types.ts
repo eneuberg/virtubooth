@@ -131,7 +131,7 @@ export type EventSettings = S['EventSettings'];
 export type PublicAddress = S['PublicAddress'];
 export type AddressCheck = S['AddressCheck'];
 export type PasswordState = S['PasswordState'];
-/** GET/PUT/DELETE /api/admin/theme (Allgemeines → Erscheinungsbild) */
+/** GET/PUT/DELETE /api/admin/theme (Erscheinungsbild) */
 export type AdminThemeOut = S['AdminThemeOut'];
 export type AdminTheme = S['AdminTheme'];
 export type ThemePreset = S['ThemePreset'];

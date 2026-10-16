@@ -15,12 +15,18 @@ const file = (props: unknown, version: unknown = 1) => JSON.stringify({ version,
 const text = (err: unknown) => (err instanceof Error ? err.message : String(err));
 
 describe('Eigenschaften export', () => {
-  it('writes all properties, archived ones included, with name, prompt and archived only', () => {
+  it('writes all properties, inactive ones and the Papierkorb included, with name, prompt, active and deleted', () => {
     expect(exportPayload(properties())).toEqual({
       version: 1,
       properties: [
-        { name: 'coolness', prompt: 'Bewerte, wie cool jedes Objekt ist.', archived: false },
-        { name: 'most_giraffe', prompt: 'Wie sehr erinnert das Objekt an eine Giraffe?', archived: true },
+        { name: 'coolness', prompt: 'Bewerte, wie cool jedes Objekt ist.', active: true, deleted: false },
+        {
+          name: 'most_giraffe',
+          prompt: 'Wie sehr erinnert das Objekt an eine Giraffe?',
+          active: false,
+          deleted: false,
+        },
+        { name: 'old_vibe', prompt: 'Wie retro wirkt das Objekt?', active: true, deleted: true },
       ],
     });
   });
@@ -45,7 +51,7 @@ describe('Eigenschaften import: validation', () => {
     });
   });
 
-  it('lists bad entries and keeps the good ones (prompt trimmed, archived defaults to false)', () => {
+  it('lists bad entries and keeps the good ones (prompt trimmed, active by default)', () => {
     const out = parseImport(
       file([
         { name: 'ok_one', prompt: '  Wie cool?  ' },
@@ -55,10 +61,12 @@ describe('Eigenschaften import: validation', () => {
         { name: 'flag', prompt: 'x', archived: 'yes' },
         { prompt: 'no name' },
         42,
+        { name: 'flag_two', prompt: 'x', active: 1 },
+        { name: 'flag_three', prompt: 'x', deleted: 'no' },
       ]),
     );
     if (!out.ok) throw new Error(out.error);
-    expect(out.entries).toEqual([{ name: 'ok_one', prompt: 'Wie cool?', archived: false }]);
+    expect(out.entries).toEqual([{ name: 'ok_one', prompt: 'Wie cool?', active: true, deleted: false }]);
     expect(out.invalid.map((x) => x.label)).toEqual([
       'Bad Name',
       'empty',
@@ -66,46 +74,95 @@ describe('Eigenschaften import: validation', () => {
       'flag',
       'Eintrag 6',
       'Eintrag 7',
+      'flag_two',
+      'flag_three',
     ]);
     expect(out.invalid[0]?.reason).toContain('Kleinbuchstaben');
+    expect(out.invalid[6]?.reason).toBe('active muss true oder false sein');
+  });
+
+  it('reads older files: archived means inactive, an explicit active wins', () => {
+    const out = parseImport(
+      file([
+        { name: 'old_one', prompt: 'x', archived: true },
+        { name: 'kept', prompt: 'x', archived: false },
+        { name: 'both', prompt: 'x', archived: true, active: true },
+      ]),
+    );
+    if (!out.ok) throw new Error(out.error);
+    expect(out.entries.map((e) => [e.name, e.active, e.deleted])).toEqual([
+      ['old_one', false, false],
+      ['kept', true, false],
+      ['both', true, false],
+    ]);
   });
 });
 
-describe('Eigenschaften import: create, skip, archive', () => {
+const entry = (name: string, prompt: string, active = true, deleted = false): PropertyEntry => ({
+  name,
+  prompt,
+  active,
+  deleted,
+});
+
+describe('Eigenschaften import: create, skip, switch off, Papierkorb', () => {
   const entries: PropertyEntry[] = [
-    { name: 'coolness', prompt: 'anders', archived: false },
-    { name: 'shiny', prompt: 'Wie glänzend?', archived: false },
-    { name: 'old', prompt: 'Alt.', archived: true },
-    { name: 'shiny', prompt: 'doppelt', archived: false },
-    { name: 'raced', prompt: 'x', archived: false },
-    { name: 'broken', prompt: 'x', archived: false },
+    entry('coolness', 'anders'),
+    entry('shiny', 'Wie glänzend?'),
+    entry('old', 'Alt.', false),
+    entry('shiny', 'doppelt'),
+    entry('raced', 'x'),
+    entry('broken', 'x'),
+    entry('binned', 'Weg.', false, true),
   ];
 
-  it('creates only new names, archives when asked, never overwrites', async () => {
+  it('creates only new names, switches off and trashes when asked, never overwrites', async () => {
     const create = vi.fn<(name: string, prompt: string) => Promise<unknown>>((name) => {
       if (name === 'raced') return Promise.reject(new ApiError(409, 'property_exists', 'gibt es schon'));
       if (name === 'broken') return Promise.reject(new Error('Server weg'));
       return Promise.resolve({});
     });
-    const archive = vi.fn<(name: string, archive: boolean) => Promise<unknown>>(() => Promise.resolve({}));
-    const out = await importProperties(entries, ['coolness'], { create, archive }, text);
+    const setActive = vi.fn<(name: string, active: boolean) => Promise<unknown>>(() => Promise.resolve({}));
+    const trash = vi.fn<(name: string, trash: boolean) => Promise<unknown>>(() => Promise.resolve({}));
+    const out = await importProperties(entries, ['coolness'], { create, setActive, trash }, text);
     expect(create.mock.calls).toEqual([
       ['shiny', 'Wie glänzend?'],
       ['old', 'Alt.'],
       ['raced', 'x'],
       ['broken', 'x'],
+      ['binned', 'Weg.'],
     ]);
-    expect(archive.mock.calls).toEqual([['old', true]]);
+    expect(setActive.mock.calls).toEqual([
+      ['old', false],
+      ['binned', false],
+    ]);
+    expect(trash.mock.calls).toEqual([['binned', true]]);
     expect(out).toEqual({
-      imported: ['shiny', 'old'],
+      imported: ['shiny', 'old', 'binned'],
       skipped: ['coolness', 'shiny', 'raced'],
       failed: [{ label: 'broken', reason: 'Server weg' }],
     });
     expect(importSummary({ ...out, invalid: [{ label: 'x', reason: 'y' }] })).toBe(
-      '2 importiert, 3 übersprungen (gibt es schon), 1 ungültig, 1 fehlgeschlagen',
+      '3 importiert, 3 übersprungen (gibt es schon), 1 ungültig, 1 fehlgeschlagen',
     );
     expect(importSummary({ imported: ['a'], skipped: [], invalid: [], failed: [] })).toBe(
       '1 importiert, 0 übersprungen (gibt es schon), 0 ungültig',
     );
+  });
+
+  it('reports a follow-up step that failed', async () => {
+    const out = await importProperties(
+      [entry('binned', 'x', true, true)],
+      [],
+      {
+        create: () => Promise.resolve({}),
+        setActive: () => Promise.resolve({}),
+        trash: () => Promise.reject(new Error('kaputt')),
+      },
+      text,
+    );
+    expect(out.failed).toEqual([
+      { label: 'binned', reason: 'angelegt, aber nicht in den Papierkorb gelegt: kaputt' },
+    ]);
   });
 });

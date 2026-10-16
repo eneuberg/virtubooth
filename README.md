@@ -56,7 +56,7 @@ The UI is German, built for iOS Safari and Android Chrome.
 ## Three looks
 
 The host picks the look of the guest pages and the Live-Wall in Admin →
-Allgemeines → „Erscheinungsbild“: the colour presets „Neon Nacht“,
+„Erscheinungsbild“: the colour presets „Neon Nacht“,
 „Klassisch“ and „Rummel“ (or your own colours) and a style: „Ruhig“,
 „Party“ or „Verspielt“, the fairground default with signs, light bulbs,
 googly eyes and a buzzer for a shutter. The default is Neon Nacht in

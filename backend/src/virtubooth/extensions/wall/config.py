@@ -95,7 +95,7 @@ class WallCategoriesConfig(BaseModel):
         return []
 
 
-# the colours before the theme (Allgemeines → Erscheinungsbild): a stored
+# the colours before the theme (Erscheinungsbild): a stored
 # config that still has them never chose them, so it follows the theme
 LEGACY_LOOK_COLORS: dict[str, str] = {
     "primary": "#a855f7",

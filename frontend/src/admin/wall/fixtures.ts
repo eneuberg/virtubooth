@@ -220,7 +220,7 @@ export function photoAnalysis(state: PhotoAnalysis['state'] = 'done'): PhotoAnal
     ],
     objects_fallback: null,
     opt_out: { analysis: false, external_ai: false },
-    properties: [{ name: 'coolness', archived: false, scores: [0.2, 0.9] }],
+    properties: [{ name: 'coolness', inactive: false, scores: [0.2, 0.9] }],
     durations_ms: { basic: 12, faces: 140 },
   };
 }
@@ -248,7 +248,7 @@ export const valuesOut: ValuesOut = {
 };
 
 function v(key: string, title: string, group: string, kind: ValuesOut['values'][number]['kind']) {
-  return { key, title, group, kind, unit: null, needs: null, available: true, reason: null, archived: false };
+  return { key, title, group, kind, unit: null, needs: null, available: true, reason: null, inactive: false };
 }
 
 export function spec(over: Partial<CategorySpec> = {}): CategorySpec {

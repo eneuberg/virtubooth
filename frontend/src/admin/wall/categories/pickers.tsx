@@ -94,7 +94,7 @@ export function ValuePicker({
                     <>
                       <span className="min-w-0 flex-1 truncate">
                         {c.title}
-                        {c.archived ? <span className="text-ink-muted"> (archiviert)</span> : null}
+                        {c.inactive ? <span className="text-ink-muted"> (inaktiv)</span> : null}
                         {!c.available ? <span className="text-ink-muted"> (gerade aus)</span> : null}
                       </span>
                       {isSelected ? (
