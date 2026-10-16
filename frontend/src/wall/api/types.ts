@@ -127,15 +127,32 @@ export interface WallFeed {
   server_time: string;
 }
 
+/** 0..1 of the shown photo (the same crop as the analysed one), top-left corner. */
+export interface WallBox {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+}
+
 export interface CategoryWinner {
   photo: WallPhoto;
   value: number | null;
+  /** headline and detail together (older servers send only this) */
   label: string;
+  /** the object's name (show_object) or the value text; missing on older servers: `label` */
+  headline?: string;
+  /** the value text when the headline is an object („0,93 Coolness“) */
+  detail?: string | null;
   /** the object (idx in the photo's object list) the value came from, if any */
   object_idx?: number | null;
+  /** the focus object: the wall frames it */
+  object?: { idx: number; label_de: string; value: number | null; box: WallBox | null } | null;
+  /** the AI's comment on this winner */
+  comment?: { text: string; emoji: string | null } | null;
 }
 
-/** The external AI's latest word on a category (PLAN-NIGHT §4.3), shown under the winner. */
+/** Deprecated (categories v2: `winners[].comment`): the first winner's comment. */
 export interface WallCategoryVerdict {
   text: string;
   emoji: string | null;
