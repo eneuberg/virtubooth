@@ -5,9 +5,11 @@
  * archiving stops the polling and keeps the last scores, and can be undone.
  */
 import { useQueryClient } from '@tanstack/react-query';
-import { Archive, ArchiveRestore, Plus, RefreshCw, Save, Tags } from 'lucide-react';
-import { useState, type FormEvent } from 'react';
+import { Archive, ArchiveRestore, Download, Plus, RefreshCw, Save, Tags, Upload } from 'lucide-react';
+import { useState, type FormEvent, type ReactNode } from 'react';
+import { FileTrigger } from 'react-aria-components';
 import { isApiError } from '@/api/client';
+import { downloadBlob } from '@/print/names';
 import { formatDateTime, formatNumber, formatRelative, formatTime } from '@/lib/format';
 import { Badge } from '@/ui/Badge';
 import { Button } from '@/ui/Button';
@@ -25,6 +27,14 @@ import { ExternalAiHint } from './ExternalAiHint';
 import { parseMinutes, PROPERTY_PROMPT_MAX, validateProperty } from './forms';
 import { useProperties } from './hooks';
 import { CostText, PartState } from './PartState';
+import {
+  exportPayload,
+  importProperties,
+  importSummary,
+  parseImport,
+  PROPERTIES_FILE,
+  type InvalidEntry,
+} from './propertiesJson';
 import type { LlmProperty, LlmStatus } from './types';
 
 /** „Eigenschaften abfragen“: switch and interval (one PUT /llm/config), then the poller's state. */
@@ -256,6 +266,107 @@ function NewPropertySheet({
   );
 }
 
+/** „Exportieren“ (all, archived included) and „Importieren“ (only new names, never overwrites). */
+function PropertiesJson({
+  props,
+  ready,
+  children,
+}: {
+  props: readonly LlmProperty[];
+  ready: boolean;
+  children: ReactNode;
+}) {
+  const qc = useQueryClient();
+  const [busy, setBusy] = useState(false);
+  const [problems, setProblems] = useState<InvalidEntry[]>([]);
+
+  const exportJson = () => {
+    const text = `${JSON.stringify(exportPayload(props), null, 2)}\n`;
+    downloadBlob(new Blob([text], { type: 'application/json' }), PROPERTIES_FILE);
+  };
+
+  const importJson = async (files: FileList | null) => {
+    const file = files?.[0];
+    if (!file) return;
+    setBusy(true);
+    setProblems([]);
+    try {
+      const parsed = parseImport(await file.text(), file.size);
+      if (!parsed.ok) {
+        showToast({ message: parsed.error, tone: 'error' });
+        return;
+      }
+      const done = await importProperties(
+        parsed.entries,
+        props.map((p) => p.name),
+        { create: createProperty, archive: archiveProperty },
+        errorText,
+      );
+      const result = { ...done, invalid: parsed.invalid };
+      // one line per distinct problem (a repeated bad entry shows once)
+      const lines = new Map([...result.invalid, ...result.failed].map((x) => [`${x.label}: ${x.reason}`, x]));
+      setProblems([...lines.values()]);
+      showToast({
+        message: importSummary(result),
+        tone: result.failed.length || result.invalid.length ? 'error' : 'success',
+      });
+      if (done.imported.length) {
+        await qc.invalidateQueries({ queryKey: wk.properties });
+        void qc.invalidateQueries({ queryKey: wk.values });
+      }
+    } catch (err) {
+      showError(err);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="grid gap-2">
+      <div className="flex flex-wrap items-center gap-2">
+        {children}
+        <Button
+          size="sm"
+          variant="quiet"
+          icon={Download}
+          isDisabled={!ready || props.length === 0}
+          onPress={exportJson}
+          data-testid="ml-properties-export"
+        >
+          Exportieren
+        </Button>
+        <FileTrigger acceptedFileTypes={['application/json', '.json']} onSelect={(f) => void importJson(f)}>
+          <Button
+            size="sm"
+            variant="quiet"
+            icon={Upload}
+            isPending={busy}
+            isDisabled={!ready}
+            data-testid="ml-properties-import"
+          >
+            Importieren
+          </Button>
+        </FileTrigger>
+      </div>
+      {problems.length ? (
+        <div className="text-sm" data-testid="ml-properties-import-problems">
+          <p className="font-semibold">Nicht importiert:</p>
+          <ul className="grid gap-0.5">
+            {problems.slice(0, 10).map((x) => (
+              <li key={`${x.label}: ${x.reason}`}>
+                <span className="font-mono">{x.label}</span>: {x.reason}
+              </li>
+            ))}
+            {problems.length > 10 ? (
+              <li className="text-ink-muted">… und {problems.length - 10} weitere</li>
+            ) : null}
+          </ul>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
 function PropertyRow({ property: p }: { property: LlmProperty }) {
   const qc = useQueryClient();
   const [busy, setBusy] = useState(false);
@@ -317,16 +428,18 @@ export function PropertiesCard({ status }: { status: LlmStatus }) {
       intro="Bei jeder Abfrage bewertet die KI alle Objekte neu, z. B. wie cool sie sind. Kategorien können danach sortieren."
     >
       <PollControls status={status} />
-      <Button
-        size="sm"
-        variant="secondary"
-        icon={Plus}
-        onPress={() => setOpen(true)}
-        className="justify-self-start"
-        data-testid="ml-property-new"
-      >
-        Neue Eigenschaft
-      </Button>
+      <PropertiesJson props={props} ready={list.isSuccess}>
+        <Button
+          size="sm"
+          variant="secondary"
+          icon={Plus}
+          onPress={() => setOpen(true)}
+          className="mr-auto"
+          data-testid="ml-property-new"
+        >
+          Neue Eigenschaft
+        </Button>
+      </PropertiesJson>
       {list.isPending ? (
         <Spinner label="Lädt…" />
       ) : list.isError ? (
