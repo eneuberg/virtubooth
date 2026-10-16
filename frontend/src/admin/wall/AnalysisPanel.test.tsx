@@ -221,11 +221,9 @@ describe('AnalysisPanel', () => {
   });
 
   it('says when object detection was switched off', async () => {
-    const runs = photoAnalysis().runs.map((r) => ({
-      ...r,
-      state: 'skipped' as const,
-      error: 'ausgeschaltet',
-    }));
+    const runs = photoAnalysis().runs.map((r) =>
+      Object.assign(r, { state: 'skipped' as const, error: 'ausgeschaltet' }),
+    );
     renderPanel({ [PATH]: () => ({ ...photoAnalysis(), objects: [], runs }) });
     expect(await screen.findByText(/Objekterkennung war ausgeschaltet/)).toBeTruthy();
     expect(screen.queryByTestId('analysis-runs')).toBeNull();

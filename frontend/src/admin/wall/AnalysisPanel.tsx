@@ -211,7 +211,7 @@ const EMPTY: Record<ObjectView, string> = {
 };
 
 /** Object detection was set to „Aus“ when this photo was analysed: every run skipped as off. */
-export function detectionWasOff(analysis: PhotoAnalysis): boolean {
+function detectionWasOff(analysis: PhotoAnalysis): boolean {
   return (
     analysis.objects.length === 0 &&
     analysis.runs.length > 0 &&
