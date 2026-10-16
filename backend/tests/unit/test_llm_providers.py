@@ -116,7 +116,7 @@ def test_guest_text_is_quoted_data():
 
 @pytest.mark.parametrize(
     ("status", "kind"),
-    [(401, "auth"), (403, "auth"), (429, "rate"), (500, "server"), (404, "other"), (400, "other")],
+    [(401, "auth"), (403, "auth"), (429, "rate"), (500, "server"), (404, "model"), (400, "other")],
 )
 def test_anthropic_errors(status, kind):
     provider = AnthropicProvider(
@@ -273,17 +273,3 @@ def test_mistral_truncated_answer():
     with pytest.raises(ProviderError) as exc:
         provider.score("p", [], model="mistral-small-2506")
     assert exc.value.kind == "bad_output" and exc.value.usage.output_tokens == 40
-
-
-def test_mistral_ping():
-    seen = []
-    provider = MistralProvider(
-        "k" * 32,
-        http_client=httpx2.Client(
-            transport=httpx2.MockTransport(
-                lambda r: seen.append(r) or httpx2.Response(200, json={"id": "m"})
-            )
-        ),
-    )
-    assert provider.ping("mistral-small-2506").input_tokens == 0
-    assert seen[0].method == "GET" and seen[0].url.path == "/v1/models/mistral-small-2506"

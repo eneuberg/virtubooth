@@ -23,6 +23,7 @@ from ..llm_fakes import (
     add_photo,
     add_property,
     setup_llm,
+    store_key,
 )
 
 BASE = "/api/x/wall/admin/llm"
@@ -73,6 +74,7 @@ def test_a_stored_config_from_before_the_split_maps_onto_the_two_switches(core):
 
 
 def test_put_switches_the_parts_independently(admin, core):
+    store_key(core)
     r = admin.put(f"{BASE}/config", json={"enabled": True, "poll": False,
                                          "detect": DETECT}, headers=ORIGIN)  # fmt: skip
     assert r.status_code == 200, r.text

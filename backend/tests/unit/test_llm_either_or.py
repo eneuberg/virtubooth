@@ -19,7 +19,7 @@ from virtubooth.extensions.wall.llm import admin_api, config, ports
 from virtubooth.extensions.wall.llm.detect import DetectionRunner
 
 from ..conftest import ORIGIN
-from ..llm_fakes import FakeProvider, add_guest, add_photo, setup_llm
+from ..llm_fakes import FakeProvider, add_guest, add_photo, setup_llm, store_key
 
 BASE = "/api/x/wall/admin/llm"
 AI = [ports.DetectedObject("party hat", "Partyhut", 0.8, (0.1, 0.0, 0.2, 0.2))]
@@ -98,6 +98,7 @@ def test_mode_route_switches_either_or(admin, core):
         assert r.status_code == 200, r.text
         return r.json()
 
+    setup_llm(core)  # a key, the master switch on
     assert admin.get(BASE).json()["detection"]["mode"] == "local"
     body = put("ai")
     assert body["detection"]["mode"] == "ai" and body["config"]["detect"]["external"]
@@ -109,6 +110,66 @@ def test_mode_route_switches_either_or(admin, core):
     assert body["detection"]["mode"] == "off" and not local_on(core)
     r = admin.put(f"{BASE}/object-detection", json={"mode": "both"}, headers=ORIGIN)
     assert r.status_code == 422
+
+
+def test_ai_is_refused_while_it_cannot_detect_and_local_stays(admin, core):
+    """„KI“ only while the AI can detect: the master switch on, a key for the
+    selected provider (another provider's key does not count), vision. Refused:
+    409 with the reason, „Lokal“ stored, audit-logged."""
+
+    def put(mode):
+        return admin.put(f"{BASE}/object-detection", json={"mode": mode}, headers=ORIGIN)
+
+    def refused(part):
+        r = put("ai")
+        assert r.status_code == 409 and r.json()["error"] == "ai_detection_unavailable", r.text
+        assert part in r.json()["message"] and "lokalen Modell" in r.json()["message"]
+        status = admin.get(BASE).json()
+        assert status["detection"]["mode"] == "local" and local_on(core)
+        assert not status["config"]["detect"]["external"]
+        return status
+
+    put("off")
+    status = refused("externe KI ist ausgeschaltet")
+    assert "ausgeschaltet" in status["detection"]["ai_unavailable"]
+    r = admin.put(f"{BASE}/config", json={"enabled": True, "provider": "scaleway"},
+                  headers=ORIGIN)  # fmt: skip
+    assert r.status_code == 200, r.text
+    no_key = "Kein API-Schlüssel für Scaleway (DeepSeek, EU) gesetzt."
+    assert r.json()["detection"]["ai_unavailable"] == no_key
+    refused(no_key)
+    # another provider's key does not count
+    store_key(core, "anthropic")
+    refused(no_key)
+    store_key(core, "scaleway", "scw-0123456789")
+    r = put("ai")
+    assert r.status_code == 200, r.text
+    assert r.json()["detection"]["mode"] == "ai" and r.json()["detection"]["ai_unavailable"] is None
+    assert not local_on(core)
+    entries = [e.details for e in core.repos.audit.list(20) if e.action == "llm.detection"]
+    assert entries[0] == {"mode": "ai"}
+    assert entries[1] == {"mode": "local", "refused": "ai", "reason": no_key}
+    # a provider without vision: refused as well
+    admin.put(f"{BASE}/object-detection", json={"mode": "local"}, headers=ORIGIN)
+    admin.put(f"{BASE}/config", json={"provider": "deutschlandgpt"}, headers=ORIGIN)
+    refused("kann keine Fotos ansehen")
+
+
+def test_switching_the_master_off_or_deleting_the_key_switches_to_local(admin, core):
+    setup_llm(core, detect={"external": True})
+    ports.set_local_objects(core, False, by="t")
+    assert admin.get(BASE).json()["detection"]["mode"] == "ai"
+    r = admin.delete(f"{BASE}/key", headers=ORIGIN)
+    assert r.status_code == 200
+    det = admin.get(BASE).json()["detection"]
+    assert det["mode"] == "local" and local_on(core)
+    assert det["notice"] == "Kein API-Schlüssel für Anthropic (Claude, USA) gesetzt."
+    # the master switch off while „KI“ is chosen: „Lokal“ as well
+    setup_llm(core)
+    admin.put(f"{BASE}/object-detection", json={"mode": "ai"}, headers=ORIGIN)
+    r = admin.put(f"{BASE}/config", json={"enabled": False}, headers=ORIGIN)
+    det = r.json()["detection"]
+    assert det["mode"] == "local" and "ausgeschaltet" in det["notice"]
 
 
 def test_local_switch_on_switches_the_ai_off(core):
@@ -222,7 +283,7 @@ def test_the_local_detector_takes_over_while_the_ai_cannot(core, cause):
     budget = {"party_calls": 0} if cause == "budget" else {}
     svc = setup_llm(core, FakeProvider(objects=AI), budget=budget)
     if cause == "no_key":
-        svc.keys.clear()
+        svc.keys.clear("anthropic")
     config.set_ai_detection(core.repos.app_settings, True, by="t")
     ports.set_local_objects(core, False, by="t")
     assert jobs.ai_detection_active(core.repos.app_settings)
@@ -295,3 +356,18 @@ def test_detection_stats_and_cost_in_the_status(admin, core):
     # FakeProvider's usage: 1000 in / 200 out on Claude Haiku 5.5
     assert det["cost_usd"] == pytest.approx((1000 * 0.10 + 200 * 0.50) / 1e6)
     assert fake.efforts == ["low"]
+
+
+def test_the_worker_sees_the_key_of_the_selected_provider_only(core):
+    """A key stored for another provider (e.g. saved before switching) is not a key
+    for the selected one: the worker's fallback says so instead of queueing."""
+    from virtubooth.extensions.wall.llm import crypto
+
+    svc = setup_llm(core, FakeProvider(objects=AI), provider="scaleway",
+                    model="deepseek-v4.1-flash", detect={"external": True})  # fmt: skip
+    repo = core.repos.app_settings
+    assert crypto.stored_providers(repo) == {"anthropic"}
+    assert jobs.ai_detection_blocked(core.db, repo) == jobs.NO_KEY
+    store_key(core, "scaleway", "scw-0123456789")
+    assert jobs.ai_detection_blocked(core.db, repo) is None
+    assert svc.keys.load("scaleway") == "scw-0123456789"

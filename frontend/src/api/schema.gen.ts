@@ -1513,12 +1513,16 @@ export interface paths {
         get?: never;
         /**
          * Set Llm Key
-         * @description Store the key encrypted (write-only). 400 `llm_key_invalid` for an
-         *     obviously malformed one (more than 400 characters, whitespace).
+         * @description Store `provider`'s key encrypted (write-only; one key per provider, the
+         *     others stay). 400 `llm_key_invalid` for an obviously malformed one (more
+         *     than 400 characters, whitespace).
          */
         put: operations["set_llm_key_api_x_wall_admin_llm_key_put"];
         post?: never;
-        /** Clear Llm Key */
+        /**
+         * Clear Llm Key
+         * @description Delete `provider`'s key (default: the configured provider's).
+         */
         delete: operations["clear_llm_key_api_x_wall_admin_llm_key_delete"];
         options?: never;
         head?: never;
@@ -1536,7 +1540,9 @@ export interface paths {
         put?: never;
         /**
          * Test Llm Key
-         * @description Ask the provider whether the key works (no tokens used).
+         * @description Ask the provider whether its stored key and the model work: its models
+         *     list (free), one token when the model is not listed there. `ok: false`
+         *     with a German reason (model unknown, unreachable, wrong address/project).
          *     400 `llm_not_configured` without a key, `llm_key_invalid` when refused.
          */
         post: operations["test_llm_key_api_x_wall_admin_llm_key_test_post"];
@@ -1559,8 +1565,10 @@ export interface paths {
          * @description „Objekterkennung: Lokal / KI / Aus“ (either/or): `local` switches the
          *     `objects` analyzer on and the AI detector off, `ai` the other way round, `off`
          *     both off. Applies to photos the pipeline finishes from now on: older photos
-         *     are never sent to the AI afterwards. 400 `invalid_llm_config` when the
-         *     provider can't look at photos (`ai`).
+         *     are never sent to the AI afterwards. 409 `ai_detection_unavailable` for `ai`
+         *     while the AI cannot detect (external AI off, no key for the provider, key
+         *     rejected, budget used up, a provider without vision): „Lokal“ is stored
+         *     then. Clears the notice of an automatic switch to „Lokal“.
          */
         put: operations["set_object_detection_api_x_wall_admin_llm_object_detection_put"];
         post?: never;
@@ -3227,6 +3235,11 @@ export interface components {
          */
         DetectionOut: {
             /**
+             * Ai Unavailable
+             * @description Why „KI“ cannot be chosen right now (German: external AI off, no key for the provider, key rejected, budget, no vision); None while it can.
+             */
+            ai_unavailable: string | null;
+            /**
              * Cost Usd
              * @description What detection has cost so far (estimate).
              */
@@ -3266,6 +3279,13 @@ export interface components {
              * @enum {string}
              */
             mode: "local" | "ai" | "off";
+            /**
+             * Notice
+             * @description Why the choice switched from „KI“ to „Lokal“ by itself (the AI became unavailable); cleared when the host chooses again.
+             */
+            notice: string | null;
+            /** Notice At */
+            notice_at?: string | null;
             /**
              * Pending
              * @description Photos the external detector will still look at.
@@ -3349,7 +3369,7 @@ export interface components {
              * @description Machine-readable error code.
              * @enum {string}
              */
-            error: "scan_qr" | "needs_consent" | "banned" | "consent_outdated" | "invalid_instagram" | "join_closed" | "invalid_display_name" | "display_name_taken" | "wall_login_required" | "wall_no_password" | "wall_password_too_short" | "invalid_wall_config" | "invalid_category" | "category_exists" | "invalid_analyzer_settings" | "worker_off" | "ml_missing" | "uploads_paused" | "uploads_stopped" | "unsupported_type" | "too_large" | "invalid_meta" | "empty_upload" | "invalid_image" | "invalid_raw" | "raw_not_allowed" | "photo_limit" | "storage_full" | "invalid_pdf" | "invalid_layout" | "no_template" | "admin_required" | "wrong_password" | "login_locked" | "invalid_filter" | "unknown_analyzer" | "invalid_cursor" | "no_fingerprint" | "restore_required" | "host_guest" | "invalid_event_name" | "invalid_public_address" | "invalid_theme" | "password_too_short" | "password_unchanged" | "no_filter_enabled" | "unknown_filter" | "export_not_ready" | "export_running" | "invalid_token" | "token_taken" | "code_revoked" | "invalid_target" | "invalid_note" | "invalid_llm_config" | "llm_not_configured" | "llm_no_vision" | "llm_key_invalid" | "llm_budget_exhausted" | "invalid_property" | "property_exists" | "property_not_in_trash" | "property_in_use" | "bad_origin" | "length_required" | "rate_limited" | "invalid_request" | "not_found" | "http_404" | "http_405";
+            error: "scan_qr" | "needs_consent" | "banned" | "consent_outdated" | "invalid_instagram" | "join_closed" | "invalid_display_name" | "display_name_taken" | "wall_login_required" | "wall_no_password" | "wall_password_too_short" | "invalid_wall_config" | "invalid_category" | "category_exists" | "invalid_analyzer_settings" | "worker_off" | "ml_missing" | "uploads_paused" | "uploads_stopped" | "unsupported_type" | "too_large" | "invalid_meta" | "empty_upload" | "invalid_image" | "invalid_raw" | "raw_not_allowed" | "photo_limit" | "storage_full" | "invalid_pdf" | "invalid_layout" | "no_template" | "admin_required" | "wrong_password" | "login_locked" | "invalid_filter" | "unknown_analyzer" | "invalid_cursor" | "no_fingerprint" | "restore_required" | "host_guest" | "invalid_event_name" | "invalid_public_address" | "invalid_theme" | "password_too_short" | "password_unchanged" | "no_filter_enabled" | "unknown_filter" | "export_not_ready" | "export_running" | "invalid_token" | "token_taken" | "code_revoked" | "invalid_target" | "invalid_note" | "invalid_llm_config" | "llm_not_configured" | "llm_no_vision" | "llm_key_invalid" | "llm_budget_exhausted" | "ai_detection_unavailable" | "invalid_property" | "property_exists" | "property_not_in_trash" | "property_in_use" | "bad_origin" | "length_required" | "rate_limited" | "invalid_request" | "not_found" | "http_404" | "http_405";
             /**
              * Field
              * @description The form field a 400 is about, when the answer names one (e.g. `invalid_category`: title, line, where, by, count, verdict, ...).
@@ -4040,7 +4060,8 @@ export interface components {
         };
         /**
          * KeyOut
-         * @description Never the key itself: whether one is stored, and whether it can be read.
+         * @description Never the key itself: whether one is stored for `provider`, and whether it
+         *     can be read. One key per provider.
          */
         KeyOut: {
             /** Provider */
@@ -4054,6 +4075,17 @@ export interface components {
              * @description False: stored but unreadable (VB_SECRET_KEY changed).
              */
             valid: boolean;
+        };
+        /**
+         * KeyTestIn
+         * @description `POST /llm/key/test`: which provider's key to test, with which model
+         *     (defaults: the configured provider; its configured or default model).
+         */
+        KeyTestIn: {
+            /** Model */
+            model?: string | null;
+            /** Provider */
+            provider?: ("anthropic" | "mistral" | "deutschlandgpt" | "scaleway") | null;
         };
         /** KeyTestOut */
         KeyTestOut: {
@@ -4159,7 +4191,13 @@ export interface components {
         LlmStatus: {
             config: components["schemas"]["LlmConfig"];
             detection: components["schemas"]["DetectionOut"];
+            /** @description The configured provider's key. */
             key: components["schemas"]["KeyOut"];
+            /**
+             * Keys
+             * @description Every provider's key state (one key each).
+             */
+            keys: components["schemas"]["KeyOut"][];
             /** Models */
             models: components["schemas"]["ModelOut"][];
             poller: components["schemas"]["PollerOut"];
@@ -14487,7 +14525,9 @@ export interface operations {
     };
     clear_llm_key_api_x_wall_admin_llm_key_delete: {
         parameters: {
-            query?: never;
+            query?: {
+                provider?: ("anthropic" | "mistral" | "deutschlandgpt" | "scaleway") | null;
+            };
             header?: never;
             path?: never;
             cookie?: never;
@@ -14575,7 +14615,11 @@ export interface operations {
             path?: never;
             cookie?: never;
         };
-        requestBody?: never;
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["KeyTestIn"] | null;
+            };
+        };
         responses: {
             /** @description Successful Response */
             200: {

@@ -204,6 +204,13 @@ def test_object_detection_is_either_or(settings, demo_extension):
             return admin.get(LLM).json()["detection"]["mode"]
 
         assert objects_on() and mode() == "local"
+        # „KI“ needs the external AI on and a key for its provider
+        r = admin.put(f"{LLM}/object-detection", json={"mode": "ai"}, headers=ORIGIN)
+        assert r.status_code == 409 and r.json()["error"] == "ai_detection_unavailable"
+        assert objects_on() and mode() == "local"
+        admin.put(f"{LLM}/key", json={"provider": "anthropic", "key": "sk-ant-api03-flow-0123"},
+                  headers=ORIGIN)  # fmt: skip
+        admin.put(f"{LLM}/config", json={"enabled": True}, headers=ORIGIN)
         r = admin.put(f"{LLM}/object-detection", json={"mode": "ai"}, headers=ORIGIN)
         assert r.status_code == 200, r.text
         assert r.json()["config"]["detect"]["external"] is True
@@ -226,7 +233,7 @@ def test_object_detection_is_either_or(settings, demo_extension):
         # a provider that can't look at photos can't be the detector
         admin.put(f"{LLM}/config", json={"provider": "deutschlandgpt"}, headers=ORIGIN)
         r = admin.put(f"{LLM}/object-detection", json={"mode": "ai"}, headers=ORIGIN)
-        assert r.status_code == 400 and r.json()["error"] == "invalid_llm_config"
+        assert r.status_code == 409 and r.json()["error"] == "ai_detection_unavailable"
         assert "keine Fotos" in r.json()["message"]
         assert objects_on() and mode() == "local"
         audit = [e.action for e in app.state.core.repos.audit.list(20)]

@@ -9,7 +9,7 @@ from virtubooth.extensions.wall.enrich import jobs
 from virtubooth.extensions.wall.llm import admin_api, config, flags
 
 from ..conftest import ORIGIN
-from ..llm_fakes import COOLEST_SPEC, add_category, add_property
+from ..llm_fakes import COOLEST_SPEC, add_category, add_property, store_key
 
 BASE = "/api/x/wall/admin/llm"
 
@@ -83,9 +83,17 @@ def test_put_config(admin, core):
 
 
 def test_ai_detection_on_switches_the_local_detector_off(admin, core):
+    # without the master switch (and a key) „KI“ cannot detect: it becomes „Lokal“
+    r = admin.put(f"{BASE}/config", json={"detect": {"external": True}}, headers=ORIGIN)
+    assert r.status_code == 200, r.text
+    assert r.json()["detection"]["mode"] == "local"
+    assert "ausgeschaltet" in r.json()["detection"]["notice"]
+    store_key(core)
     # an older client still sends `local`: ignored, the either/or decides
     r = admin.put(
-        f"{BASE}/config", json={"detect": {"local": True, "external": True}}, headers=ORIGIN
+        f"{BASE}/config",
+        json={"enabled": True, "detect": {"local": True, "external": True}},
+        headers=ORIGIN,
     )
     assert r.status_code == 200, r.text
     assert "objects" in jobs.disabled_analyzers(core.repos.app_settings)

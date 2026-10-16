@@ -18,7 +18,7 @@ from ....core.clock import now_iso
 from ....runtime import Core
 from ..enrich import jobs
 from . import budget, crypto, ports, pricing, properties, testimage
-from .config import LlmConfigIn, merged, save_config, set_ai_detection
+from .config import LlmConfigIn, ProviderId, load_notice, merged, save_config
 from .properties import Property
 from .providers import BY_ID as PROVIDERS
 from .providers import PROVIDERS as PROVIDER_LIST
@@ -27,6 +27,7 @@ from .schemas import (
     DetectStatsOut,
     KeyIn,
     KeyOut,
+    KeyTestIn,
     KeyTestOut,
     LlmStatus,
     ModelOut,
@@ -120,9 +121,11 @@ def status_of(svc: LlmService) -> LlmStatus:
     )
     stats = budget.detect_stats(db)
     fallback, fallback_reason = jobs.fallback_counts(db)
+    notice, notice_at = load_notice(svc.core.repos.app_settings)
     return LlmStatus(
         config=cfg,
-        key=_key(svc.keys.status()),
+        key=_key(svc.keys.status(cfg.provider)),
+        keys=[_key(svc.keys.status(p.id)) for p in PROVIDER_LIST],
         providers=[
             ProviderOut(
                 id=p.id,
@@ -173,6 +176,9 @@ def status_of(svc: LlmService) -> LlmStatus:
                 last_ms=stats.last_ms,
             ),
             cost_usd=round(stats.cost_micro_usd / 1_000_000, 6),
+            ai_unavailable=svc.ai_unavailable(cfg),
+            notice=notice,
+            notice_at=notice_at,
         ),
         usage=usage_of(svc),
     )
@@ -224,33 +230,34 @@ def set_llm_config(body: LlmConfigIn, core: CoreDep, admin: AdminDep) -> LlmStat
             ports.set_local_objects(core, False, by=admin.actor)
         core.repos.audit.log(admin.actor, "llm.config", "", {"changed": changed}, at=now_iso())
     svc.forget_provider()
+    # „KI“ chosen but no longer possible (switched off, a provider without key): „Lokal“
+    svc.check_detection(by=admin.actor)
     svc.changed()
     return status_of(svc)
 
 
-@router.put("/admin/llm/object-detection")
+@router.put(
+    "/admin/llm/object-detection", responses=errors.error_responses(400, 401, 403, 409, 422)
+)
 def set_object_detection(body: ObjectDetectionIn, core: CoreDep, admin: AdminDep) -> LlmStatus:
     """„Objekterkennung: Lokal / KI / Aus“ (either/or): `local` switches the
     `objects` analyzer on and the AI detector off, `ai` the other way round, `off`
     both off. Applies to photos the pipeline finishes from now on: older photos
-    are never sent to the AI afterwards. 400 `invalid_llm_config` when the
-    provider can't look at photos (`ai`)."""
+    are never sent to the AI afterwards. 409 `ai_detection_unavailable` for `ai`
+    while the AI cannot detect (external AI off, no key for the provider, key
+    rejected, budget used up, a provider without vision): „Lokal“ is stored
+    then. Clears the notice of an automatic switch to „Lokal“."""
     svc = LlmService.of(core)
-    repo = core.repos.app_settings
     try:
-        with core.db.tx():
-            set_ai_detection(repo, body.mode == "ai", by=admin.actor)
-            ports.set_local_objects(core, body.mode == "local", by=admin.actor)
-            core.repos.audit.log(
-                admin.actor, "llm.detection", "", {"mode": body.mode}, at=now_iso()
-            )
+        svc.set_detection(body.mode, actor=admin.actor)
+    except Unavailable as exc:
+        raise errors.ApiError(409, "ai_detection_unavailable", exc.message) from None
     except ValidationError:
         raise errors.bad_request(
             f"{PROVIDERS[svc.config().provider].title} kann keine Fotos ansehen: für „KI“ "
             "unter „Externe KI“ einen anderen Anbieter wählen.",
             "invalid_llm_config",
         ) from None
-    svc.changed()
     return status_of(svc)
 
 
@@ -259,8 +266,9 @@ def set_object_detection(body: ObjectDetectionIn, core: CoreDep, admin: AdminDep
 
 @router.put("/admin/llm/key")
 def set_llm_key(body: KeyIn, core: CoreDep, admin: AdminDep) -> KeyOut:
-    """Store the key encrypted (write-only). 400 `llm_key_invalid` for an
-    obviously malformed one (more than 400 characters, whitespace)."""
+    """Store `provider`'s key encrypted (write-only; one key per provider, the
+    others stay). 400 `llm_key_invalid` for an obviously malformed one (more
+    than 400 characters, whitespace)."""
     problem = crypto.check_format(body.key)
     if problem is not None:
         raise errors.bad_request(problem, "llm_key_invalid")
@@ -268,17 +276,22 @@ def set_llm_key(body: KeyIn, core: CoreDep, admin: AdminDep) -> KeyOut:
 
 
 @router.delete("/admin/llm/key")
-def clear_llm_key(core: CoreDep, admin: AdminDep) -> KeyOut:
-    return _key(LlmService.of(core).clear_key(actor=admin.actor))
+def clear_llm_key(core: CoreDep, admin: AdminDep, provider: ProviderId | None = None) -> KeyOut:
+    """Delete `provider`'s key (default: the configured provider's)."""
+    svc = LlmService.of(core)
+    return _key(svc.clear_key(provider or svc.config().provider, actor=admin.actor))
 
 
 @router.post("/admin/llm/key/test")
-def test_llm_key(core: CoreDep) -> KeyTestOut:
-    """Ask the provider whether the key works (no tokens used).
+def test_llm_key(core: CoreDep, body: KeyTestIn | None = None) -> KeyTestOut:
+    """Ask the provider whether its stored key and the model work: its models
+    list (free), one token when the model is not listed there. `ok: false`
+    with a German reason (model unknown, unreachable, wrong address/project).
     400 `llm_not_configured` without a key, `llm_key_invalid` when refused."""
     svc = LlmService.of(core)
+    req = body or KeyTestIn()
     try:
-        ok, message = svc.test_key()
+        ok, message = svc.test_key(req.provider, req.model)
     except Unavailable as exc:
         raise testimage.unavailable(exc.code, exc.message) from None
     return KeyTestOut(ok=ok, message=message)

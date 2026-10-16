@@ -4,7 +4,7 @@
 import type { LlmProperty, LlmStatus, TestImageResult } from './types';
 
 export function llmStatus(over: Partial<LlmStatus> = {}): LlmStatus {
-  return {
+  const status: LlmStatus = {
     config: {
       enabled: true,
       provider: 'anthropic',
@@ -19,7 +19,12 @@ export function llmStatus(over: Partial<LlmStatus> = {}): LlmStatus {
       updated_at: null,
       by: null,
     },
-    key: { set: false, set_at: null, provider: null, valid: false },
+    key: { set: false, set_at: null, provider: 'anthropic', valid: false },
+    keys: [
+      { set: false, set_at: null, provider: 'anthropic', valid: false },
+      { set: false, set_at: null, provider: 'mistral', valid: false },
+      { set: false, set_at: null, provider: 'deutschlandgpt', valid: false },
+    ],
     providers: [
       {
         id: 'anthropic',
@@ -118,6 +123,9 @@ export function llmStatus(over: Partial<LlmStatus> = {}): LlmStatus {
       fallback_now: null,
       stats: { processed: 4, errors: 0, avg_ms: 2400, last_ms: 1900 },
       cost_usd: 0.4,
+      ai_unavailable: null,
+      notice: null,
+      notice_at: null,
     },
     usage: {
       party: { calls: 12, input_tokens: 30_000, output_tokens: 4000, cost_usd: 1.25 },
@@ -133,6 +141,12 @@ export function llmStatus(over: Partial<LlmStatus> = {}): LlmStatus {
     },
     ...over,
   };
+  // a given `key` is that provider's entry in `keys` too (as the server answers)
+  const key = over.key;
+  if (key && !over.keys) {
+    status.keys = status.keys.map((k) => (k.provider === key.provider ? key : k));
+  }
+  return status;
 }
 
 export function properties(): LlmProperty[] {

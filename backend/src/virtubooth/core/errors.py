@@ -82,6 +82,7 @@ ErrorCode = Literal[
     "llm_no_vision",
     "llm_key_invalid",
     "llm_budget_exhausted",
+    "ai_detection_unavailable",
     "invalid_property",
     "property_exists",
     "property_not_in_trash",

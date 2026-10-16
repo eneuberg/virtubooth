@@ -30,6 +30,8 @@ class FakeAnthropic:
     def __init__(self) -> None:
         self.requests: list[httpx2.Request] = []
         self.status = 200
+        self.models = ["claude-haiku-5-5-20260901", "claude-sonnet-5-5"]
+        self.messages_status = 200
 
     def __call__(self, request: httpx2.Request) -> httpx2.Response:
         self.requests.append(request)
@@ -41,13 +43,24 @@ class FakeAnthropic:
                     "error": {"type": "authentication_error", "message": "invalid x-api-key"},
                 },
             )
-        if request.url.path.startswith("/v1/models/"):
-            return httpx2.Response(
-                200,
-                json={"id": "claude-haiku-5-5", "type": "model", "display_name": "Claude Haiku 5.5",
-                      "created_at": "2026-09-01T00:00:00Z"},
-            )  # fmt: skip
+        if request.url.path == "/v1/models":
+            return httpx2.Response(200, json={
+                "data": [{"id": m, "type": "model", "display_name": m,
+                          "created_at": "2026-09-01T00:00:00Z"} for m in self.models],
+                "has_more": False, "first_id": None, "last_id": None,
+            })  # fmt: skip
         body = json.loads(request.content)
+        if self.messages_status != 200:
+            return httpx2.Response(
+                self.messages_status,
+                json={"type": "error", "error": {"type": "not_found_error", "message": "model"}},
+            )
+        if body["max_tokens"] == 1:  # the key test's one token
+            return httpx2.Response(200, json={
+                "id": "msg_0", "type": "message", "role": "assistant", "model": body["model"],
+                "content": [{"type": "text", "text": "O"}], "stop_reason": "max_tokens",
+                "stop_sequence": None, "usage": {"input_tokens": 10, "output_tokens": 1},
+            })  # fmt: skip
         user = body["messages"][0]["content"][-1]["text"]
         refs = [w for w in user.split() if w.startswith("P") and w[1:].startswith("ph")]
         answer = {"photos": [{"id": ref, "scores": [0.7, 0.2]} for ref in refs]}
@@ -75,7 +88,13 @@ def anthropic_api(core):
 
 def test_status_shape(admin):
     body = admin.get(BASE).json()
-    assert body["key"] == {"set": False, "set_at": None, "provider": None, "valid": False}
+    assert body["key"] == {"set": False, "set_at": None, "provider": "anthropic", "valid": False}
+    assert [(k["provider"], k["set"]) for k in body["keys"]] == [
+        ("anthropic", False),
+        ("mistral", False),
+        ("deutschlandgpt", False),
+        ("scaleway", False),
+    ]
     assert [p["id"] for p in body["providers"]] == [
         "anthropic",
         "mistral",
@@ -103,24 +122,51 @@ def test_status_shape(admin):
         "last_run_at": None, "last_error": None, "cost_usd": 0.0,
         "fallback": 0, "fallback_reason": None, "fallback_now": None,
         "stats": {"processed": 0, "errors": 0, "avg_ms": None, "last_ms": None},
+        "ai_unavailable": "Die externe KI ist ausgeschaltet (Karte „Externe KI“).",
+        "notice": None, "notice_at": None,
     }  # fmt: skip
     assert body["config"]["poll"] is True and body["config"]["detect"]["external"] is False
     assert body["usage"]["party"]["calls"] == 0 and body["usage"]["blocked"] is False
 
 
-def test_key_test(admin, anthropic_api):
+def test_key_test(admin, core, anthropic_api):
     r = admin.post(f"{BASE}/key/test", headers=ORIGIN)
     assert r.status_code == 400 and r.json()["error"] == "llm_not_configured"
+    assert "Kein API-Schlüssel für Anthropic" in r.json()["message"]
     admin.put(f"{BASE}/key", json={"provider": "anthropic", "key": API_KEY}, headers=ORIGIN)
+    # the models list (free) has the model under its dated id: nothing else is asked
     r = admin.post(f"{BASE}/key/test", headers=ORIGIN)
-    assert r.json() == {"ok": True, "message": "Schlüssel funktioniert."}
+    assert r.json() == {
+        "ok": True,
+        "message": "Schlüssel funktioniert (Anthropic (Claude, USA), claude-haiku-5-5).",
+    }
     sent = anthropic_api.requests[-1]
-    assert sent.url.path == "/v1/models/claude-haiku-5-5"
+    assert (sent.method, sent.url.path) == ("GET", "/v1/models")
     assert sent.headers["x-api-key"] == API_KEY
+    # a model the list does not have: one token decides
+    anthropic_api.models = []
+    r = admin.post(f"{BASE}/key/test", json={"model": "claude-opus-5-5"}, headers=ORIGIN)
+    assert r.json()["ok"] is True and "claude-opus-5-5" in r.json()["message"]
+    assert json.loads(anthropic_api.requests[-1].content)["max_tokens"] == 1
+    anthropic_api.messages_status = 404
+    r = admin.post(f"{BASE}/key/test", headers=ORIGIN)
+    assert r.json()["ok"] is False
+    assert "„claude-haiku-5-5“ gibt es bei diesem Anbieter nicht" in r.json()["message"]
     anthropic_api.status = 401
     r = admin.post(f"{BASE}/key/test", headers=ORIGIN)
     assert r.status_code == 400 and r.json()["error"] == "llm_key_invalid"
-    assert API_KEY not in r.text
+    assert "abgelehnt" in r.json()["message"] and API_KEY not in r.text
+    # another provider (the one picked in the card, not saved yet): its own key
+    r = admin.post(f"{BASE}/key/test", json={"provider": "scaleway"}, headers=ORIGIN)
+    assert r.status_code == 400 and r.json()["error"] == "llm_not_configured"
+    assert "Scaleway" in r.json()["message"]
+    tests = core.db.all("SELECT provider, model, ok FROM llm_usage WHERE kind='test'")
+    assert [tuple(t) for t in tests] == [
+        ("anthropic", "claude-haiku-5-5", 1),
+        ("anthropic", "claude-opus-5-5", 1),
+        ("anthropic", "claude-haiku-5-5", 0),
+        ("anthropic", "claude-haiku-5-5", 0),
+    ]
 
 
 def test_poll_through_the_sdk(admin, core, anthropic_api):

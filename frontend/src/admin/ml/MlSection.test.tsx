@@ -135,14 +135,14 @@ describe('ML-Pipeline section', () => {
     const { requests } = renderSection({
       [`GET ${A}/llm`]: () => llm,
       [`PUT ${A}/llm/key`]: () => {
-        llm = {
-          ...llm,
+        llm = llmStatus({
           key: { set: true, set_at: '2026-10-15T20:00:00Z', provider: 'anthropic', valid: true },
-        };
+        });
         return llm.key;
       },
     });
     expect((await screen.findByTestId('ml-key-state')).textContent).toBe('nicht gesetzt');
+    expect(screen.getByTestId('ml-key-overview').textContent).toContain('Anthropic: –');
     const field = screen.getByLabelText('API-Schlüssel');
     expect(field.getAttribute('type')).toBe('password');
     expect(field).toHaveProperty('value', '');
@@ -158,6 +158,7 @@ describe('ML-Pipeline section', () => {
     expect(screen.getByTestId('ml-key-replace').textContent).toBe('Schlüssel ersetzen');
     expect(screen.getByTestId('ml-key-clear').textContent).toContain('Schlüssel löschen');
     expect(screen.getByTestId('ml-key-test').textContent).toBe('Testen');
+    expect(screen.getByTestId('ml-key-overview').textContent).toContain('Anthropic: gesetzt');
     // replacing opens an EMPTY field
     fireEvent.click(screen.getByTestId('ml-key-replace'));
     expect(screen.getByLabelText('Neuer API-Schlüssel')).toHaveProperty('value', '');
@@ -306,7 +307,14 @@ describe('ML-Pipeline section', () => {
     expect(within(local).queryByRole('switch')).toBeNull();
     expect(within(choice).getByRole('radio', { name: 'Lokal' })).toHaveProperty('checked', true);
     expect(within(local).getByTestId('ml-local-detect-active').textContent).toBe('aktiv');
-    expect(within(ai).getByTestId('ml-ai-detect-active').textContent).toBe('aus');
+    expect(within(ai).getByTestId('ml-ai-detect-active').textContent).toBe('inaktiv');
+    // one framed block: the choice on top, both detectors under it, the inactive greyed out
+    const block = screen.getByTestId('ml-object-detection-block');
+    expect(block.contains(choice) && block.contains(local) && block.contains(ai)).toBe(true);
+    expect(choice.compareDocumentPosition(local) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(local.dataset.inactive).toBeUndefined();
+    expect(ai.dataset.inactive).toBe('true');
+    expect(ai.querySelector('.opacity-55')).not.toBeNull();
     expect(within(ai).getByTestId('ml-ai-detect-model').textContent).toContain('Anthropic (Claude, USA)');
     expect(within(ai).getByTestId('ml-ai-detect-stats').textContent?.replaceAll('\u00a0', ' ')).toBe(
       'Ø 2.400 ms · zuletzt 1.900 ms · 4 Fotos · 0 Fehler · bisher 0,40 $',
@@ -318,7 +326,10 @@ describe('ML-Pipeline section', () => {
 
     fireEvent.click(within(choice).getByRole('radio', { name: 'KI' }));
     await waitFor(() => expect(within(ai).getByTestId('ml-ai-detect-active').textContent).toBe('aktiv'));
-    expect(within(local).getByTestId('ml-local-detect-active').textContent).toBe('aus');
+    expect(within(local).getByTestId('ml-local-detect-active').textContent).toBe('inaktiv');
+    expect(local.dataset.inactive).toBe('true');
+    expect(local.className).toContain('opacity-55');
+    expect(ai.dataset.inactive).toBeUndefined();
     expect(within(ai).getByTestId('ml-detection-state').textContent).toBe('bereit');
     const put = must(requests.find((r) => r.method === 'PUT'));
     expect(put.url).toContain('/llm/object-detection');
@@ -372,17 +383,77 @@ describe('ML-Pipeline section', () => {
     expect(within(ai).queryByTestId('ml-ai-detect-fallback-now')).toBeNull();
   });
 
-  it('offers no „KI“ detection with a provider that cannot see photos', async () => {
+  it('says up front why „KI“ cannot be chosen (no vision)', async () => {
     const llm = llmStatus();
     llm.config = { ...llm.config, provider: 'deutschlandgpt', model: 'claude-haiku-5.5' };
+    llm.detection = {
+      ...llm.detection,
+      ai_unavailable: 'DeutschlandGPT (Claude, Deutschland) kann keine Fotos ansehen.',
+    };
     renderSection({}, llm);
-    const choice = await screen.findByTestId('ml-object-detection');
-    expect(within(choice).getByRole('radio', { name: 'KI' })).toHaveProperty('disabled', true);
-    expect(screen.getByTestId('ml-ai-detect-no-vision').textContent).toContain('kann keine Fotos ansehen');
+    await screen.findByTestId('ml-object-detection');
+    expect(screen.getByTestId('ml-ai-detect-unavailable').textContent).toBe(
+      '„KI“ geht gerade nicht: DeutschlandGPT (Claude, Deutschland) kann keine Fotos ansehen.',
+    );
     // the Externe-KI card says so too, and that it bills in euros
     const notes = screen.getByTestId('ml-llm-provider-notes').textContent ?? '';
     expect(notes).toContain('nur Eigenschaften, keine Objekterkennung');
     expect(notes).toContain('1 € = 1,10 $');
+  });
+
+  it('refuses „KI“ without a key with a red error and stays „Lokal“', async () => {
+    const reason = 'Kein API-Schlüssel für Anthropic (Claude, USA) gesetzt.';
+    const llm = llmStatus();
+    llm.detection = { ...llm.detection, ai_unavailable: reason };
+    const { requests } = renderSection(
+      {
+        [`PUT ${A}/llm/object-detection`]: () =>
+          json(409, {
+            error: 'ai_detection_unavailable',
+            message: `„KI“ geht gerade nicht: ${reason} Die Objekterkennung bleibt beim lokalen Modell.`,
+          }),
+      },
+      llm,
+    );
+    const choice = await screen.findByTestId('ml-object-detection');
+    // before choosing: the reason is already there
+    expect(screen.getByTestId('ml-ai-detect-unavailable').textContent).toContain(reason);
+    fireEvent.click(within(choice).getByRole('radio', { name: 'KI' }));
+    const error = await screen.findByTestId('ml-object-detection-error');
+    expect(error.getAttribute('role')).toBe('alert');
+    expect(error.className).toContain('text-danger');
+    expect(error.textContent).toContain(reason);
+    expect(error.textContent).toContain('bleibt beim lokalen Modell');
+    // the server's state is shown again: „Lokal“, the local row active
+    await waitFor(() =>
+      expect(within(choice).getByRole('radio', { name: 'Lokal' })).toHaveProperty('checked', true),
+    );
+    const local = await analyzerRow('objects');
+    expect(within(local).getByTestId('ml-local-detect-active').textContent).toBe('aktiv');
+    expect(requests.filter((r) => r.method === 'GET' && r.url.endsWith('/llm')).length).toBeGreaterThan(1);
+  });
+
+  it('shows the automatic switch to „Lokal“ with its reason in red', async () => {
+    const llm = llmStatus();
+    llm.detection = {
+      ...llm.detection,
+      mode: 'local',
+      fallback: 2,
+      fallback_reason: 'Budget aufgebraucht',
+      notice: 'Budget erreicht: 5,00 $ für die Party.',
+      notice_at: '2026-10-16T09:40:00Z',
+    };
+    renderSection({}, llm);
+    const notice = await screen.findByTestId('ml-object-detection-notice');
+    expect(notice.textContent).toContain('Automatisch auf „Lokal“ umgestellt');
+    expect(notice.textContent).toContain('Budget erreicht: 5,00 $ für die Party.');
+    expect(screen.getByTestId('ml-object-detection-block').contains(notice)).toBe(true);
+    // the count of photos the local detector took stays
+    const ai = await analyzerRow('objects-ai');
+    expect(within(ai).getByTestId('ml-ai-detect-fallback-count').textContent).toBe(
+      '2 Fotos lokal statt KI · zuletzt: Budget aufgebraucht',
+    );
+    expect(within(ai).getByTestId('ml-ai-detect-active').textContent).toBe('inaktiv');
   });
 
   it('keeps the Externe-KI card to switch, provider, model, Denkaufwand and key', async () => {
@@ -409,6 +480,49 @@ describe('ML-Pipeline section', () => {
       provider: 'mistral',
       model: 'mistral-small-2506',
       effort: 'low',
+    });
+  });
+
+  it('keeps one key per provider: the picked provider’s key is shown, saved and tested', async () => {
+    let llm = llmStatus({ key: { set: true, set_at: null, provider: 'anthropic', valid: true } });
+    const { requests } = renderSection(
+      {
+        [`GET ${A}/llm`]: () => llm,
+        [`PUT ${A}/llm/key`]: () => {
+          const mistral = { set: true, set_at: null, provider: 'mistral', valid: true };
+          llm = { ...llm, keys: llm.keys.map((k) => (k.provider === 'mistral' ? mistral : k)) };
+          return mistral;
+        },
+        [`POST ${A}/llm/key/test`]: () => ({
+          ok: false,
+          message:
+            'Mistral AI (EU): Das Modell „mistral-small-2506“ gibt es bei diesem Anbieter nicht (Schlüssel funktioniert).',
+        }),
+      },
+      llm,
+    );
+    const card = await screen.findByTestId('wall-card-externe-ki');
+    expect(within(card).getByTestId('ml-key-state').textContent).toBe('gesetzt');
+    // another provider picked (not saved yet): its own key, none stored
+    fireEvent.click(within(within(card).getByTestId('ml-llm-provider')).getByRole('button'));
+    fireEvent.click(await screen.findByRole('option', { name: 'Mistral AI (EU)' }));
+    await waitFor(() => expect(within(card).getByTestId('ml-key-state').textContent).toBe('nicht gesetzt'));
+    expect(within(card).getByTestId('ml-key').textContent).toContain('für Mistral AI');
+    expect(within(card).getByTestId('ml-key-overview').textContent).toContain('Anthropic: gesetzt');
+    fireEvent.change(within(card).getByLabelText('API-Schlüssel'), { target: { value: 'mistral-key-0123' } });
+    fireEvent.click(within(card).getByTestId('ml-key-save'));
+    await waitFor(() => expect(within(card).getByTestId('ml-key-state').textContent).toBe('gesetzt'));
+    const put = must(requests.find((r) => r.method === 'PUT' && r.url.endsWith('/llm/key')));
+    expect(await bodyField(put, 'provider')).toBe('mistral');
+    // „Testen“ asks that provider with its model, the answer stays readable in the card
+    fireEvent.click(within(card).getByTestId('ml-key-test'));
+    const result = await within(card).findByTestId('ml-key-test-result');
+    expect(result.textContent).toContain('gibt es bei diesem Anbieter nicht');
+    expect(result.className).toContain('text-danger');
+    const test = must(requests.find((r) => r.method === 'POST' && r.url.endsWith('/llm/key/test')));
+    expect(JSON.parse(await test.clone().text())).toEqual({
+      provider: 'mistral',
+      model: 'mistral-small-2506',
     });
   });
 

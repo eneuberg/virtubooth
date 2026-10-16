@@ -178,6 +178,11 @@ BUDGET = "Budget aufgebraucht"
 UNREACHABLE = "Dienst nicht erreichbar"
 GUEST_NO_AI = "Gast: keine externe KI"
 PHOTO_FAILED = "KI-Fehler bei diesem Foto"
+MODEL_UNKNOWN = "Modell beim Anbieter unbekannt"
+EXTERNAL_OFF = "Externe KI aus"
+NO_VISION = "Anbieter kann keine Fotos ansehen"
+# queued while „KI“ was active, sent after it no longer was
+AI_OFF = "KI-Erkennung nicht mehr aktiv"
 
 
 def guest_refuses_ai(db: Database, photo_id: int) -> bool:
@@ -192,7 +197,8 @@ def guest_refuses_ai(db: Database, photo_id: int) -> bool:
 
 def ai_detection_blocked(db: Database, app_settings: AppSettingsRepo) -> str | None:
     """Why the active AI detection cannot take a photo now (a short German reason),
-    None while it can: no key stored, or the budget is used up. The worker then
+    None while it can: no key stored for the provider, or the budget is used up
+    (the detection runner then switches the choice to „Lokal“). The worker then
     runs the local detector on that photo instead, so it still gets an object list
     (fallback). Trouble only a call shows (key rejected, provider down) is the
     detection runner's: it hands queued photos back (`hand_to_local`)."""
@@ -201,12 +207,13 @@ def ai_detection_blocked(db: Database, app_settings: AppSettingsRepo) -> str | N
     from ....core.clock import DEFAULT_TIMEZONE
     from ..llm import budget
     from ..llm.config import load_config
-    from ..llm.crypto import KEY_KEY
+    from ..llm.crypto import stored_providers
 
-    if not app_settings.get(KEY_KEY):
+    cfg = load_config(app_settings)
+    if cfg.provider not in stored_providers(app_settings):
         return NO_KEY
     timezone = os.environ.get("VB_TIMEZONE") or DEFAULT_TIMEZONE
-    return BUDGET if budget.blocked(db, load_config(app_settings).budget, timezone) else None
+    return BUDGET if budget.blocked(db, cfg.budget, timezone) else None
 
 
 # A photo queued for the AI that the AI cannot deliver (`hand_to_local` marked it):

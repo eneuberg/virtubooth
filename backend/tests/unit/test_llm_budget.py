@@ -5,7 +5,7 @@ from __future__ import annotations
 
 import pytest
 
-from virtubooth.extensions.wall.llm import budget, pricing
+from virtubooth.extensions.wall.llm import budget, config, pricing
 from virtubooth.extensions.wall.llm.config import BudgetConfig
 from virtubooth.extensions.wall.llm.detect import DetectionRunner
 from virtubooth.extensions.wall.llm.poller import poll_once
@@ -102,7 +102,10 @@ def test_every_call_kind_stops_at_the_limit(core):
             svc.call(kind, None, lambda p, m: (None, TokenUsage()))
         assert exc.value.code == "llm_budget_exhausted"
     runner = DetectionRunner(svc)
-    assert runner.run_once() == "blocked" and runner.blocked
+    # „KI“ cannot detect any more: the choice becomes „Lokal“ by itself, with the reason
+    assert runner.run_once() == "idle"
+    assert not svc.config().detect.external
+    assert "Budget erreicht" in (config.load_notice(core.repos.app_settings)[0] or "")
     result = poll_once(svc, force=True)
     assert result is not None and result.state == "skipped" and "Budget erreicht" in result.reason
     svc.poller.run(force=True)
