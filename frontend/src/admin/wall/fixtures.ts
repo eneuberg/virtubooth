@@ -8,9 +8,9 @@ import type {
   AnalysisStatus,
   CategoryItem,
   CategorySpec,
-  CategorySpecV2,
   CategoryWinner,
   Measure,
+  MeasureObjects,
   PhotoAnalysis,
   ValuesOut,
   WallAdminOut,
@@ -231,24 +231,31 @@ export function photoAnalysis(state: PhotoAnalysis['state'] = 'done'): PhotoAnal
 
 // ---------------------------------------------------------------- categories
 
+const pv = (
+  key: string,
+  title: string,
+  group: string,
+  kind: 'number' | 'count' | 'time',
+  unit = '',
+): ValuesOut['photo_values'][number] => ({ key, title, group, kind, unit, needs: [], available: true, reason: null });
+
 export const valuesOut: ValuesOut = {
-  photo_values: [],
-  object_fields: [{ field: 'confidence', title: 'Erkennungssicherheit', property: null, unit: '0–1' }],
+  photo_values: [
+    pv('people', 'Personen', 'Gesichter und Personen', 'count'),
+    pv('smiles', 'Lächeln', 'Gesichter und Personen', 'count'),
+    pv('happy_max', 'Fröhlichkeit (höchste)', 'Gesichter und Personen', 'number', '0–1'),
+    pv('colorfulness', 'Farbigkeit', 'Bild', 'number'),
+    pv('sharpness', 'Schärfe', 'Bild', 'number'),
+    pv('photo.created_at', 'Aufnahmezeit', 'Foto', 'time'),
+    pv('photo.guest_photos', 'Fotos dieses Gasts', 'Foto', 'count'),
+  ],
+  object_fields: [
+    { field: 'confidence', title: 'Erkennungssicherheit', property: null, unit: '0–1' },
+    { field: 'prop:coolness', title: 'coolness', property: 'coolness', unit: '0–1' },
+  ],
   aggregates: [],
   objects_available: true,
   objects_reason: null,
-  values: [
-    v('people', 'Personen', 'Gesichter und Personen', 'count'),
-    v('smiles', 'Lächeln', 'Gesichter und Personen', 'count'),
-    v('colorfulness', 'Farbigkeit', 'Bild', 'number'),
-    v('sharpness', 'Schärfe', 'Bild', 'number'),
-    v('objects', 'Objekte (Liste)', 'Objekte', 'labels'),
-    v('objects.count', 'Anzahl Objekte', 'Objekte', 'count'),
-    v('prop.coolness.max', 'coolness (höchster)', 'Eigenschaften', 'number'),
-    v('prop.coolness.mean', 'coolness (Mittel)', 'Eigenschaften', 'number'),
-    v('photo.created_at', 'Aufnahmezeit', 'Foto', 'time'),
-    v('photo.guest_photos', 'Fotos des Gasts', 'Foto', 'count'),
-  ],
   labels: [
     { label: 'wine glass', label_de: 'Weinglas', count: 14 },
     { label: 'hat', label_de: 'Hut', count: 3 },
@@ -256,16 +263,12 @@ export const valuesOut: ValuesOut = {
   ],
 };
 
-function v(key: string, title: string, group: string, kind: ValuesOut['values'][number]['kind']) {
-  return { key, title, group, kind, unit: null, needs: null, available: true, reason: null };
-}
-
 const NO_FILTER = { labels: [], exclude: [], min_confidence: null };
 
 /** v2 measures for the fixtures */
 export const measure = {
   value: (key: string): Measure => ({ kind: 'value', key }),
-  objects: (agg: Aggregate, field: string | null = null, labels: string[] = []): Measure => ({
+  objects: (agg: Aggregate, field: string | null = null, labels: string[] = []): MeasureObjects => ({
     kind: 'objects',
     where: { ...NO_FILTER, labels },
     field,
@@ -275,7 +278,7 @@ export const measure = {
   }),
 };
 
-export function specV2(over: Partial<CategorySpecV2> = {}): CategorySpecV2 {
+export function spec(over: Partial<CategorySpec> = {}): CategorySpec {
   return {
     version: 2,
     emoji: '👥',
@@ -315,19 +318,6 @@ export function winner(photo: string, value: number, label: string): CategoryWin
   };
 }
 
-export function spec(over: Partial<CategorySpec> = {}): CategorySpec {
-  return {
-    emoji: '👥',
-    title: 'Volles Haus',
-    line: 'Die meisten Leute auf einem Foto',
-    where: [{ value: 'people', op: 'gte', operand: 3 }],
-    select: { by: 'people', order: 'top', count: 3, then_by: [], one_per_guest: true },
-    label: { value: null, style: 'count', one: 'Person', many: 'Personen' },
-    verdict: null,
-    ...over,
-  };
-}
-
 export function categoryItems(): CategoryItem[] {
   return [
     {
@@ -336,8 +326,7 @@ export function categoryItems(): CategoryItem[] {
       enabled: true,
       preset: 'volles_haus',
       position: 0,
-      spec: specV2(),
-      legacy_spec: spec(),
+      spec: spec(),
       available: true,
       reason: null,
       verdict: null,
@@ -349,7 +338,7 @@ export function categoryItems(): CategoryItem[] {
       enabled: false,
       preset: 'coolstes_objekt',
       position: 1,
-      spec: specV2({
+      spec: spec({
         emoji: '🏆',
         title: 'Das coolste Objekt',
         line: 'Was die KI am coolsten findet',
@@ -361,17 +350,6 @@ export function categoryItems(): CategoryItem[] {
           count: 1,
           model: null,
           effort: 'low',
-        },
-      }),
-      legacy_spec: spec({
-        emoji: '🏆',
-        title: 'Das coolste Objekt',
-        line: 'Was die KI am coolsten findet',
-        where: [],
-        select: { by: 'prop.coolness.max', order: 'top', count: 1, then_by: [], one_per_guest: false },
-        label: { value: null, style: 'object', one: '', many: '' },
-        verdict: {
-          prompt: 'Werte das coolste Objekt aus den Ergebnissen raus und sag mir, von wem und was.',
         },
       }),
       explanation: 'Höchster coolness-Wert unter allen Objekten',
@@ -388,7 +366,7 @@ export function categoryItems(): CategoryItem[] {
       enabled: true,
       preset: null,
       position: 2,
-      spec: specV2({
+      spec: spec({
         emoji: '🥂',
         title: 'Prost!',
         line: 'Die meisten Gläser',
@@ -401,14 +379,6 @@ export function categoryItems(): CategoryItem[] {
         },
         select: { count: 3, one_per_guest: false },
         caption: { value: null, format: 'count', one: 'Glas', many: 'Gläser', show_object: false },
-      }),
-      legacy_spec: spec({
-        emoji: '🥂',
-        title: 'Prost!',
-        line: 'Die meisten Gläser',
-        where: [{ value: 'objects', op: 'contains', operand: 'wine glass' }],
-        select: { by: 'objects.count:wine glass', order: 'top', count: 3, then_by: [], one_per_guest: false },
-        label: { value: null, style: 'count', one: 'Glas', many: 'Gläser' },
       }),
       explanation: 'Die meisten Objekte (nur wine glass)',
       available: true,

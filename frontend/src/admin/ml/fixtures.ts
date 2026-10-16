@@ -3,6 +3,42 @@
  */
 import type { LlmProperty, LlmStatus, TestImageResult } from './types';
 
+export function verdictOptions(): LlmStatus['verdict'] {
+  const effort = (effort: 'low' | 'medium' | 'high', usd: number, measured: boolean) => ({
+    effort,
+    input_tokens: 800,
+    output_tokens: effort === 'low' ? 120 : 900,
+    usd_per_comment: usd,
+    price_per_comment: usd,
+    measured,
+  });
+  return {
+    system_prompt: 'You write one short, cheeky, warm German sentence about a party photo.',
+    default_prompt:
+      'Schreib einen kurzen, freundlichen Satz zum Sieger der Kategorie „{title}“ und nenne, was und von wem.',
+    default_model: 'claude-haiku-5-5',
+    max_chars: 160,
+    thinking: true,
+    models: [
+      {
+        id: 'claude-haiku-5-5',
+        title: 'Claude Haiku 5.5',
+        tier: 'small',
+        currency: 'USD',
+        efforts: [effort('low', 0.0014, true), effort('medium', 0.0052, false), effort('high', 0.011, false)],
+      },
+      {
+        id: 'claude-sonnet-5-5',
+        title: 'Claude Sonnet 5.5',
+        tier: 'mid',
+        currency: 'USD',
+        efforts: [effort('low', 0.0042, true), effort('medium', 0.016, false), effort('high', 0.033, false)],
+      },
+    ],
+    basis: 'Geschätzt aus den Token-Zahlen echter Läufe.',
+  };
+}
+
 export function llmStatus(over: Partial<LlmStatus> = {}): LlmStatus {
   const status: LlmStatus = {
     config: {
@@ -139,6 +175,7 @@ export function llmStatus(over: Partial<LlmStatus> = {}): LlmStatus {
       blocked: false,
       reason: null,
     },
+    verdict: verdictOptions(),
     ...over,
   };
   // a given `key` is that provider's entry in `keys` too (as the server answers)

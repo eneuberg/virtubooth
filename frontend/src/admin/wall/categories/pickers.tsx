@@ -1,7 +1,7 @@
 /**
- * The category editor's inputs: a value picker grouped like GET /values (`group`),
- * an object-label combobox (known labels, or any typed one) and a multi-label chip
- * list. Styled like ui/Select and ui/TextField.
+ * The category editor's inputs: a photo-value picker grouped like GET /values
+ * (`photo_values[].group`), an object-label combobox (known labels, or any typed one)
+ * and a multi-label chip list. Styled like ui/Select and ui/TextField.
  */
 import { Check, ChevronDown, X } from 'lucide-react';
 import { useState } from 'react';
@@ -20,8 +20,8 @@ import {
 } from 'react-aria-components';
 import { cx } from '@/ui/cx';
 import { useSurface } from '@/ui/Surface';
-import type { LabelInfo } from '../types';
-import { labelFor, type ValueChoice } from './spec';
+import type { LabelInfo, PhotoValueInfo } from '../types';
+import { labelFor } from './spec';
 
 const TRIGGER = cx(
   'flex h-10 min-w-0 cursor-pointer items-center gap-2 rounded-control border bg-field-bg pr-2.5 pl-3 text-left text-sm text-ink',
@@ -33,8 +33,8 @@ const POPOVER =
 const ITEM =
   'flex min-h-10 cursor-pointer items-center gap-2 rounded-small px-3 text-sm outline-none hover:bg-surface-hover focus-visible:bg-surface-hover focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-focus selected:font-semibold disabled:cursor-not-allowed disabled:opacity-50';
 
-function groupsOf(choices: readonly ValueChoice[]): Array<{ group: string; items: ValueChoice[] }> {
-  const out: Array<{ group: string; items: ValueChoice[] }> = [];
+function groupsOf(choices: readonly PhotoValueInfo[]): Array<{ group: string; items: PhotoValueInfo[] }> {
+  const out: Array<{ group: string; items: PhotoValueInfo[] }> = [];
   for (const c of choices) {
     const g = out.find((x) => x.group === c.group);
     if (g) g.items.push(c);
@@ -43,28 +43,26 @@ function groupsOf(choices: readonly ValueChoice[]): Array<{ group: string; items
   return out;
 }
 
+/** A photo value (`{kind: value, key}`), grouped by analyzer; one that is off says so. */
 export function ValuePicker({
   label,
   choices,
   value,
   onChange,
-  numericOnly = false,
   error,
   hideLabel = false,
   testid,
 }: {
   label: string;
-  choices: readonly ValueChoice[];
+  choices: readonly PhotoValueInfo[];
   value: string;
   onChange: (value: string) => void;
-  /** sorting needs numbers: lists are left out */
-  numericOnly?: boolean;
   error?: string | undefined;
   hideLabel?: boolean;
   testid?: string;
 }) {
   const surface = useSurface();
-  const list = numericOnly ? choices.filter((c) => c.kind !== 'labels') : choices;
+  const list = choices;
   return (
     <Select
       selectedKey={value || null}
@@ -89,12 +87,11 @@ export function ValuePicker({
             <ListBoxSection key={g.group} className="pb-1">
               <Header className="px-3 pt-2 pb-1 text-xs font-bold text-ink-muted uppercase">{g.group}</Header>
               {g.items.map((c) => (
-                <ListBoxItem key={c.id} id={c.id} textValue={c.title} className={ITEM} data-value={c.id}>
+                <ListBoxItem key={c.key} id={c.key} textValue={c.title} className={ITEM} data-value={c.key}>
                   {({ isSelected }) => (
                     <>
                       <span className="min-w-0 flex-1 truncate">
                         {c.title}
-                        {c.inactive ? <span className="text-ink-muted"> (inaktiv)</span> : null}
                         {!c.available ? <span className="text-ink-muted"> (gerade aus)</span> : null}
                       </span>
                       {isSelected ? (

@@ -109,6 +109,41 @@ export interface LlmStatus {
   poller: LlmPoller;
   detection: LlmDetection;
   usage: Usage;
+  /** what a category's AI comments can use with the configured provider */
+  verdict: VerdictOptions;
+}
+
+/** A category's AI comments: the prompts, the models and the estimated price per comment. */
+export interface VerdictOptions {
+  /** always sent: style and guardrails (English) */
+  system_prompt: string;
+  /** the task when a category has none; `{title}` is its title */
+  default_prompt: string;
+  /** the provider's cheapest (`model: null`) */
+  default_model: string;
+  max_chars: number;
+  /** the provider takes a „Denkaufwand“ */
+  thinking: boolean;
+  models: VerdictModel[];
+  /** how the price is estimated (German) */
+  basis: string;
+}
+
+export interface VerdictModel {
+  id: string;
+  title: string;
+  /** small: Haiku class, mid: Sonnet class */
+  tier: 'small' | 'mid';
+  currency: string;
+  efforts: Array<{
+    effort: Effort;
+    input_tokens: number;
+    output_tokens: number;
+    usd_per_comment: number;
+    price_per_comment: number;
+    /** from real token counts; false: the thinking is an assumption */
+    measured: boolean;
+  }>;
 }
 
 /** The local pipeline's answer on a test image (D1's TestRun). */

@@ -46,11 +46,36 @@ const openTrash = async () => {
 };
 
 describe('Eigenschaften: the status and the Papierkorb', () => {
+  it('names the paused and idle states, and the readers that are off', async () => {
+    renderCard({
+      [`GET ${A}`]: () => ({
+        properties: properties().map((p) =>
+          p.name === 'most_giraffe'
+            ? { ...p, status: 'paused', used_by: [{ id: 'giraffe', title: 'Giraffe', enabled: false }] }
+            : p,
+        ),
+      }),
+    });
+    const giraffe = await row('most_giraffe');
+    expect(within(giraffe).getByTestId('ml-property-status').textContent).toBe('pausiert, externe KI aus');
+    expect(within(giraffe).getByTestId('ml-property-used-by').textContent).toBe('Genutzt von „Giraffe“ (aus)');
+    // nothing on goes off: the dialog says only where it goes
+    fireEvent.click(within(giraffe).getByRole('button', { name: 'Löschen' }));
+    const dialog = await screen.findByRole('alertdialog');
+    expect(dialog.textContent).not.toContain('Das schaltet');
+  });
+
   it('shows a status per property (no switch) and keeps the Papierkorb out of the list, collapsed', async () => {
     renderCard();
     const list = await screen.findByTestId('ml-properties');
     expect(within(await row('coolness')).getByTestId('ml-property-status').textContent).toBe(
-      'wird abgefragt',
+      'wird abgefragt (für: „Das coolste Objekt“)',
+    );
+    expect(within(await row('coolness')).getByTestId('ml-property-used-by').textContent).toBe(
+      'Genutzt von „Das coolste Objekt“',
+    );
+    expect(within(await row('most_giraffe')).getByTestId('ml-property-used-by').textContent).toBe(
+      'Von keiner Kategorie genutzt',
     );
     expect(within(await row('most_giraffe')).getByTestId('ml-property-status').textContent).toBe(
       'ruht, keine aktive Kategorie',
@@ -64,9 +89,14 @@ describe('Eigenschaften: the status and the Papierkorb', () => {
     );
   });
 
-  it('„Löschen“ moves it into the Papierkorb, „Wiederherstellen“ brings one back', async () => {
-    renderCard();
+  it('„Löschen“ asks first, naming the categories it switches off, then moves it into the Papierkorb', async () => {
+    const requests = renderCard();
     fireEvent.click(within(await row('coolness')).getByRole('button', { name: 'Löschen' }));
+    const dialog = await screen.findByRole('alertdialog');
+    expect(dialog.textContent).toContain('„coolness“ in den Papierkorb?');
+    expect(dialog.textContent).toContain('Das schaltet die Kategorie „Das coolste Objekt“ aus.');
+    expect(requests.some((r) => r.url.endsWith('/trash'))).toBe(false);
+    fireEvent.click(within(dialog).getByRole('button', { name: 'In den Papierkorb' }));
     const trash = await openTrash();
     await waitFor(() => expect(within(trash).getByRole('button', { name: 'Papierkorb (2)' })).toBeTruthy());
     expect(within(screen.getByTestId('ml-properties')).queryByText('coolness')).toBeNull();

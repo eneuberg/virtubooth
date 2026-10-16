@@ -388,12 +388,13 @@ function ScoredLine({ property: p }: { property: LlmProperty }) {
   );
 }
 
-/** After a change: the list and the category value pickers (the Papierkorb hides values). */
+/** After a change: the list, the category value pickers (the Papierkorb hides values) and the categories (trashing switches readers off). */
 function useRefresh() {
   const qc = useQueryClient();
   return async () => {
     await qc.invalidateQueries({ queryKey: wk.properties });
     void qc.invalidateQueries({ queryKey: wk.values });
+    void qc.invalidateQueries({ queryKey: wk.categories });
   };
 }
 
@@ -405,39 +406,45 @@ const STATUS_TEXT: Record<LlmProperty['status'], string> = {
   trashed: 'Papierkorb',
 };
 
+const quoted = (titles: readonly string[]) => titles.map((t) => `„${t}“`).join(', ');
+
+/** „wird abgefragt (für: „Das coolste Objekt“)“: the chip names the enabled readers. */
+export function statusText(p: Pick<LlmProperty, 'status' | 'used_by'>): string {
+  const on = p.used_by.filter((u) => u.enabled).map((u) => u.title);
+  return p.status === 'polled' && on.length ? `${STATUS_TEXT.polled} (für: ${quoted(on)})` : STATUS_TEXT[p.status];
+}
+
+const STATUS_TONE: Record<LlmProperty['status'], 'ok' | 'neutral' | 'mark'> = {
+  polled: 'ok',
+  idle: 'neutral',
+  paused: 'mark',
+  trashed: 'neutral',
+};
+
 function PropertyRow({ property: p }: { property: LlmProperty }) {
   const refresh = useRefresh();
-  const [busy, setBusy] = useState<'trash' | null>(null);
-  const run = async (what: 'trash', action: () => Promise<unknown>, done?: string) => {
-    setBusy(what);
-    try {
-      await action();
-      await refresh();
-      if (done) showToast({ message: done, tone: 'success' });
-    } catch (err) {
-      showError(err);
-    } finally {
-      setBusy(null);
-    }
-  };
+  const [confirm, setConfirm] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  // the categories that go off with it (§4a: trashing switches its enabled readers off)
+  const goOff = p.used_by.filter((u) => u.enabled).map((u) => u.title);
   return (
     <li data-property={p.name} className="grid gap-1 border-b border-line py-3">
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-        <span className={cx('font-mono font-semibold', p.status !== 'polled' && 'text-ink-muted')}>
-          {p.name}
-        </span>
-        <span data-testid="ml-property-status">
-          <Badge tone="neutral">{STATUS_TEXT[p.status]}</Badge>
+        <span className={cx('font-mono font-semibold', p.status !== 'polled' && 'text-ink-muted')}>{p.name}</span>
+        <span data-testid="ml-property-status" data-status={p.status} className="min-w-0">
+          <Badge tone={STATUS_TONE[p.status]} className="h-auto min-h-6 py-0.5 whitespace-normal">
+            {statusText(p)}
+          </Badge>
         </span>
         <div className="ml-auto flex items-center gap-2">
           <Button
             size="xs"
             variant="quiet"
             icon={Trash2}
-            isPending={busy === 'trash'}
-            onPress={() =>
-              void run('trash', () => trashProperty(p.name, true), `„${p.name}“ liegt jetzt im Papierkorb.`)
-            }
+            onPress={() => {
+              setError(null);
+              setConfirm(true);
+            }}
             data-testid="ml-property-trash"
           >
             Löschen
@@ -445,7 +452,42 @@ function PropertyRow({ property: p }: { property: LlmProperty }) {
         </div>
       </div>
       <p className="text-sm whitespace-pre-line">{p.prompt}</p>
+      <p className="text-xs text-ink-muted" data-testid="ml-property-used-by">
+        {p.used_by.length
+          ? `Genutzt von ${p.used_by.map((u) => `„${u.title}“${u.enabled ? '' : ' (aus)'}`).join(', ')}`
+          : 'Von keiner Kategorie genutzt'}
+      </p>
       <ScoredLine property={p} />
+      <ConfirmDialog
+        isOpen={confirm}
+        onOpenChange={setConfirm}
+        title={`„${p.name}“ in den Papierkorb?`}
+        confirmLabel="In den Papierkorb"
+        error={error}
+        onConfirm={async () => {
+          try {
+            await trashProperty(p.name, true);
+          } catch (err) {
+            setError(errorText(err));
+            throw err;
+          }
+          await refresh();
+          showToast({
+            message: goOff.length
+              ? `„${p.name}“ liegt jetzt im Papierkorb; ${goOff.length === 1 ? 'eine Kategorie ist' : `${goOff.length} Kategorien sind`} aus.`
+              : `„${p.name}“ liegt jetzt im Papierkorb.`,
+            tone: 'success',
+          });
+        }}
+        data-testid="ml-property-trash-confirm"
+      >
+        <p>
+          {goOff.length
+            ? `Das schaltet ${goOff.length === 1 ? 'die Kategorie' : 'die Kategorien'} ${quoted(goOff)} aus. `
+            : ''}
+          Sie wird nicht mehr abgefragt; die Werte bleiben, „Wiederherstellen“ holt sie zurück.
+        </p>
+      </ConfirmDialog>
     </li>
   );
 }
