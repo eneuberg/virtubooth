@@ -53,6 +53,9 @@ function valid(over: Partial<CategoryDraft> = {}): CategoryDraft {
 
 const objects = (over: Partial<MeasureDraft> = {}): MeasureDraft => ({ ...emptyMeasure('objects'), ...over });
 
+const tie = () => ({ uid: 1, by: emptyMeasure('value', 'smiles'), order: 'desc' as const });
+const say = (m: Measure, order: 'desc' | 'asc' = 'desc') => describeMeasure(m, order, valuesOut);
+
 /** a spec through the editor and back */
 const roundTrip = (s: CategorySpec) => toSpec(fromSpec('x', s, valuesOut), valuesOut);
 
@@ -107,7 +110,13 @@ describe('draft ⇄ spec', () => {
         then_by: [{ by: measure.value('people'), order: 'desc' }],
       },
       select: { count: 5, one_per_guest: false },
-      caption: { value: measure.value('people'), format: 'count', one: 'Person', many: 'Personen', show_object: false },
+      caption: {
+        value: measure.value('people'),
+        format: 'count',
+        one: 'Person',
+        many: 'Personen',
+        show_object: false,
+      },
       verdict: { prompt: 'Sei frech.', count: 2, model: 'claude-sonnet-5-5', effort: 'medium' },
     });
     expect(roundTrip(s)).toEqual(s);
@@ -129,7 +138,9 @@ describe('draft ⇄ spec', () => {
 
   it('takes times as local date and time', () => {
     const at = localToUnix('2026-10-16T19:42');
-    const s = spec({ rank: { by: measure.value('photo.created_at'), order: 'asc', threshold: at, then_by: [] } });
+    const s = spec({
+      rank: { by: measure.value('photo.created_at'), order: 'asc', threshold: at, then_by: [] },
+    });
     const d = fromSpec('x', s, valuesOut);
     expect(d.threshold).toBe('2026-10-16T19:42');
     expect(unixToLocal(at)).toBe('2026-10-16T19:42');
@@ -137,7 +148,10 @@ describe('draft ⇄ spec', () => {
   });
 
   it('trims texts, drops the caption object without a focus, and the verdict when off', () => {
-    const out = toSpec(valid({ title: '  Hallo ', emoji: ' 🎉 ', showObject: true, verdictOn: false }), valuesOut);
+    const out = toSpec(
+      valid({ title: '  Hallo ', emoji: ' 🎉 ', showObject: true, verdictOn: false }),
+      valuesOut,
+    );
     expect(out.title).toBe('Hallo');
     expect(out.emoji).toBe('🎉');
     expect(out.caption.show_object).toBe(false); // a photo value has no object
@@ -148,7 +162,10 @@ describe('draft ⇄ spec', () => {
   });
 
   it('knows the properties a draft reads and whether a measure has an object', () => {
-    const d = valid({ by: objects({ field: 'prop:coolness', agg: 'max' }), pool: [{ ...emptyCondition('objects', 'prop:glitzer') }] });
+    const d = valid({
+      by: objects({ field: 'prop:coolness', agg: 'max' }),
+      pool: [{ ...emptyCondition('objects', 'prop:glitzer') }],
+    });
     expect(draftProperties(d)).toEqual(['glitzer', 'coolness']);
     expect(hasFocus(measure.objects('count'))).toBe(false);
     expect(hasFocus(measure.objects('count', null, ['hat']))).toBe(true);
@@ -163,12 +180,17 @@ describe('validation', () => {
   });
 
   it('checks id, emoji, title, line and count', () => {
-    const errors = validate(valid({ id: 'Neu!', emoji: '🎉🎉', title: '', line: 'x'.repeat(81), count: '11' }), {
-      ...ctx,
-      isNew: true,
-    });
+    const errors = validate(
+      valid({ id: 'Neu!', emoji: '🎉🎉', title: '', line: 'x'.repeat(81), count: '11' }),
+      {
+        ...ctx,
+        isNew: true,
+      },
+    );
     expect(Object.keys(errors).toSorted()).toEqual(['count', 'emoji', 'id', 'line', 'title']);
-    expect(validate(valid({ id: 'meine' }), { ...ctx, isNew: true, taken: ['meine'] }).id).toBe('Diese Kennung gibt es schon.');
+    expect(validate(valid({ id: 'meine' }), { ...ctx, isNew: true, taken: ['meine'] }).id).toBe(
+      'Diese Kennung gibt es schon.',
+    );
     expect(validate(valid({ id: 'Neu!' }), ctx).id).toBeUndefined();
     expect(validate(valid({ count: '0' }), ctx).count).toBeTruthy();
     expect(validate(valid({ count: '10' }), ctx).count).toBeUndefined();
@@ -184,7 +206,13 @@ describe('validation', () => {
   it('checks every pool row by its kind', () => {
     const pool = [
       { ...emptyCondition('value'), measure: emptyMeasure('value', 'people'), a: 'drei' },
-      { ...emptyCondition('value'), measure: emptyMeasure('value', 'people'), op: 'between' as const, a: '5', b: '2' },
+      {
+        ...emptyCondition('value'),
+        measure: emptyMeasure('value', 'people'),
+        op: 'between' as const,
+        a: '5',
+        b: '2',
+      },
       { ...emptyCondition('has') },
       { ...emptyCondition('value') },
       { ...emptyCondition('value'), measure: emptyMeasure('value', 'weg'), a: '1' },
@@ -199,27 +227,41 @@ describe('validation', () => {
       'pool.4': 'Diesen Wert gibt es nicht (mehr).',
       'pool.5.min': 'Eine Zahl von 0 bis 1.',
     });
-    const nine = Array.from({ length: 9 }, () => ({ ...emptyCondition('value'), measure: emptyMeasure('value', 'smiles'), op: 'exists' as const }));
+    const nine = Array.from({ length: 9 }, () => ({
+      ...emptyCondition('value'),
+      measure: emptyMeasure('value', 'smiles'),
+      op: 'exists' as const,
+    }));
     expect(validate(valid({ pool: nine }), ctx).pool).toBe('Höchstens 8 Bedingungen.');
   });
 
   it('checks the ranking: measure, k, t, threshold, at most two tie-breakers', () => {
     expect(validate(valid({ by: emptyMeasure('value') }), ctx)['rank.by']).toBe('Bitte einen Wert wählen.');
-    expect(validate(valid({ by: objects({ field: 'prop:coolness', agg: 'top_k_mean', k: '7' }) }), ctx)['rank.by.k']).toBe(
-      'k: 2 bis 5.',
-    );
-    expect(validate(valid({ by: objects({ field: 'prop:coolness', agg: 'count_ge', t: '1,5' }) }), ctx)['rank.by.t']).toBeTruthy();
+    expect(
+      validate(valid({ by: objects({ field: 'prop:coolness', agg: 'top_k_mean', k: '7' }) }), ctx)[
+        'rank.by.k'
+      ],
+    ).toBe('k: 2 bis 5.');
+    expect(
+      validate(valid({ by: objects({ field: 'prop:coolness', agg: 'count_ge', t: '1,5' }) }), ctx)[
+        'rank.by.t'
+      ],
+    ).toBeTruthy();
     expect(validate(valid({ threshold: 'viele' }), ctx)['rank.threshold']).toBe('Bitte eine Zahl.');
     expect(validate(valid({ threshold: '3' }), ctx)['rank.threshold']).toBeUndefined();
-    const then = () => ({ uid: 1, by: emptyMeasure('value', 'smiles'), order: 'desc' as const });
-    expect(validate(valid({ thenBy: [then(), then(), then()] }), ctx)['rank.then_by']).toBe('Höchstens 2.');
-    expect(validate(valid({ thenBy: [{ ...then(), by: emptyMeasure('value') }] }), ctx)['rank.then_by.0']).toBeTruthy();
+    expect(validate(valid({ thenBy: [tie(), tie(), tie()] }), ctx)['rank.then_by']).toBe('Höchstens 2.');
+    expect(
+      validate(valid({ thenBy: [{ ...tie(), by: emptyMeasure('value') }] }), ctx)['rank.then_by.0'],
+    ).toBeTruthy();
     // a property that is not there (any more) is the lock's business, not the form's
     expect(validate(valid({ by: objects({ field: 'prop:weg', agg: 'max' }) }), ctx)).toEqual({});
   });
 
   it('asks for the caption words the format needs, and checks the comments', () => {
-    expect(validate(valid({ one: '', many: '' }), ctx)).toMatchObject({ one: expect.any(String), many: expect.any(String) });
+    expect(validate(valid({ one: '', many: '' }), ctx)).toMatchObject({
+      one: expect.any(String),
+      many: expect.any(String),
+    });
     expect(validate(valid({ format: 'text', one: '', many: '' }), ctx)).toEqual({ one: 'Bitte den Text.' });
     expect(validate(valid({ format: 'decimal', one: '', many: '' }), ctx)).toEqual({});
     expect(validate(valid({ verdictOn: true, verdictPrompt: 'x'.repeat(1001) }), ctx).verdict).toBeTruthy();
@@ -230,17 +272,22 @@ describe('validation', () => {
 
 describe('plain German', () => {
   it('describes measures as the server does', () => {
-    const d = (m: Measure, order: 'desc' | 'asc' = 'desc') => describeMeasure(m, order, valuesOut);
-    expect(d(measure.value('people'))).toBe('Höchster Wert bei „Personen“');
-    expect(d(measure.value('photo.created_at'), 'asc')).toBe('Das früheste Foto');
-    expect(d(measure.objects('max', 'prop:coolness'))).toBe('Höchster coolness-Wert unter allen Objekten');
-    expect(d(measure.objects('min', 'prop:coolness'), 'desc')).toBe('Niedrigster coolness-Wert unter allen Objekten');
-    expect(d({ ...measure.objects('count'), where: { labels: [], exclude: ['person'], min_confidence: 0.5 } })).toBe(
-      'Die meisten Objekte (ohne Person; Sicherheit ab 50 %)',
+    expect(say(measure.value('people'))).toBe('Höchster Wert bei „Personen“');
+    expect(say(measure.value('photo.created_at'), 'asc')).toBe('Das früheste Foto');
+    expect(say(measure.objects('max', 'prop:coolness'))).toBe('Höchster coolness-Wert unter allen Objekten');
+    expect(say(measure.objects('min', 'prop:coolness'), 'desc')).toBe(
+      'Niedrigster coolness-Wert unter allen Objekten',
     );
-    expect(d(measure.objects('count', null, ['hat']), 'asc')).toBe('Die wenigsten Objekte (nur Hut)');
-    expect(d({ ...measure.objects('top_k_mean', 'prop:coolness'), k: 2 })).toBe('Höchster Schnitt der besten 2 coolness-Werte');
-    expect(d({ ...measure.objects('count_ge', 'confidence'), t: 0.8 })).toBe('Die meisten Objekte mit Erkennungssicherheit ab 0,80');
+    expect(
+      say({ ...measure.objects('count'), where: { labels: [], exclude: ['person'], min_confidence: 0.5 } }),
+    ).toBe('Die meisten Objekte (ohne Person; Sicherheit ab 50 %)');
+    expect(say(measure.objects('count', null, ['hat']), 'asc')).toBe('Die wenigsten Objekte (nur Hut)');
+    expect(say({ ...measure.objects('top_k_mean', 'prop:coolness'), k: 2 })).toBe(
+      'Höchster Schnitt der besten 2 coolness-Werte',
+    );
+    expect(say({ ...measure.objects('count_ge', 'confidence'), t: 0.8 })).toBe(
+      'Die meisten Objekte mit Erkennungssicherheit ab 0,80',
+    );
   });
 
   it('explains the ranking with its threshold', () => {
@@ -255,34 +302,63 @@ describe('plain German', () => {
         { measure: measure.objects('count', null, ['hat']), op: 'gte', operand: 1 },
         { measure: measure.value('smiles'), op: 'between', operand: [1, 4] },
       ],
-      rank: { by: measure.value('people'), order: 'desc', threshold: 3, then_by: [{ by: measure.value('smiles'), order: 'desc' }] },
+      rank: {
+        by: measure.value('people'),
+        order: 'desc',
+        threshold: 3,
+        then_by: [{ by: measure.value('smiles'), order: 'desc' }],
+      },
       select: { count: 1, one_per_guest: true },
     });
     expect(ruleText(s, valuesOut)).toEqual({
       pool: 'enthält Hut und Lächeln zwischen 1 und 4',
       rank: 'Höchster Wert bei „Personen“, mindestens 3',
-      then: ['Höchster Wert bei „Lächeln“'],
+      ties: ['Höchster Wert bei „Lächeln“'],
       select: 'Ein Gewinner, ein Foto pro Gast',
     });
     expect(ruleText(spec({ select: { count: 3, one_per_guest: false } }), valuesOut).pool).toBe('Alle Fotos');
-    expect(conditionText({ measure: measure.objects('count', null, ['wine glass']), op: 'eq', operand: 0 }, valuesOut)).toBe(
-      'enthält kein Weinglas',
-    );
-    expect(conditionText({ measure: measure.objects('max', 'prop:coolness'), op: 'gte', operand: 0.5 }, valuesOut)).toBe(
-      'coolness: höchster Wert ≥ 0,5',
-    );
+    expect(
+      conditionText(
+        { measure: measure.objects('count', null, ['wine glass']), op: 'eq', operand: 0 },
+        valuesOut,
+      ),
+    ).toBe('enthält kein Weinglas');
+    expect(
+      conditionText({ measure: measure.objects('max', 'prop:coolness'), op: 'gte', operand: 0.5 }, valuesOut),
+    ).toBe('coolness: höchster Wert ≥ 0,5');
   });
 });
 
 describe('caption', () => {
   it('suggests the format from the measure', () => {
-    expect(suggestCaption(measure.value('people'), valuesOut)).toEqual({ format: 'count', showObject: false });
-    expect(suggestCaption(measure.value('happy_max'), valuesOut)).toEqual({ format: 'decimal', showObject: false });
-    expect(suggestCaption(measure.value('colorfulness'), valuesOut)).toEqual({ format: 'number', showObject: false });
-    expect(suggestCaption(measure.value('photo.created_at'), valuesOut)).toEqual({ format: 'time', showObject: false });
-    expect(suggestCaption(measure.objects('count'), valuesOut)).toEqual({ format: 'count', showObject: false });
-    expect(suggestCaption(measure.objects('max', 'prop:coolness'), valuesOut)).toEqual({ format: 'decimal', showObject: true });
-    expect(suggestCaption(measure.objects('mean', 'prop:coolness'), valuesOut)).toEqual({ format: 'decimal', showObject: false });
+    expect(suggestCaption(measure.value('people'), valuesOut)).toEqual({
+      format: 'count',
+      showObject: false,
+    });
+    expect(suggestCaption(measure.value('happy_max'), valuesOut)).toEqual({
+      format: 'decimal',
+      showObject: false,
+    });
+    expect(suggestCaption(measure.value('colorfulness'), valuesOut)).toEqual({
+      format: 'number',
+      showObject: false,
+    });
+    expect(suggestCaption(measure.value('photo.created_at'), valuesOut)).toEqual({
+      format: 'time',
+      showObject: false,
+    });
+    expect(suggestCaption(measure.objects('count'), valuesOut)).toEqual({
+      format: 'count',
+      showObject: false,
+    });
+    expect(suggestCaption(measure.objects('max', 'prop:coolness'), valuesOut)).toEqual({
+      format: 'decimal',
+      showObject: true,
+    });
+    expect(suggestCaption(measure.objects('mean', 'prop:coolness'), valuesOut)).toEqual({
+      format: 'decimal',
+      showObject: false,
+    });
   });
 
   it('writes the value as the wall does', () => {
@@ -295,18 +371,30 @@ describe('caption', () => {
     expect(valueText('none', 5, 'x', '')).toBe('');
     expect(valueText('time', localToUnix('2026-10-16T19:42'), '', '')).toBe('um 19:42');
     const cap = { format: 'decimal' as const, one: 'Coolness', many: '', show_object: true };
-    expect(captionParts(cap, 0.93, 'Sonnenbrille')).toEqual({ headline: 'Sonnenbrille', detail: '0,93 Coolness' });
-    expect(captionParts({ ...cap, show_object: false }, 0.93, 'Sonnenbrille')).toEqual({ headline: '0,93 Coolness', detail: null });
+    expect(captionParts(cap, 0.93, 'Sonnenbrille')).toEqual({
+      headline: 'Sonnenbrille',
+      detail: '0,93 Coolness',
+    });
+    expect(captionParts({ ...cap, show_object: false }, 0.93, 'Sonnenbrille')).toEqual({
+      headline: '0,93 Coolness',
+      detail: null,
+    });
   });
 });
 
 describe('AI comments', () => {
   it('prices a comment for the chosen model and effort, estimates marked', () => {
     const opts = verdictOptions();
-    expect(verdictPrice(opts, '', 'low')).toMatchObject({ model: 'claude-haiku-5-5', price: 0.0014, measured: true });
+    expect(verdictPrice(opts, '', 'low')).toMatchObject({
+      model: 'claude-haiku-5-5',
+      price: 0.0014,
+      measured: true,
+    });
     expect(verdictPrice(opts, 'claude-sonnet-5-5', 'high')).toMatchObject({ price: 0.033, measured: false });
     // a provider without thinking: the low row
-    expect(verdictPrice({ ...opts, thinking: false }, 'claude-sonnet-5-5', 'high')).toMatchObject({ price: 0.0042 });
+    expect(verdictPrice({ ...opts, thinking: false }, 'claude-sonnet-5-5', 'high')).toMatchObject({
+      price: 0.0042,
+    });
     expect(verdictPrice(undefined, '', 'low')).toBeNull();
     expect(priceText(0.0014, 'USD')).toMatch(/^≈ 0,0014\s\$$/);
   });
@@ -328,7 +416,9 @@ describe('helpers', () => {
   });
 
   it('finds the field a server error is about', () => {
-    expect(serverField('egal', { error: 'invalid_category', field: 'rank.threshold' })).toBe('rank.threshold');
+    expect(serverField('egal', { error: 'invalid_category', field: 'rank.threshold' })).toBe(
+      'rank.threshold',
+    );
     expect(serverField('Titel: höchstens 40 Zeichen.')).toBe('title');
     expect(serverField('Bedingung 2: Messgröße.')).toBe('pool');
     expect(serverField('Rang: Schwelle.')).toBe('rank.threshold');

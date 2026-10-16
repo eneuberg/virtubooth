@@ -3,15 +3,18 @@
  */
 import type { LlmProperty, LlmStatus, TestImageResult } from './types';
 
-export function verdictOptions(): LlmStatus['verdict'] {
-  const effort = (effort: 'low' | 'medium' | 'high', usd: number, measured: boolean) => ({
+function effortRow(effort: 'low' | 'medium' | 'high', usd: number, measured: boolean) {
+  return {
     effort,
     input_tokens: 800,
     output_tokens: effort === 'low' ? 120 : 900,
     usd_per_comment: usd,
     price_per_comment: usd,
     measured,
-  });
+  };
+}
+
+export function verdictOptions(): LlmStatus['verdict'] {
   return {
     system_prompt: 'You write one short, cheeky, warm German sentence about a party photo.',
     default_prompt:
@@ -25,14 +28,22 @@ export function verdictOptions(): LlmStatus['verdict'] {
         title: 'Claude Haiku 5.5',
         tier: 'small',
         currency: 'USD',
-        efforts: [effort('low', 0.0014, true), effort('medium', 0.0052, false), effort('high', 0.011, false)],
+        efforts: [
+          effortRow('low', 0.0014, true),
+          effortRow('medium', 0.0052, false),
+          effortRow('high', 0.011, false),
+        ],
       },
       {
         id: 'claude-sonnet-5-5',
         title: 'Claude Sonnet 5.5',
         tier: 'mid',
         currency: 'USD',
-        efforts: [effort('low', 0.0042, true), effort('medium', 0.016, false), effort('high', 0.033, false)],
+        efforts: [
+          effortRow('low', 0.0042, true),
+          effortRow('medium', 0.016, false),
+          effortRow('high', 0.033, false),
+        ],
       },
     ],
     basis: 'Geschätzt aus den Token-Zahlen echter Läufe.',

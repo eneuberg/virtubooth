@@ -110,7 +110,17 @@ const ADD_ROWS: ReadonlyArray<{ id: string; type: ConditionType; label: string; 
   { id: 'prop', type: 'objects', label: 'Eigenschaft …', field: 'prop' },
 ];
 
-function Step({ n, title, children, testid }: { n: number; title: string; children: ReactNode; testid?: string }) {
+function Step({
+  n,
+  title,
+  children,
+  testid,
+}: {
+  n: number;
+  title: string;
+  children: ReactNode;
+  testid?: string;
+}) {
   return (
     <fieldset className="grid min-w-0 gap-3 border-t border-line pt-3" data-testid={testid}>
       <legend className="float-left mb-1 flex w-full items-center gap-2 text-md font-bold">
@@ -157,7 +167,13 @@ function AddCondition({ disabled, onAdd }: { disabled: boolean; onAdd: (row: Con
           className="grid gap-0.5 p-1.5 outline-none"
         >
           {ADD_ROWS.map((r) => (
-            <MenuItem key={r.id} id={r.id} textValue={r.label} className={MENU_ITEM} data-testid={`condition-add-${r.id}`}>
+            <MenuItem
+              key={r.id}
+              id={r.id}
+              textValue={r.label}
+              className={MENU_ITEM}
+              data-testid={`condition-add-${r.id}`}
+            >
               {r.label}
             </MenuItem>
           ))}
@@ -201,7 +217,11 @@ function ConditionRow({
   );
   const objectRow = cond.type === 'has' || cond.type === 'has_not';
   return (
-    <li className="grid gap-2 rounded-control bg-surface-sunk/60 p-2" data-testid="condition" data-type={cond.type}>
+    <li
+      className="grid gap-2 rounded-control bg-surface-sunk/60 p-2"
+      data-testid="condition"
+      data-type={cond.type}
+    >
       <div className="flex items-center gap-2">
         <span className="text-sm font-semibold">
           {cond.type === 'has'
@@ -354,7 +374,10 @@ function CaptionPreview({ draft, preview }: { draft: CategoryDraft; preview: Cat
       {first ? (
         <img src={first.thumb_url} alt="" className="aspect-square w-full rounded-small object-cover" />
       ) : (
-        <div aria-hidden="true" className="grid aspect-square place-items-center rounded-small bg-surface-raised text-2xl">
+        <div
+          aria-hidden="true"
+          className="grid aspect-square place-items-center rounded-small bg-surface-raised text-2xl"
+        >
           {draft.emoji.trim() || '⭐'}
         </div>
       )}
@@ -376,7 +399,15 @@ function CaptionPreview({ draft, preview }: { draft: CategoryDraft; preview: Cat
   );
 }
 
-function VerdictPrice({ options, model, effort }: { options: VerdictOptions | undefined; model: string; effort: Effort }) {
+function VerdictPrice({
+  options,
+  model,
+  effort,
+}: {
+  options: VerdictOptions | undefined;
+  model: string;
+  effort: Effort;
+}) {
   const price = verdictPrice(options, model, effort);
   if (!price) return null;
   return (
@@ -430,7 +461,9 @@ export function CategorySheet({ item, values, taken, isOpen, onOpenChange }: Cat
   // the AI comments' models, prices and red hint
   const llm = useLlm(isOpen);
   const isNew = item === null;
-  const [draft, setDraft] = useState<CategoryDraft>(() => (item ? fromSpec(item.id, item.spec, values) : newDraft(values)));
+  const [draft, setDraft] = useState<CategoryDraft>(() =>
+    item ? fromSpec(item.id, item.spec, values) : newDraft(values),
+  );
   // the host chose the caption's format: a new measure no longer suggests one
   const [captionTouched, setCaptionTouched] = useState(!isNew);
   const [idTouched, setIdTouched] = useState(false);
@@ -459,7 +492,8 @@ export function CategorySheet({ item, values, taken, isOpen, onOpenChange }: Cat
       const next = { ...d, ...change };
       if (isNew && !idTouched && change.title !== undefined) next.id = freeId(change.title, taken);
       // a new measure suggests its caption until the host picks one
-      const measureChanged = change.by !== undefined || change.captionValue !== undefined || change.captionSame !== undefined;
+      const measureChanged =
+        change.by !== undefined || change.captionValue !== undefined || change.captionSame !== undefined;
       if (!captionTouched && measureChanged) {
         const measure = next.captionSame ? next.by : next.captionValue;
         if (measure.kind === 'objects' || measure.key) {
@@ -478,7 +512,8 @@ export function CategorySheet({ item, values, taken, isOpen, onOpenChange }: Cat
     });
   };
 
-  const setCondition = (i: number, c: ConditionDraft) => update({ pool: draft.pool.map((x, j) => (j === i ? c : x)) });
+  const setCondition = (i: number, c: ConditionDraft) =>
+    update({ pool: draft.pool.map((x, j) => (j === i ? c : x)) });
 
   const done = async (message: string, tone: 'success' | 'info' = 'success') => {
     await qc.invalidateQueries({ queryKey: wk.categories });
@@ -511,7 +546,10 @@ export function CategorySheet({ item, values, taken, isOpen, onOpenChange }: Cat
         // locked: saved, but switched off (§5)
         if (!(isApiError(err) && err.code === 'category_locked')) throw err;
         const out = await saveCategory(item.id, spec, false);
-        await done(`„${spec.title}“ gespeichert, aber ausgeschaltet: ${out.locked?.message ?? err.message}`, 'info');
+        await done(
+          `„${spec.title}“ gespeichert, aber ausgeschaltet: ${out.locked?.message ?? err.message}`,
+          'info',
+        );
       }
     } catch (err) {
       const field = isApiError(err) && err.status < 500 ? serverField(err.message, err.data) : null;
@@ -554,7 +592,13 @@ export function CategorySheet({ item, values, taken, isOpen, onOpenChange }: Cat
       footer={
         <div className="grid gap-2">
           {formError ? (
-            <p ref={errorRef} tabIndex={-1} role="alert" className="text-sm text-danger outline-none" data-testid="category-form-error">
+            <p
+              ref={errorRef}
+              tabIndex={-1}
+              role="alert"
+              className="text-sm text-danger outline-none"
+              data-testid="category-form-error"
+            >
               {formError}
             </p>
           ) : null}
@@ -576,7 +620,13 @@ export function CategorySheet({ item, values, taken, isOpen, onOpenChange }: Cat
             <Button size="sm" variant="quiet" onPress={() => onOpenChange(false)} className="ml-auto">
               Abbrechen
             </Button>
-            <Button size="sm" variant="primary" isPending={busy} onPress={() => void save()} data-testid="category-save">
+            <Button
+              size="sm"
+              variant="primary"
+              isPending={busy}
+              onPress={() => void save()}
+              data-testid="category-save"
+            >
               {isNew ? 'Anlegen' : 'Speichern'}
             </Button>
           </div>
@@ -587,11 +637,15 @@ export function CategorySheet({ item, values, taken, isOpen, onOpenChange }: Cat
         {props.length > 0 || lock ? (
           <div className="grid gap-2">
             {props.length > 0 ? (
-              <p className="flex flex-wrap items-center gap-2 text-xs text-ink-muted" data-testid="category-needs-ai">
+              <p
+                className="flex flex-wrap items-center gap-2 text-xs text-ink-muted"
+                data-testid="category-needs-ai"
+              >
                 <Badge tone="mark" icon={Sparkles}>
                   braucht externe KI
                 </Badge>
-                liest {props.map((p) => `„${p}“`).join(', ')}; die Vorschau rechnet mit den Werten vom letzten Poll.
+                liest {props.map((p) => `„${p}“`).join(', ')}; die Vorschau rechnet mit den Werten vom letzten
+                Poll.
               </p>
             ) : null}
             {lock ? <LockNotice lock={lock} /> : null}
@@ -692,7 +746,9 @@ export function CategorySheet({ item, values, taken, isOpen, onOpenChange }: Cat
               update({ pool: [...draft.pool, row] });
             }}
           />
-          {draft.pool.length > 0 ? <p className="text-xs text-ink-muted">Alle Bedingungen müssen stimmen.</p> : null}
+          {draft.pool.length > 0 ? (
+            <p className="text-xs text-ink-muted">Alle Bedingungen müssen stimmen.</p>
+          ) : null}
         </Step>
 
         <Step n={3} title="Wer gewinnt?" testid="category-rank">
@@ -744,7 +800,11 @@ export function CategorySheet({ item, values, taken, isOpen, onOpenChange }: Cat
           >
             <div className="grid gap-3" data-testid="category-then">
               {draft.thenBy.map((t, i) => (
-                <div key={t.uid} className="grid gap-2 rounded-control bg-surface-sunk/60 p-2" data-testid="category-then-row">
+                <div
+                  key={t.uid}
+                  className="grid gap-2 rounded-control bg-surface-sunk/60 p-2"
+                  data-testid="category-then-row"
+                >
                   <div className="flex flex-wrap items-center gap-2">
                     <span className="text-sm font-semibold">{i === 0 ? 'danach' : 'und danach'}</span>
                     <SegmentedControl
@@ -766,7 +826,9 @@ export function CategorySheet({ item, values, taken, isOpen, onOpenChange }: Cat
                   <MeasurePicker
                     label={`danach ${i + 1}`}
                     value={t.by}
-                    onChange={(by) => update({ thenBy: draft.thenBy.map((x, j) => (j === i ? { ...x, by } : x)) })}
+                    onChange={(by) =>
+                      update({ thenBy: draft.thenBy.map((x, j) => (j === i ? { ...x, by } : x)) })
+                    }
                     values={values}
                     name={`rank.then_by.${i}`}
                     errors={shown}
@@ -782,7 +844,9 @@ export function CategorySheet({ item, values, taken, isOpen, onOpenChange }: Cat
                   variant="secondary"
                   icon={ArrowDownWideNarrow}
                   onPress={() =>
-                    update({ thenBy: [...draft.thenBy, { uid: nextUid(), by: emptyMeasure('value'), order: 'desc' }] })
+                    update({
+                      thenBy: [...draft.thenBy, { uid: nextUid(), by: emptyMeasure('value'), order: 'desc' }],
+                    })
                   }
                   className="justify-self-start"
                   data-testid="category-then-add"
@@ -807,7 +871,11 @@ export function CategorySheet({ item, values, taken, isOpen, onOpenChange }: Cat
               className="w-40"
               data-testid="category-count"
             />
-            <Checkbox isSelected={draft.onePerGuest} onChange={(onePerGuest) => update({ onePerGuest })} className="sm:mt-7">
+            <Checkbox
+              isSelected={draft.onePerGuest}
+              onChange={(onePerGuest) => update({ onePerGuest })}
+              className="sm:mt-7"
+            >
               Ein Foto pro Gast
             </Checkbox>
           </div>
@@ -834,7 +902,12 @@ export function CategorySheet({ item, values, taken, isOpen, onOpenChange }: Cat
                 { id: 'other', label: 'einer anderen Messgröße' },
               ]}
               value={draft.captionSame ? 'same' : 'other'}
-              onChange={(v) => update({ captionSame: v === 'same', captionValue: v === 'same' ? draft.captionValue : draft.by })}
+              onChange={(v) =>
+                update({
+                  captionSame: v === 'same',
+                  captionValue: v === 'same' ? draft.captionValue : draft.by,
+                })
+              }
               data-testid="category-caption-source"
             />
           </div>
@@ -876,12 +949,18 @@ export function CategorySheet({ item, values, taken, isOpen, onOpenChange }: Cat
               Das Objekt nennen und auf dem Foto einrahmen
             </Checkbox>
           ) : null}
-          {shown['caption.show_object'] ? <p className="text-sm text-danger">{shown['caption.show_object']}</p> : null}
+          {shown['caption.show_object'] ? (
+            <p className="text-sm text-danger">{shown['caption.show_object']}</p>
+          ) : null}
           <CaptionPreview draft={draft} preview={preview.data} />
         </Step>
 
         <Step n={6} title="KI-Kommentare (optional)" testid="category-verdict">
-          <Switch isSelected={draft.verdictOn} onChange={(verdictOn) => update({ verdictOn })} data-testid="category-verdict-on">
+          <Switch
+            isSelected={draft.verdictOn}
+            onChange={(verdictOn) => update({ verdictOn })}
+            data-testid="category-verdict-on"
+          >
             Die KI kommentiert die besten Fotos
           </Switch>
           {draft.verdictOn ? (
@@ -907,7 +986,9 @@ export function CategorySheet({ item, values, taken, isOpen, onOpenChange }: Cat
                   onChange={(e) => update({ verdictPrompt: e.target.value })}
                   rows={3}
                   maxLength={LIMITS.verdict + 200}
-                  placeholder={verdictOptions?.default_prompt.replace('{title}', draft.title.trim() || 'Titel') ?? ''}
+                  placeholder={
+                    verdictOptions?.default_prompt.replace('{title}', draft.title.trim() || 'Titel') ?? ''
+                  }
                   aria-invalid={shown.verdict ? true : undefined}
                   className={cx(
                     'min-h-20 rounded-control border bg-field-bg px-3 py-2 text-md text-ink outline-none focus-visible:outline-2 focus-visible:outline-focus sm:text-sm',
@@ -919,7 +1000,10 @@ export function CategorySheet({ item, values, taken, isOpen, onOpenChange }: Cat
               {shown.verdict ? <p className="text-sm text-danger">{shown.verdict}</p> : null}
               {verdictOptions ? (
                 <HelpDisclosure summary="Was die KI immer mitbekommt (Systemprompt)" headingLevel={false}>
-                  <pre className="text-xs whitespace-pre-wrap text-ink-muted" data-testid="verdict-system-prompt">
+                  <pre
+                    className="text-xs whitespace-pre-wrap text-ink-muted"
+                    data-testid="verdict-system-prompt"
+                  >
                     {verdictOptions.system_prompt}
                   </pre>
                 </HelpDisclosure>
@@ -952,7 +1036,11 @@ export function CategorySheet({ item, values, taken, isOpen, onOpenChange }: Cat
                   ) : null}
                 </div>
               ) : null}
-              <VerdictPrice options={verdictOptions} model={draft.verdictModel} effort={draft.verdictEffort} />
+              <VerdictPrice
+                options={verdictOptions}
+                model={draft.verdictModel}
+                effort={draft.verdictEffort}
+              />
               <ExternalAiHint status={llm.data} where="elsewhere" />
             </div>
           ) : null}
@@ -979,7 +1067,9 @@ export function CategorySheet({ item, values, taken, isOpen, onOpenChange }: Cat
           data-testid="confirm"
         >
           <p>
-            {item.preset ? 'Sie ist eine Vorlage: „Vorlagen wiederherstellen“ holt sie zurück.' : 'Das lässt sich nicht rückgängig machen.'}
+            {item.preset
+              ? 'Sie ist eine Vorlage: „Vorlagen wiederherstellen“ holt sie zurück.'
+              : 'Das lässt sich nicht rückgängig machen.'}
           </p>
         </ConfirmDialog>
       )}

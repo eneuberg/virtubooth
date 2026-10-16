@@ -15,12 +15,21 @@ vi.mock('@/print/names', () => ({
 
 const A = '/api/x/wall/admin';
 
-function renderCard(routes: Record<string, Route> = {}, over: (items: CategoryItem[]) => CategoryItem[] = (x) => x) {
+function renderCard(
+  routes: Record<string, Route> = {},
+  over: (items: CategoryItem[]) => CategoryItem[] = (x) => x,
+) {
   let items = over(categoryItems());
   const requests = stubApi({
     [`GET ${A}/categories`]: () => ({ categories: items }),
     [`GET ${A}/values`]: () => valuesOut,
-    [`POST ${A}/categories/preview`]: () => ({ winners: [], matched: 0, reason: 'Noch kein Foto.', explanation: '', locked: null }),
+    [`POST ${A}/categories/preview`]: () => ({
+      winners: [],
+      matched: 0,
+      reason: 'Noch kein Foto.',
+      explanation: '',
+      locked: null,
+    }),
     [`PUT ${A}/categories/order`]: async (r: Request) => {
       const ids = await bodyField(r, 'ids');
       if (!Array.isArray(ids)) throw new Error('ids');
@@ -54,6 +63,9 @@ afterEach(() => {
   vi.unstubAllGlobals();
   downloads.length = 0;
 });
+
+/** switched off by the app, nothing stops it any more */
+const off = (c: CategoryItem): CategoryItem => ({ ...c, enabled: false, off_reason: 'ai_off', locked: null });
 
 const comment = { text: 'Der Hut von Gast 3 ist unschlagbar.', emoji: '🎩' };
 
@@ -100,8 +112,13 @@ describe('the categories card', () => {
     );
     await screen.findByTestId('wall-categories');
     const cool = row('coolstes_objekt');
-    expect(within(cool).getByTestId('category-lock').textContent).toContain('Externe KI ist aus (Hauptschalter …).');
-    expect(within(cool).getByRole('switch', { name: 'Das coolste Objekt zeigen' })).toHaveProperty('disabled', true);
+    expect(within(cool).getByTestId('category-lock').textContent).toContain(
+      'Externe KI ist aus (Hauptschalter …).',
+    );
+    expect(within(cool).getByRole('switch', { name: 'Das coolste Objekt zeigen' })).toHaveProperty(
+      'disabled',
+      true,
+    );
     expect(cool.dataset.locked).toBe('true');
     // no lock any more: the reason stays until the host switches it, the switch works
     const prost = row('mein_prost');
@@ -113,7 +130,6 @@ describe('the categories card', () => {
 
   it('switches the categories the app switched off back on from the banner (nothing by itself)', async () => {
     const puts: Array<{ id: string; enabled: unknown }> = [];
-    const off = (c: CategoryItem): CategoryItem => ({ ...c, enabled: false, off_reason: 'ai_off', locked: null });
     const requests = renderCard(
       {
         [`PUT ${A}/categories/volles_haus`]: async (r: Request) => {
@@ -138,7 +154,12 @@ describe('the categories card', () => {
     expect(banner.textContent).toContain('Volles Haus, Prost!');
     expect(requests.some((r) => r.method === 'PUT')).toBe(false);
     fireEvent.click(within(banner).getByRole('button', { name: '2 Kategorien wieder einschalten' }));
-    await waitFor(() => expect(puts).toEqual([{ id: 'volles_haus', enabled: true }, { id: 'mein_prost', enabled: true }]));
+    await waitFor(() =>
+      expect(puts).toEqual([
+        { id: 'volles_haus', enabled: true },
+        { id: 'mein_prost', enabled: true },
+      ]),
+    );
   });
 
   it('moves a category down with ↓', async () => {
@@ -151,7 +172,13 @@ describe('the categories card', () => {
   });
 
   it('exports all categories, or one, as the server writes the file', async () => {
-    const file = { format: 'virtubooth-categories', version: 2, exported_at: 'x', properties: [], categories: [] };
+    const file = {
+      format: 'virtubooth-categories',
+      version: 2,
+      exported_at: 'x',
+      properties: [],
+      categories: [],
+    };
     const requests = renderCard({ [`GET ${A}/categories/export`]: () => file });
     await screen.findByTestId('wall-categories');
     fireEvent.click(screen.getByTestId('category-export'));
@@ -180,10 +207,15 @@ describe('the categories card', () => {
       format: 'virtubooth-categories',
       version: 2,
       properties: [{ name: 'glitzer', prompt: 'p' }],
-      categories: [{ id: 'volles_haus', spec: { title: 'Volles Haus' } }, { id: 'kaputt', spec: {} }],
+      categories: [
+        { id: 'volles_haus', spec: { title: 'Volles Haus' } },
+        { id: 'kaputt', spec: {} },
+      ],
     });
     const input = must(document.querySelector<HTMLInputElement>('input[type=file]'));
-    fireEvent.change(input, { target: { files: [new File([text], 'k.json', { type: 'application/json' })] } });
+    fireEvent.change(input, {
+      target: { files: [new File([text], 'k.json', { type: 'application/json' })] },
+    });
     const dialog = await screen.findByTestId('category-import-confirm');
     expect(dialog.textContent).toContain('„volles_haus“ gibt es schon.');
     fireEvent.click(within(dialog).getByRole('radio', { name: 'Vorhandene ersetzen' }));
@@ -191,9 +223,16 @@ describe('the categories card', () => {
     await waitFor(() => expect(requests.some((r) => r.url.endsWith('/categories/import'))).toBe(true));
     const post = must(requests.find((r) => r.url.endsWith('/categories/import')));
     expect(await bodyField(post, 'on_conflict')).toBe('replace');
-    expect(await bodyField(post, 'file')).toMatchObject({ version: 2, categories: [{ id: 'volles_haus' }, { id: 'kaputt' }] });
-    expect((await screen.findByTestId('category-import-problems')).textContent).toContain('kaputt: übersprungen, ungültig (Titel)');
-    expect(await screen.findByText(/1 importiert \(1 ersetzt\), 1 übersprungen\. Eigenschaft angelegt: glitzer\./)).toBeTruthy();
+    expect(await bodyField(post, 'file')).toMatchObject({
+      version: 2,
+      categories: [{ id: 'volles_haus' }, { id: 'kaputt' }],
+    });
+    expect((await screen.findByTestId('category-import-problems')).textContent).toContain(
+      'kaputt: übersprungen, ungültig (Titel)',
+    );
+    expect(
+      await screen.findByText(/1 importiert \(1 ersetzt\), 1 übersprungen\. Eigenschaft angelegt: glitzer\./),
+    ).toBeTruthy();
   });
 
   it('imports a file without known ids at once; a file that is not one never goes up', async () => {
@@ -217,16 +256,25 @@ describe('the categories card', () => {
     const post = must(requests.find((r) => r.url.endsWith('/categories/import')));
     expect(await bodyField(post, 'on_conflict')).toBe('copy');
     expect(screen.queryByTestId('category-import-confirm')).toBeNull();
-    expect((await screen.findByTestId('category-import-problems')).textContent).toContain('neu: aus, Externe KI ist aus.');
-    expect(await screen.findByText(/Prompt weicht ab, eure bleibt: coolness\. 1 ausgeschaltet\./)).toBeTruthy();
+    expect((await screen.findByTestId('category-import-problems')).textContent).toContain(
+      'neu: aus, Externe KI ist aus.',
+    );
+    expect(
+      await screen.findByText(/Prompt weicht ab, eure bleibt: coolness\. 1 ausgeschaltet\./),
+    ).toBeTruthy();
   });
 
   it('shows a server error of the import in the dialog', async () => {
     renderCard({
-      [`POST ${A}/categories/import`]: () => json(400, { error: 'invalid_import', message: 'Höchstens 200 Kategorien pro Datei.' }),
+      [`POST ${A}/categories/import`]: () =>
+        json(400, { error: 'invalid_import', message: 'Höchstens 200 Kategorien pro Datei.' }),
     });
     await screen.findByTestId('wall-categories');
-    const text = JSON.stringify({ format: 'virtubooth-categories', version: 2, categories: [{ id: 'mein_prost', spec: {} }] });
+    const text = JSON.stringify({
+      format: 'virtubooth-categories',
+      version: 2,
+      categories: [{ id: 'mein_prost', spec: {} }],
+    });
     const input = must(document.querySelector<HTMLInputElement>('input[type=file]'));
     fireEvent.change(input, { target: { files: [new File([text], 'k.json')] } });
     const dialog = await screen.findByTestId('category-import-confirm');

@@ -51,14 +51,19 @@ describe('Eigenschaften: the status and the Papierkorb', () => {
       [`GET ${A}`]: () => ({
         properties: properties().map((p) =>
           p.name === 'most_giraffe'
-            ? { ...p, status: 'paused', used_by: [{ id: 'giraffe', title: 'Giraffe', enabled: false }] }
+            ? Object.assign({}, p, {
+                status: 'paused',
+                used_by: [{ id: 'giraffe', title: 'Giraffe', enabled: false }],
+              })
             : p,
         ),
       }),
     });
     const giraffe = await row('most_giraffe');
     expect(within(giraffe).getByTestId('ml-property-status').textContent).toBe('pausiert, externe KI aus');
-    expect(within(giraffe).getByTestId('ml-property-used-by').textContent).toBe('Genutzt von „Giraffe“ (aus)');
+    expect(within(giraffe).getByTestId('ml-property-used-by').textContent).toBe(
+      'Genutzt von „Giraffe“ (aus)',
+    );
     // nothing on goes off: the dialog says only where it goes
     fireEvent.click(within(giraffe).getByRole('button', { name: 'Löschen' }));
     const dialog = await screen.findByRole('alertdialog');

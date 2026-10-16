@@ -49,7 +49,8 @@ export function parseCategoriesFile(text: string, bytes: number = new Blob([text
   }
   if (!Array.isArray(data.categories)) return { ok: false, error: 'Die Datei enthält keine Kategorien.' };
   const list: unknown[] = data.categories;
-  if (list.length > IMPORT_MAX_ENTRIES) return { ok: false, error: `Höchstens ${IMPORT_MAX_ENTRIES} Kategorien pro Datei.` };
+  if (list.length > IMPORT_MAX_ENTRIES)
+    return { ok: false, error: `Höchstens ${IMPORT_MAX_ENTRIES} Kategorien pro Datei.` };
   const ids: string[] = [];
   const titles: string[] = [];
   for (const entry of list) {

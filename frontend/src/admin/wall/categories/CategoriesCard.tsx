@@ -11,8 +11,20 @@
  * draft. `?category=<id>` (the Live screen's „Im Editor öffnen“) opens its editor.
  */
 import { useQueryClient } from '@tanstack/react-query';
-import { ArrowDown, ArrowUp, Download, Lock, Pencil, Plus, Power, RotateCcw, Sparkles, Trophy, Upload } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import {
+  ArrowDown,
+  ArrowUp,
+  Download,
+  Lock,
+  Pencil,
+  Plus,
+  Power,
+  RotateCcw,
+  Sparkles,
+  Trophy,
+  Upload,
+} from 'lucide-react';
+import { useState } from 'react';
 import { FileTrigger, Link } from 'react-aria-components';
 import { downloadBlob } from '@/print/names';
 import { Badge } from '@/ui/Badge';
@@ -28,7 +40,7 @@ import { exportCategories, importCategories, orderCategories, restorePresets, sa
 import { Card } from '../fields';
 import { useValues, useWallCategories } from '../hooks';
 import { wk } from '../keys';
-import type { CategoryItem, OffReason, OnConflict } from '../types';
+import type { CategoryItem, OnConflict } from '../types';
 import {
   conflicts,
   exportName,
@@ -39,30 +51,14 @@ import {
 } from './categoriesJson';
 import { CategorySheet } from './CategorySheet';
 import { moveId } from './spec';
+import { canComeBack, offReasonText } from './state';
 
 const byPosition = (a: CategoryItem, b: CategoryItem) => a.position - b.position;
 
-/** Why the app switched a category off (lifecycle.REASON_TEXT). */
-export function offReasonText(reason: OffReason, detail: string | null): string {
-  const name = `„${detail ?? '?'}“`;
-  switch (reason) {
-    case 'ai_off':
-      return 'Externe KI ist aus.';
-    case 'property_trashed':
-      return `Die Eigenschaft ${name} liegt im Papierkorb.`;
-    case 'property_missing':
-      return `Die Eigenschaft ${name} gibt es nicht.`;
-    default:
-      return `Die Eigenschaft ${name} war bei der Umstellung inaktiv.`;
-  }
-}
-
-/** Switched off by the app, and nothing stops it any more: the banner offers it. */
-export const canComeBack = (c: CategoryItem) => !c.enabled && c.off_reason !== null && c.locked === null;
-
 function Winners({ item }: { item: CategoryItem }) {
   const title = item.spec.title;
-  if (item.winners.length === 0) return <p className="col-span-full text-xs text-ink-muted">Noch kein Foto</p>;
+  if (item.winners.length === 0)
+    return <p className="col-span-full text-xs text-ink-muted">Noch kein Foto</p>;
   const comments = item.winners.filter((w) => w.comment !== null);
   return (
     <>
@@ -88,8 +84,16 @@ function Winners({ item }: { item: CategoryItem }) {
       {comments.length > 0 ? (
         <ul className="col-span-full grid gap-1" data-testid="wall-category-comments">
           {comments.map((w) => (
-            <li key={w.photo_id} className="flex items-start gap-1.5 text-sm" data-testid="wall-category-verdict">
-              <Sparkles aria-hidden="true" className="mt-0.5 size-3.5 shrink-0 text-ink-muted" strokeWidth={2.25} />
+            <li
+              key={w.photo_id}
+              className="flex items-start gap-1.5 text-sm"
+              data-testid="wall-category-verdict"
+            >
+              <Sparkles
+                aria-hidden="true"
+                className="mt-0.5 size-3.5 shrink-0 text-ink-muted"
+                strokeWidth={2.25}
+              />
               <span>
                 <span className="font-semibold tabular">{item.winners.indexOf(w) + 1}.</span>{' '}
                 {w.comment?.emoji ? `${w.comment.emoji} ` : ''}
@@ -132,7 +136,12 @@ function Row({
       className="grid grid-cols-[auto_minmax(0,1fr)_auto] items-start gap-x-2 gap-y-2 border-b border-line py-3"
     >
       <div className="-ml-2 grid">
-        <IconButton label={`${spec.title} nach oben`} icon={ArrowUp} isDisabled={index === 0 || busy} onPress={() => onMove(-1)} />
+        <IconButton
+          label={`${spec.title} nach oben`}
+          icon={ArrowUp}
+          isDisabled={index === 0 || busy}
+          onPress={() => onMove(-1)}
+        />
         <IconButton
           label={`${spec.title} nach unten`}
           icon={ArrowDown}
@@ -203,23 +212,37 @@ function Row({
 }
 
 /** „N Kategorien wieder einschalten“ (§8.1: nothing comes back on by itself). */
-function ComeBackBanner({ items, busy, onPress }: { items: CategoryItem[]; busy: boolean; onPress: () => void }) {
+function ComeBackBanner({
+  items,
+  busy,
+  onPress,
+}: {
+  items: CategoryItem[];
+  busy: boolean;
+  onPress: () => void;
+}) {
   if (items.length === 0) return null;
   const n = items.length;
   return (
-    <div
+    <output
       className="flex flex-wrap items-center gap-3 rounded-control bg-accent-tint p-3 text-sm"
-      role="status"
       data-testid="category-comeback"
     >
       <p className="min-w-0 flex-1">
         {n === 1 ? `„${items[0]?.spec.title}“ wurde` : `${n} Kategorien wurden`} automatisch ausgeschaltet und{' '}
         {n === 1 ? 'kann' : 'können'} wieder an: {items.map((c) => c.spec.title).join(', ')}.
       </p>
-      <Button size="xs" variant="primary" icon={Power} isPending={busy} onPress={onPress} data-testid="category-comeback-on">
+      <Button
+        size="xs"
+        variant="primary"
+        icon={Power}
+        isPending={busy}
+        onPress={onPress}
+        data-testid="category-comeback-on"
+      >
         {n === 1 ? 'Wieder einschalten' : `${n} Kategorien wieder einschalten`}
       </Button>
-    </div>
+    </output>
   );
 }
 
@@ -237,21 +260,25 @@ export function CategoriesCard() {
   const ids = items.map((c) => c.id);
   const comeBack = items.filter(canComeBack);
 
-  // the Live screen's „Im Editor öffnen“: ?category=<id>
-  const wanted = typeof window === 'undefined' ? null : new URLSearchParams(window.location.search).get('category');
-  const wantedItem = wanted ? items.find((c) => c.id === wanted) : undefined;
-  useEffect(() => {
-    if (!wantedItem || !values.data) return;
-    setEditing((e) => (e ? e : { item: wantedItem, n: 1 }));
+  // the Live screen's „Im Editor öffnen“ (?category=<id>) opens its editor once
+  const [linked, setLinked] = useState(() => new URLSearchParams(window.location.search).get('category'));
+  const linkedItem = linked ? items.find((c) => c.id === linked) : undefined;
+  const sheet = editing ?? (linkedItem ? { item: linkedItem, n: 0 } : null);
+  const closeSheet = () => {
+    setEditing(null);
+    if (!linked) return;
+    setLinked(null);
     const url = new URL(window.location.href);
     url.searchParams.delete('category');
     window.history.replaceState(window.history.state, '', url);
-  }, [wantedItem, values.data]);
+  };
 
   const move = async (id: string, delta: number) => {
     const next = moveId(ids, id, delta);
     // at once on screen, then what the server says
-    qc.setQueryData<CategoryItem[]>(wk.categories, (old) => old?.map((c) => ({ ...c, position: next.indexOf(c.id) })));
+    qc.setQueryData<CategoryItem[]>(wk.categories, (old) =>
+      old?.map((c) => ({ ...c, position: next.indexOf(c.id) })),
+    );
     setBusy(id);
     try {
       qc.setQueryData(wk.categories, await orderCategories(next));
@@ -372,7 +399,10 @@ export function CategoriesCard() {
     }
   };
 
-  const open = (item: CategoryItem | null) => setEditing((e) => ({ item, n: (e?.n ?? 0) + 1 }));
+  const open = (item: CategoryItem | null) => {
+    setLinked(null);
+    setEditing((e) => ({ item, n: (e?.n ?? 0) + 1 }));
+  };
   const clash = pending ? conflicts(pending.ids, ids) : [];
 
   return (
@@ -382,8 +412,8 @@ export function CategoriesCard() {
       icon={Trophy}
       intro={
         <>
-          Lustige Bestenlisten aus der Analyse, in dieser Reihenfolge auf der Wall. Eine Kategorie erscheint erst, wenn ein
-          Foto sie erfüllt. Modelle und KI:{' '}
+          Lustige Bestenlisten aus der Analyse, in dieser Reihenfolge auf der Wall. Eine Kategorie erscheint
+          erst, wenn ein Foto sie erfüllt. Modelle und KI:{' '}
           <Link href="/manage?tab=ml" className="font-semibold text-ink underline underline-offset-3">
             ML-Pipeline
           </Link>
@@ -392,7 +422,14 @@ export function CategoriesCard() {
       }
     >
       <div className="flex flex-wrap gap-2">
-        <Button size="xs" variant="secondary" icon={Plus} isDisabled={!values.data} onPress={() => open(null)} data-testid="category-new">
+        <Button
+          size="xs"
+          variant="secondary"
+          icon={Plus}
+          isDisabled={!values.data}
+          onPress={() => open(null)}
+          data-testid="category-new"
+        >
           Neue Kategorie
         </Button>
         <Button
@@ -417,7 +454,13 @@ export function CategoriesCard() {
           Exportieren
         </Button>
         <FileTrigger acceptedFileTypes={['application/json', '.json']} onSelect={(f) => void pickFile(f)}>
-          <Button size="xs" variant="quiet" icon={Upload} isPending={busy === 'import'} data-testid="category-import">
+          <Button
+            size="xs"
+            variant="quiet"
+            icon={Upload}
+            isPending={busy === 'import'}
+            data-testid="category-import"
+          >
             Importieren
           </Button>
         </FileTrigger>
@@ -427,7 +470,9 @@ export function CategoriesCard() {
           {problems.slice(0, 10).map((p) => (
             <li key={p}>{p}</li>
           ))}
-          {problems.length > 10 ? <li className="text-ink-muted">… und {problems.length - 10} weitere</li> : null}
+          {problems.length > 10 ? (
+            <li className="text-ink-muted">… und {problems.length - 10} weitere</li>
+          ) : null}
         </ul>
       ) : null}
       <ComeBackBanner items={comeBack} busy={busy === 'comeback'} onPress={() => void switchBackOn()} />
@@ -475,7 +520,9 @@ export function CategoriesCard() {
         data-testid="category-import-confirm"
       >
         <p>
-          {clash.length === 1 ? `„${clash[0]}“ gibt es schon.` : `${clash.length} Kennungen gibt es schon: ${clash.join(', ')}.`}
+          {clash.length === 1
+            ? `„${clash[0]}“ gibt es schon.`
+            : `${clash.length} Kennungen gibt es schon: ${clash.join(', ')}.`}
         </p>
         <SegmentedControl<OnConflict>
           label="Bei gleicher Kennung"
@@ -490,16 +537,16 @@ export function CategoriesCard() {
           data-testid="category-import-mode"
         />
       </ConfirmDialog>
-      {editing && values.data ? (
+      {sheet && values.data ? (
         <CategorySheet
           // a fresh form per opening
-          key={`${editing.item?.id ?? '+'}:${editing.n}`}
-          item={editing.item}
+          key={`${sheet.item?.id ?? '+'}:${sheet.n}`}
+          item={sheet.item}
           values={values.data}
           taken={ids}
           isOpen
           onOpenChange={(o) => {
-            if (!o) setEditing(null);
+            if (!o) closeSheet();
           }}
         />
       ) : null}

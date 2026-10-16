@@ -68,7 +68,15 @@ export const AGG_LABELS: Record<Aggregate, string> = {
   count_ge: 'Anzahl mit Wert ≥ t',
   count: 'Anzahl bewerteter Objekte',
 };
-export const FIELD_AGGS: readonly Aggregate[] = ['max', 'min', 'mean', 'sum', 'top_k_mean', 'count_ge', 'count'];
+export const FIELD_AGGS: readonly Aggregate[] = [
+  'max',
+  'min',
+  'mean',
+  'sum',
+  'top_k_mean',
+  'count_ge',
+  'count',
+];
 
 export const ORDER_WORDS: Record<RankOrder, string> = { desc: 'höchsten', asc: 'niedrigsten' };
 
@@ -230,7 +238,10 @@ export function localToUnix(text: string): number {
 }
 
 /** The catalogue's kind of a measure (time values take a date, the rest a number). */
-export function measureKind(m: MeasureDraft | Measure, values: Pick<ValuesOut, 'photo_values'>): 'number' | 'count' | 'time' {
+export function measureKind(
+  m: MeasureDraft | Measure,
+  values: Pick<ValuesOut, 'photo_values'>,
+): 'number' | 'count' | 'time' {
   if (m.kind === 'value') return values.photo_values.find((v) => v.key === m.key)?.kind ?? 'number';
   const agg = m.field ? m.agg : 'count';
   return agg === 'count' || agg === 'count_ge' ? 'count' : 'number';
@@ -268,7 +279,11 @@ export function measureSpec(d: MeasureDraft): Measure {
   const conf = d.minConfidence.trim();
   return {
     kind: 'objects',
-    where: { labels: [...d.labels], exclude: [...d.exclude], min_confidence: conf ? parseDecimal(conf) : null },
+    where: {
+      labels: [...d.labels],
+      exclude: [...d.exclude],
+      min_confidence: conf ? parseDecimal(conf) : null,
+    },
     field: d.field || null,
     agg,
     k: agg === 'top_k_mean' ? Number(d.k.trim()) : null,
@@ -293,7 +308,14 @@ function conditionType(c: PoolCondition): ConditionType {
 
 function conditionDraft(c: PoolCondition, values: Pick<ValuesOut, 'photo_values'>): ConditionDraft {
   const time = measureKind(c.measure, values) === 'time';
-  const d: ConditionDraft = { uid: nextUid(), type: conditionType(c), measure: measureDraft(c.measure), op: c.op, a: '', b: '' };
+  const d: ConditionDraft = {
+    uid: nextUid(),
+    type: conditionType(c),
+    measure: measureDraft(c.measure),
+    op: c.op,
+    a: '',
+    b: '',
+  };
   const o = c.operand;
   if (Array.isArray(o)) {
     d.a = operandText(o[0], time);
@@ -303,7 +325,11 @@ function conditionDraft(c: PoolCondition, values: Pick<ValuesOut, 'photo_values'
 }
 
 /** A spec from the server as an editable draft. */
-export function fromSpec(id: string, spec: CategorySpec, values: Pick<ValuesOut, 'photo_values'>): CategoryDraft {
+export function fromSpec(
+  id: string,
+  spec: CategorySpec,
+  values: Pick<ValuesOut, 'photo_values'>,
+): CategoryDraft {
   const time = measureKind(spec.rank.by, values) === 'time';
   const v = spec.verdict;
   return {
@@ -340,7 +366,8 @@ function conditionSpec(c: ConditionDraft, values: Pick<ValuesOut, 'photo_values'
   const measure = measureSpec(c.measure);
   const time = measureKind(measure, values) === 'time';
   if (c.op === 'exists' || c.op === 'not_exists') return { measure, op: c.op, operand: null };
-  if (c.op === 'between') return { measure, op: c.op, operand: [readNumber(c.a, time), readNumber(c.b, time)] };
+  if (c.op === 'between')
+    return { measure, op: c.op, operand: [readNumber(c.a, time), readNumber(c.b, time)] };
   return { measure, op: c.op, operand: readNumber(c.a, time) };
 }
 
@@ -444,7 +471,8 @@ function filterText(m: MeasureObjects, cat: Catalogue): string {
   const names = (ls: readonly string[]) => ls.map((l) => labelName(cat.labels, l)).join(', ');
   if (m.where.labels.length) parts.push(`nur ${names(m.where.labels)}`);
   if (m.where.exclude.length) parts.push(`ohne ${names(m.where.exclude)}`);
-  if (m.where.min_confidence !== null) parts.push(`Sicherheit ab ${Math.round(m.where.min_confidence * 100)} %`);
+  if (m.where.min_confidence !== null)
+    parts.push(`Sicherheit ab ${Math.round(m.where.min_confidence * 100)} %`);
   return parts.length ? ` (${parts.join('; ')})` : '';
 }
 
@@ -456,7 +484,8 @@ export function describe(m: Measure, order: RankOrder, cat: Catalogue): string {
   const hi = order === 'desc';
   if (m.kind === 'value') {
     if (m.key === 'photo.created_at') return hi ? 'Das neueste Foto' : 'Das früheste Foto';
-    if (m.key === 'photo.guest_photos') return hi ? 'Die meisten Fotos eines Gasts' : 'Die wenigsten Fotos eines Gasts';
+    if (m.key === 'photo.guest_photos')
+      return hi ? 'Die meisten Fotos eines Gasts' : 'Die wenigsten Fotos eines Gasts';
     const title = cat.photo_values.find((v) => v.key === m.key)?.title ?? m.key;
     return `${hi ? 'Höchster' : 'Niedrigster'} Wert bei „${title}“`;
   }
@@ -496,7 +525,12 @@ export function measureName(m: Measure, cat: Catalogue): string {
   if (m.kind === 'value') return cat.photo_values.find((v) => v.key === m.key)?.title ?? m.key;
   const where = filterText(m, cat);
   if (m.field === null) return `Anzahl Objekte${where}`;
-  const agg = m.agg === 'top_k_mean' ? `Mittel der besten ${m.k ?? 2}` : m.agg === 'count_ge' ? `Anzahl ≥ ${decimal(m.t ?? 0)}` : AGG_SHORT[m.agg];
+  const agg =
+    m.agg === 'top_k_mean'
+      ? `Mittel der besten ${m.k ?? 2}`
+      : m.agg === 'count_ge'
+        ? `Anzahl ≥ ${decimal(m.t ?? 0)}`
+        : AGG_SHORT[m.agg];
   return `${fieldTitle(m.field)}: ${agg}${where}`;
 }
 
@@ -527,19 +561,23 @@ export function conditionText(c: PoolCondition, cat: Catalogue): string {
   const time = measureKind(m, cat) === 'time';
   const n = (x: number) => (time ? timeText(x) : shortNumber(x));
   if (c.op === 'exists' || c.op === 'not_exists') return `${name} ${OP_LABELS[c.op]}`;
-  if (c.op === 'between' && Array.isArray(c.operand)) return `${name} zwischen ${n(c.operand[0])} und ${n(c.operand[1])}`;
+  if (c.op === 'between' && Array.isArray(c.operand))
+    return `${name} zwischen ${n(c.operand[0])} und ${n(c.operand[1])}`;
   return `${name} ${OP_LABELS[c.op]} ${typeof c.operand === 'number' ? n(c.operand) : ''}`.trim();
 }
 
 /** The whole rule in plain German (the Live screen's expanded category). */
-export function ruleText(spec: CategorySpec, cat: Catalogue): { pool: string; rank: string; then: string[]; select: string } {
+export function ruleText(
+  spec: CategorySpec,
+  cat: Catalogue,
+): { pool: string; rank: string; ties: string[]; select: string } {
   const pool = spec.pool.length ? spec.pool.map((c) => conditionText(c, cat)).join(' und ') : 'Alle Fotos';
   const n = spec.select.count;
   const select = `${n === 1 ? 'Ein Gewinner' : `${n} Gewinner`}${spec.select.one_per_guest ? ', ein Foto pro Gast' : ''}`;
   return {
     pool,
     rank: explainRank(spec.rank, cat),
-    then: spec.rank.then_by.map((t) => describe(t.by, t.order, cat)),
+    ties: spec.rank.then_by.map((t) => describe(t.by, t.order, cat)),
     select,
   };
 }
@@ -551,14 +589,18 @@ export function ruleText(spec: CategorySpec, cat: Catalogue): { pool: string; ra
  * count with Einzahl/Mehrzahl, a value 0–1 → decimal, a time → time; the highest or
  * lowest of a property shows the object.
  */
-export function suggestCaption(m: Measure, values: Pick<ValuesOut, 'photo_values'>): { format: CaptionFormat; showObject: boolean } {
+export function suggestCaption(
+  m: Measure,
+  values: Pick<ValuesOut, 'photo_values'>,
+): { format: CaptionFormat; showObject: boolean } {
   if (m.kind === 'value') {
     const info = values.photo_values.find((v) => v.key === m.key);
     if (info?.kind === 'time') return { format: 'time', showObject: false };
     if (info?.kind === 'count') return { format: 'count', showObject: false };
     return { format: info?.unit === '0–1' ? 'decimal' : 'number', showObject: false };
   }
-  if (m.field === null || m.agg === 'count' || m.agg === 'count_ge') return { format: 'count', showObject: false };
+  if (m.field === null || m.agg === 'count' || m.agg === 'count_ge')
+    return { format: 'count', showObject: false };
   return { format: 'decimal', showObject: m.agg === 'max' || m.agg === 'min' };
 }
 
@@ -625,11 +667,18 @@ export function verdictPrice(
 ): { model: string; title: string; price: number; currency: string; measured: boolean } | null {
   if (!options) return null;
   const id = model || options.default_model;
-  const m = options.models.find((x) => x.id === id) ?? options.models.find((x) => x.id === options.default_model);
+  const m =
+    options.models.find((x) => x.id === id) ?? options.models.find((x) => x.id === options.default_model);
   if (!m) return null;
   const e = m.efforts.find((x) => x.effort === (options.thinking ? effort : 'low')) ?? m.efforts[0];
   if (!e) return null;
-  return { model: m.id, title: m.title, price: e.price_per_comment, currency: m.currency, measured: e.measured };
+  return {
+    model: m.id,
+    title: m.title,
+    price: e.price_per_comment,
+    currency: m.currency,
+    measured: e.measured,
+  };
 }
 
 /** „≈ 0,0014 $“ (two significant digits: these are fractions of a cent). */
@@ -678,10 +727,16 @@ export function freeId(title: string, taken: readonly string[]): string {
 export type DraftErrors = Record<string, string>;
 
 /** Errors of one measure at `f` (`f`, `f.min`, `f.k`, `f.t`). */
-export function checkMeasure(errors: DraftErrors, f: string, m: MeasureDraft, values: Pick<ValuesOut, 'photo_values'>): void {
+export function checkMeasure(
+  errors: DraftErrors,
+  f: string,
+  m: MeasureDraft,
+  values: Pick<ValuesOut, 'photo_values'>,
+): void {
   if (m.kind === 'value') {
     if (!m.key) errors[f] = 'Bitte einen Wert wählen.';
-    else if (!values.photo_values.some((v) => v.key === m.key)) errors[f] = 'Diesen Wert gibt es nicht (mehr).';
+    else if (!values.photo_values.some((v) => v.key === m.key))
+      errors[f] = 'Diesen Wert gibt es nicht (mehr).';
     return;
   }
   if (m.labels.length > LIMITS.labels || m.exclude.length > LIMITS.labels) {
@@ -738,7 +793,8 @@ export function validate(draft: CategoryDraft, ctx: ValidateContext): DraftError
   }
   if (graphemes(draft.emoji.trim()) !== 1) errors.emoji = 'Genau ein Emoji.';
   const title = draft.title.trim();
-  if (title.length < 1 || title.length > LIMITS.title) errors.title = `Der Titel braucht 1 bis ${LIMITS.title} Zeichen.`;
+  if (title.length < 1 || title.length > LIMITS.title)
+    errors.title = `Der Titel braucht 1 bis ${LIMITS.title} Zeichen.`;
   if (draft.line.trim().length > LIMITS.line) errors.line = `Höchstens ${LIMITS.line} Zeichen.`;
   if (draft.pool.length > LIMITS.pool) errors.pool = `Höchstens ${LIMITS.pool} Bedingungen.`;
   draft.pool.forEach((c, i) => {
@@ -754,7 +810,8 @@ export function validate(draft: CategoryDraft, ctx: ValidateContext): DraftError
     const a = checkNumber(errors, `${f}.a`, c.a, time);
     if (c.op === 'between') {
       const b = checkNumber(errors, `${f}.b`, c.b, time);
-      if (Number.isFinite(a) && Number.isFinite(b) && a > b) errors[`${f}.b`] = 'Muss mindestens so groß sein.';
+      if (Number.isFinite(a) && Number.isFinite(b) && a > b)
+        errors[`${f}.b`] = 'Muss mindestens so groß sein.';
     }
   });
   checkMeasure(errors, 'rank.by', draft.by, values);
@@ -777,7 +834,8 @@ export function validate(draft: CategoryDraft, ctx: ValidateContext): DraftError
   if (draft.one.trim().length > LIMITS.words) errors.one = `Höchstens ${LIMITS.words} Zeichen.`;
   if (draft.many.trim().length > LIMITS.words) errors.many = `Höchstens ${LIMITS.words} Zeichen.`;
   if (draft.verdictOn) {
-    if (draft.verdictPrompt.trim().length > LIMITS.verdict) errors.verdict = `Höchstens ${LIMITS.verdict} Zeichen.`;
+    if (draft.verdictPrompt.trim().length > LIMITS.verdict)
+      errors.verdict = `Höchstens ${LIMITS.verdict} Zeichen.`;
     const n = draft.verdictCount.trim();
     const [lo, hi] = LIMITS.comments;
     if (!/^\d$/.test(n) || Number(n) < lo || Number(n) > hi) {

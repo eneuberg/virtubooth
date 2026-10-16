@@ -156,7 +156,10 @@ export function MeasurePicker({
               data-testid="measure-t"
             />
           ) : null}
-          <fieldset className="grid gap-2 rounded-control bg-surface-sunk/50 p-2" data-testid="measure-filter">
+          <fieldset
+            className="grid gap-2 rounded-control bg-surface-sunk/50 p-2"
+            data-testid="measure-filter"
+          >
             <legend className="sr-only">Welche Objekte?</legend>
             <div className="grid gap-2 sm:grid-cols-2">
               <div className="grid content-start gap-1">

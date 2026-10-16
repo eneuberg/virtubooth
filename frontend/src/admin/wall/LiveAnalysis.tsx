@@ -18,6 +18,7 @@ import { useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { formatNumber } from '@/lib/format';
 import { cx } from '@/ui/cx';
 import { Switch } from '@/ui/Switch';
+import { WinChipButton, WinDisclosure } from './CategoryWinDetails';
 import { useWallEnabled } from './hooks';
 import { labelColor } from './labelColors';
 import { useAnalysisSummary, useLiveAnalysis, useShowAnalysis } from './liveAnalysisState';
@@ -168,6 +169,7 @@ function ChipRows({ data }: { data: PhotoAnalysisSummary }) {
         {chips.map((chip) => (
           <span key={chip.id} className={cx(CHIP_BASE, CHIP[chip.tone])}>
             <ChipItem chip={chip} data={data} />
+            {chip.win ? <span className="size-3 shrink-0" /> : null}
           </span>
         ))}
         <span className={cx(CHIP_BASE, CHIP.muted)}>+{formatNumber(chips.length)}</span>
@@ -179,11 +181,19 @@ function ChipRows({ data }: { data: PhotoAnalysisSummary }) {
         data-testid="analysis-chips"
         data-state={data.state}
       >
-        {chips.slice(0, count).map((chip) => (
-          <li key={chip.id} data-chip={chip.id} className={cx(CHIP_BASE, CHIP[chip.tone])}>
-            <ChipItem chip={chip} data={data} />
-          </li>
-        ))}
+        {chips.slice(0, count).map((chip) =>
+          chip.win ? (
+            <li key={chip.id} data-chip={chip.id} className="flex max-w-full min-w-0">
+              <WinChipButton win={chip.win} className={cx(CHIP_BASE, CHIP[chip.tone])}>
+                <ChipItem chip={chip} data={data} />
+              </WinChipButton>
+            </li>
+          ) : (
+            <li key={chip.id} data-chip={chip.id} className={cx(CHIP_BASE, CHIP[chip.tone])}>
+              <ChipItem chip={chip} data={data} />
+            </li>
+          ),
+        )}
         {rest > 0 ? (
           <li data-chip="more" className={cx(CHIP_BASE, CHIP.muted)} title={chipsLabel(chips.slice(count))}>
             +{formatNumber(rest)}
@@ -194,7 +204,7 @@ function ChipRows({ data }: { data: PhotoAnalysisSummary }) {
   );
 }
 
-/** The categories the open photo wins right now (the viewer, above the full analysis). */
+/** The categories the open photo wins right now (the viewer, above the full analysis); each opens. */
 export function AnalysisWins({ photoId }: { photoId: string }) {
   const show = useLiveAnalysis();
   const { data } = useAnalysisSummary(photoId, show);
@@ -202,21 +212,17 @@ export function AnalysisWins({ photoId }: { photoId: string }) {
   return (
     <section
       aria-labelledby="analysis-wins-title"
-      className="grid gap-2 border-t border-line pt-3"
+      className="grid gap-1 border-t border-line pt-3"
       data-testid="analysis-wins"
     >
       <h3 id="analysis-wins-title" className="text-md font-bold">
         Kategorien
       </h3>
-      <ul className="grid gap-1 text-sm">
+      <div className="grid">
         {data.wins.map((win) => (
-          <li key={win.id} className="flex items-center gap-2">
-            <span aria-hidden="true">{win.emoji}</span>
-            <span className="min-w-0 flex-1 truncate font-semibold">{win.title}</span>
-            <span className="text-xs text-ink-muted">{win.verdict ? 'Urteil der KI' : 'gewinnt gerade'}</span>
-          </li>
+          <WinDisclosure key={win.id} win={win} />
         ))}
-      </ul>
+      </div>
     </section>
   );
 }

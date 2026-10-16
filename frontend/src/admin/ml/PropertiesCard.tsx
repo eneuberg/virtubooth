@@ -40,6 +40,7 @@ import {
   PROPERTIES_FILE,
   type InvalidEntry,
 } from './propertiesJson';
+import { quoted, statusText } from './text';
 import type { LlmProperty, LlmStatus } from './types';
 
 /** „Eigenschaften abfragen“: switch and interval (one PUT /llm/config), then the poller's state. */
@@ -398,22 +399,6 @@ function useRefresh() {
   };
 }
 
-/** The derived status (categories v2: no switch; polled while an enabled category reads it). */
-const STATUS_TEXT: Record<LlmProperty['status'], string> = {
-  polled: 'wird abgefragt',
-  idle: 'ruht, keine aktive Kategorie',
-  paused: 'pausiert, externe KI aus',
-  trashed: 'Papierkorb',
-};
-
-const quoted = (titles: readonly string[]) => titles.map((t) => `„${t}“`).join(', ');
-
-/** „wird abgefragt (für: „Das coolste Objekt“)“: the chip names the enabled readers. */
-export function statusText(p: Pick<LlmProperty, 'status' | 'used_by'>): string {
-  const on = p.used_by.filter((u) => u.enabled).map((u) => u.title);
-  return p.status === 'polled' && on.length ? `${STATUS_TEXT.polled} (für: ${quoted(on)})` : STATUS_TEXT[p.status];
-}
-
 const STATUS_TONE: Record<LlmProperty['status'], 'ok' | 'neutral' | 'mark'> = {
   polled: 'ok',
   idle: 'neutral',
@@ -430,7 +415,9 @@ function PropertyRow({ property: p }: { property: LlmProperty }) {
   return (
     <li data-property={p.name} className="grid gap-1 border-b border-line py-3">
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-        <span className={cx('font-mono font-semibold', p.status !== 'polled' && 'text-ink-muted')}>{p.name}</span>
+        <span className={cx('font-mono font-semibold', p.status !== 'polled' && 'text-ink-muted')}>
+          {p.name}
+        </span>
         <span data-testid="ml-property-status" data-status={p.status} className="min-w-0">
           <Badge tone={STATUS_TONE[p.status]} className="h-auto min-h-6 py-0.5 whitespace-normal">
             {statusText(p)}

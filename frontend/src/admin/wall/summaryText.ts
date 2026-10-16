@@ -1,10 +1,12 @@
 /**
  * The Live screen's analysis chips under a photo tile, as words (pure;
  * summaryText.test.ts): „3 Personen“, „2 lächeln“, „Flasche, Becher“, the guest's
- * opt-outs and the categories the photo wins. The full analysis is in the viewer.
+ * opt-outs, the categories the photo wins (they open, CategoryWinDetails.tsx) and
+ * „Objekterkennung aus“ for a photo analysed with object detection off. The full
+ * analysis is in the viewer.
  */
 import { formatNumber, NBSP, pluralize } from '@/lib/format';
-import type { PhotoAnalysisSummary } from './types';
+import type { CategoryWin, PhotoAnalysisSummary } from './types';
 
 export type ChipTone = 'plain' | 'muted' | 'mark' | 'win';
 
@@ -12,6 +14,8 @@ export interface Chip {
   id: string;
   text: string;
   tone: ChipTone;
+  /** a category the photo wins: the chip opens it (§8.6) */
+  win?: CategoryWin;
 }
 
 /** How many object labels a tile names before „+2“. */
@@ -61,7 +65,7 @@ export function analysisChips(summary: PhotoAnalysisSummary): Chip[] {
     return chips;
   }
   for (const win of summary.wins) {
-    chips.push({ id: `win-${win.id}`, text: `${win.emoji}${NBSP}${win.title}`, tone: 'win' });
+    chips.push({ id: `win-${win.id}`, text: `${win.emoji}${NBSP}${win.title}`, tone: 'win', win });
   }
   const people = count(facts, 'people') || count(facts, 'faces');
   if (people > 0) chips.push({ id: 'people', text: pluralize(people, 'Person', 'Personen'), tone: 'plain' });
@@ -80,7 +84,9 @@ export function analysisChips(summary: PhotoAnalysisSummary): Chip[] {
   if (hats > 0) chips.push({ id: 'hats', text: pluralize(hats, 'Hut', 'Hüte'), tone: 'plain' });
   const objects = objectText(summary.objects);
   if (objects) chips.push({ id: 'objects', text: objects, tone: 'plain' });
-  if (chips.every((c) => c.tone === 'mark'))
+  // analysed with object detection „Aus“: say so instead of „Nichts erkannt“ (§8.7)
+  if (summary.objects_off) chips.push({ id: 'objects-off', text: 'Objekterkennung aus', tone: 'muted' });
+  else if (chips.every((c) => c.tone === 'mark'))
     chips.push({ id: 'none', text: 'Nichts erkannt', tone: 'muted' });
   return chips;
 }

@@ -3,7 +3,7 @@
  */
 import { formatNumber, NBSP } from '@/lib/format';
 import type { AnalysisStatus, AnalyzerStats } from '../wall/types';
-import type { LlmModel, UsageRow } from './types';
+import type { LlmModel, LlmProperty, UsageRow } from './types';
 
 /** "12 MB", "3,4 MB" */
 export function sizeText(mb: number): string {
@@ -107,4 +107,22 @@ export function durationsText(durations: Record<string, number>, titles?: Map<st
   return Object.entries(durations)
     .map(([name, n]) => `${titles?.get(name) ?? name} ${ms(n)}`)
     .join(' · ');
+}
+
+/** The derived status (categories v2: no switch; polled while an enabled category reads it). */
+export const STATUS_TEXT: Record<LlmProperty['status'], string> = {
+  polled: 'wird abgefragt',
+  idle: 'ruht, keine aktive Kategorie',
+  paused: 'pausiert, externe KI aus',
+  trashed: 'Papierkorb',
+};
+
+export const quoted = (titles: readonly string[]) => titles.map((t) => `„${t}“`).join(', ');
+
+/** „wird abgefragt (für: „Das coolste Objekt“)“: the chip names the enabled readers. */
+export function statusText(p: Pick<LlmProperty, 'status' | 'used_by'>): string {
+  const on = p.used_by.filter((u) => u.enabled).map((u) => u.title);
+  return p.status === 'polled' && on.length
+    ? `${STATUS_TEXT.polled} (für: ${quoted(on)})`
+    : STATUS_TEXT[p.status];
 }

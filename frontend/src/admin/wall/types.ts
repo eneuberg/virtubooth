@@ -135,73 +135,7 @@ export interface CategoryWinner {
   comment: { text: string; emoji: string | null } | null;
 }
 
-// ----------------------------------------------------------- category specs (§4.2)
-
-export const CONDITION_OPS = [
-  'gt',
-  'lt',
-  'gte',
-  'lte',
-  'eq',
-  'ne',
-  'between',
-  'exists',
-  'not_exists',
-  'contains',
-  'not_contains',
-  'contains_any',
-] as const;
-export type ConditionOp = (typeof CONDITION_OPS)[number];
-
-/** number ops: a number; between: [a, b]; exists/not_exists: null; contains*: a label / labels */
-export type Operand = number | [number, number] | string | string[] | null;
-
-export interface Condition {
-  value: string;
-  op: ConditionOp;
-  operand: Operand;
-}
-
-export const SELECT_ORDERS = ['top', 'bottom'] as const;
-export type SelectOrder = (typeof SELECT_ORDERS)[number];
-
-/** a tie-breaker after `by` (contract: `then_by` ≤ 2; shape decided here, see report) */
-export interface ThenBy {
-  by: string;
-  order: SelectOrder;
-}
-
-export interface Selection {
-  by: string;
-  order: SelectOrder;
-  count: number;
-  then_by: ThenBy[];
-  one_per_guest: boolean;
-}
-
-export const LABEL_STYLES = ['count', 'percent', 'number', 'time', 'fixed', 'object'] as const;
-export type LabelStyle = (typeof LABEL_STYLES)[number];
-
-export interface LabelSpec {
-  /** the value the label shows; null = `select.by` */
-  value: string | null;
-  style: LabelStyle;
-  one: string;
-  many: string;
-}
-
-/** A v1 spec (deprecated): what the v1 editor reads (`legacy_spec`) and sends (the server converts). */
-export interface CategorySpec {
-  emoji: string;
-  title: string;
-  line: string;
-  where: Condition[];
-  select: Selection;
-  label: LabelSpec;
-  verdict: { prompt: string } | null;
-}
-
-// ------------------------------------------------- category specs v2 (categories v2)
+// ------------------------------------------------- category specs (categories v2)
 
 export interface MeasureValue {
   kind: 'value';
@@ -275,7 +209,7 @@ export interface VerdictSpec {
   effort: 'low' | 'medium' | 'high';
 }
 
-export interface CategorySpecV2 {
+export interface CategorySpec {
   version: 2;
   emoji: string;
   title: string;
@@ -311,9 +245,7 @@ export interface CategoryItem {
   /** the preset it came from („Vorlage“), null = made by the host */
   preset: string | null;
   position: number;
-  spec: CategorySpecV2;
-  /** deprecated: the spec in v1 shape for the v1 editor; null when v1 cannot say it */
-  legacy_spec: CategorySpec | null;
+  spec: CategorySpec;
   /** the ranking in plain German (the wall's subtitle when `line` is empty) */
   explanation: string;
   /** it reads an LLM property */
@@ -342,24 +274,8 @@ export interface CategoryPreview {
   reason: string | null;
   explanation: string;
   /** the spec as validated (v2) */
-  spec: CategorySpecV2;
+  spec: CategorySpec;
   locked: CategoryLock | null;
-}
-
-export const VALUE_KINDS = ['number', 'count', 'labels', 'time'] as const;
-export type ValueKind = (typeof VALUE_KINDS)[number];
-
-/** A v1 value key (deprecated: the v1 editor's list). */
-export interface ValueInfo {
-  key: string;
-  title: string;
-  group: string;
-  kind: ValueKind;
-  unit: string | null;
-  /** the analyzer (or property) it needs; shape not pinned by the contract */
-  needs: string | string[] | null;
-  available: boolean;
-  reason: string | null;
 }
 
 /** A photo value for `{kind: value, key}` (categories v2). */
@@ -404,8 +320,29 @@ export interface ValuesOut {
   objects_available: boolean;
   objects_reason: string | null;
   labels: LabelInfo[];
-  /** deprecated: the v1 keys */
-  values: ValueInfo[];
+}
+
+// ------------------------------------------------------- export / import (§2)
+
+export interface CategoriesFile {
+  format: 'virtubooth-categories';
+  version: 2;
+  exported_at: string;
+  /** each property a category reads (by name), with its prompt */
+  properties: Array<{ name: string; prompt: string }>;
+  categories: Array<{ id: string; enabled: boolean; preset: string | null; spec: CategorySpec }>;
+}
+
+export type OnConflict = 'copy' | 'replace';
+
+export interface CategoryImportResult {
+  imported: Array<{ id: string; title: string; enabled: boolean; from_id: string | null; replaced: boolean }>;
+  skipped: Array<{ id: string; reason: string }>;
+  properties_created: string[];
+  /** exist here with another prompt: theirs stays */
+  prompt_conflicts: string[];
+  switched_off: Array<{ id: string; reason: CategoryLock['reason']; detail: string | null; message: string }>;
+  notes: string[];
 }
 
 export interface WallAdminOut {
@@ -576,8 +513,26 @@ export interface PhotoAnalysisSummary {
   /** face and hand frames on the full photo (objects carry their own) */
   boxes: Array<{ kind: 'face' | 'hand'; x: number; y: number; w: number; h: number }>;
   opt_out: { analysis: boolean; external_ai: boolean };
-  /** the categories this photo currently wins (or the external AI's verdict names) */
-  wins: Array<{ id: string; emoji: string; title: string; verdict: boolean }>;
+  /** analysed while object detection was „Aus“: „Objekterkennung aus“, not „Nichts erkannt“ */
+  objects_off: boolean;
+  /** the categories this photo currently wins */
+  wins: CategoryWin[];
+}
+
+/** A category the photo wins right now (the Live chip, which expands). */
+export interface CategoryWin {
+  id: string;
+  emoji: string;
+  title: string;
+  /** the AI commented on it */
+  verdict: boolean;
+  /** its place among the winners, 1 = best */
+  rank: number;
+  headline: string;
+  detail: string | null;
+  /** the focus object's German name */
+  object_label: string | null;
+  comment: { text: string; emoji: string | null } | null;
 }
 
 export type ObjectSource = 'local' | 'claude' | 'mistral' | (string & {});

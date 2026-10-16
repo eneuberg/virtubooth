@@ -237,7 +237,16 @@ const pv = (
   group: string,
   kind: 'number' | 'count' | 'time',
   unit = '',
-): ValuesOut['photo_values'][number] => ({ key, title, group, kind, unit, needs: [], available: true, reason: null });
+): ValuesOut['photo_values'][number] => ({
+  key,
+  title,
+  group,
+  kind,
+  unit,
+  needs: [],
+  available: true,
+  reason: null,
+});
 
 export const valuesOut: ValuesOut = {
   photo_values: [

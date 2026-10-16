@@ -5,12 +5,13 @@ import type { AdminExtension } from '@/api/types';
 import { NBSP } from '@/lib/format';
 import { UiProvider } from '@/ui/UiProvider';
 import { applyAdminEvent } from '../store/applyEvent';
-import { stubApi, testClient } from '../testing';
+import { must, stubApi, testClient, type Route } from '../testing';
 import { labelColor } from './labelColors';
-import { AnalysisChips, AnalysisTileFrames, AnalysisToggle } from './LiveAnalysis';
+import { AnalysisChips, AnalysisTileFrames, AnalysisToggle, AnalysisWins } from './LiveAnalysis';
 import { useShowAnalysis } from './liveAnalysisState';
 import { analysisChips, chipsLabel } from './summaryText';
-import type { PhotoAnalysisSummary } from './types';
+import { categoryItems, valuesOut } from './fixtures';
+import type { CategoryWin, PhotoAnalysisSummary } from './types';
 
 const WALL: AdminExtension = {
   id: 'wall',
@@ -31,12 +32,25 @@ function summary(id: string, over: Partial<PhotoAnalysisSummary> = {}): PhotoAna
     objects: [],
     boxes: [],
     opt_out: { analysis: false, external_ai: false },
+    objects_off: false,
     wins: [],
     ...over,
   };
 }
 
 type SummaryObject = PhotoAnalysisSummary['objects'][number];
+const WIN: CategoryWin = {
+  id: 'party',
+  emoji: '🎉',
+  title: 'Partykanone',
+  verdict: false,
+  rank: 1,
+  headline: '7 Personen',
+  detail: null,
+  object_label: null,
+  comment: null,
+};
+
 const obj = (
   label_de: string,
   source = 'local',
@@ -94,10 +108,18 @@ describe('analysisChips', () => {
   it('puts the categories the photo wins first', () => {
     const s = summary('p', {
       facts: { people: 2 },
-      wins: [{ id: 'party', emoji: '🎉', title: 'Partykanone', verdict: false }],
+      wins: [WIN],
     });
     const chips = analysisChips(s);
-    expect(chips[0]).toEqual({ id: 'win-party', text: `🎉${NBSP}Partykanone`, tone: 'win' });
+    expect(chips[0]).toEqual({ id: 'win-party', text: `🎉${NBSP}Partykanone`, tone: 'win', win: WIN });
+  });
+
+  it('says „Objekterkennung aus“ instead of „Nichts erkannt“ when detection was off', () => {
+    expect(texts(summary('p', { objects_off: true }))).toEqual(['Objekterkennung aus']);
+    expect(texts(summary('p', { objects_off: true, facts: { faces: 2 } }))).toEqual([
+      `2${NBSP}Personen`,
+      'Objekterkennung aus',
+    ]);
   });
 });
 
@@ -105,6 +127,8 @@ function renderTiles(
   ids: string[],
   answer: (ids: string[]) => PhotoAnalysisSummary[],
   aspect: Record<string, number> = {},
+  routes: Record<string, Route> = {},
+  viewer = false,
 ) {
   const qc = testClient();
   const requests = stubApi({
@@ -112,6 +136,7 @@ function renderTiles(
     'GET /api/x/wall/admin/photos/analysis': (req) => ({
       items: answer(new URL(req.url).searchParams.getAll('ids')),
     }),
+    ...routes,
   });
   render(
     <QueryClientProvider client={qc}>
@@ -125,6 +150,7 @@ function renderTiles(
             <div data-testid={`tile-${id}`}>
               <AnalysisChips photoId={id} />
             </div>
+            {viewer ? <AnalysisWins photoId={id} /> : null}
           </div>
         ))}
       </UiProvider>
@@ -134,7 +160,7 @@ function renderTiles(
     requests
       .filter((r) => new URL(r.url).pathname === '/api/x/wall/admin/photos/analysis')
       .map((r) => new URL(r.url).searchParams.getAll('ids'));
-  return { qc, batches };
+  return { qc, batches, requests };
 }
 
 afterEach(() => {
@@ -281,5 +307,82 @@ describe('AnalysisTileFrames', () => {
     await waitFor(() => expect(frames('a')).toHaveLength(0));
     expect(screen.queryByTestId('analysis-chips')).toBeNull();
     expect(screen.queryByTestId('analysis-legend')).toBeNull();
+  });
+});
+
+describe('a category the photo wins opens (§8.6)', () => {
+  const cool: CategoryWin = {
+    id: 'coolstes_objekt',
+    emoji: '🏆',
+    title: 'Das coolste Objekt',
+    verdict: true,
+    rank: 2,
+    headline: 'Hut',
+    detail: '0,80 Coolness',
+    object_label: 'Hut',
+    comment: { text: 'Der Hut von Otter 3!', emoji: '🎩' },
+  };
+  const routes = {
+    'GET /api/x/wall/admin/categories': () => ({
+      categories: categoryItems().map((c) =>
+        c.id === 'coolstes_objekt'
+          ? Object.assign({}, c, {
+              locked: { reason: 'ai_off', property: null, message: 'Externe KI ist aus.' },
+            })
+          : c,
+      ),
+    }),
+    'GET /api/x/wall/admin/values': () => valuesOut,
+  };
+
+  it('from the tile chip: rule, place, object, comment, state and the editor link', async () => {
+    const { requests } = renderTiles(
+      ['a'],
+      (ids) => ids.map((id) => summary(id, { wins: [cool] })),
+      {},
+      routes,
+    );
+    const chip = await screen.findByRole('button', { name: 'Das coolste Objekt: Platz 2, aufklappen' });
+    // the rule is asked for only once it opens
+    expect(requests.some((r) => r.url.endsWith('/categories'))).toBe(false);
+    fireEvent.click(chip);
+    const details = await screen.findByTestId('category-win-details');
+    expect(within(details).getByTestId('category-win-place').textContent).toBe(
+      'Dieses FotoPlatz 2 · Hut · 0,80 Coolness',
+    );
+    expect(within(details).getByTestId('category-win-object').textContent).toBe('ObjektHut');
+    expect(within(details).getByTestId('category-win-comment').textContent).toBe(
+      `KI-Kommentar🎩${NBSP}Der Hut von Otter 3!`,
+    );
+    await waitFor(() =>
+      expect(within(details).getByTestId('category-win-rank').textContent).toBe(
+        'GewinnerHöchster coolness-Wert unter allen Objekten',
+      ),
+    );
+    expect(within(details).getByTestId('category-win-pool').textContent).toBe('FotosAlle Fotos');
+    expect(within(details).getByTestId('category-win-select').textContent).toBe('AnzahlEin Gewinner');
+    expect(within(details).getByTestId('category-win-state').textContent).toBe(
+      'Statusgesperrt: Externe KI ist aus.',
+    );
+    expect(details.textContent).toContain('Was die KI am coolsten findet');
+    expect(within(details).getByRole('link', { name: 'Im Editor öffnen' }).getAttribute('href')).toBe(
+      '/manage?tab=livewall&category=coolstes_objekt',
+    );
+  });
+
+  it('in the viewer: each category opens in place', async () => {
+    renderTiles(['a'], (ids) => ids.map((id) => summary(id, { wins: [cool, WIN] })), {}, routes, true);
+    const wins = await screen.findByTestId('analysis-wins');
+    const rows = within(wins).getAllByTestId('analysis-win');
+    expect(rows.map((r) => r.dataset.category)).toEqual(['coolstes_objekt', 'party']);
+    const trigger = within(must(rows[0])).getByRole('button');
+    expect(trigger.textContent).toContain('Platz 2 · KI-Kommentar');
+    expect(trigger.getAttribute('aria-expanded')).toBe('false');
+    fireEvent.click(trigger);
+    await waitFor(() => expect(trigger.getAttribute('aria-expanded')).toBe('true'));
+    const details = within(must(rows[0])).getByTestId('category-win-details');
+    await waitFor(() =>
+      expect(within(details).getByTestId('category-win-state').textContent).toContain('gesperrt'),
+    );
   });
 });
