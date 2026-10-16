@@ -92,7 +92,7 @@ class MistralProvider:
 
     def verdict(
         self, prompt: str, lines: Sequence[PhotoLine], *, model: str, effort: str = "low"
-    ) -> tuple[VerdictOut, TokenUsage]:
+    ) -> tuple[list[VerdictOut], TokenUsage]:
         text = prompts.verdict_text(prompt, lines)
         data, usage = self._json(
             model, prompts.VERDICT_SYSTEM, text, "verdict", prompts.VERDICT_SCHEMA, "verdict"

@@ -1,7 +1,10 @@
-"""Golden test: the 19 preset CategorySpecs pick exactly the winners (photo,
-value, label) of the old hard-coded scoring, on a fixed party of ~40 photos
-with ties, several photos per guest, hidden, deleted, other-source and
-too-new photos."""
+"""Golden test: the 19 preset CategorySpecs (v2) pick exactly the winners
+(photo, value, label) of the old hard-coded scoring, on a fixed party of ~40
+photos with ties, several photos per guest, hidden, deleted, other-source and
+too-new photos; their v1 versions convert to exactly the v2 presets; and six
+host categories using every v1 value key pick the same winners (photo, value,
+label, object) through the v2 engine as through the frozen v1 engine
+(`v1_engine.py`), on the same party with objects and property scores."""
 
 from __future__ import annotations
 
@@ -10,15 +13,19 @@ import random
 from collections.abc import Iterator
 from pathlib import Path
 from types import SimpleNamespace
+from typing import Any
 
 import pytest
 
 from virtubooth.db.database import Database
 from virtubooth.domain.models import new_public_id
-from virtubooth.extensions.wall.enrich import engine, presets
+from virtubooth.extensions.wall.enrich import engine, objects, presets, presets_v1, spec_v1
 from virtubooth.extensions.wall.enrich.engine import PhotoFilter
+from virtubooth.extensions.wall.enrich.objects import DetectedObject
 from virtubooth.repositories.container import Repositories
 from virtubooth.services.identity import create_user
+
+from . import v1_engine
 
 T0 = "2026-10-13T18:00:00.000+00:00"
 FILTERS = {
@@ -53,6 +60,34 @@ FACT_VALUES: dict[str, list[float]] = {
 }
 
 
+LABELS = ("person", "hat", "cup", "bottle", "wine glass", "sunglasses")
+_obj_rnd = random.Random(7)  # its own generator: the facts above stay as captured
+
+
+def add_objects(db: Database, pid: int, n: int) -> None:
+    """Objects (and `coolness` scores for most of them) on 4 of 5 photos; one of
+    them detected but empty, the rest never detected."""
+    if n % 5 == 4:
+        return
+    if n % 9 == 2:
+        objects.append(db, pid, "local", "m@1", [])
+        return
+    found = [DetectedObject(lb, lb.title(), _obj_rnd.choice([0.3, 0.5, 0.5, 0.9]), None)
+             for lb in _obj_rnd.sample(LABELS, _obj_rnd.randint(1, 4))]  # fmt: skip
+    objects.append(db, pid, "local", "m@1", found)
+    if n % 7 == 3:
+        return  # not scored yet
+    if db.one("SELECT 1 FROM llm_properties WHERE name='coolness'") is None:
+        with db.tx() as c:
+            c.execute("INSERT INTO llm_properties (id, name, prompt, created_at) "
+                      "VALUES (1, 'coolness', 'p', ?)", (T0,))  # fmt: skip
+            c.execute("INSERT INTO llm_polls (id, started_at, state) VALUES (1, ?, 'done')", (T0,))
+    scores = [_obj_rnd.choice([0.1, 0.4, 0.4, 0.8, None]) for _ in found]
+    with db.tx() as c:
+        c.execute("INSERT INTO property_scores VALUES (1, ?, ?, 1, ?)",
+                  (pid, json.dumps(scores), T0))  # fmt: skip
+
+
 def build_party(data: Path) -> tuple[Database, list[int]]:
     rnd = random.Random(20261015)
     db = Database(data / "virtubooth.db")
@@ -85,6 +120,7 @@ def build_party(data: Path) -> tuple[Database, list[int]]:
                 "INSERT INTO wall_facts (photo_id, key, value) VALUES (?,?,?)",
                 [(pid, k, float(v)) for k, v in facts.items()],
             )
+        add_objects(db, pid, n)
         if n % 13 == 3:
             repos.photos.hide(public_id, at=T0, reason="admin")
         if n % 17 == 5:
@@ -102,6 +138,7 @@ def party(tmp_path: Path) -> Iterator[Database]:
 
 def engine_winners(db: Database, cid: str, flt: PhotoFilter) -> list[tuple[int, float, str]]:
     spec = engine.validate(presets.BY_ID[cid][0])
+    assert spec["version"] == 2
     return [(w.photo_id, w.value, w.label)
             for w in engine.evaluate(SimpleNamespace(db=db), spec, flt, 3)]  # fmt: skip
 
@@ -189,10 +226,76 @@ GOLDEN: dict[str, dict[str, list[tuple[int, float, str]]]] = {
 
 
 def test_nineteen_classic_presets():
-    assert len(presets.CLASSIC) == 19
-    assert [p for p, _, _ in presets.PRESETS][-1] == "coolstes_objekt"
+    assert len(presets.CLASSIC) == 19 and len(presets.PRESETS) == 24
+    assert presets.CLASSIC == tuple(p for p, _, _ in presets_v1.PRESETS[:19])
     for pid, spec, _ in presets.PRESETS:
         assert engine.validate(spec) == spec, pid  # stored as written
+    # each v1 preset converts to exactly its v2 preset
+    for pid in presets.CLASSIC:
+        assert engine.validate(presets_v1.BY_ID[pid]) == presets.BY_ID[pid][0], pid
+    assert all(not enabled for pid, _, enabled in presets.PRESETS if pid not in presets.CLASSIC)
+
+
+@pytest.mark.parametrize("cid", presets.CLASSIC)
+@pytest.mark.parametrize("fname", list(FILTERS))
+def test_the_frozen_v1_engine_agrees(party, cid, fname):
+    spec = spec_v1.validate(presets_v1.BY_ID[cid])
+    got = [
+        (w.photo_id, w.value, w.label) for w in v1_engine.evaluate(party, spec, FILTERS[fname], 3)
+    ]
+    assert got == GOLDEN[cid][fname]
+
+
+def w(value: str, op: str, operand: Any = None) -> dict[str, Any]:
+    return {"value": value, "op": op, "operand": operand}
+
+
+def host(by: str, where: list[dict[str, Any]], *, order: str = "top", count: int = 3,
+         then_by: tuple[tuple[str, str], ...] = (), one_per_guest: bool = True,
+         value: str | None = None, style: str = "count", one: str = "", many: str = ""
+         ) -> dict[str, Any]:  # fmt: skip
+    return {"emoji": "🎉", "title": "Host", "line": "", "where": where,
+            "select": {"by": by, "order": order, "count": count, "one_per_guest": one_per_guest,
+                       "then_by": [{"by": b, "order": o} for b, o in then_by]},
+            "label": {"value": value, "style": style, "one": one, "many": many}}  # fmt: skip
+
+
+# every v1 value key and operator, as a host might have combined them
+HOST: dict[str, dict[str, Any]] = {
+    "hats": host("objects.count:hat", [w("objects", "contains", "hat")], one="Hut", many="Hüte"),
+    "few_things": host("objects.count", [w("objects", "not_contains", "cup"),
+                                         w("objects", "contains_any", ["bottle", "wine glass"])],
+                       order="bottom", count=5, then_by=(("people", "top"),),
+                       one_per_guest=False, one="Ding", many="Dinge"),
+    "coolest": host("prop.coolness.max", [w("prop.coolness.max", "exists")], style="object"),
+    "cool_hat": host("prop.coolness.at:hat", [w("prop.coolness.count", "gte", 2)],
+                     value="prop.coolness.mean", style="percent", one="cool"),
+    "lame": host("prop.coolness.min", [w("photo.guest_photos", "gte", 2)], order="bottom",
+                 then_by=(("prop.coolness.sum", "top"),), style="number", one="Wert"),
+    "late_few": host("photo.created_at", [w("objects.count", "between", [1, 3]),
+                                          w("people", "ne", 2)],
+                     then_by=(("photo.guest_photos", "bottom"),), count=4, style="time"),
+}  # fmt: skip
+
+
+def test_the_host_categories_are_not_trivial(party):
+    spec = spec_v1.validate(HOST["coolest"])
+    assert len(v1_engine.evaluate(party, spec, FILTERS["all"])) == 3
+    found = sum(len(v1_engine.evaluate(party, spec_v1.validate(h), f))
+                for h in HOST.values() for f in FILTERS.values())  # fmt: skip
+    assert found >= 30
+
+
+@pytest.mark.parametrize("cid", list(HOST))
+@pytest.mark.parametrize("fname", list(FILTERS))
+def test_host_categories_pick_what_v1_picked(party, cid, fname):
+    old = spec_v1.validate(HOST[cid])
+    want = [(x.photo_id, x.value, x.label, x.object_idx)
+            for x in v1_engine.evaluate(party, old, FILTERS[fname])]  # fmt: skip
+    new = engine.validate(spec_v1.upgrade(old))
+    got = [(x.photo_id, x.value, x.label, x.object_idx)
+           for x in engine.evaluate(SimpleNamespace(db=party), new, FILTERS[fname])]  # fmt: skip
+    assert got == want
 
 
 @pytest.mark.parametrize("cid", presets.CLASSIC)

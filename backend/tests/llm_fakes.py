@@ -42,12 +42,14 @@ class FakeProvider:
     fail: ProviderError | None = None
     # score answer per call: default = 0.5 for every object of every line
     score_fn: Callable[[Sequence[PhotoLine]], dict[str, list[float | None]]] | None = None
-    verdict_out: VerdictOut | None = None
+    # verdict answer: default = one comment per line, naming its first object
+    verdict_out: list[VerdictOut] | None = None
     detected: list[bytes] = field(default_factory=list)
     scored: list[tuple[str, list[PhotoLine], bool]] = field(default_factory=list)
     verdicts: list[tuple[str, list[PhotoLine]]] = field(default_factory=list)
     pings: int = 0
     efforts: list[str] = field(default_factory=list)
+    verdict_models: list[str] = field(default_factory=list)
 
     def _maybe_fail(self) -> None:
         if self.fail is not None:
@@ -79,16 +81,22 @@ class FakeProvider:
 
     def verdict(
         self, prompt: str, lines: Sequence[PhotoLine], *, model: str, effort: str = "low"
-    ) -> tuple[VerdictOut, TokenUsage]:
+    ) -> tuple[list[VerdictOut], TokenUsage]:
         self.efforts.append(effort)
         self.verdicts.append((prompt, list(lines)))
+        self.verdict_models.append(model)
         self._maybe_fail()
-        out = self.verdict_out or VerdictOut(
-            text=f"{lines[0].author} hat den coolsten {lines[0].labels[0]}!",
-            emoji="🏆",
-            photo=lines[0].ref,
-            object_index=0,
-        )
+        if self.verdict_out is not None:
+            return list(self.verdict_out), self.usage
+        out = [
+            VerdictOut(
+                text=f"{x.author} hat den coolsten {x.labels[0]}!",
+                emoji="🏆",
+                photo=x.ref,
+                object_index=0,
+            )
+            for x in lines
+        ]
         return out, self.usage
 
     def ping(self, model: str) -> TokenUsage:
@@ -256,7 +264,44 @@ def store_key(core: Core, provider: str = "anthropic", key: str = API_KEY) -> No
     LlmService.of(core).keys.put(provider, key, by="test", at=iso(datetime.now(UTC)))
 
 
-def add_property(core: Core, name: str = "coolness", prompt: str = "Wie cool ist das?") -> int:
+def add_property(
+    core: Core, name: str = "coolness", prompt: str = "Wie cool ist das?", *, used: bool = True
+) -> int:
+    """A property; `used`: plus an enabled category `uses_<name>` that ranks by
+    it (a property is polled only while an enabled category reads it)."""
     from virtubooth.extensions.wall.llm import properties
 
-    return properties.create(core.db, core.repos.audit, name, prompt, actor="test").id
+    pid = properties.create(core.db, core.repos.audit, name, prompt, actor="test").id
+    if used:
+        use_property(core, name)
+    return pid
+
+
+def property_spec(name: str, **changes: Any) -> dict[str, Any]:
+    """A v2 spec: the object with the highest `name`."""
+    spec: dict[str, Any] = {
+        "version": 2,
+        "emoji": "🏆",
+        "title": f"Bestes {name}",
+        "line": "",
+        "pool": [],
+        "rank": {
+            "by": {"kind": "objects", "field": f"prop:{name}", "agg": "max"},
+            "order": "desc",
+            "threshold": None,
+            "then": [],
+        },
+        "select": {"count": 3, "one_per_guest": True},
+        "caption": {"value": None, "format": "decimal", "one": "", "many": "",
+                    "show_object": True},
+        "verdict": None,
+    }  # fmt: skip
+    spec.update(changes)
+    return spec
+
+
+def use_property(core: Core, name: str, *, enabled: bool = True) -> str:
+    """An enabled category `uses_<name>` that ranks by the property."""
+    cid = f"uses_{name}"
+    add_category(core, cid, property_spec(name), enabled=enabled)
+    return cid

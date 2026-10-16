@@ -143,6 +143,40 @@ class Usage(BaseModel):
     reason: str | None = Field(description="„Budget erreicht – externe KI pausiert …“")
 
 
+class VerdictEffortOut(BaseModel):
+    effort: Literal["low", "medium", "high"]
+    input_tokens: int = Field(description="Estimated per comment (one call, one new winner).")
+    output_tokens: int = Field(description="Including thinking (billed as output).")
+    usd_per_comment: float = Field(description="Estimated price of one comment in USD.")
+    price_per_comment: float = Field(description="The same in the model's `currency`.")
+    measured: bool = Field(
+        description="From real token counts (low effort); false: the thinking is an "
+        "assumption (pricing.py)."
+    )
+
+
+class VerdictModelOut(BaseModel):
+    id: str
+    title: str
+    tier: Literal["small", "mid"] = Field(description="small: Haiku class, mid: Sonnet class.")
+    currency: str
+    efforts: list[VerdictEffortOut]
+
+
+class VerdictOptionsOut(BaseModel):
+    """What the AI verdict of a category can use with the configured provider."""
+
+    system_prompt: str = Field(description="Always sent: style and guardrails (English).")
+    default_prompt: str = Field(
+        description="The host's task when a category has none; `{title}` is its title."
+    )
+    default_model: str = Field(description="The provider's cheapest (`model: null`).")
+    max_chars: int = Field(description="What a comment may be long (the prompt asks ≤ 120).")
+    thinking: bool = Field(description="The provider takes an effort („Denkaufwand“).")
+    models: list[VerdictModelOut] = Field(description="The configured provider's choices.")
+    basis: str = Field(description="How the price is estimated (German).")
+
+
 class LlmStatus(BaseModel):
     config: LlmConfig
     key: KeyOut = Field(description="The configured provider's key.")
@@ -152,6 +186,7 @@ class LlmStatus(BaseModel):
     poller: PollerOut
     detection: DetectionOut
     usage: Usage
+    verdict: VerdictOptionsOut
 
 
 class PropertyIn(BaseModel):
@@ -159,8 +194,10 @@ class PropertyIn(BaseModel):
     prompt: str = Field(description="1–2000 characters, immutable")
 
 
-class PropertyActiveIn(BaseModel):
-    active: bool
+class PropertyUser(BaseModel):
+    id: str = Field(description="The category's id.")
+    title: str
+    enabled: bool
 
 
 class PropertyOut(BaseModel):
@@ -168,11 +205,15 @@ class PropertyOut(BaseModel):
     name: str
     prompt: str
     created_at: str
-    active: bool = Field(description="The switch „aktiv“: false = not polled, scores stay.")
-    inactive_at: str | None = Field(description="When it was switched off; null = active.")
+    status: Literal["polled", "idle", "paused", "trashed"] = Field(
+        description="Derived, never stored: polled (an enabled category reads it and the AI "
+        "is ready), idle („ruht“: no enabled category reads it), paused (the external AI is "
+        "not ready), trashed (in the Papierkorb; scores stay readable)."
+    )
+    used_by: list[PropertyUser] = Field(description="The categories that read it.")
     deleted_at: str | None = Field(
-        description="In the Papierkorb since (not polled, hidden from the value pickers); "
-        "null = not in the Papierkorb. Restoring keeps the switch's state."
+        description="In the Papierkorb since (not polled, hidden from the editor); null = "
+        "not in the Papierkorb. Trashing switches the enabled categories that read it off."
     )
     scored_photos: int
     last_scored_at: str | None

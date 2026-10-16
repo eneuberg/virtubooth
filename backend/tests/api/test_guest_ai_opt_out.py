@@ -79,18 +79,21 @@ def test_external_ai_active(core):
     assert external_ai_active(repos) is False  # on, but nothing would be sent
     put_config(core, enabled=True, detect={"external": True})
     assert external_ai_active(repos) is True
-    # an active property
+    # a property an enabled category reads (a polled one)
     put_config(core, enabled=True, detect={"external": False})
     core.db.one(
         "INSERT INTO llm_properties (name, prompt, created_at) VALUES ('coolness', 'p', 'x') "
         "RETURNING id"
     )
+    assert external_ai_active(repos) is False  # no category reads it: not polled
+    from ..llm_fakes import use_property
+
+    use_property(core, "coolness")
     assert external_ai_active(repos) is True
-    core.db.one("UPDATE llm_properties SET inactive_at='y' RETURNING id")
+    # in the Papierkorb: not polled
+    core.db.one("UPDATE llm_properties SET deleted_at='y' RETURNING id")
     assert external_ai_active(repos) is False
-    # in the Papierkorb but switched on: not polled either
-    core.db.one("UPDATE llm_properties SET inactive_at=NULL, deleted_at='y' RETURNING id")
-    assert external_ai_active(repos) is False
+    core.db.one("DELETE FROM wall_categories RETURNING id")
     # an enabled category with a verdict
     spec = {"title": "Coolstes", "verdict": {"prompt": "Wer?"}}
     core.db.one(

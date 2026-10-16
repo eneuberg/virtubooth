@@ -1,38 +1,29 @@
-"""The values a wall category can test and rank by (PLAN-NIGHT §4.2, N13).
+"""The building blocks of a category (categories v2) for the editor: the photo
+values, the object fields, the aggregates (German titles) and the object labels
+seen so far, each with its availability (`GET /admin/values`).
 
-Keys:
-- `<fact>`                     every fact of every analyzer (`wall_facts`)
-- `objects`                    the photo's object labels (for contains/…)
-- `objects.count`              how many objects
-- `objects.count:<label>`      how many objects with this label („Anzahl von …“)
-- `prop.<name>.max|min|sum|mean|count`  an LLM property's scores, aggregated
-- `prop.<name>.at:<label>`     the best score of the objects with this label
-- `photo.created_at`           unix seconds
-- `photo.guest_photos`         the guest's visible photos
+Photo values are the analyzers' facts (`wall_facts`) plus `photo.created_at`
+(unix seconds) and `photo.guest_photos` (the guest's visible photos). Object
+fields are `confidence` and `prop:<name>` (every property not in the
+Papierkorb). The aggregates are measures.AGGREGATES.
 
-`catalogue()` lists them for the editor (facts from the analyzer registry,
-properties including inactive ones, not those in the Papierkorb) with the object labels seen so far.
+`values` is the v1 key list the v1 category editor still reads (deprecated: it
+goes with the v2 editor).
 """
 
 from __future__ import annotations
 
-import re
 from collections.abc import Collection, Mapping
-from dataclasses import dataclass
 from typing import Literal
 
 from pydantic import BaseModel, Field
 
 from ....db.database import Database
 from .analyzers import BY_NAME, INFOS
+from .measures import Measure
 
 ValueKind = Literal["number", "count", "labels", "time"]
-RefKind = Literal[
-    "fact", "labels", "count", "count_label", "prop", "prop_at", "created", "guest_photos"
-]
-AGGREGATES = ("max", "min", "sum", "mean", "count")
-PROPERTY_RE = re.compile(r"^[a-z][a-z0-9_]{1,30}$")
-LABEL_MAX = 60
+LEGACY_AGGREGATES = ("max", "min", "sum", "mean", "count")
 
 # fact → (German title, kind, unit)
 FACTS: dict[str, tuple[str, ValueKind, str]] = {
@@ -59,7 +50,24 @@ FACTS: dict[str, tuple[str, ValueKind, str]] = {
     "age_groups": ("Altersgruppen", "count", ""),
     "age_spread": ("Altersspanne", "number", "Jahre"),
 }
-AGG_TITLES = {
+PHOTO_VALUES: dict[str, tuple[str, ValueKind]] = {
+    "photo.created_at": ("Aufnahmezeit", "time"),
+    "photo.guest_photos": ("Fotos dieses Gasts", "count"),
+}
+FACT_TITLES: dict[str, str] = {k: v[0] for k, v in FACTS.items()} | {
+    k: v[0] for k, v in PHOTO_VALUES.items()
+}
+# aggregate → (German title, needs a field, its parameter, focus object)
+AGG_INFO: dict[str, tuple[str, bool, str | None, str | None]] = {
+    "count": ("Anzahl", False, None, "surest"),  # with a field: the best-rated (max)
+    "max": ("höchster Wert", True, None, "max"),
+    "min": ("niedrigster Wert", True, None, "min"),
+    "mean": ("Durchschnitt", True, None, "max"),
+    "sum": ("Summe", True, None, "max"),
+    "top_k_mean": ("Mittel der besten k", True, "k", "max"),
+    "count_ge": ("Anzahl mit Wert ≥ t", True, "t", "max"),
+}
+LEGACY_AGG_TITLES = {
     "max": "höchster Wert", "min": "niedrigster Wert", "sum": "Summe", "mean": "Durchschnitt",
     "count": "Anzahl bewerteter Objekte",
 }  # fmt: skip
@@ -75,97 +83,44 @@ def producers(fact: str) -> tuple[str, ...]:
 ALL_FACTS = frozenset(f for i in INFOS for f in i.facts)
 
 
-@dataclass(frozen=True)
-class ValueRef:
-    key: str
-    kind: RefKind
-    fact: str | None = None
-    prop: str | None = None
-    agg: str | None = None
-    label: str | None = None
-
-    @property
-    def is_labels(self) -> bool:
-        return self.kind == "labels"
-
-
-def _label(raw: str) -> str | None:
-    label = raw.strip().lower()
-    if not label or len(label) > LABEL_MAX or any(ord(ch) < 32 for ch in label):
+def _fact_reason(fact: str, active: Collection[str]) -> str | None:
+    found = producers(fact)
+    if any(n in active for n in found):
         return None
-    return label
+    title = BY_NAME[found[0]].title if found and found[0] in BY_NAME else fact
+    return f"Braucht die Analyse „{title}“."
 
 
-def parse(key: object) -> ValueRef | None:
-    """The value a key names, or None when it is not a valid key."""
-    if not isinstance(key, str) or not key or len(key) > 120:
+def objects_reason(active: Collection[str], external_objects: bool) -> str | None:
+    if "objects" in active or external_objects:
         return None
-    if key in ALL_FACTS:
-        return ValueRef(key, "fact", fact=key)
-    if key == "objects":
-        return ValueRef(key, "labels")
-    if key == "objects.count":
-        return ValueRef(key, "count")
-    if key.startswith("objects.count:"):
-        label = _label(key[len("objects.count:") :])
-        return ValueRef(f"objects.count:{label}", "count_label", label=label) if label else None
-    if key == "photo.created_at":
-        return ValueRef(key, "created")
-    if key == "photo.guest_photos":
-        return ValueRef(key, "guest_photos")
-    if key.startswith("prop."):
-        rest = key[len("prop.") :]
-        name, _, tail = rest.partition(".")
-        if not PROPERTY_RE.match(name):
-            return None
-        if tail in AGGREGATES:
-            return ValueRef(key, "prop", prop=name, agg=tail)
-        if tail.startswith("at:"):
-            label = _label(tail[3:])
-            return (
-                ValueRef(f"prop.{name}.at:{label}", "prop_at", prop=name, label=label)
-                if label
-                else None
-            )
-    return None
+    return f"Braucht die Analyse „{BY_NAME['objects'].title}“."
 
 
 def availability(
-    ref: ValueRef, active: Collection[str], properties: Mapping[str, bool], external_objects: bool
+    m: Measure, active: Collection[str], properties: Mapping[str, bool], external_objects: bool
 ) -> str | None:
-    """None when the value can have data, else a German reason. `properties`:
-    name → not polled (inactive or in the Papierkorb: the scores stay
+    """None when the measure can have data, else a German reason. `properties`:
+    name → in the Papierkorb (any property with a row counts: its scores stay
     readable); `external_objects`: an external source added objects."""
-    if ref.kind == "fact":
-        assert ref.fact is not None
-        found = producers(ref.fact)
-        if any(n in active for n in found):
-            return None
-        title = BY_NAME[found[0]].title if found and found[0] in BY_NAME else ref.fact
-        return f"Braucht die Analyse „{title}“."
-    if ref.kind in ("labels", "count", "count_label"):
-        if "objects" in active or external_objects:
-            return None
-        return f"Braucht die Analyse „{BY_NAME['objects'].title}“."
-    if ref.kind in ("prop", "prop_at"):
-        if ref.prop in properties:
-            return None
-        return f"Braucht die Eigenschaft „{ref.prop}“."
+    if m.kind == "value":
+        assert m.key is not None
+        return None if m.key in PHOTO_VALUES else _fact_reason(m.key, active)
+    reason = objects_reason(active, external_objects)
+    if reason:
+        return reason
+    if m.prop is not None and m.prop not in properties:
+        return f"Braucht die Eigenschaft „{m.prop}“."
     return None
 
 
 def properties_of(db: Database) -> dict[str, bool]:
-    """LLM property name → not polled (switched off or in the Papierkorb).
-    Every property with a row counts: its scores stay readable."""
+    """LLM property name → in the Papierkorb. Every property with a row counts:
+    its scores stay readable."""
     return {
-        r["name"]: r["inactive_at"] is not None or r["deleted_at"] is not None
-        for r in db.all("SELECT name, inactive_at, deleted_at FROM llm_properties ORDER BY name")
+        r["name"]: r["deleted_at"] is not None
+        for r in db.all("SELECT name, deleted_at FROM llm_properties ORDER BY name")
     }
-
-
-def trashed_properties(db: Database) -> set[str]:
-    """Names in the Papierkorb (left out of the value pickers)."""
-    return {r[0] for r in db.all("SELECT name FROM llm_properties WHERE deleted_at IS NOT NULL")}
 
 
 def has_external_objects(db: Database) -> bool:
@@ -175,7 +130,40 @@ def has_external_objects(db: Database) -> bool:
 # ------------------------------------------------------------- catalogue
 
 
+class PhotoValueInfo(BaseModel):
+    key: str = Field(description="`{kind: value, key}`: an analyzer's fact or `photo.*`.")
+    title: str = Field(description="German.")
+    group: str = Field(description="German group heading (the analyzer, „Foto“).")
+    kind: Literal["number", "count", "time"]
+    unit: str
+    needs: list[str] = Field(description="Analyzer names (any of them); empty = always there.")
+    available: bool
+    reason: str | None
+
+
+class ObjectFieldInfo(BaseModel):
+    field: str = Field(description="`confidence` or `prop:<name>`.")
+    title: str = Field(description="German.")
+    property: str | None = Field(description="The property's name for `prop:<name>`.")
+    unit: str = Field(description="„0–1“: both are scores.")
+
+
+class AggregateInfo(BaseModel):
+    agg: Literal["count", "max", "min", "mean", "sum", "top_k_mean", "count_ge"]
+    title: str = Field(description="German.")
+    needs_field: bool = Field(description="False: `count` also works without a field.")
+    param: Literal["k", "t"] | None = Field(
+        description="`k` (top_k_mean, 2–5) or `t` (count_ge, 0–1)."
+    )
+    focus: Literal["max", "min", "surest"] | None = Field(
+        description="Which object a winner points at: the highest / lowest value, the "
+        "surest one (count with a label filter)."
+    )
+
+
 class ValueInfo(BaseModel):
+    """A v1 value key (deprecated: the v1 category editor's list)."""
+
     key: str
     title: str = Field(description="German.")
     group: str = Field(description="German group heading (the analyzer, „Objekte“, …).")
@@ -186,9 +174,6 @@ class ValueInfo(BaseModel):
     )
     available: bool
     reason: str | None
-    inactive: bool = Field(
-        description="A value of a property that is switched off (not polled; scores stay readable)."
-    )
 
 
 class LabelInfo(BaseModel):
@@ -198,10 +183,20 @@ class LabelInfo(BaseModel):
 
 
 class ValuesOut(BaseModel):
-    values: list[ValueInfo]
+    photo_values: list[PhotoValueInfo]
+    object_fields: list[ObjectFieldInfo] = Field(
+        description="What `objects.agg(field)` can read: `confidence` and every property "
+        "not in the Papierkorb."
+    )
+    aggregates: list[AggregateInfo]
+    objects_available: bool = Field(description="Object measures can have data.")
+    objects_reason: str | None
     labels: list[LabelInfo] = Field(
-        description="Object labels seen so far, most frequent first: compose "
-        "`objects.count:<label>` and `prop.<name>.at:<label>` with them."
+        description="Object labels seen so far, most frequent first (for object filters)."
+    )
+    values: list[ValueInfo] = Field(
+        description="Deprecated: the v1 keys (`objects.count:<label>`, `prop.<name>.max`, …) "
+        "for the v1 editor."
     )
 
 
@@ -216,18 +211,9 @@ def labels_seen(db: Database) -> list[LabelInfo]:
 
 def catalogue(db: Database, active: Collection[str]) -> ValuesOut:
     props = properties_of(db)
-    external = has_external_objects(db)
-    out: list[ValueInfo] = []
-
-    def add(key: str, title: str, group: str, kind: ValueKind, unit: str, needs: list[str],
-            inactive: bool = False) -> None:  # fmt: skip
-        ref = parse(key)
-        assert ref is not None, key
-        reason = availability(ref, active, props, external)
-        out.append(ValueInfo(key=key, title=title, group=group, kind=kind, unit=unit,
-                             needs=needs, available=reason is None, reason=reason,
-                             inactive=inactive))  # fmt: skip
-
+    names = [n for n, trashed in props.items() if not trashed]
+    obj_reason = objects_reason(active, has_external_objects(db))
+    photo_values: list[PhotoValueInfo] = []
     seen: set[str] = set()
     for info in INFOS:
         for fact in info.facts:
@@ -235,18 +221,51 @@ def catalogue(db: Database, active: Collection[str]) -> ValuesOut:
                 continue
             seen.add(fact)
             title, kind, unit = FACTS.get(fact, (fact, "number", ""))
-            add(fact, title, info.title, kind, unit, list(producers(fact)))
+            reason = _fact_reason(fact, active)
+            photo_values.append(PhotoValueInfo(
+                key=fact, title=title, group=info.title, kind="number" if kind == "labels"
+                else kind, unit=unit, needs=list(producers(fact)), available=reason is None,
+                reason=reason))  # fmt: skip
+    for key, (title, kind) in PHOTO_VALUES.items():
+        photo_values.append(PhotoValueInfo(key=key, title=title, group="Foto", kind=kind,  # type: ignore[arg-type]
+                                           unit="", needs=[], available=True, reason=None))  # fmt: skip
+    fields = [ObjectFieldInfo(field="confidence", title="Erkennungssicherheit", property=None,
+                              unit="0–1")]  # fmt: skip
+    fields += [ObjectFieldInfo(field=f"prop:{n}", title=n, property=n, unit="0–1") for n in names]
+    aggregates = [
+        AggregateInfo(agg=a, title=t, needs_field=nf, param=p, focus=f)  # type: ignore[arg-type]
+        for a, (t, nf, p, f) in AGG_INFO.items()
+    ]
+    return ValuesOut(
+        photo_values=photo_values, object_fields=fields, aggregates=aggregates,
+        objects_available=obj_reason is None, objects_reason=obj_reason,
+        labels=labels_seen(db), values=_legacy(photo_values, names, obj_reason),
+    )  # fmt: skip
+
+
+def _legacy(photo_values: list[PhotoValueInfo], names: list[str], obj_reason: str | None
+            ) -> list[ValueInfo]:  # fmt: skip
+    out = [
+        ValueInfo(key=v.key, title=v.title, group=v.group, kind=v.kind, unit=v.unit,
+                  needs=v.needs, available=v.available, reason=v.reason)
+        for v in photo_values if not v.key.startswith("photo.")
+    ]  # fmt: skip
     group = BY_NAME["objects"].title
-    add("objects", "Erkannte Objekte", group, "labels", "", ["objects"])
-    add("objects.count", "Anzahl Objekte", group, "count", "", ["objects"])
-    add("photo.created_at", "Aufnahmezeit", "Foto", "time", "", [])
-    add("photo.guest_photos", "Fotos dieses Gasts", "Foto", "count", "", [])
-    trashed = trashed_properties(db)
-    for name, inactive in props.items():
-        if name in trashed:
-            continue
-        for agg in AGGREGATES:
-            add(f"prop.{name}.{agg}", f"{name}: {AGG_TITLES[agg]}", f"Eigenschaft „{name}“",
-                "count" if agg == "count" else "number", "" if agg == "count" else "0–1",
-                [f"prop:{name}"], inactive)  # fmt: skip
-    return ValuesOut(values=out, labels=labels_seen(db))
+    for key, title, kind in (("objects", "Erkannte Objekte", "labels"),
+                             ("objects.count", "Anzahl Objekte", "count")):  # fmt: skip
+        out.append(ValueInfo(key=key, title=title, group=group, kind=kind, unit="",  # type: ignore[arg-type]
+                             needs=["objects"], available=obj_reason is None,
+                             reason=obj_reason))  # fmt: skip
+    out += [
+        ValueInfo(key=v.key, title=v.title, group=v.group, kind=v.kind, unit=v.unit,
+                  needs=v.needs, available=v.available, reason=v.reason)
+        for v in photo_values if v.key.startswith("photo.")
+    ]  # fmt: skip
+    for name in names:
+        for agg in LEGACY_AGGREGATES:
+            out.append(ValueInfo(
+                key=f"prop.{name}.{agg}", title=f"{name}: {LEGACY_AGG_TITLES[agg]}",
+                group=f"Eigenschaft „{name}“", kind="count" if agg == "count" else "number",
+                unit="" if agg == "count" else "0–1", needs=[f"prop:{name}"],
+                available=obj_reason is None, reason=obj_reason))  # fmt: skip
+    return out

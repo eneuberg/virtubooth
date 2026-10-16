@@ -149,6 +149,17 @@ class LlmService:
         else:
             if outcome:
                 log.info("llm config: object detection set to %s (either/or)", outcome)
+        # categories v2: convert v1 specs (migration 18), then switch off what the
+        # AI's state locks (lifecycle)
+        try:
+            from ..enrich import presets
+
+            upgraded = presets.ensure_upgraded(self.core.db)
+            if upgraded:
+                log.info("wall categories: %d converted to spec version 2", len(upgraded))
+            self.reconcile()
+        except Exception:
+            log.exception("wall categories: upgrade or reconcile failed")
         self.poller.start()
         self.detector.start()
 
@@ -160,6 +171,22 @@ class LlmService:
         """Config, key or properties changed: the loops look again now."""
         self.poller.poke()
         self.detector.poke()
+
+    def ai_ready(self, config: LlmConfig | None = None) -> bool:
+        """„KI bereit“: master switch on, „Eigenschaften abfragen“ on and a usable
+        key for the provider (the budget does not count: a pause, not off)."""
+        cfg = config or self.config()
+        return cfg.enabled and cfg.poll and self.keys.load(cfg.provider) is not None
+
+    def reconcile(self) -> list[tuple[str, str, str | None]]:
+        """Switch off the enabled categories the AI's state locks (lifecycle);
+        the wall's hub notices (`off_at`) and the walls refetch their categories."""
+        from ..enrich import lifecycle
+
+        switched = lifecycle.reconcile(self.core.db, self.ai_ready())
+        if switched:
+            log.info("wall categories switched off: %s", ", ".join(c for c, _, _ in switched))
+        return switched
 
     # ------------------------------------------------------------- state
 
@@ -348,6 +375,7 @@ class LlmService:
                 actor, "llm.key", "", {"mode": "set", "provider": provider}, at=at
             )
         self.forget_provider()
+        self.reconcile()
         self.changed()
         return self.keys.status(provider)
 
@@ -360,6 +388,7 @@ class LlmService:
             )
         self.forget_provider()
         self.check_detection(by=actor)
+        self.reconcile()
         self.changed()
         return self.keys.status(provider)
 

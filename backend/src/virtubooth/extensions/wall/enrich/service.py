@@ -18,7 +18,7 @@ from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any, cast
 
 from ....core.clock import now_iso
-from . import downloads, jobs, models, objects
+from . import downloads, jobs, lifecycle, models, objects
 from .analyzers import ALWAYS_ON, BY_NAME, INFOS, SETTINGS, ml_installed
 from .engine import PhotoFilter
 from .schemas import (
@@ -400,14 +400,15 @@ class EnrichmentService:
                        (photo.user_id,))  # fmt: skip
         objs = objects.objects_of(db, [photo.id]).get(photo.id, [])
         by_source = objects.source_objects_of(db, photo.id)
+        polled = set(lifecycle.polled_names(db))
         props = [
             PropertyScores(
                 name=r["name"],
-                inactive=r["inactive_at"] is not None or r["deleted_at"] is not None,
+                inactive=r["name"] not in polled,
                 scores=_scores(r["scores"]),
             )
             for r in db.all(
-                "SELECT p.name, p.inactive_at, p.deleted_at, s.scores FROM property_scores s "
+                "SELECT p.name, s.scores FROM property_scores s "
                 "JOIN llm_properties p ON p.id = s.property_id WHERE s.photo_id=? ORDER BY p.name",
                 (photo.id,),
             )

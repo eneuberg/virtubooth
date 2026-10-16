@@ -1,10 +1,12 @@
 """The poll (PLAN-NIGHT N8): text only, every `poll_interval_s`.
 
-Per active property one call (chunks of ≤ 400 objects) rates every object of
+Per polled property (not in the Papierkorb and read by an enabled category:
+`properties.polled`) one call (chunks of ≤ 400 objects) rates every object of
 every eligible photo (visible, analysis done, guest opted out of neither);
 answers whose array length differs from the photo's object count at send time
-are dropped. `property_scores` keeps only the latest values. Then one verdict
-call per enabled category with a `verdict` (verdicts.py). One `llm_polls` row
+are dropped. `property_scores` keeps only the latest values. Then one comment
+call per enabled category with a `verdict` whose winners lack a cached comment
+(verdicts.py). One `llm_polls` row
 per run; a run whose input (photos, objects, names, properties, categories,
 model) hashes like the last finished one is skipped unless forced.
 """
@@ -184,7 +186,7 @@ def poll_once(svc: LlmService, *, force: bool = False) -> PollResult | None:
     cfg = svc.config()
     if not (cfg.enabled and cfg.poll) or svc.keys.load(cfg.provider) is None:
         return None
-    props = properties.active(db)
+    props = properties.polled(db)
     cats = verdict_categories(db)
     if not props and not cats:
         return None
@@ -329,7 +331,7 @@ class Poller:
         cfg = svc.config()
         if not (cfg.enabled and cfg.poll) or svc.keys.load(cfg.provider) is None:
             return "off"
-        if not properties.active(svc.core.db) and not verdict_categories(svc.core.db):
+        if not properties.polled(svc.core.db) and not verdict_categories(svc.core.db):
             return "off"
         if self.blocked or svc.blocked_reason(cfg):
             return "blocked"
@@ -347,8 +349,10 @@ class Poller:
             return False, "„Eigenschaften abfragen“ ist ausgeschaltet."
         if svc.keys.load(cfg.provider) is None:
             return False, "Kein gültiger API-Schlüssel gespeichert."
-        if not properties.active(svc.core.db) and not verdict_categories(svc.core.db):
-            return False, "Keine Eigenschaft und keine Kategorie mit KI-Urteil."
+        if not properties.polled(svc.core.db) and not verdict_categories(svc.core.db):
+            return False, (
+                "Keine eingeschaltete Kategorie braucht eine Eigenschaft oder ein KI-Urteil."
+            )
         reason = svc.blocked_reason(cfg)
         if reason is not None:
             return False, reason

@@ -84,6 +84,10 @@ class WallHub:
         self._has_categories = False
         self.rev = 0
         self.llm_poll = 0
+        # (enabled count, latest off_at) of the categories: a change by the app
+        # (lifecycle switched one off) is announced like a new poll
+        self._auto_off: tuple[int, str] | None = None
+        self._categories_force = False
 
     # ------------------------------------------------------------- lifecycle
 
@@ -344,6 +348,13 @@ class WallHub:
         polled = engine.last_poll(db)
         new_poll = polled > self.llm_poll
         self.llm_poll = max(self.llm_poll, polled)
+        # a category switched off by the app (lifecycle: AI off, property trashed)
+        switched = engine.auto_off_state(db)
+        if switched != self._auto_off:
+            if self._auto_off is not None:
+                new_poll = True
+                self._categories_force = True
+            self._auto_off = switched
         new, ids = self.enrichment.changes_since(self.rev)
         self.rev = new
         if not ids:
@@ -358,7 +369,7 @@ class WallHub:
     def _categories_soon(self) -> None:
         """`categories.changed` in CATEGORIES_DEBOUNCE_SECONDS (once for a burst of
         changes: analysis results, photos coming and going). Never without categories."""
-        if not self._has_categories:
+        if not self._has_categories and not self._categories_force:
             return
         if self._categories_timer is not None or self._loop is None:
             return
@@ -368,6 +379,7 @@ class WallHub:
 
     def _categories_fire(self) -> None:
         self._categories_timer = None
+        self._categories_force = False
         self.bus.publish("categories.changed", {})
 
 

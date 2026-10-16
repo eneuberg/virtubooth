@@ -405,13 +405,14 @@ _LEFTOVERS = (
     f"SELECT 1 FROM photo_detection_runs WHERE photo_id IN ({_DELETED}) LIMIT 1",
     f"SELECT 1 FROM property_scores WHERE photo_id IN ({_DELETED}) LIMIT 1",
     f"SELECT 1 FROM wall_category_verdicts WHERE photo_id IN ({_DELETED}) LIMIT 1",
+    f"SELECT 1 FROM wall_category_comments WHERE photo_id IN ({_DELETED}) LIMIT 1",
 )
 
 
 def purge_deleted(db: Database) -> int:
     """Drop everything the analysis keeps of deleted photos: facts, objects,
-    detection runs, property scores, rows; verdicts keep their text but lose
-    the photo. The row holding the highest rev stays until a later write (a
+    detection runs, property scores, the AI's comments on them, rows; old
+    verdicts keep their text but lose the photo. The row holding the highest rev stays until a later write (a
     reused rev would hide a change from pollers); its data is emptied already."""
     if db.one(
         "SELECT 1 FROM wall_analysis a JOIN photos p ON p.id = a.photo_id "
@@ -430,6 +431,7 @@ def purge_deleted(db: Database) -> int:
             "UPDATE wall_category_verdicts SET photo_id = NULL, object_idx = NULL "
             f"WHERE photo_id IN ({deleted})"
         )
+        c.execute(f"DELETE FROM wall_category_comments WHERE photo_id IN ({deleted})")
         n = c.execute(
             f"DELETE FROM wall_analysis WHERE photo_id IN ({deleted}) "
             "AND rev < (SELECT MAX(rev) FROM wall_analysis)"

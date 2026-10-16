@@ -12,7 +12,8 @@ from .config import load_config
 
 def external_ai_active(repos: Repositories) -> bool:
     """Switched on, and something would actually be sent: detection at upload,
-    or the poll with an active property or an enabled category with an LLM verdict."""
+    or the poll with a polled property (read by an enabled category) or an enabled
+    category with an AI verdict."""
     config = load_config(repos.app_settings)
     if not config.enabled:
         return False
@@ -22,9 +23,9 @@ def external_ai_active(repos: Repositories) -> bool:
         return True
     if not config.poll:
         return False
-    if repos.db.one(
-        "SELECT 1 FROM llm_properties WHERE inactive_at IS NULL AND deleted_at IS NULL LIMIT 1"
-    ):
+    from ..enrich import lifecycle
+
+    if lifecycle.polled_names(repos.db):
         return True
     for row in repos.db.all("SELECT spec FROM wall_categories WHERE enabled = 1"):
         try:

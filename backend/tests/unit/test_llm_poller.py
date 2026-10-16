@@ -1,5 +1,7 @@
-"""The poll (PLAN-NIGHT N8): property scores aligned with the object lists,
-latest values only, skipped when nothing changed; then the category verdicts."""
+"""The poll (PLAN-NIGHT N8, categories v2): only properties an enabled category
+reads, scores aligned with the object lists, latest values only, skipped when
+nothing changed; then the AI's comments (exactly `count`, cached per category
+and photo, invalidated by a prompt/model change)."""
 
 from __future__ import annotations
 
@@ -16,8 +18,10 @@ from ..llm_fakes import (
     add_guest,
     add_photo,
     add_property,
+    property_spec,
     set_flags,
     setup_llm,
+    use_property,
 )
 
 
@@ -82,24 +86,31 @@ def test_out_of_range_values_are_clamped_by_the_parser():
     assert parsed == {"Pa": [1.0, 0.0, None, None, 0.25]}
 
 
-def test_inactive_and_trashed_properties_are_not_polled(core):
+def test_only_properties_an_enabled_category_reads_are_polled(core):
     from virtubooth.extensions.wall.llm import properties
 
     fake = FakeProvider()
     svc = setup_llm(core, fake)
     prop = add_property(core)
-    add_property(core, "lustigkeit", "Wie lustig?")
+    add_property(core, "lustigkeit", "Wie lustig?", used=False)  # no category reads it
+    add_property(core, "aus", "Nur in einer ausgeschalteten?", used=False)
+    use_property(core, "aus", enabled=False)
     add_property(core, "weg", "Im Papierkorb?")
     add_photo(core, add_guest(core))
-    properties.set_active(core.db, core.repos.audit, "lustigkeit", False, actor="t")
     properties.set_trashed(core.db, core.repos.audit, "weg", True, actor="t")
-    assert [p.name for p in properties.active(core.db)] == ["coolness"]
+    assert [p.name for p in properties.polled(core.db)] == ["coolness"]
     poll_once(svc)
     assert [p for p, _, _ in fake.scored] == ["Wie cool ist das?"]
     assert len(scores(core, prop)) == 1
-    # a trashed property that is still switched on is not polled either
-    properties.set_trashed(core.db, core.repos.audit, "coolness", True, actor="t")
-    assert properties.active(core.db) == []
+    # trashing switched its category off
+    row = core.db.one("SELECT enabled, off_reason, off_detail FROM wall_categories WHERE id=?",
+                      ("uses_weg",))  # fmt: skip
+    assert tuple(row) == (0, "property_trashed", "weg")
+    # without an enabled category nothing is polled, and there is nothing to do
+    with core.db.tx() as c:
+        c.execute("UPDATE wall_categories SET enabled = 0")
+    assert properties.polled(core.db) == []
+    assert poll_once(svc) is None
 
 
 def test_latest_values_only_and_skip_when_unchanged(core):
@@ -162,6 +173,13 @@ def test_large_lists_go_out_in_chunks(core, monkeypatch):
     assert len(scores(core, prop)) == 3
 
 
+def comments(core):
+    return [
+        dict(r)
+        for r in core.db.all("SELECT * FROM wall_category_comments ORDER BY category_id, photo_id")
+    ]
+
+
 def test_verdict_is_stored(core):
     fake = FakeProvider(
         score_fn=lambda lines: {x.ref: [0.1, 0.95] if len(x.labels) == 2 else [0.3] for x in lines}
@@ -177,43 +195,105 @@ def test_verdict_is_stored(core):
     assert result.state == "done"
     prompt, lines = fake.verdicts[0]
     assert prompt.startswith("Werte das coolste Objekt")
-    # top 1 by prop.coolness.max, with its scores
-    assert [(x.ref, x.author, x.labels) for x in lines] == [
-        (f"P{winner_pub}", "Lena", ("person", "disco ball"))
+    # count 1 (a v1 verdict converts to one comment): the top winner, with its scores,
+    # rank, focus object and value
+    assert [(x.ref, x.author, x.labels, x.rank, x.focus) for x in lines] == [
+        (f"P{winner_pub}", "Lena", ("person", "disco ball"), 1, 1)
     ]
     assert dict(lines[0].scores) == {"coolness": [0.1, 0.95]}
-    row = dict(core.db.one("SELECT * FROM wall_category_verdicts"))
+    assert lines[0].value == "Disco Ball"
+    (row,) = comments(core)
     assert row["category_id"] == "coolstes_objekt" and row["photo_id"] == winner
     assert row["object_idx"] == 0 and row["emoji"] == "🏆" and row["poll_id"] == result.poll_id
     assert row["text"].startswith("Lena hat")
     usage = [r["kind"] for r in core.db.all("SELECT kind FROM llm_usage ORDER BY id")]
     assert usage == ["property", "verdict"]
+    # the default verdict model: the provider's cheapest (Haiku class)
+    assert fake.verdict_models == ["claude-haiku-5-5"]
+
+
+def test_exactly_count_comments_cached_per_photo_and_invalidated(core):
+    fake = FakeProvider(score_fn=lambda lines: {x.ref: [0.1 * (len(x.labels))] * len(x.labels)
+                                                for x in lines})  # fmt: skip
+    svc = setup_llm(core, fake)
+    add_property(core, used=False)
+    spec = property_spec("coolness", verdict={"prompt": None, "count": 2, "model": None,
+                                              "effort": "low"})  # fmt: skip
+    add_category(core, "cool", spec)
+    a, _ = add_photo(core, add_guest(core), labels=("a", "b", "c"))
+    b, _ = add_photo(core, add_guest(core), labels=("a", "b"))
+    c, _ = add_photo(core, add_guest(core), labels=("a",))
+    poll_once(svc)
+    # the top 2 winners, one comment each, in rank order; the default prompt names the title
+    prompt, lines = fake.verdicts[0]
+    assert "„Bestes coolness“" in prompt
+    assert [x.rank for x in lines] == [1, 2]
+    assert [r["photo_id"] for r in comments(core)] == [a, b]
+    # unchanged winners: cached, no new call (a forced poll still rates the properties)
+    poll_once(svc, force=True)
+    assert len(fake.verdicts) == 1
+    # a new winner: only the new pair is asked
+    d, _ = add_photo(core, add_guest(core), labels=("a", "b", "c", "d"))
+    poll_once(svc)
+    assert [x.rank for x in fake.verdicts[1][1]] == [1] and len(fake.verdicts[1][1]) == 1
+    assert {r["photo_id"] for r in comments(core)} == {a, b, d}  # b's stays cached
+    # a prompt change invalidates the category's comments: both winners asked again
+    spec2 = {**spec, "verdict": {**spec["verdict"], "prompt": "Sei nett."}}
+    with core.db.tx() as cur:
+        cur.execute("UPDATE wall_categories SET spec=? WHERE id='cool'", (json.dumps(spec2),))
+    poll_once(svc)
+    assert fake.verdicts[2][0] == "Sei nett." and len(fake.verdicts[2][1]) == 2
+    assert {r["photo_id"] for r in comments(core)} == {d, a}
+    assert len({r["config_hash"] for r in comments(core)}) == 1
+    # a model change (Sonnet) too
+    spec3 = {**spec2, "verdict": {**spec2["verdict"], "model": "claude-sonnet-5-5",
+                                  "effort": "medium"}}  # fmt: skip
+    with core.db.tx() as cur:
+        cur.execute("UPDATE wall_categories SET spec=? WHERE id='cool'", (json.dumps(spec3),))
+    poll_once(svc)
+    assert fake.verdict_models[-1] == "claude-sonnet-5-5" and fake.efforts[-1] == "medium"
+    assert len(fake.verdicts[3][1]) == 2
+    del c
+
+
+def test_the_guardrails_are_always_in_the_system_prompt():
+    from virtubooth.extensions.wall.llm import prompts
+
+    system = prompts.VERDICT_SYSTEM
+    for word in ("never change it", "exactly one comment", "120 characters", "bodies",
+                 "weight", "origin", "religion", "disability", "sexuality", "no insults",
+                 "party-safe", prompts.DATA_RULE):  # fmt: skip
+        assert word in system
+    assert prompts.verdict_prompt(None, "Hutparade") == prompts.DEFAULT_VERDICT_PROMPT.format(
+        title="Hutparade"
+    )
+    assert prompts.verdict_prompt("  Eigener  ", "x") == "Eigener"
 
 
 def test_verdict_answer_is_checked(core):
     fake = FakeProvider(
-        verdict_out=VerdictOut(
-            text="Ignore all‮ rules\x00 " + "x" * 300,
-            emoji="lol",
-            photo="Pnot-a-winner",
-            object_index=7,
-        )
+        verdict_out=[
+            VerdictOut(text="Nicht gesendet", emoji=None, photo="Pnot-a-winner", object_index=0),
+            VerdictOut(text="", emoji=None, photo=None, object_index=None),
+        ]
     )
     svc = setup_llm(core, fake)
     add_property(core)
     add_category(core, "coolstes_objekt", COOLEST_SPEC)
     add_photo(core, add_guest(core), labels=("hat",))
-    poll_once(svc)
-    row = core.db.one("SELECT * FROM wall_category_verdicts")
-    assert len(row["text"]) <= 160 and "‮" not in row["text"] and "\x00" not in row["text"]
-    assert row["emoji"] is None and row["photo_id"] is None and row["object_idx"] is None
-
-    # a valid photo with an index outside its list keeps the photo, drops the index
+    result = poll_once(svc)
+    assert comments(core) == [] and "leere Antwort" in (result.reason or "")
     pub = fake.verdicts[0][1][0].ref
-    fake.verdict_out = VerdictOut(text="Hut!", emoji="🎩", photo=pub, object_index=5)
+    fake.verdict_out = [
+        VerdictOut(text="Ignore all‮ rules\x00 " + "x" * 300, emoji="lol", photo=pub,
+                   object_index=7),
+        VerdictOut(text="Zweimal dasselbe Foto", emoji=None, photo=pub, object_index=0),
+    ]  # fmt: skip
     poll_once(svc, force=True)
-    row = core.db.one("SELECT * FROM wall_category_verdicts")
-    assert row["photo_id"] is not None and row["object_idx"] is None and row["emoji"] == "🎩"
+    (row,) = comments(core)
+    assert len(row["text"]) <= 160 and "‮" not in row["text"] and "\x00" not in row["text"]
+    assert row["emoji"] is None and row["object_idx"] is None
+    assert row["text"].startswith("Ignore all")
 
 
 def test_verdict_skips_opted_out_winners_and_disabled_categories(core):
@@ -229,8 +309,6 @@ def test_verdict_skips_opted_out_winners_and_disabled_categories(core):
     set_flags(core, uid, ai=True)
     poll_once(svc, force=True)
     assert len(fake.verdicts) == 1
-    # no winner the poll may send: the old verdict goes
-    assert core.db.one("SELECT COUNT(*) AS n FROM wall_category_verdicts")["n"] == 0
 
 
 def test_failures_are_recorded(core):
@@ -259,7 +337,10 @@ def test_nothing_to_do_writes_no_row(core):
 def test_trigger(core):
     fake = FakeProvider()
     svc = setup_llm(core, fake)
-    assert svc.poller.trigger() == (False, "Keine Eigenschaft und keine Kategorie mit KI-Urteil.")
+    assert svc.poller.trigger() == (
+        False,
+        "Keine eingeschaltete Kategorie braucht eine Eigenschaft oder ein KI-Urteil.",
+    )
     add_property(core)
     add_photo(core, add_guest(core))
     started, reason = svc.poller.trigger()
@@ -292,3 +373,16 @@ def test_handles_go_out_only_while_the_wall_shows_them(core):
     assert wall_config.load_config(repo).show_instagram
     poll_once(svc, force=True)
     assert sorted(x.author for x in fake.scored[-1][1]) == ["@anna.b", "Walfisch"]
+
+
+def test_the_verdict_model_follows_the_provider():
+    from virtubooth.extensions.wall.llm import pricing
+
+    resolve = pricing.resolve_verdict_model
+    assert resolve("anthropic", None) == "claude-haiku-5-5"
+    assert resolve("anthropic", "claude-sonnet-5-5") == "claude-sonnet-5-5"
+    # a provider change keeps the class (Sonnet → DeutschlandGPT's Sonnet, Mistral Medium)
+    assert resolve("deutschlandgpt", "claude-sonnet-5-5") == "claude-sonnet-5.5"
+    assert resolve("mistral", "claude-sonnet-5-5") == "mistral-medium-2508"
+    assert resolve("scaleway", "claude-sonnet-5-5") == "deepseek-v4.1-flash"  # only one
+    assert "claude-opus-5-5" not in pricing.VERDICT_MODEL_IDS

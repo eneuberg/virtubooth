@@ -178,7 +178,7 @@ def test_the_poll_and_the_categories_work_on_the_merged_list(core):
     assert stored is not None and len(json.loads(stored[0])) == 3
     # the categories' snapshot and the value catalogue read the merged list too
     snap = engine.snapshot(core.db).photos[pid]
-    assert [o[1] for o in snap.objects] == ["person", "wine glass", "party hat"]
+    assert [o.label for o in snap.objects] == ["person", "wine glass", "party hat"]
     labels = {i.label: i.count for i in values.labels_seen(core.db)}
     assert labels == {"person": 1, "wine glass": 1, "party hat": 1}
     assert values.has_external_objects(core.db) is True

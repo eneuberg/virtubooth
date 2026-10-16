@@ -49,6 +49,7 @@ from ...runtime import Core
 from . import auth
 from .auth import NO_STORE, WallDep, wall_auth
 from .config import load_config
+from .enrich.engine import Comment, Winner, shown_line
 from .enrichment import board
 from .feed import (
     MAX_FEED,
@@ -65,15 +66,19 @@ from .feed import (
 from .hub import Wall, WallHub
 from .media import photo_file
 from .schemas import (
+    WallBox,
     WallCategoriesOut,
     WallCategory,
+    WallComment,
     WallEvent,
     WallFeed,
     WallLoginIn,
     WallOk,
+    WallPhoto,
     WallSessionOut,
     WallVerdict,
     WallWinner,
+    WallWinnerObject,
 )
 
 # an open stream re-checks its cookie this often (logout, password change)
@@ -331,43 +336,67 @@ def _verdict_photos(core: Core, ids: list[int]) -> set[int]:
     return {int(r[0]) for r in rows}
 
 
+def ai_ready(core: Core) -> bool:
+    """„KI bereit“ (the AI's comments are shown only then: „KI-Urteil pausiert“)."""
+    from .llm.service import LlmService
+
+    return LlmService.of(core).ai_ready()
+
+
+def _box(box: tuple[float, float, float, float] | None) -> WallBox | None:
+    if box is None:
+        return None
+    x, y, w, h = (round(float(v), 4) for v in box)
+    return WallBox(x=x, y=y, w=w, h=h)
+
+
+def wall_winner(photo: WallPhoto, w: Winner, comment: Comment | None) -> WallWinner:
+    obj = w.object
+    return WallWinner(
+        photo=photo, value=w.value, label=w.label, headline=w.headline, detail=w.detail,
+        object_idx=w.object_idx,
+        object=WallWinnerObject(idx=obj.idx, label_de=obj.label_de, value=obj.value,
+                                box=_box(obj.box)) if obj is not None else None,
+        comment=WallComment(text=comment.text, emoji=comment.emoji) if comment else None,
+    )  # fmt: skip
+
+
 def screen_categories(core: Core, hub: WallHub) -> list[WallCategory]:
-    """The enabled categories that have winners (rule specs, PLAN-NIGHT N13),
-    in the admin's order, each with its LLM verdict when there is one."""
+    """The enabled categories that have winners (rule specs, categories v2), in
+    the admin's order, each winner with its focus object and the AI's comment."""
     config = load_config(core.repos.app_settings)
     entries = board(core, hub.enrichment.active_analyzers(), photo_filter(core, config),
                     enabled_only=True)  # fmt: skip
     wanted = [w.photo_id for e in entries for w in e.winners]
-    wanted += [e.verdict.photo_id for e in entries if e.verdict and e.verdict.photo_id]
     photos = visible_by_ids(core, config, list(dict.fromkeys(wanted)))
     built = wall_photos(core, config, hub.enrichment, list(photos.values()))
     by_id = dict(zip(photos, built, strict=True))
-    allowed = _verdict_photos(core, list(photos))
+    # a comment may name the photo's guest: shown only while the AI is ready and the
+    # guest still allows the external AI (live flags)
+    allowed = _verdict_photos(core, list(photos)) if ai_ready(core) else set()
     out: list[WallCategory] = []
     for e in entries:
         winners = [
-            WallWinner(
-                photo=by_id[w.photo_id], value=w.value, label=w.label, object_idx=w.object_idx
-            )
+            wall_winner(by_id[w.photo_id], w,
+                        e.comments.get(w.photo_id) if w.photo_id in allowed else None)
             for w in e.winners
             if w.photo_id in by_id
-        ]
+        ]  # fmt: skip
         if not winners:
             continue
-        verdict = None
-        if e.verdict is not None and (e.verdict.photo_id is None or e.verdict.photo_id in allowed):
-            # the text may name the photo's guest: shown only while the photo is on
-            # the wall and its guest still allows the external AI (live flags)
-            shown = photos.get(e.verdict.photo_id) if e.verdict.photo_id else None
-            verdict = WallVerdict(text=e.verdict.text, emoji=e.verdict.emoji,
-                                  photo_id=shown.public_id if shown else None)  # fmt: skip
+        first = next((w for w in winners if w.comment is not None), None)
+        verdict = (
+            WallVerdict(text=first.comment.text, emoji=first.comment.emoji,
+                        photo_id=first.photo.id)
+            if first is not None and first.comment is not None else None
+        )  # fmt: skip
         spec = e.category.spec
         out.append(
             WallCategory(
                 id=e.category.id,
                 emoji=spec["emoji"],
                 title=spec["title"],
-                line=spec["line"],
+                line=shown_line(spec),
                 winners=winners,
                 verdict=verdict,
             )
