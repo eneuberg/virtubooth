@@ -427,6 +427,20 @@ WHERE source = 'local' AND state = 'skipped' AND objects = 0
                   WHERE r.photo_id = photo_detection_runs.photo_id AND r.source != 'local');
 """
 
+# v17: properties get the switch „aktiv“ and the „Papierkorb“ instead of „archivieren“.
+# `archived_at` becomes `inactive_at` (archived = not polled, scores kept: exactly what
+# „inaktiv“ means now, so archived properties come out inactive). `deleted_at`: in the
+# Papierkorb (not polled, hidden from the list and the value pickers, scores kept).
+# Deleting for good is allowed from the Papierkorb only (the property_scores go first).
+SCHEMA_V17 = """
+ALTER TABLE llm_properties RENAME COLUMN archived_at TO inactive_at;
+ALTER TABLE llm_properties ADD COLUMN deleted_at TEXT;
+DROP TRIGGER llm_properties_no_delete;
+CREATE TRIGGER llm_properties_trash_first BEFORE DELETE ON llm_properties
+WHEN OLD.deleted_at IS NULL
+BEGIN SELECT RAISE(ABORT, 'only properties in the trash can be deleted'); END;
+"""
+
 # (version, script): each step upgrades the database from the version before.
 MIGRATIONS: tuple[tuple[int, str], ...] = (
     (1, SCHEMA),
@@ -443,6 +457,7 @@ MIGRATIONS: tuple[tuple[int, str], ...] = (
     (14, SCHEMA_V14),
     (15, SCHEMA_V15),
     (16, SCHEMA_V16),
+    (17, SCHEMA_V17),
 )
 SCHEMA_VERSION = MIGRATIONS[-1][0]
 

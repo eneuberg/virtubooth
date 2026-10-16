@@ -22,7 +22,9 @@ def external_ai_active(repos: Repositories) -> bool:
         return True
     if not config.poll:
         return False
-    if repos.db.one("SELECT 1 FROM llm_properties WHERE archived_at IS NULL LIMIT 1"):
+    if repos.db.one(
+        "SELECT 1 FROM llm_properties WHERE inactive_at IS NULL AND deleted_at IS NULL LIMIT 1"
+    ):
         return True
     for row in repos.db.all("SELECT spec FROM wall_categories WHERE enabled = 1"):
         try:

@@ -225,7 +225,8 @@ steht in der Adresse (`?tab=…`).
 | Tab | `?tab=` | Inhalt |
 |---|---|---|
 | Übersicht | `uebersicht` | die Zahlen oben |
-| Allgemeines | `allgemein` | Eventname, Passwort, Erscheinungsbild, öffentliche Adresse ([unten](#allgemeines)) |
+| Allgemeines | `allgemein` | Eventname, Passwort, öffentliche Adresse ([unten](#allgemeines)) |
+| Erscheinungsbild | `erscheinungsbild` | Farben und Stil der Gästeseiten und der Live-Wall ([unten](#erscheinungsbild)) |
 | Fotos | (Standard) | der Kontaktbogen ([unten](#fotos-gäste-protokoll)) |
 | Gäste | `gaeste` | die Gästeliste |
 | Instagram | `instagram` | wen markieren, welche Fotos posten ([unten](#instagram)) |
@@ -372,22 +373,25 @@ bleiben).
   `VB_PARTY_NAME`. Gäste sehen ihn spätestens nach einer Minute.
 - **„Admin-Passwort“:** mit dem aktuellen Passwort, neu mindestens 12 Zeichen.
   Danach sind alle anderen Geräte abgemeldet.
-- **„Erscheinungsbild“** der Gästeseiten und der Live-Wall (die Verwaltung
-  bleibt hell):
-  - **Vorlage:** „Neon Nacht“, „Klassisch“, „Rummel“ oder „Eigene“ Farben
-    (Text muss auf Hintergrund und Fläche 4,5:1 erreichen).
-  - **Stil:** „Ruhig“, „Party“ (ruhig plus ein paar Gags) oder „Verspielt“
-    (Rummel-Look: Schilder, Lauflichter, Wackelaugen, ein Buzzer als
-    Auslöser, Eintrittskarten; auf der Wall Glühbirnen und Preisschleifen).
-  - **Standard: „Neon Nacht“ im Stil „Verspielt“.** Eine Vorlage bringt ihren
-    Stil mit (Klassisch: Party, die anderen: Verspielt), danach ist er frei
-    wählbar. „Zurücksetzen“ führt zum Standard. Bei reduzierter Bewegung
-    stehen die Animationen still.
 - **„Öffentliche Adresse“** (z. B. `https://party.example.com`, leer =
   automatisch): in QR-Codes, Plakaten und der Ecke der Live-Wall, vor
   `VB_PUBLIC_BASE_URL`. Beim Speichern prüft der Server, dass genau er unter
   `<Adresse>/healthz` antwortet: „Erreichbar ✓“ oder eine Warnung, die nichts
   blockiert.
+
+### Erscheinungsbild
+
+Farben und Stil der Gästeseiten und der Live-Wall (die Verwaltung bleibt hell):
+
+- **Vorlage:** „Neon Nacht“, „Klassisch“, „Rummel“ oder „Eigene“ Farben
+  (Text muss auf Hintergrund und Fläche 4,5:1 erreichen).
+- **Stil:** „Ruhig“, „Party“ (ruhig plus ein paar Gags) oder „Verspielt“
+  (Rummel-Look: Schilder, Lauflichter, Wackelaugen, ein Buzzer als
+  Auslöser, Eintrittskarten; auf der Wall Glühbirnen und Preisschleifen).
+- **Standard: „Neon Nacht“ im Stil „Verspielt“.** Eine Vorlage bringt ihren
+  Stil mit (Klassisch: Party, die anderen: Verspielt), danach ist er frei
+  wählbar. „Zurücksetzen“ führt zum Standard. Bei reduzierter Bewegung
+  stehen die Animationen still.
 
 ### Fotobox-Filter
 
@@ -414,7 +418,7 @@ Wänden.
 - **Aussehen:** elf Übergänge (Überblenden, Glitch, Polaroid-Fall,
   Spielautomat, Konfetti, …) oder Zufall; animierte Hintergründe („Farbblasen“,
   „Polarlicht“, „Disco-Gitter“, „Konfetti-Regen“, „Ruhig“); die Farben folgen
-  dem [Erscheinungsbild](#allgemeines), wenn nicht eigene gesetzt sind.
+  dem [Erscheinungsbild](#erscheinungsbild), wenn nicht eigene gesetzt sind.
 - **Einblendungen:** Eventname, Fotozähler, ein QR-Code in einer Ecke.
 - **Fotos:** neue erscheinen nach einer Verzögerung (Standard 20 s, 0 bis
   600 s), damit der Host vorher ausblenden kann. Ausblenden, Löschen und
@@ -483,8 +487,13 @@ Tab „ML-Pipeline“:
   3.2, Medium 3.1), „Abfrage alle … Minuten“ (1 bis 60), Erkennung beim
   Hochladen lokal und/oder per KI. Der API-Schlüssel wird verschlüsselt
   gespeichert und nie wieder angezeigt.
-- **„Eigenschaften“:** z. B. `coolness` mit Prompt. Name und Prompt sind fest;
-  statt Löschen „Archivieren“.
+- **„Eigenschaften“:** z. B. `coolness` mit Prompt. Name und Prompt sind fest.
+  Schalter „aktiv“: aus = wird nicht mehr abgefragt, die Werte bleiben auf den
+  Fotos und in den Kategorien. „Löschen“ legt sie in den „Papierkorb“ (nicht
+  abgefragt, nicht mehr in der Werteauswahl der Kategorien, Werte bleiben,
+  Name bleibt belegt); dort „Wiederherstellen“ oder „Endgültig löschen“ (mit
+  Rückfrage; nicht, solange eine Kategorie sie benutzt). Export/Import als
+  JSON (`active`, `deleted`; ältere Dateien mit `archived` gehen auch).
 - **„Budget“:** Grenzen in USD und/oder Aufrufen, für die Party und pro Tag,
   mit Verbrauch. Am Limit stoppt jeder Aufruf.
 

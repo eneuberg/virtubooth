@@ -41,7 +41,7 @@ DEFAULTS = {
     "show_instagram": False,
     "look": {
         "preset": "blobs",
-        # null: wie Theme (Allgemeines → Erscheinungsbild)
+        # null: wie Theme (Erscheinungsbild)
         "primary": None,
         "secondary": None,
         "background": None,

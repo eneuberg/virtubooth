@@ -112,7 +112,7 @@ UNAVAILABLE = {"grinsekatzen": "Braucht die Gesichtserkennung (KI)."}
 VALUES = {
     "values": [
         {"key": k, "title": t, "group": g, "kind": kind, "unit": None, "needs": None,
-         "available": True, "reason": None, "archived": False}
+         "available": True, "reason": None, "inactive": False}
         for k, t, g, kind in [
             ("people", "Personen", "Gesichter und Personen", "count"),
             ("smiles", "Lächeln", "Gesichter und Personen", "count"),
@@ -289,7 +289,7 @@ class FakeWall:
                  "error": None},
             ],
             "opt_out": {"analysis": False, "external_ai": True},
-            "properties": [{"name": "coolness", "archived": False, "scores": [0.2, 0.9]}],
+            "properties": [{"name": "coolness", "inactive": False, "scores": [0.2, 0.9]}],
             "durations_ms": {"basic": 12, "faces": 140},
         }  # fmt: skip
 

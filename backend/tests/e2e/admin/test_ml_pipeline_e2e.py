@@ -58,7 +58,9 @@ class MlFake(FakeWall):
                 "name": "coolness",
                 "prompt": "Bewerte, wie cool jedes Objekt ist.",
                 "created_at": "2026-10-15T19:00:00Z",
-                "archived_at": None,
+                "active": True,
+                "inactive_at": None,
+                "deleted_at": None,
                 "scored_photos": 42,
                 "last_scored_at": "2026-10-15T20:00:00Z",
             }
@@ -177,16 +179,31 @@ class MlFake(FakeWall):
                 return 200, {"properties": self.props}
             case "POST", "/llm/properties":
                 prop = {"id": len(self.props) + 1, **body, "created_at": "2026-10-15T21:00:00Z",
-                        "archived_at": None, "scored_photos": 0, "last_scored_at": None}  # fmt: skip
+                        "active": True, "inactive_at": None, "deleted_at": None,
+                        "scored_photos": 0, "last_scored_at": None}  # fmt: skip
                 self.props.append(prop)
                 return 201, prop
             case "POST", "/test-image":
                 return 200, TEST_RESULT
-        m = re.fullmatch(r"/llm/properties/([a-z0-9_]+)/(archive|unarchive)", path)
-        if m and method == "POST":
-            prop = next(p for p in self.props if p["name"] == m[1])
-            prop["archived_at"] = "2026-10-15T21:00:00Z" if m[2] == "archive" else None
-            return 200, prop
+        m = re.fullmatch(r"/llm/properties/([a-z0-9_]+)(?:/(active|trash|restore))?", path)
+        prop = next((p for p in self.props if m and p["name"] == m[1]), None)
+        if prop is not None and m is not None:
+            at = "2026-10-15T21:00:00Z"
+            match method, m[2]:
+                case "PUT", "active":
+                    prop.update(active=body["active"], inactive_at=None if body["active"] else at)
+                    return 200, prop
+                case "POST", "trash" | "restore":
+                    prop["deleted_at"] = at if m[2] == "trash" else None
+                    return 200, prop
+                case "DELETE", None:
+                    if prop["deleted_at"] is None:
+                        return 409, {
+                            "error": "property_not_in_trash",
+                            "message": "Nicht im Papierkorb.",
+                        }
+                    self.props.remove(prop)
+                    return 200, {"properties": self.props}
         return super().answer(method, path, body)
 
 
@@ -371,7 +388,7 @@ def test_external_ai_detection_poll_properties_and_budget(
     expect(toast(page)).to_contain_text("Abfrage gespeichert.")
     assert ml.sent("PUT", "/llm/config")[-1] == {"poll": False, "poll_interval_s": 300}
 
-    # a property: the warning, create, archive (no edit, no delete)
+    # a property: the warning, create, switch off, trash, restore, delete for good (no edit)
     page.get_by_test_id("ml-property-new").click()
     sheet = page.get_by_test_id("ml-property-sheet").get_by_role("dialog")
     expect(sheet.get_by_test_id("ml-property-warning")).to_contain_text(
@@ -381,11 +398,38 @@ def test_external_ai_detection_poll_properties_and_budget(
     sheet.get_by_test_id("ml-property-prompt").fill("Wie sehr ähnelt das Objekt einer Giraffe?")
     sheet.get_by_test_id("ml-property-create").click()
     expect(toast(page)).to_contain_text("Eigenschaft „most_giraffe“ angelegt.")
-    row = page.locator("[data-property=most_giraffe]")
-    row.get_by_role("button", name="Archivieren").click()
-    expect(row).to_contain_text("Archiviert")
-    assert len(ml.sent("POST", "/llm/properties/most_giraffe/archive")) == 1
-    expect(row.get_by_role("button", name=re.compile("Bearbeiten|Löschen"))).to_have_count(0)
+    listed = page.get_by_test_id("ml-properties")
+    row = listed.locator("[data-property=most_giraffe]")
+    expect(row.get_by_role("button", name=re.compile("Bearbeiten"))).to_have_count(0)
+    switch = row.get_by_role("switch", name="most_giraffe aktiv")
+    expect(switch).to_be_checked()
+    row.get_by_test_id("ml-property-active").click()
+    expect(switch).not_to_be_checked()
+    expect(row).to_contain_text("Inaktiv")
+    assert ml.sent("PUT", "/llm/properties/most_giraffe/active") == [{"active": False}]
+    # „Löschen“: into the Papierkorb (collapsed below the list), out of the list
+    row.get_by_role("button", name="Löschen").click()
+    expect(toast(page)).to_contain_text("„most_giraffe“ liegt jetzt im Papierkorb.")
+    expect(listed.locator("[data-property=most_giraffe]")).to_have_count(0)
+    trash = page.get_by_test_id("ml-properties-trash")
+    trash.get_by_role("button", name="Papierkorb (1)").click()
+    binned = trash.locator("[data-property=most_giraffe]")
+    # „Wiederherstellen“: back as it was (still switched off)
+    binned.get_by_role("button", name="Wiederherstellen").click()
+    expect(listed.locator("[data-property=most_giraffe]")).to_contain_text("Inaktiv")
+    expect(trash).to_have_count(0)
+    # and once more into the Papierkorb, then deleted for good after the question
+    listed.locator("[data-property=most_giraffe]").get_by_role("button", name="Löschen").click()
+    trash.get_by_role("button", name="Papierkorb (1)").click()
+    binned.get_by_role("button", name="Endgültig löschen").click()
+    dialog = page.get_by_role("alertdialog", name="„most_giraffe“ endgültig löschen?")
+    expect(dialog).to_contain_text("Das lässt sich nicht rückgängig machen")
+    shot(page, "admin-ml-property-purge")
+    dialog.get_by_role("button", name="Endgültig löschen").click()
+    expect(toast(page)).to_contain_text("„most_giraffe“ endgültig gelöscht.")
+    expect(page.locator("[data-property=most_giraffe]")).to_have_count(0)
+    assert len(ml.sent("DELETE", "/llm/properties/most_giraffe")) == 1
+    assert len(ml.sent("POST", "/llm/properties/most_giraffe/trash")) == 2
 
     # budget: limits, then the stop banner
     page.get_by_role("textbox", name="Pro Tag (USD)").fill("3,50")
@@ -420,22 +464,28 @@ def test_properties_export_import_round_trip(
 ) -> None:
     page = desktop_page
     ml.props.append({**ml.props[0], "id": 2, "name": "old_one", "prompt": "Alt.",
-                     "archived_at": "2026-10-15T19:30:00Z"})  # fmt: skip
+                     "active": False, "inactive_at": "2026-10-15T19:30:00Z"})  # fmt: skip
+    ml.props.append({**ml.props[0], "id": 3, "name": "binned", "prompt": "Weg.",
+                     "deleted_at": "2026-10-15T19:40:00Z"})  # fmt: skip
     goto(page, live, "/admin/manage?tab=ml")
-    expect(page.locator("[data-property=old_one]")).to_contain_text("Archiviert")
+    expect(page.locator("[data-property=old_one]")).to_contain_text("Inaktiv")
     with page.expect_download() as dl:
         page.get_by_role("button", name="Exportieren").click()
     assert dl.value.suggested_filename == "eigenschaften.json"
     exported = json.loads(Path(dl.value.path()).read_text())
     assert exported == {"version": 1, "properties": [
-        {"name": "coolness", "prompt": "Bewerte, wie cool jedes Objekt ist.", "archived": False},
-        {"name": "old_one", "prompt": "Alt.", "archived": True},
+        {"name": "coolness", "prompt": "Bewerte, wie cool jedes Objekt ist.", "active": True,
+         "deleted": False},
+        {"name": "old_one", "prompt": "Alt.", "active": False, "deleted": False},
+        {"name": "binned", "prompt": "Weg.", "active": True, "deleted": True},
     ]}  # fmt: skip
 
-    # import the export plus one new archived, one new active and one bad entry
+    # import the export plus one new archived (an older file: inactive), one new in the
+    # Papierkorb, one new active and one bad entry
     exported["properties"] += [
         {"name": "shiny", "prompt": "Wie glänzend?", "archived": True},
         {"name": "fresh", "prompt": "Wie frisch?"},
+        {"name": "trashy", "prompt": "Wie trashig?", "deleted": True},
         {"name": "Bad Name", "prompt": "x"},
     ]
     upload = tmp_path / "eigenschaften.json"
@@ -443,15 +493,18 @@ def test_properties_export_import_round_trip(
     with page.expect_file_chooser() as fc:
         page.get_by_role("button", name="Importieren").click()
     fc.value.set_files(upload)
-    expect(toast(page)).to_contain_text("2 importiert, 2 übersprungen (gibt es schon), 1 ungültig")
+    expect(toast(page)).to_contain_text("3 importiert, 3 übersprungen (gibt es schon), 1 ungültig")
     expect(page.get_by_test_id("ml-properties-import-problems")).to_contain_text("Bad Name")
     assert ml.sent("POST", "/llm/properties") == [
         {"name": "shiny", "prompt": "Wie glänzend?"},
         {"name": "fresh", "prompt": "Wie frisch?"},
+        {"name": "trashy", "prompt": "Wie trashig?"},
     ]
-    assert len(ml.sent("POST", "/llm/properties/shiny/archive")) == 1
-    expect(page.locator("[data-property=shiny]")).to_contain_text("Archiviert")
-    expect(page.locator("[data-property=fresh]")).not_to_contain_text("Archiviert")
+    assert ml.sent("PUT", "/llm/properties/shiny/active") == [{"active": False}]
+    assert len(ml.sent("POST", "/llm/properties/trashy/trash")) == 1
+    expect(page.locator("[data-property=shiny]")).to_contain_text("Inaktiv")
+    expect(page.locator("[data-property=fresh]")).not_to_contain_text("Inaktiv")
+    expect(page.get_by_test_id("ml-properties-trash")).to_contain_text("Papierkorb (2)")
     assert errors(page) == []
 
 

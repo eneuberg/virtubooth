@@ -199,7 +199,7 @@ class OptOutState(BaseModel):
 
 class PropertyScores(BaseModel):
     name: str
-    archived: bool
+    inactive: bool = Field(description="Not polled any more (switched off or in the Papierkorb).")
     scores: list[float | None] = Field(description="Index = the object's idx.")
 
 

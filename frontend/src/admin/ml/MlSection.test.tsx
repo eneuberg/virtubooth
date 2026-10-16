@@ -182,13 +182,12 @@ describe('ML-Pipeline section', () => {
     );
   });
 
-  it('lists properties without edit or delete; a new one warns first', async () => {
+  it('lists properties without edit; a new one warns first', async () => {
     renderSection();
     const list = await screen.findByTestId('ml-properties');
     expect(within(list).getByText('coolness')).toBeTruthy();
-    expect(within(list).getByText('Archiviert')).toBeTruthy();
-    expect(within(list).getByRole('button', { name: 'Wiederherstellen' })).toBeTruthy();
-    expect(within(list).queryByRole('button', { name: /bearbeiten|löschen/i })).toBeNull();
+    expect(within(list).getByText('Inaktiv')).toBeTruthy();
+    expect(within(list).queryByRole('button', { name: /bearbeiten/i })).toBeNull();
     fireEvent.click(screen.getByTestId('ml-property-new'));
     expect((await screen.findByTestId('ml-property-warning')).textContent).toBe(
       'Name und Prompt lassen sich später nicht ändern. Für eine Änderung legst du eine neue Eigenschaft an.',

@@ -281,7 +281,7 @@ def test_values_catalogue(admin, guest, core):
     with core.db.tx() as c:
         c.execute("INSERT INTO photo_objects VALUES (?, 0, 'hat', 'Hut', 0.9, NULL, NULL, NULL, "
                   "NULL, 'local', 'm@1', 'now')", (pid,))  # fmt: skip
-        c.execute("INSERT INTO llm_properties (name, prompt, created_at, archived_at) "
+        c.execute("INSERT INTO llm_properties (name, prompt, created_at, inactive_at) "
                   "VALUES ('lustigkeit', 'p', 'now', 'now')")  # fmt: skip
     body = admin.get("/api/x/wall/admin/values").json()
     values = {v["key"]: v for v in body["values"]}
@@ -289,7 +289,7 @@ def test_values_catalogue(admin, guest, core):
     assert values["people"]["needs"] == ["objects", "faces"] and values["people"]["available"]
     assert values["objects"]["kind"] == "labels"
     assert values["photo.created_at"]["kind"] == "time"
-    assert values["prop.lustigkeit.max"]["archived"] is True
+    assert values["prop.lustigkeit.max"]["inactive"] is True
     assert values["prop.lustigkeit.count"]["kind"] == "count"
     assert values["age_spread"]["available"] is False  # FairFace off in the fake
     assert body["labels"] == [{"label": "hat", "label_de": "Hut", "count": 1}]

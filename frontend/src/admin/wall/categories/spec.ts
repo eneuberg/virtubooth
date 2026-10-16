@@ -95,7 +95,7 @@ export interface ValueChoice {
   kind: ValueKind;
   available: boolean;
   reason: string | null;
-  archived: boolean;
+  inactive: boolean;
 }
 
 const PROP_RE = /^prop\.([a-z][a-z0-9_]*)\.(max|min|sum|mean|count)$/;
@@ -109,7 +109,7 @@ export function valueChoices(values: readonly ValueInfo[]): ValueChoice[] {
     kind: v.kind,
     available: v.available,
     reason: v.reason,
-    archived: v.archived,
+    inactive: v.inactive,
   }));
   const seen = new Set(out.map((c) => c.id));
   const add = (choice: ValueChoice) => {
@@ -139,7 +139,7 @@ function choiceOf(v: ValueInfo): ValueChoice {
     kind: v.kind,
     available: v.available,
     reason: v.reason,
-    archived: v.archived,
+    inactive: v.inactive,
   };
 }
 

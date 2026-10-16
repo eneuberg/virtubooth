@@ -1,7 +1,7 @@
 /*
  * virtubooth design tokens: "Kontaktbogen" (docs/overhaul/design/DESIGN.md), and on
  * the guest pages the themable "Neon Nacht" look on top of it (see "Guest theme"
- * below; colours from Allgemeines → Erscheinungsbild via /api/theme.css).
+ * below; colours from Erscheinungsbild via /api/theme.css).
  *
  * Two surfaces, chosen per app or area (never a user toggle):
  *   data-surface="dark"  "Rotlicht"/camera: guest pages (default on :root)

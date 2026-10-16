@@ -1,5 +1,5 @@
 /**
- * Allgemeines → Erscheinungsbild: the theme of the guest UI and the Live Wall
+ * Erscheinungsbild: the theme of the guest UI and the Live Wall
  * (`/api/admin/theme`). Each write puts the server's answer into the cache.
  */
 import { useQuery, type QueryClient } from '@tanstack/react-query';
