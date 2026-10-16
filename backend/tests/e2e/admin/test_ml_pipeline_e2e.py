@@ -404,8 +404,12 @@ def test_external_ai_detection_poll_properties_and_budget(
     expect(row.get_by_role("button", name=re.compile("Bearbeiten"))).to_have_count(0)
     expect(row.get_by_role("switch")).to_have_count(0)
     expect(row.get_by_test_id("ml-property-status")).to_have_text("ruht, keine aktive Kategorie")
-    # „Löschen“: into the Papierkorb (collapsed below the list), out of the list
+    expect(row.get_by_test_id("ml-property-used-by")).to_have_text("Von keiner Kategorie genutzt")
+    # „Löschen“ asks first, then into the Papierkorb (collapsed below the list), out of the list
     row.get_by_role("button", name="Löschen").click()
+    ask = page.get_by_role("alertdialog", name="„most_giraffe“ in den Papierkorb?")
+    expect(ask).to_contain_text("die Werte bleiben")
+    ask.get_by_role("button", name="In den Papierkorb").click()
     expect(toast(page)).to_contain_text("„most_giraffe“ liegt jetzt im Papierkorb.")
     expect(listed.locator("[data-property=most_giraffe]")).to_have_count(0)
     trash = page.get_by_test_id("ml-properties-trash")
@@ -417,6 +421,7 @@ def test_external_ai_detection_poll_properties_and_budget(
     expect(trash).to_have_count(0)
     # and once more into the Papierkorb, then deleted for good after the question
     listed.locator("[data-property=most_giraffe]").get_by_role("button", name="Löschen").click()
+    page.get_by_role("alertdialog").get_by_role("button", name="In den Papierkorb").click()
     trash.get_by_role("button", name="Papierkorb (1)").click()
     binned.get_by_role("button", name="Endgültig löschen").click()
     dialog = page.get_by_role("alertdialog", name="„most_giraffe“ endgültig löschen?")

@@ -70,17 +70,19 @@ type Comment = NonNullable<CategoryWinner['comment']>;
 function Verdict({ comment, align, place }: { comment: Comment; align?: VerdictAlign; place?: number }) {
   return (
     <p className="wall-cat-verdict" data-testid="wall-verdict" data-align={align} data-place={place}>
-      {place ? (
-        <span className="wall-cat-verdict-place" aria-hidden="true">
-          {place}
-        </span>
-      ) : null}
-      {comment.emoji ? (
-        <span className="wall-cat-verdict-emoji" aria-hidden="true">
-          {comment.emoji}
-        </span>
-      ) : null}
-      {comment.text}
+      <span className="wall-cat-verdict-text">
+        {place ? (
+          <span className="wall-cat-verdict-place" aria-hidden="true">
+            {place}
+          </span>
+        ) : null}
+        {comment.emoji ? (
+          <span className="wall-cat-verdict-emoji" aria-hidden="true">
+            {comment.emoji}
+          </span>
+        ) : null}
+        {comment.text}
+      </span>
     </p>
   );
 }

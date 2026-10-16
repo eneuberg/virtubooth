@@ -299,3 +299,67 @@ def test_tiles_keep_their_height(
     )
     assert heights() == start
     assert errors(page) == []
+
+
+def test_a_category_win_opens_and_detection_off(
+    desktop_page: Page, live: LiveServer, guests: Callable[..., Guest]
+) -> None:
+    """§8.6: the win chip under a tile opens the category (rule, place, state, „Im
+    Editor öffnen“), the viewer's list opens it in place; §8.7: a photo analysed with
+    object detection „Aus“ says „Objekterkennung aus“, not „Nichts erkannt“."""
+    page = desktop_page
+    g = guests()
+    winner, off = g.upload(), g.upload()
+    db = live.core.db
+    # the worker takes the newest first: `off` without detection, then the full house
+    pid = live.core.repos.photos.internal_id(off)
+    claimed = jobs.claim(db)
+    assert pid is not None and claimed is not None and claimed.id == pid
+    assert jobs.finish(db, pid, facts={"brightness": 0.5}, data={"boxes": [], "details": []},
+                       versions={"basic": "1"}, objects_skipped="ausgeschaltet")  # fmt: skip
+    pid = live.core.repos.photos.internal_id(winner)
+    claimed = jobs.claim(db)
+    assert pid is not None and claimed is not None and claimed.id == pid
+    assert jobs.finish(db, pid, facts={"people": 5.0, "faces": 5.0, "smiles": 1.0},
+                       data={"boxes": [], "details": []}, versions={"basic": "1"},
+                       objects_found=OBJECTS, objects_model="e2e@1")  # fmt: skip
+    with db.tx() as c:  # past the wall's delay
+        c.execute("UPDATE photos SET created_at='2026-01-01T20:00:00.000Z'")
+    goto(page, live, "/admin/live")
+    wait_live(page)
+    off_chips = card(page, off).get_by_test_id("analysis-chips")
+    expect(off_chips.locator("[data-chip=objects-off]")).to_have_text("Objekterkennung aus")
+    expect(off_chips.locator("[data-chip=none]")).to_have_count(0)
+
+    chips = card(page, winner).get_by_test_id("analysis-chips")
+    chip = chips.get_by_role("button", name="Volles Haus: Platz 1, aufklappen")
+    expect(chip).to_be_visible()
+    chip.click()
+    details = page.get_by_test_id("category-win-details")
+    expect(details.get_by_test_id("category-win-place")).to_contain_text("Platz 1 · 5 Personen")
+    expect(details.get_by_test_id("category-win-rank")).to_contain_text(
+        "Höchster Wert bei „Personen“, mindestens 3"
+    )
+    expect(details.get_by_test_id("category-win-pool")).to_contain_text("Alle Fotos")
+    expect(details.get_by_test_id("category-win-state")).to_contain_text("an")
+    expect(details).to_contain_text("Die meisten Leute auf einem Foto")
+    shot(page, "categories_v2_live_expansion", 300)
+    page.keyboard.press("Escape")
+
+    # in the viewer: the same, opened in place
+    card(page, winner).locator("figure button").first.click()
+    viewer = page.get_by_test_id("lightbox")
+    row = viewer.locator("[data-testid=analysis-win][data-category=volles_haus]")
+    row.get_by_role("button").first.click()
+    expect(row.get_by_test_id("category-win-rank")).to_contain_text("mindestens 3")
+    shot(page, "categories_v2_live_viewer_expansion", 300)
+    # „Im Editor öffnen“: the category's editor on the wall page
+    row.get_by_role("link", name="Im Editor öffnen").click()
+    dlg = page.get_by_test_id("category-sheet").get_by_role("dialog")
+    expect(dlg.get_by_role("heading", name="Kategorie bearbeiten")).to_be_visible(timeout=8000)
+    expect(dlg.get_by_role("textbox", name="Titel", exact=True)).to_have_value("Volles Haus")
+    assert "category=" in page.url
+    dlg.get_by_role("button", name="Abbrechen").click()
+    expect(dlg).to_have_count(0)
+    assert "category=" not in page.url
+    assert errors(page) == []

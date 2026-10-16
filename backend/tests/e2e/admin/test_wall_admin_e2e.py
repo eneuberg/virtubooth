@@ -4,8 +4,8 @@ editor) and the inspector's Analyse panel.
 The wall backend (PLAN-WALL §4.3/§4.4, PLAN-NIGHT §4.3) is built elsewhere, so
 `page.route` serves a stateful fake of `/api/x/wall/admin/**`, and the extension list
 gets a loaded `wall`. test_ml_pipeline_e2e.py reuses the fake. Categories come in the
-v2 shape (categories v2: `spec` v2, `legacy_spec` v1 for the v1 editor, winners with
-headline/object/comment), converted with the server's own converter.
+v2 shape (categories v2: `spec` v2, winners with headline/object/comment), converted
+with the server's own converter; the v2 editor sends v2 specs.
 """
 
 from __future__ import annotations
@@ -21,7 +21,7 @@ import pytest
 from playwright.sync_api import Locator, Page, Route, expect
 
 from virtubooth.extensions.sdk import discover_extensions
-from virtubooth.extensions.wall.enrich import engine, spec_v1
+from virtubooth.extensions.wall.enrich import engine
 
 from ..conftest import LiveServer, shot
 from .conftest import Guest, errors, goto, no_horizontal_scroll, toast
@@ -114,35 +114,58 @@ UNAVAILABLE = {"grinsekatzen": "Braucht die Gesichtserkennung (KI)."}
 
 
 def both(spec: dict[str, Any]) -> dict[str, Any]:
-    """`spec` (v2) and `legacy_spec` (v1 or None) of a v1 or v2 spec, as the server keeps it."""
-    v2 = engine.validate(spec)
-    return {"spec": v2, "legacy_spec": spec_v1.downgrade(v2)}
+    """`spec` (v2) of a v1 or v2 spec, as the server keeps it."""
+    return {"spec": engine.validate(spec)}
 
 
 VALUES = {
-    "photo_values": [],
-    "object_fields": [{"field": "confidence", "title": "Erkennungssicherheit",
-                       "property": None, "unit": "0–1"}],
+    "photo_values": [
+        {"key": k, "title": t, "group": g, "kind": kind, "unit": unit, "needs": [],
+         "available": True, "reason": None}
+        for k, t, g, kind, unit in [
+            ("people", "Personen", "Gesichter und Personen", "count", ""),
+            ("smiles", "Lächeln", "Gesichter und Personen", "count", ""),
+            ("colorfulness", "Farbigkeit", "Bild", "number", ""),
+            ("photo.created_at", "Aufnahmezeit", "Foto", "time", ""),
+        ]
+    ],
+    "object_fields": [
+        {"field": "confidence", "title": "Erkennungssicherheit", "property": None, "unit": "0–1"},
+        {"field": "prop:coolness", "title": "coolness", "property": "coolness", "unit": "0–1"},
+    ],
     "aggregates": [],
     "objects_available": True,
     "objects_reason": None,
-    "values": [
-        {"key": k, "title": t, "group": g, "kind": kind, "unit": None, "needs": None,
-         "available": True, "reason": None}
-        for k, t, g, kind in [
-            ("people", "Personen", "Gesichter und Personen", "count"),
-            ("smiles", "Lächeln", "Gesichter und Personen", "count"),
-            ("colorfulness", "Farbigkeit", "Bild", "number"),
-            ("objects", "Objekte (Liste)", "Objekte", "labels"),
-            ("objects.count", "Anzahl Objekte", "Objekte", "count"),
-            ("prop.coolness.max", "coolness (höchster)", "Eigenschaften", "number"),
-            ("photo.created_at", "Aufnahmezeit", "Foto", "time"),
-        ]
-    ],
     "labels": [
         {"label": "hat", "label_de": "Hut", "count": 3},
         {"label": "wine glass", "label_de": "Weinglas", "count": 14},
     ],
+}  # fmt: skip
+
+
+def _effort(effort: str, usd: float, measured: bool) -> dict[str, Any]:
+    return {"effort": effort, "input_tokens": 820, "output_tokens": 110 if effort == "low" else 900,
+            "usd_per_comment": usd, "price_per_comment": usd, "measured": measured}  # fmt: skip
+
+
+VERDICT_OPTIONS: dict[str, Any] = {
+    "system_prompt": "You write the comments under the winning photos of one category on a "
+    "party photo wall. Witty, cheeky, never mean.",
+    "default_prompt": "Kommentiere jedes Siegerfoto der Kategorie „{title}“: was ist zu sehen "
+    "und von wem – frech, liebevoll, ein Satz.",
+    "default_model": "claude-haiku-5-5",
+    "max_chars": 160,
+    "thinking": True,
+    "models": [
+        {"id": "claude-haiku-5-5", "title": "Claude Haiku 5.5", "tier": "small", "currency": "USD",
+         "efforts": [_effort("low", 0.0014, True), _effort("medium", 0.005, False),
+                     _effort("high", 0.011, False)]},
+        {"id": "claude-sonnet-5-5", "title": "Claude Sonnet 5.5", "tier": "mid",
+         "currency": "USD",
+         "efforts": [_effort("low", 0.0042, True), _effort("medium", 0.016, False),
+                     _effort("high", 0.033, False)]},
+    ],
+    "basis": "Geschätzt aus echten Läufen.",
 }  # fmt: skip
 
 
@@ -353,6 +376,7 @@ class FakeWall:
                           "cost_usd": 0},
             "usage": {"party": totals, "today": totals, "by_kind": [], "budget": budget,
                       "blocked": False, "reason": None},
+            "verdict": VERDICT_OPTIONS,
         }  # fmt: skip
 
     def answer(self, method: str, path: str, body: Any) -> tuple[int, Any]:
@@ -405,6 +429,50 @@ class FakeWall:
                              "explanation": engine.explain(spec), "spec": spec, "locked": None}  # fmt: skip
             case "GET", "/values":
                 return 200, VALUES
+            case "GET", "/categories/export":
+                return 200, {"format": "virtubooth-categories", "version": 2,
+                             "exported_at": now(), "properties": [],
+                             "categories": [{"id": c["id"], "enabled": c["enabled"],
+                                             "preset": c["preset"], "spec": c["spec"]}
+                                            for c in self.cats]}  # fmt: skip
+            case "POST", "/categories/import":
+                imported = []
+                for entry in body["file"]["categories"]:
+                    cid = entry["id"]
+                    if self.find(cid) and body.get("on_conflict") == "replace":
+                        self.find(cid).update(both(entry["spec"]))  # type: ignore[union-attr]
+                        imported.append(
+                            {
+                                "id": cid,
+                                "title": entry["spec"]["title"],
+                                "enabled": True,
+                                "from_id": None,
+                                "replaced": True,
+                            }
+                        )
+                        continue
+                    final = cid
+                    while self.find(final):
+                        final = f"{cid}_2" if final == cid else f"{final}_"
+                    self.cats.append(
+                        {
+                            "id": final,
+                            "enabled": entry.get("enabled", False),
+                            "preset": None,
+                            **both(entry["spec"]),
+                        }
+                    )
+                    imported.append(
+                        {
+                            "id": final,
+                            "title": entry["spec"]["title"],
+                            "enabled": entry.get("enabled", False),
+                            "from_id": cid if final != cid else None,
+                            "replaced": False,
+                        }
+                    )
+                return 200, {"imported": imported, "skipped": [], "properties_created": [],
+                             "prompt_conflicts": [], "switched_off": [], "notes": []}  # fmt: skip
             case "GET", "/analysis":
                 return 200, self.status()
             case "POST", "/analysis/models/download":
@@ -741,9 +809,19 @@ def sheet(page: Page) -> Locator:
     return page.get_by_test_id("category-sheet").get_by_role("dialog")
 
 
-def pick_value(scope: Locator, testid: str, option: str) -> None:
-    scope.get_by_test_id(testid).get_by_role("button").click()
+def pick_in(scope: Locator, testid: str, option: str) -> None:
+    scope.get_by_test_id(testid).get_by_role("button").first.click()
     scope.page.get_by_role("option", name=option, exact=True).click()
+
+
+def add_label(scope: Locator, typed: str, option: str) -> None:
+    """Type into an object-label combobox and pick the known label."""
+    scope.get_by_role("combobox").fill(typed)
+    scope.page.get_by_role("option", name=re.compile(f"^{option}")).click()
+
+
+HAT_COUNT = {"kind": "objects", "where": {"labels": ["hat"], "exclude": [], "min_confidence": None},
+             "field": None, "agg": "count", "k": None, "t": None}  # fmt: skip
 
 
 def test_create_a_category_with_preview(
@@ -756,46 +834,63 @@ def test_create_a_category_with_preview(
     page.get_by_test_id("category-new").click()
     dlg = sheet(page)
     expect(dlg.get_by_role("heading", name="Neue Kategorie")).to_be_visible()
+    # 1 Kopf
     dlg.get_by_role("textbox", name="Titel", exact=True).fill("Hutträger")
     expect(dlg.get_by_role("textbox", name="Kennung")).to_have_value("huttraeger")
     dlg.get_by_role("textbox", name="Emoji").fill("🎩")
-    # a condition on the object list: „enthält“ Hut
+    # 2 the pool: „Enthält Objekt …“ Hut
+    expect(dlg.get_by_test_id("category-pool-all")).to_have_text("Alle Fotos.")
     dlg.get_by_test_id("condition-add").click()
+    page.get_by_test_id("condition-add-has").click()
     row = dlg.get_by_test_id("condition")
-    pick_value(row, "cond-value", "Objekte (Liste)")
-    row.get_by_test_id("cond-op").get_by_role("button").click()
-    page.get_by_role("option", name="enthält", exact=True).click()
-    row.get_by_test_id("cond-label").get_by_role("combobox").fill("Hu")
-    page.get_by_role("option", name=re.compile("^Hut")).click()
-    # Top 2 by Anzahl von … Hut
-    dlg.get_by_role("textbox", name="Anzahl").fill("2")
-    pick_value(dlg, "category-by", "Anzahl von …")
-    dlg.get_by_test_id("category-selection").get_by_role("combobox").fill("Hut")
-    page.get_by_role("option", name=re.compile("^Hut")).click()
+    add_label(row.get_by_test_id("cond-labels"), "Hu", "Hut")
+    # 3 Wer gewinnt? the most hats
+    rank = dlg.get_by_test_id("category-rank")
+    by = rank.get_by_test_id("category-by").first
+    by.get_by_text("Objekte im Foto", exact=True).click()
+    add_label(by.get_by_test_id("measure-labels"), "Hu", "Hut")
+    expect(by.get_by_test_id("measure-sentence")).to_have_text("Die meisten Objekte (nur Hut)")
+    expect(rank.get_by_test_id("category-threshold-word")).to_have_text("mindestens")
+    # 4 two winners; 5 the caption words and its mini preview
+    dlg.get_by_role("textbox", name="Gewinner (1 bis 10)").fill("2")
     dlg.get_by_test_id("category-one").get_by_role("textbox").fill("Hut")
     dlg.get_by_test_id("category-many").get_by_role("textbox").fill("Hüte")
-    dlg.get_by_test_id("category-verdict-prompt").fill("Wer trägt den schönsten Hut?")
-    # the live preview (debounced) shows the current winners
+    # 6 the AI comments: two, own prompt, Sonnet with a price per comment
+    verdict = dlg.get_by_test_id("category-verdict")
+    verdict.get_by_text("Die KI kommentiert die besten Fotos").click()
+    verdict.get_by_role("textbox", name="Kommentare zu den besten (1 bis 5)").fill("2")
+    verdict.get_by_test_id("category-verdict-prompt").fill("Wer trägt den schönsten Hut?")
+    pick_in(verdict, "category-verdict-model", "Claude Sonnet 5.5")
+    expect(verdict.get_by_test_id("verdict-price")).to_contain_text(
+        "pro Kommentar (Claude Sonnet 5.5)"
+    )
+    expect(verdict.get_by_test_id("ml-ai-off-hint")).to_be_visible()
+    # the live preview (debounced) shows the current winners, the caption preview theirs
     preview = dlg.get_by_test_id("category-preview")
-    expect(preview.get_by_test_id("category-preview-matched")).to_have_text("5 Fotos passen")
+    expect(preview.get_by_test_id("category-preview-matched")).to_have_text("5 Fotos im Pool")
     expect(preview.get_by_role("img")).to_have_count(2)
+    expect(dlg.get_by_test_id("caption-preview-headline")).to_have_text("7 Personen")
     previews = wall.sent("POST", "/categories/preview")
     assert previews and previews[-1]["spec"]["select"]["count"] == 2
-    shot(page, "ui1_category_editor_desktop")
+    rank.scroll_into_view_if_needed()
+    shot(page, "categories_v2_editor")
 
     dlg.get_by_test_id("category-save").click()
     expect(toast(page)).to_contain_text("„Hutträger“ angelegt.")
     (body,) = wall.sent("POST", "/categories")
     assert body["id"] == "huttraeger"
     assert body["spec"] == {
+        "version": 2,
         "emoji": "🎩",
         "title": "Hutträger",
         "line": "",
-        "where": [{"value": "objects", "op": "contains", "operand": "hat"}],
-        "select": {"by": "objects.count:hat", "order": "top", "count": 2, "then_by": [],
-                   "one_per_guest": False},
-        "label": {"value": None, "style": "count", "one": "Hut", "many": "Hüte"},
-        "verdict": {"prompt": "Wer trägt den schönsten Hut?"},
+        "pool": [{"measure": HAT_COUNT, "op": "gte", "operand": 1}],
+        "rank": {"by": HAT_COUNT, "order": "desc", "threshold": None, "then_by": []},
+        "select": {"count": 2, "one_per_guest": True},
+        "caption": {"value": None, "format": "count", "one": "Hut", "many": "Hüte",
+                    "show_object": False},
+        "verdict": {"prompt": "Wer trägt den schönsten Hut?", "count": 2,
+                    "model": "claude-sonnet-5-5", "effort": "low"},
     }  # fmt: skip
     expect(page.locator("[data-category=huttraeger]")).to_contain_text("Hutträger")
     assert errors(page) == []
@@ -816,23 +911,29 @@ def test_edit_order_switch_and_delete(desktop_page: Page, live: LiveServer, wall
     expect(page.get_by_role("switch", name="Volles Haus zeigen")).not_to_be_checked()
     assert wall.sent("PUT", "/categories/volles_haus")[-1]["enabled"] is False
 
-    # edit: Anzahl 3 → 4, a tie-breaker, a server error lands at its field
+    # edit: the stored rule in the fields; Anzahl 3 → 4, a tie-breaker, the other direction
     cats.locator("[data-category=volles_haus]").get_by_test_id("category-edit").click()
     dlg = sheet(page)
     expect(dlg.get_by_role("heading", name="Kategorie bearbeiten")).to_be_visible()
-    expect(dlg.get_by_test_id("condition")).to_have_count(1)
-    expect(dlg.get_by_test_id("cond-a").get_by_role("textbox")).to_have_value("3")
-    dlg.get_by_role("textbox", name="Anzahl").fill("11")
+    rank = dlg.get_by_test_id("category-rank")
+    expect(rank.get_by_role("textbox", name="Schwelle (mindestens)")).to_have_value("3")
+    expect(rank.get_by_test_id("measure-sentence").first).to_have_text(
+        "Höchster Wert bei „Personen“"
+    )
+    dlg.get_by_role("textbox", name="Gewinner (1 bis 10)").fill("11")
     dlg.get_by_test_id("category-save").click()
     expect(dlg.get_by_text("Bitte eine ganze Zahl von 1 bis 10.")).to_be_visible()
-    dlg.get_by_role("textbox", name="Anzahl").fill("4")
+    dlg.get_by_role("textbox", name="Gewinner (1 bis 10)").fill("4")
+    rank.get_by_role("button", name=re.compile("^Bei Gleichstand")).click()
     dlg.get_by_test_id("category-then-add").click()
-    pick_value(dlg, "category-then-by", "Lächeln")
+    pick_in(dlg.get_by_test_id("category-then-by"), "measure-value", "Lächeln")
     dlg.get_by_test_id("category-save").click()
     expect(toast(page)).to_contain_text("„Volles Haus“ gespeichert.")
     put = wall.sent("PUT", "/categories/volles_haus")[-1]
     assert put["spec"]["select"]["count"] == 4
-    assert put["spec"]["select"]["then_by"] == [{"by": "smiles", "order": "top"}]
+    assert put["spec"]["rank"]["then_by"] == [
+        {"by": {"kind": "value", "key": "smiles"}, "order": "desc"}
+    ]
     assert put["enabled"] is False
 
     # delete a preset, then bring it back
@@ -849,6 +950,35 @@ def test_edit_order_switch_and_delete(desktop_page: Page, live: LiveServer, wall
     assert errors(page) == []
 
 
+def test_export_and_import(
+    desktop_page: Page, live: LiveServer, wall: FakeWall, tmp_path: Any
+) -> None:
+    page = desktop_page
+    goto(page, live, "/admin/manage?tab=livewall")
+    cats = page.get_by_test_id("wall-categories")
+    expect(cats.locator("[data-category]")).to_have_count(3)
+    with page.expect_download() as dl:
+        page.get_by_test_id("category-export").click()
+    path = tmp_path / "kategorien.json"
+    dl.value.save_as(path)
+    assert dl.value.suggested_filename == "kategorien.json"
+    text = path.read_text(encoding="utf-8")
+    assert '"format": "virtubooth-categories"' in text
+    # the same file back: its ids exist, the dialog asks; as a copy
+    with page.expect_file_chooser() as fc:
+        page.get_by_test_id("category-import").click()
+    fc.value.set_files(str(path))
+    dialog = page.get_by_test_id("category-import-confirm").get_by_role("alertdialog")
+    expect(dialog).to_contain_text("3 Kennungen gibt es schon")
+    dialog.get_by_role("button", name="Importieren").click()
+    expect(toast(page)).to_contain_text("3 importiert (3 als Kopie)")
+    expect(cats.locator("[data-category]")).to_have_count(6)
+    expect(cats.locator("[data-category=volles_haus_2]")).to_be_visible()
+    (body,) = wall.sent("POST", "/categories/import")
+    assert body["on_conflict"] == "copy" and len(body["file"]["categories"]) == 3
+    assert errors(page) == []
+
+
 def test_server_error_shows_at_the_field(
     desktop_page: Page, live: LiveServer, wall: FakeWall
 ) -> None:
@@ -857,8 +987,6 @@ def test_server_error_shows_at_the_field(
     page.get_by_test_id("category-new").click()
     dlg = sheet(page)
     dlg.get_by_role("textbox", name="Titel", exact=True).fill("Fehler")
-    dlg.get_by_test_id("category-one").get_by_role("textbox").fill("Person")
-    dlg.get_by_test_id("category-many").get_by_role("textbox").fill("Personen")
     dlg.get_by_test_id("category-save").click()
     title = dlg.get_by_test_id("category-title")
     expect(title).to_contain_text("Titel: Dieser Titel geht nicht.")
@@ -873,7 +1001,9 @@ def test_category_editor_on_a_phone(admin_page: Page, live: LiveServer) -> None:
     page.get_by_test_id("category-new").click()
     dlg = sheet(page)
     dlg.get_by_test_id("condition-add").click()
+    page.get_by_test_id("condition-add-count").click()
     expect(dlg.get_by_test_id("condition")).to_be_visible()
+    dlg.get_by_test_id("category-by").first.get_by_text("Objekte im Foto", exact=True).click()
     assert no_horizontal_scroll(page)
-    shot(page, "ui1_category_editor_phone")
+    shot(page, "categories_v2_editor_phone")
     assert errors(page) == []

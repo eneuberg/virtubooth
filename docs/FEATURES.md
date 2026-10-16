@@ -179,7 +179,11 @@ steht im „Protokoll“.
   lächeln“, Objekte, gewonnene Kategorien, die Wünsche des Gasts) und Rahmen
   über dem Vorschaubild, jedes Ding in seiner eigenen Farbe (gleiche Dinge gleiche
   Farbe, auch Gesicht und Hand; der Name steht am Rahmen, keine Legende). Das große
-  Foto zeigt die volle Analyse. Fertige Analysen erscheinen ohne Neuladen.
+  Foto zeigt die volle Analyse. Eine gewonnene Kategorie klappt auf (am Chip
+  und im großen Foto): Erklärung, Regel in Klartext, Platz und Wert dieses
+  Fotos, das Objekt, der KI-Kommentar, an/aus/gesperrt mit Grund und „Im Editor
+  öffnen“. Ein Foto, das mit Objekterkennung „Aus“ ausgewertet wurde, zeigt
+  „Objekterkennung aus“ statt „Nichts erkannt“. Fertige Analysen erscheinen ohne Neuladen.
   „Analyse zeigen“ blendet alles aus; der Browser merkt es sich.
 - **„Filter zeigen“** (wie in „Fotos“, eine Einstellung für die ganze
   Verwaltung): aus zeigt Kacheln und großes Foto ohne Fotobox-Filter.
@@ -478,8 +482,16 @@ kann, warum.
 - **Externe KI aus:** Kategorien mit Eigenschaft schalten sich aus, wenn die
   externe KI, „Eigenschaften abfragen“ oder der Schlüssel wegfällt oder eine
   genutzte Eigenschaft in den Papierkorb geht; die Karte nennt den Grund, wieder
-  ein schaltet nur der Host. Ein KI-Urteil ohne Eigenschaft pausiert nur.
-  Budget leer schaltet nichts aus.
+  ein schaltet nur der Host (ein Banner bietet „N Kategorien wieder
+  einschalten“, sobald der Grund weg ist). Ein KI-Urteil ohne Eigenschaft
+  pausiert nur. Budget leer schaltet nichts aus. Gespeichert werden darf eine
+  gesperrte Kategorie, aber nur ausgeschaltet.
+- **Exportieren / Importieren:** alle Kategorien oder eine als JSON, mit den
+  Eigenschaften, die sie nutzen (Name und Prompt). Beim Import wird eine
+  vorhandene Kennung als Kopie (`_2`) übernommen oder auf Wunsch ersetzt;
+  fehlende Eigenschaften entstehen aus der Datei, vorhandene behalten ihren
+  Prompt. Ohne Prompt für eine Eigenschaft oder bei gesperrter KI kommt die
+  Kategorie ausgeschaltet an, mit Grund. Ältere Dateien (Version 1) gehen auch.
 - **Vorlagen:** Volles Haus, Hände hoch!, Grinsekatzen, Herzschmerz-Pose,
   Ach du Schreck!, Brillenbande, Generationen-Foto, Dream-Team, Solo-Star,
   Peace!, Rock'n'Roll, Daumen hoch, Prost!, Hutparade, Gesangseinlage,
@@ -511,7 +523,8 @@ Tab „ML-Pipeline“:
   gespeichert und nie wieder angezeigt.
 - **„Eigenschaften“:** z. B. `coolness` mit Prompt. Name und Prompt sind fest.
   Kein Schalter: abgefragt wird eine Eigenschaft, solange eine eingeschaltete
-  Kategorie sie nutzt („wird abgefragt“, sonst „ruht“). „Löschen“ legt sie in
+  Kategorie sie nutzt („wird abgefragt (für: …)“, sonst „ruht“), mit „Genutzt
+  von …“. „Löschen“ fragt nach (und nennt die Kategorien, die dabei ausgehen) und legt sie in
   den „Papierkorb“ (nicht abgefragt, nicht mehr im Kategorie-Editor, Werte
   bleiben, Name bleibt belegt; Kategorien, die sie nutzen, gehen aus); dort
   „Wiederherstellen“ oder „Endgültig löschen“ (mit Rückfrage; nicht, solange

@@ -541,7 +541,7 @@ body {
 /* (old TV browsers without container queries keep the plain heights above) */
 @supports (height: 1cqh) {
   .wall-cat-pic {
-    --room: calc(100cqh - 14vmin);
+    --room: calc(100cqh - 19vmin);
   }
 
   .wall-cat-winners[data-count='1'] .wall-cat-pic {
@@ -558,7 +558,7 @@ body {
 
   /* two lines of verdict under the photo need room too */
   .wall-cat-winners[data-verdict] .wall-cat-pic {
-    --room: calc(100cqh - 24vmin);
+    --room: calc(100cqh - 29vmin);
   }
 
   /* two rows; under each cell its caption and the name (9vmin) */
@@ -588,12 +588,14 @@ body {
    when the main line is an object, its value as a chip; then „von <Name>“ */
 .wall-cat-cap {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   justify-content: center;
-  gap: 1.2vmin;
-  max-width: 100%;
+  gap: 0.6vmin 1.2vmin;
+  /* as wide as the photo, never wider (a long name is cut, the photo keeps its size) */
+  width: 0;
+  min-width: 100%;
   margin-top: 1.6vmin;
-  min-width: 0;
 }
 
 .wall-cat-place {
@@ -663,7 +665,7 @@ body {
   top: -0.5vmin;
   left: -0.5vmin;
   overflow: hidden;
-  max-width: calc(100% + 1vmin);
+  max-width: 32vmin;
   padding: 0.3vmin 1.1vmin;
   border-radius: 1vmin 0 1vmin 0;
   background: var(--wall-accent);
@@ -682,6 +684,7 @@ body {
 }
 
 .wall-cat-winners[data-compact] .wall-cat-cap {
+  flex-wrap: nowrap;
   gap: 0.8vmin;
   margin-top: 0.8vmin;
 }
@@ -733,8 +736,6 @@ body {
    photo out of the flow (it may be wider than the photo, the row keeps its width; the
    pictures leave room for it); under a compact grid it is the side column's last row */
 .wall-cat-verdict {
-  display: -webkit-box;
-  overflow: hidden;
   margin: 0;
   padding: 0.8vmin 1.8vmin;
   border-radius: 2.2vmin;
@@ -745,9 +746,6 @@ body {
   letter-spacing: -0.005em;
   text-align: center;
   color: var(--wall-ink);
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 2;
-  line-clamp: 2;
   animation: wall-verdict-in 600ms cubic-bezier(0.22, 1, 0.36, 1) 0.9s both;
 }
 
@@ -794,13 +792,22 @@ body {
   max-width: min(110vmin, 100%);
 }
 
-.wall-cat-verdicts .wall-cat-verdict {
+/* the text in the bubble: two lines at most (one under the compact grid) */
+.wall-cat-verdict-text {
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+}
+
+.wall-cat-verdicts .wall-cat-verdict-text {
   -webkit-line-clamp: 1;
   line-clamp: 1;
 }
 
 /* the marker: the AI wrote it */
-.wall-cat-verdict::before {
+.wall-cat-verdict-text::before {
   content: 'KI';
   display: inline-block;
   margin-right: 0.7em;

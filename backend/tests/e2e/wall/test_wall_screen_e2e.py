@@ -224,7 +224,7 @@ def test_caption_stays_clear_of_the_corner(tv_page: Page, wall_fake: WallFake, a
 def test_categories_stay_clear_of_the_corner(
     tv_page: Page, wall_fake: WallFake, count: int, style: str | None
 ) -> None:
-    """The winners (photo, badge, name) and the title never sit under the QR corner,
+    """The winners (photo, caption, name) and the title never sit under the QR corner,
     on the plain page and in the default look (goofy: crooked frames, ribbons)."""
     wall_fake.style = style
     wall_fake.session = "ok"
@@ -251,7 +251,7 @@ def test_categories_stay_clear_of_the_corner(
     corner = tv_page.get_by_test_id("wall-corner")
     expect(tv_page.get_by_test_id("wall-qr")).to_be_visible()
     parts = tv_page.locator(
-        ".wall-cat-pic, .wall-cat-value, .wall-cat-by, .wall-cat-title, .wall-cat-line"
+        ".wall-cat-pic, .wall-cat-headline, .wall-cat-by, .wall-cat-title, .wall-cat-line"
     )
     expect(parts).to_have_count(2 + 3 * count)
     for name in CORNERS:
@@ -316,7 +316,7 @@ def test_category_verdict_under_the_winner(tv_page: Page, wall_fake: WallFake, c
     pics = tv_page.locator(".wall-cat-pic")
     expect(pics).to_have_count(count)
     # in the server's order
-    labels = tv_page.locator(".wall-cat-value")
+    labels = tv_page.locator(".wall-cat-headline")
     expect(labels).to_have_text([f"Hut {k + 1}" for k in range(count)])
     tv_page.wait_for_timeout(1400)  # the drop-in animations
     view = {"x": 0, "y": 0, "width": 1920, "height": 1080}
@@ -332,9 +332,17 @@ def test_category_verdict_under_the_winner(tv_page: Page, wall_fake: WallFake, c
             assert a and b and not _boxes_overlap(a, b)
     v = verdict.bounding_box()
     assert v and v["y"] + v["height"] <= 1080
-    # two lines at most
-    line = float(verdict.evaluate("(el) => parseFloat(getComputedStyle(el).lineHeight)"))
-    assert v["height"] <= 2 * line + 2
+    # two lines at most (in the bubble's padding)
+    line, pad = verdict.evaluate(
+        "(el) => { const s = getComputedStyle(el); return [parseFloat(s.lineHeight),"
+        " parseFloat(s.paddingTop) + parseFloat(s.paddingBottom)]; }"
+    )
+    assert v["height"] <= 2 * float(line) + float(pad) + 2
+    # the AI marker
+    marker = verdict.evaluate(
+        "(el) => getComputedStyle(el.querySelector('.wall-cat-verdict-text'), '::before').content"
+    )
+    assert marker == '"KI"'
     if count <= 3:
         # under its own photo
         figure = tv_page.locator(".wall-cat-photo[data-verdict]")
@@ -349,6 +357,78 @@ def test_category_verdict_under_the_winner(tv_page: Page, wall_fake: WallFake, c
         )
         assert all(b and v["y"] >= b["y"] + b["height"] for b in boxes)
     shot(tv_page, f"ui1_wall_verdict_{count}", 200)
+    assert js_errors(tv_page) == []
+
+
+def test_category_caption_frame_and_comments(tv_page: Page, wall_fake: WallFake) -> None:
+    """Categories v2 on the wall: per winner its place, the object's name, the value
+    chip and „von“; the frame around the focus object on the photo; the AI comments
+    with emoji and „KI“ under their photos; nothing overlaps, nothing leaves the TV."""
+    wall_fake.session = "ok"
+    wall_fake.hold_stream = True
+    wall_fake.config["playlist"] = [
+        {"mode": m, "enabled": m == "categories", "duration_s": 600}
+        for m in ("spotlight", "gallery", "categories")
+    ]
+    wall_fake.config["categories"] = {"per_category_s": 600, "disabled": []}
+    for n, name in enumerate(["Funky Flamingo", "Lena", "Max"], start=1):
+        wall_fake.add(wall_photo(n, name))
+    things = [("Sonnenbrille", 0.93, {"x": 0.3, "y": 0.18, "w": 0.4, "h": 0.14}),
+              ("Partyhut", 0.81, {"x": 0.2, "y": 0.02, "w": 0.35, "h": 0.25}),
+              ("Luftschlange", 0.74, None)]  # fmt: skip
+    comments = [{"text": "Die Sonnenbrille von Funky Flamingo ist zu cool für diese Welt.",
+                 "emoji": "😎"},
+                {"text": "Lena trägt den Hut, als hätte sie ihn erfunden.", "emoji": "🎩"},
+                None]  # fmt: skip
+    wall_fake.categories = [
+        {
+            "id": "coolstes_objekt",
+            "emoji": "🏆",
+            "title": "Das coolste Objekt",
+            "line": "Was die KI am coolsten findet",
+            "winners": [
+                {**winner(p, value, f"{label} · {value:.2f}".replace(".", ","), comment),
+                 "headline": label, "detail": f"{value:.2f} Coolness".replace(".", ","),
+                 "object_idx": 0,
+                 "object": {"idx": 0, "label_de": label, "value": value, "box": box}}
+                for p, (label, value, box), comment in zip(
+                    sorted(wall_fake.photos, key=lambda p: p["seq"]), things, comments, strict=True)
+            ],
+        }
+    ]  # fmt: skip
+    open_wall(tv_page, wall_fake)
+    card = tv_page.get_by_test_id("wall-category")
+    expect(card.locator(".wall-cat-headline")).to_have_text(
+        ["Sonnenbrille", "Partyhut", "Luftschlange"]
+    )
+    expect(card.locator(".wall-cat-value")).to_have_text(
+        ["0,93 Coolness", "0,81 Coolness", "0,74 Coolness"]
+    )
+    expect(card.locator(".wall-cat-place")).to_have_text(["1", "2", "3"])
+    expect(card.locator(".wall-cat-by")).to_have_text(["von Funky Flamingo", "von Lena", "von Max"])
+    # the frames: on the photo where the box says (the row keeps the photo's shape)
+    frames = card.get_by_test_id("wall-object-box")
+    expect(frames).to_have_count(2)
+    expect(frames.first).to_have_text("Sonnenbrille")
+    verdicts = card.get_by_test_id("wall-verdict")
+    expect(verdicts).to_have_count(2)
+    expect(verdicts.first).to_have_css("opacity", "1", timeout=5000)
+    tv_page.wait_for_timeout(1600)  # the drop-in and frame animations
+    pic = card.locator(".wall-cat-pic").first.bounding_box()
+    frame = frames.first.bounding_box()
+    assert pic and frame
+    assert abs((frame["x"] - pic["x"]) / pic["width"] - 0.3) < 0.03
+    assert abs(frame["width"] / pic["width"] - 0.4) < 0.03
+    # each comment under its own photo, inside the TV, not on another one
+    figures = card.locator(".wall-cat-photo")
+    boxes = [figures.nth(i).locator(".wall-cat-pic").bounding_box() for i in range(3)]
+    for i in range(2):
+        v = verdicts.nth(i).bounding_box()
+        own = boxes[i]
+        assert v and own and v["y"] >= own["y"] + own["height"]
+        assert v["y"] + v["height"] <= 1080
+        assert v["x"] >= own["x"] - 2 and v["x"] + v["width"] <= own["x"] + own["width"] + 2
+    shot(tv_page, "categories_v2_wall_caption_frame_comment", 200)
     assert js_errors(tv_page) == []
 
 
