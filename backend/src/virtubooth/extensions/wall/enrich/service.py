@@ -402,10 +402,12 @@ class EnrichmentService:
         by_source = objects.source_objects_of(db, photo.id)
         props = [
             PropertyScores(
-                name=r["name"], archived=r["archived_at"] is not None, scores=_scores(r["scores"])
+                name=r["name"],
+                inactive=r["inactive_at"] is not None or r["deleted_at"] is not None,
+                scores=_scores(r["scores"]),
             )
             for r in db.all(
-                "SELECT p.name, p.archived_at, s.scores FROM property_scores s "
+                "SELECT p.name, p.inactive_at, p.deleted_at, s.scores FROM property_scores s "
                 "JOIN llm_properties p ON p.id = s.property_id WHERE s.photo_id=? ORDER BY p.name",
                 (photo.id,),
             )

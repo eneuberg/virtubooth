@@ -1,11 +1,14 @@
 /**
  * "Eigenschaften": „Eigenschaften abfragen“ (the poll: its switch, interval, state, cost,
  * last error and „Jetzt abfragen“) and what the external AI rates per object at every
- * poll (coolness …). Name and prompt are fixed once created (N7): no edit, no delete;
- * archiving stops the polling and keeps the last scores, and can be undone.
+ * poll (coolness …). Name and prompt are fixed once created (N7): no edit. Each one has
+ * the switch „aktiv“ (off: not polled any more, the scores stay on the photos and in the
+ * categories) and „Löschen“: into the „Papierkorb“ below the list (not polled, hidden from
+ * the category value pickers, scores kept) with „Wiederherstellen“ and „Endgültig löschen“
+ * (after a confirmation: the property and its scores go, the name is free again).
  */
 import { useQueryClient } from '@tanstack/react-query';
-import { Archive, ArchiveRestore, Download, Plus, RefreshCw, Save, Tags, Upload } from 'lucide-react';
+import { ArchiveRestore, Download, Plus, RefreshCw, Save, Tags, Trash2, Upload } from 'lucide-react';
 import { useState, type FormEvent, type ReactNode } from 'react';
 import { FileTrigger } from 'react-aria-components';
 import { isApiError } from '@/api/client';
@@ -13,7 +16,9 @@ import { downloadBlob } from '@/print/names';
 import { formatDateTime, formatNumber, formatRelative, formatTime } from '@/lib/format';
 import { Badge } from '@/ui/Badge';
 import { Button } from '@/ui/Button';
+import { ConfirmDialog } from '@/ui/ConfirmDialog';
 import { cx } from '@/ui/cx';
+import { HelpDisclosure } from '@/ui/HelpDisclosure';
 import { Sheet } from '@/ui/Sheet';
 import { Spinner } from '@/ui/Spinner';
 import { Switch } from '@/ui/Switch';
@@ -22,7 +27,14 @@ import { showToast } from '@/ui/Toast';
 import { errorText, showError } from '../common/usePhotoActions';
 import { Card } from '../wall/fields';
 import { wk } from '../wall/keys';
-import { archiveProperty, createProperty, pollNow, saveLlmConfig } from './api';
+import {
+  createProperty,
+  deleteProperty,
+  pollNow,
+  saveLlmConfig,
+  setPropertyActive,
+  trashProperty,
+} from './api';
 import { ExternalAiHint } from './ExternalAiHint';
 import { parseMinutes, PROPERTY_PROMPT_MAX, validateProperty } from './forms';
 import { useProperties } from './hooks';
@@ -266,7 +278,7 @@ function NewPropertySheet({
   );
 }
 
-/** „Exportieren“ (all, archived included) and „Importieren“ (only new names, never overwrites). */
+/** „Exportieren“ (all, inactive ones and the Papierkorb included) and „Importieren“ (only new names, never overwrites). */
 function PropertiesJson({
   props,
   ready,
@@ -299,7 +311,7 @@ function PropertiesJson({
       const done = await importProperties(
         parsed.entries,
         props.map((p) => p.name),
-        { create: createProperty, archive: archiveProperty },
+        { create: createProperty, setActive: setPropertyActive, trash: trashProperty },
         errorText,
       );
       const result = { ...done, invalid: parsed.invalid };
@@ -367,16 +379,92 @@ function PropertiesJson({
   );
 }
 
-function PropertyRow({ property: p }: { property: LlmProperty }) {
+/** „12 Fotos bewertet · zuletzt bewertet vor 3 Min.“ */
+function ScoredLine({ property: p }: { property: LlmProperty }) {
+  return (
+    <p className="text-xs text-ink-muted tabular">
+      {formatNumber(p.scored_photos)} {p.scored_photos === 1 ? 'Foto' : 'Fotos'} bewertet · zuletzt bewertet{' '}
+      {p.last_scored_at ? (
+        <time dateTime={p.last_scored_at} title={formatDateTime(p.last_scored_at)}>
+          {formatRelative(p.last_scored_at)}
+        </time>
+      ) : (
+        'noch nie'
+      )}
+    </p>
+  );
+}
+
+/** After a change: the list and the category value pickers (the Papierkorb hides values). */
+function useRefresh() {
   const qc = useQueryClient();
+  return async () => {
+    await qc.invalidateQueries({ queryKey: wk.properties });
+    void qc.invalidateQueries({ queryKey: wk.values });
+  };
+}
+
+function PropertyRow({ property: p }: { property: LlmProperty }) {
+  const refresh = useRefresh();
+  const [busy, setBusy] = useState<'active' | 'trash' | null>(null);
+  const run = async (what: 'active' | 'trash', action: () => Promise<unknown>, done?: string) => {
+    setBusy(what);
+    try {
+      await action();
+      await refresh();
+      if (done) showToast({ message: done, tone: 'success' });
+    } catch (err) {
+      showError(err);
+    } finally {
+      setBusy(null);
+    }
+  };
+  return (
+    <li data-property={p.name} className="grid gap-1 border-b border-line py-3">
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+        <span className={cx('font-mono font-semibold', !p.active && 'text-ink-muted')}>{p.name}</span>
+        {p.active ? null : <Badge tone="neutral">Inaktiv</Badge>}
+        <div className="ml-auto flex items-center gap-2">
+          <Switch
+            isSelected={p.active}
+            isPending={busy === 'active'}
+            onChange={(on) => void run('active', () => setPropertyActive(p.name, on))}
+            aria-label={`${p.name} aktiv`}
+            data-testid="ml-property-active"
+          >
+            aktiv
+          </Switch>
+          <Button
+            size="xs"
+            variant="quiet"
+            icon={Trash2}
+            isPending={busy === 'trash'}
+            onPress={() =>
+              void run('trash', () => trashProperty(p.name, true), `„${p.name}“ liegt jetzt im Papierkorb.`)
+            }
+            data-testid="ml-property-trash"
+          >
+            Löschen
+          </Button>
+        </div>
+      </div>
+      <p className="text-sm whitespace-pre-line">{p.prompt}</p>
+      <ScoredLine property={p} />
+    </li>
+  );
+}
+
+function TrashRow({ property: p }: { property: LlmProperty }) {
+  const refresh = useRefresh();
   const [busy, setBusy] = useState(false);
-  const archived = p.archived_at !== null;
-  const toggle = async () => {
+  const [confirm, setConfirm] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const restore = async () => {
     setBusy(true);
     try {
-      await archiveProperty(p.name, !archived);
-      await qc.invalidateQueries({ queryKey: wk.properties });
-      void qc.invalidateQueries({ queryKey: wk.values });
+      await trashProperty(p.name, false);
+      await refresh();
+      showToast({ message: `„${p.name}“ wiederhergestellt.`, tone: 'success' });
     } catch (err) {
       showError(err);
     } finally {
@@ -384,32 +472,61 @@ function PropertyRow({ property: p }: { property: LlmProperty }) {
     }
   };
   return (
-    <li data-property={p.name} className="grid gap-1 border-b border-line py-3">
+    <li data-property={p.name} className="grid gap-1 border-b border-line py-2">
       <div className="flex flex-wrap items-center gap-2">
-        <span className={cx('font-mono font-semibold', archived && 'text-ink-muted')}>{p.name}</span>
-        {archived ? <Badge tone="neutral">Archiviert</Badge> : null}
-        <Button
-          size="xs"
-          variant="quiet"
-          icon={archived ? ArchiveRestore : Archive}
-          isPending={busy}
-          onPress={() => void toggle()}
-          className="ml-auto"
-        >
-          {archived ? 'Wiederherstellen' : 'Archivieren'}
-        </Button>
+        <span className="font-mono font-semibold text-ink-muted">{p.name}</span>
+        <div className="ml-auto flex flex-wrap items-center gap-2">
+          <Button
+            size="xs"
+            variant="quiet"
+            icon={ArchiveRestore}
+            isPending={busy}
+            onPress={() => void restore()}
+            data-testid="ml-property-restore"
+          >
+            Wiederherstellen
+          </Button>
+          <Button
+            size="xs"
+            variant="quiet"
+            icon={Trash2}
+            onPress={() => {
+              setError(null);
+              setConfirm(true);
+            }}
+            className="text-danger"
+            data-testid="ml-property-purge"
+          >
+            Endgültig löschen
+          </Button>
+        </div>
       </div>
-      <p className="text-sm whitespace-pre-line">{p.prompt}</p>
-      <p className="text-xs text-ink-muted tabular">
-        {formatNumber(p.scored_photos)} {p.scored_photos === 1 ? 'Foto' : 'Fotos'} bewertet · zuletzt bewertet{' '}
-        {p.last_scored_at ? (
-          <time dateTime={p.last_scored_at} title={formatDateTime(p.last_scored_at)}>
-            {formatRelative(p.last_scored_at)}
-          </time>
-        ) : (
-          'noch nie'
-        )}
-      </p>
+      <p className="text-sm whitespace-pre-line text-ink-muted">{p.prompt}</p>
+      <ScoredLine property={p} />
+      <ConfirmDialog
+        isOpen={confirm}
+        onOpenChange={setConfirm}
+        title={`„${p.name}“ endgültig löschen?`}
+        confirmLabel="Endgültig löschen"
+        error={error}
+        onConfirm={async () => {
+          try {
+            await deleteProperty(p.name);
+          } catch (err) {
+            setError(errorText(err));
+            throw err;
+          }
+          await refresh();
+          showToast({ message: `„${p.name}“ endgültig gelöscht.`, tone: 'success' });
+        }}
+        data-testid="ml-property-purge-confirm"
+      >
+        <p>
+          Die Eigenschaft und ihre Werte auf {formatNumber(p.scored_photos)}{' '}
+          {p.scored_photos === 1 ? 'Foto' : 'Fotos'} werden gelöscht. Das lässt sich nicht rückgängig machen;
+          danach ist der Name wieder frei.
+        </p>
+      </ConfirmDialog>
     </li>
   );
 }
@@ -418,8 +535,8 @@ export function PropertiesCard({ status }: { status: LlmStatus }) {
   const list = useProperties();
   const [open, setOpen] = useState(false);
   const props = list.data ?? [];
-  const active = props.filter((p) => p.archived_at === null);
-  const archived = props.filter((p) => p.archived_at !== null);
+  const listed = props.filter((p) => p.deleted_at === null);
+  const trash = props.filter((p) => p.deleted_at !== null);
   return (
     <Card
       id="eigenschaften"
@@ -444,15 +561,32 @@ export function PropertiesCard({ status }: { status: LlmStatus }) {
         <Spinner label="Lädt…" />
       ) : list.isError ? (
         <p className="text-sm text-danger">{errorText(list.error)}</p>
-      ) : props.length === 0 ? (
-        <p className="text-sm text-ink-muted">Noch keine Eigenschaften.</p>
+      ) : listed.length === 0 ? (
+        <p className="text-sm text-ink-muted">
+          {trash.length ? 'Keine Eigenschaften außerhalb des Papierkorbs.' : 'Noch keine Eigenschaften.'}
+        </p>
       ) : (
         <ul className="grid border-t border-line" data-testid="ml-properties">
-          {[...active, ...archived].map((p) => (
+          {listed.map((p) => (
             <PropertyRow key={p.id} property={p} />
           ))}
         </ul>
       )}
+      {trash.length ? (
+        <div data-testid="ml-properties-trash">
+          <HelpDisclosure variant="section" headingLevel={3} summary={`Papierkorb (${trash.length})`}>
+            <p className="text-ink-muted">
+              Wird nicht abgefragt und fehlt in der Werteauswahl der Kategorien; die Werte bleiben. Der Name
+              bleibt belegt, bis du die Eigenschaft endgültig löschst.
+            </p>
+            <ul className="grid border-t border-line">
+              {trash.map((p) => (
+                <TrashRow key={p.id} property={p} />
+              ))}
+            </ul>
+          </HelpDisclosure>
+        </div>
+      ) : null}
       <NewPropertySheet isOpen={open} onOpenChange={setOpen} />
     </Card>
   );

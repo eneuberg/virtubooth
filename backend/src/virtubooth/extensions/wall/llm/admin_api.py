@@ -34,6 +34,7 @@ from .schemas import (
     PollerOut,
     PollOut,
     PropertiesOut,
+    PropertyActiveIn,
     PropertyIn,
     PropertyOut,
     ProviderOut,
@@ -188,7 +189,9 @@ def _property(p: Property) -> PropertyOut:
         name=p.name,
         prompt=p.prompt,
         created_at=p.created_at,
-        archived_at=p.archived_at,
+        active=p.active,
+        inactive_at=p.inactive_at,
+        deleted_at=p.deleted_at,
         scored_photos=p.scored_photos,
         last_scored_at=p.last_scored_at,
     )
@@ -309,30 +312,59 @@ def create_property(body: PropertyIn, core: CoreDep, admin: AdminDep) -> Propert
 
 @router.get("/admin/llm/properties/{name}")
 def get_property(name: str, core: CoreDep) -> PropertyOut:
-    """One property. There is no PUT and no DELETE (405): archive it instead."""
-    found = properties.get(core.db, name)
-    if found is None:
-        raise errors.not_found("Eigenschaft nicht gefunden.")
-    return _property(found)
+    """One property (also one in the Papierkorb). There is no PUT (405): name
+    and prompt never change."""
+    return _property(_found(properties.get(core.db, name)))
 
 
-def _set_archived(core: Core, name: str, archived: bool, actor: str) -> PropertyOut:
-    found = properties.set_archived(core.db, core.repos.audit, name, archived, actor=actor)
-    if found is None:
+def _found(p: Property | None) -> Property:
+    if p is None:
         raise errors.not_found("Eigenschaft nicht gefunden.")
+    return p
+
+
+@router.put("/admin/llm/properties/{name}/active")
+def set_property_active(
+    name: str, body: PropertyActiveIn, core: CoreDep, admin: AdminDep
+) -> PropertyOut:
+    """The switch „aktiv“: an inactive property is not polled any more, its
+    scores stay (on the photos, in the categories)."""
+    found = _found(
+        properties.set_active(core.db, core.repos.audit, name, body.active, actor=admin.actor)
+    )
     LlmService.of(core).changed()
     return _property(found)
 
 
-@router.post("/admin/llm/properties/{name}/archive")
-def archive_property(name: str, core: CoreDep, admin: AdminDep) -> PropertyOut:
-    """No more polling; the last scores stay readable."""
-    return _set_archived(core, name, True, admin.actor)
+@router.post("/admin/llm/properties/{name}/trash")
+def trash_property(name: str, core: CoreDep, admin: AdminDep) -> PropertyOut:
+    """„Löschen“: into the Papierkorb. Not polled, hidden from the list and
+    the category value pickers; the scores and the name stay."""
+    found = _found(properties.set_trashed(core.db, core.repos.audit, name, True, actor=admin.actor))
+    LlmService.of(core).changed()
+    return _property(found)
 
 
-@router.post("/admin/llm/properties/{name}/unarchive")
-def unarchive_property(name: str, core: CoreDep, admin: AdminDep) -> PropertyOut:
-    return _set_archived(core, name, False, admin.actor)
+@router.post("/admin/llm/properties/{name}/restore")
+def restore_property(name: str, core: CoreDep, admin: AdminDep) -> PropertyOut:
+    """Out of the Papierkorb, back as it was (the switch „aktiv“ keeps its state)."""
+    found = _found(
+        properties.set_trashed(core.db, core.repos.audit, name, False, actor=admin.actor)
+    )
+    LlmService.of(core).changed()
+    return _property(found)
+
+
+@router.delete("/admin/llm/properties/{name}", responses=errors.error_responses(409))
+def delete_property(name: str, core: CoreDep, admin: AdminDep) -> PropertiesOut:
+    """„Endgültig löschen“: the property and all its scores, for good; the name
+    is free again. Only from the Papierkorb (409 `property_not_in_trash`) and
+    never while a category uses it (409 `property_in_use`, the message names
+    the categories). Answers with the remaining list."""
+    if not properties.purge(core.db, core.repos.audit, name, actor=admin.actor):
+        raise errors.not_found("Eigenschaft nicht gefunden.")
+    LlmService.of(core).changed()
+    return list_properties(core)
 
 
 # --------------------------------------------------------------------- poll

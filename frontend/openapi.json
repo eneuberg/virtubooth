@@ -3137,6 +3137,8 @@
               "llm_budget_exhausted",
               "invalid_property",
               "property_exists",
+              "property_not_in_trash",
+              "property_in_use",
               "bad_origin",
               "length_required",
               "rate_limited",
@@ -6836,6 +6838,19 @@
         "title": "PropertiesOut",
         "type": "object"
       },
+      "PropertyActiveIn": {
+        "properties": {
+          "active": {
+            "title": "Active",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "active"
+        ],
+        "title": "PropertyActiveIn",
+        "type": "object"
+      },
       "PropertyIn": {
         "properties": {
           "name": {
@@ -6858,7 +6873,16 @@
       },
       "PropertyOut": {
         "properties": {
-          "archived_at": {
+          "active": {
+            "description": "The switch „aktiv“: false = not polled, scores stay.",
+            "title": "Active",
+            "type": "boolean"
+          },
+          "created_at": {
+            "title": "Created At",
+            "type": "string"
+          },
+          "deleted_at": {
             "anyOf": [
               {
                 "type": "string"
@@ -6867,15 +6891,24 @@
                 "type": "null"
               }
             ],
-            "title": "Archived At"
-          },
-          "created_at": {
-            "title": "Created At",
-            "type": "string"
+            "description": "In the Papierkorb since (not polled, hidden from the value pickers); null = not in the Papierkorb. Restoring keeps the switch's state.",
+            "title": "Deleted At"
           },
           "id": {
             "title": "Id",
             "type": "integer"
+          },
+          "inactive_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "When it was switched off; null = active.",
+            "title": "Inactive At"
           },
           "last_scored_at": {
             "anyOf": [
@@ -6906,7 +6939,9 @@
           "name",
           "prompt",
           "created_at",
-          "archived_at",
+          "active",
+          "inactive_at",
+          "deleted_at",
           "scored_photos",
           "last_scored_at"
         ],
@@ -6915,8 +6950,9 @@
       },
       "PropertyScores": {
         "properties": {
-          "archived": {
-            "title": "Archived",
+          "inactive": {
+            "description": "Not polled any more (switched off or in the Papierkorb).",
+            "title": "Inactive",
             "type": "boolean"
           },
           "name": {
@@ -6941,7 +6977,7 @@
         },
         "required": [
           "name",
-          "archived",
+          "inactive",
           "scores"
         ],
         "title": "PropertyScores",
@@ -8694,11 +8730,6 @@
       },
       "ValueInfo": {
         "properties": {
-          "archived": {
-            "description": "A value of an archived property (scores stay readable).",
-            "title": "Archived",
-            "type": "boolean"
-          },
           "available": {
             "title": "Available",
             "type": "boolean"
@@ -8707,6 +8738,11 @@
             "description": "German group heading (the analyzer, „Objekte“, …).",
             "title": "Group",
             "type": "string"
+          },
+          "inactive": {
+            "description": "A value of a property that is switched off (not polled; scores stay readable).",
+            "title": "Inactive",
+            "type": "boolean"
           },
           "key": {
             "title": "Key",
@@ -8760,7 +8796,7 @@
           "needs",
           "available",
           "reason",
-          "archived"
+          "inactive"
         ],
         "title": "ValueInfo",
         "type": "object"
@@ -20093,8 +20129,110 @@
       }
     },
     "/api/x/wall/admin/llm/properties/{name}": {
+      "delete": {
+        "description": "„Endgültig löschen“: the property and all its scores, for good; the name\nis free again. Only from the Papierkorb (409 `property_not_in_trash`) and\nnever while a category uses it (409 `property_in_use`, the message names\nthe categories). Answers with the remaining list.",
+        "operationId": "delete_property_api_x_wall_admin_llm_properties__name__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "name",
+            "required": true,
+            "schema": {
+              "title": "Name",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PropertiesOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Invalid input (see `error`)"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Needs consent or an admin session"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Forbidden: banned, paused, stopped, joining closed or a foreign Origin (CSRF)"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Not found, or no party access (`scan_qr`)"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Request validation failed (`invalid_request`)"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Rate limited (`Retry-After` header)"
+          }
+        },
+        "summary": "Delete Property",
+        "tags": [
+          "extension:wall",
+          "wall"
+        ]
+      },
       "get": {
-        "description": "One property. There is no PUT and no DELETE (405): archive it instead.",
+        "description": "One property (also one in the Papierkorb). There is no PUT (405): name\nand prompt never change.",
         "operationId": "get_property_api_x_wall_admin_llm_properties__name__get",
         "parameters": [
           {
@@ -20196,10 +20334,10 @@
         ]
       }
     },
-    "/api/x/wall/admin/llm/properties/{name}/archive": {
-      "post": {
-        "description": "No more polling; the last scores stay readable.",
-        "operationId": "archive_property_api_x_wall_admin_llm_properties__name__archive_post",
+    "/api/x/wall/admin/llm/properties/{name}/active": {
+      "put": {
+        "description": "The switch „aktiv“: an inactive property is not polled any more, its\nscores stay (on the photos, in the categories).",
+        "operationId": "set_property_active_api_x_wall_admin_llm_properties__name__active_put",
         "parameters": [
           {
             "in": "path",
@@ -20211,6 +20349,16 @@
             }
           }
         ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PropertyActiveIn"
+              }
+            }
+          },
+          "required": true
+        },
         "responses": {
           "200": {
             "content": {
@@ -20293,16 +20441,17 @@
             "description": "Rate limited (`Retry-After` header)"
           }
         },
-        "summary": "Archive Property",
+        "summary": "Set Property Active",
         "tags": [
           "extension:wall",
           "wall"
         ]
       }
     },
-    "/api/x/wall/admin/llm/properties/{name}/unarchive": {
+    "/api/x/wall/admin/llm/properties/{name}/restore": {
       "post": {
-        "operationId": "unarchive_property_api_x_wall_admin_llm_properties__name__unarchive_post",
+        "description": "Out of the Papierkorb, back as it was (the switch „aktiv“ keeps its state).",
+        "operationId": "restore_property_api_x_wall_admin_llm_properties__name__restore_post",
         "parameters": [
           {
             "in": "path",
@@ -20396,7 +20545,111 @@
             "description": "Rate limited (`Retry-After` header)"
           }
         },
-        "summary": "Unarchive Property",
+        "summary": "Restore Property",
+        "tags": [
+          "extension:wall",
+          "wall"
+        ]
+      }
+    },
+    "/api/x/wall/admin/llm/properties/{name}/trash": {
+      "post": {
+        "description": "„Löschen“: into the Papierkorb. Not polled, hidden from the list and\nthe category value pickers; the scores and the name stay.",
+        "operationId": "trash_property_api_x_wall_admin_llm_properties__name__trash_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "name",
+            "required": true,
+            "schema": {
+              "title": "Name",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PropertyOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Invalid input (see `error`)"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Needs consent or an admin session"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Forbidden: banned, paused, stopped, joining closed or a foreign Origin (CSRF)"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Not found, or no party access (`scan_qr`)"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Request validation failed (`invalid_request`)"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Rate limited (`Retry-After` header)"
+          }
+        },
+        "summary": "Trash Property",
         "tags": [
           "extension:wall",
           "wall"

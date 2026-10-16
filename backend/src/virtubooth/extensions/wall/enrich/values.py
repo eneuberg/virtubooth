@@ -11,7 +11,7 @@ Keys:
 - `photo.guest_photos`         the guest's visible photos
 
 `catalogue()` lists them for the editor (facts from the analyzer registry,
-properties including archived ones) with the object labels seen so far.
+properties including inactive ones, not those in the Papierkorb) with the object labels seen so far.
 """
 
 from __future__ import annotations
@@ -134,7 +134,8 @@ def availability(
     ref: ValueRef, active: Collection[str], properties: Mapping[str, bool], external_objects: bool
 ) -> str | None:
     """None when the value can have data, else a German reason. `properties`:
-    name → archived; `external_objects`: an external source added objects."""
+    name → not polled (inactive or in the Papierkorb: the scores stay
+    readable); `external_objects`: an external source added objects."""
     if ref.kind == "fact":
         assert ref.fact is not None
         found = producers(ref.fact)
@@ -154,11 +155,17 @@ def availability(
 
 
 def properties_of(db: Database) -> dict[str, bool]:
-    """LLM property name → archived."""
+    """LLM property name → not polled (switched off or in the Papierkorb).
+    Every property with a row counts: its scores stay readable."""
     return {
-        r["name"]: r["archived_at"] is not None
-        for r in db.all("SELECT name, archived_at FROM llm_properties ORDER BY name")
+        r["name"]: r["inactive_at"] is not None or r["deleted_at"] is not None
+        for r in db.all("SELECT name, inactive_at, deleted_at FROM llm_properties ORDER BY name")
     }
+
+
+def trashed_properties(db: Database) -> set[str]:
+    """Names in the Papierkorb (left out of the value pickers)."""
+    return {r[0] for r in db.all("SELECT name FROM llm_properties WHERE deleted_at IS NOT NULL")}
 
 
 def has_external_objects(db: Database) -> bool:
@@ -179,7 +186,9 @@ class ValueInfo(BaseModel):
     )
     available: bool
     reason: str | None
-    archived: bool = Field(description="A value of an archived property (scores stay readable).")
+    inactive: bool = Field(
+        description="A value of a property that is switched off (not polled; scores stay readable)."
+    )
 
 
 class LabelInfo(BaseModel):
@@ -211,13 +220,13 @@ def catalogue(db: Database, active: Collection[str]) -> ValuesOut:
     out: list[ValueInfo] = []
 
     def add(key: str, title: str, group: str, kind: ValueKind, unit: str, needs: list[str],
-            archived: bool = False) -> None:  # fmt: skip
+            inactive: bool = False) -> None:  # fmt: skip
         ref = parse(key)
         assert ref is not None, key
         reason = availability(ref, active, props, external)
         out.append(ValueInfo(key=key, title=title, group=group, kind=kind, unit=unit,
                              needs=needs, available=reason is None, reason=reason,
-                             archived=archived))  # fmt: skip
+                             inactive=inactive))  # fmt: skip
 
     seen: set[str] = set()
     for info in INFOS:
@@ -232,9 +241,12 @@ def catalogue(db: Database, active: Collection[str]) -> ValuesOut:
     add("objects.count", "Anzahl Objekte", group, "count", "", ["objects"])
     add("photo.created_at", "Aufnahmezeit", "Foto", "time", "", [])
     add("photo.guest_photos", "Fotos dieses Gasts", "Foto", "count", "", [])
-    for name, archived in props.items():
+    trashed = trashed_properties(db)
+    for name, inactive in props.items():
+        if name in trashed:
+            continue
         for agg in AGGREGATES:
             add(f"prop.{name}.{agg}", f"{name}: {AGG_TITLES[agg]}", f"Eigenschaft „{name}“",
                 "count" if agg == "count" else "number", "" if agg == "count" else "0–1",
-                [f"prop:{name}"], archived)  # fmt: skip
+                [f"prop:{name}"], inactive)  # fmt: skip
     return ValuesOut(values=out, labels=labels_seen(db))

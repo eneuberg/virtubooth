@@ -293,7 +293,8 @@ _KEY_SQL = (
     "(SELECT COUNT(*) FROM property_scores), "
     "(SELECT MAX(updated_at) FROM property_scores), "
     "(SELECT MAX(updated_at) FROM wall_categories), "
-    "(SELECT COUNT(*) FROM llm_properties WHERE archived_at IS NULL)"
+    "(SELECT COUNT(*) FROM llm_properties WHERE inactive_at IS NULL AND deleted_at IS NULL), "
+    "(SELECT COUNT(*) FROM llm_properties)"
 )
 _cache: dict[str, Snapshot] = {}
 _cache_lock = threading.Lock()
@@ -735,5 +736,5 @@ def last_poll(db: Database) -> int:
 
 
 def availability_context(db: Database) -> tuple[dict[str, bool], bool]:
-    """(property name → archived, an external source added objects)."""
+    """(property name → not polled, an external source added objects)."""
     return properties_of(db), has_external_objects(db)

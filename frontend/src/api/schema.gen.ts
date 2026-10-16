@@ -1620,10 +1620,39 @@ export interface paths {
         };
         /**
          * Get Property
-         * @description One property. There is no PUT and no DELETE (405): archive it instead.
+         * @description One property (also one in the Papierkorb). There is no PUT (405): name
+         *     and prompt never change.
          */
         get: operations["get_property_api_x_wall_admin_llm_properties__name__get"];
         put?: never;
+        post?: never;
+        /**
+         * Delete Property
+         * @description „Endgültig löschen“: the property and all its scores, for good; the name
+         *     is free again. Only from the Papierkorb (409 `property_not_in_trash`) and
+         *     never while a category uses it (409 `property_in_use`, the message names
+         *     the categories). Answers with the remaining list.
+         */
+        delete: operations["delete_property_api_x_wall_admin_llm_properties__name__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/x/wall/admin/llm/properties/{name}/active": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Set Property Active
+         * @description The switch „aktiv“: an inactive property is not polled any more, its
+         *     scores stay (on the photos, in the categories).
+         */
+        put: operations["set_property_active_api_x_wall_admin_llm_properties__name__active_put"];
         post?: never;
         delete?: never;
         options?: never;
@@ -1631,7 +1660,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/x/wall/admin/llm/properties/{name}/archive": {
+    "/api/x/wall/admin/llm/properties/{name}/restore": {
         parameters: {
             query?: never;
             header?: never;
@@ -1641,17 +1670,17 @@ export interface paths {
         get?: never;
         put?: never;
         /**
-         * Archive Property
-         * @description No more polling; the last scores stay readable.
+         * Restore Property
+         * @description Out of the Papierkorb, back as it was (the switch „aktiv“ keeps its state).
          */
-        post: operations["archive_property_api_x_wall_admin_llm_properties__name__archive_post"];
+        post: operations["restore_property_api_x_wall_admin_llm_properties__name__restore_post"];
         delete?: never;
         options?: never;
         head?: never;
         patch?: never;
         trace?: never;
     };
-    "/api/x/wall/admin/llm/properties/{name}/unarchive": {
+    "/api/x/wall/admin/llm/properties/{name}/trash": {
         parameters: {
             query?: never;
             header?: never;
@@ -1660,8 +1689,12 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Unarchive Property */
-        post: operations["unarchive_property_api_x_wall_admin_llm_properties__name__unarchive_post"];
+        /**
+         * Trash Property
+         * @description „Löschen“: into the Papierkorb. Not polled, hidden from the list and
+         *     the category value pickers; the scores and the name stay.
+         */
+        post: operations["trash_property_api_x_wall_admin_llm_properties__name__trash_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -3316,7 +3349,7 @@ export interface components {
              * @description Machine-readable error code.
              * @enum {string}
              */
-            error: "scan_qr" | "needs_consent" | "banned" | "consent_outdated" | "invalid_instagram" | "join_closed" | "invalid_display_name" | "display_name_taken" | "wall_login_required" | "wall_no_password" | "wall_password_too_short" | "invalid_wall_config" | "invalid_category" | "category_exists" | "invalid_analyzer_settings" | "worker_off" | "ml_missing" | "uploads_paused" | "uploads_stopped" | "unsupported_type" | "too_large" | "invalid_meta" | "empty_upload" | "invalid_image" | "invalid_raw" | "raw_not_allowed" | "photo_limit" | "storage_full" | "invalid_pdf" | "invalid_layout" | "no_template" | "admin_required" | "wrong_password" | "login_locked" | "invalid_filter" | "unknown_analyzer" | "invalid_cursor" | "no_fingerprint" | "restore_required" | "host_guest" | "invalid_event_name" | "invalid_public_address" | "invalid_theme" | "password_too_short" | "password_unchanged" | "no_filter_enabled" | "unknown_filter" | "export_not_ready" | "export_running" | "invalid_token" | "token_taken" | "code_revoked" | "invalid_target" | "invalid_note" | "invalid_llm_config" | "llm_not_configured" | "llm_no_vision" | "llm_key_invalid" | "llm_budget_exhausted" | "invalid_property" | "property_exists" | "bad_origin" | "length_required" | "rate_limited" | "invalid_request" | "not_found" | "http_404" | "http_405";
+            error: "scan_qr" | "needs_consent" | "banned" | "consent_outdated" | "invalid_instagram" | "join_closed" | "invalid_display_name" | "display_name_taken" | "wall_login_required" | "wall_no_password" | "wall_password_too_short" | "invalid_wall_config" | "invalid_category" | "category_exists" | "invalid_analyzer_settings" | "worker_off" | "ml_missing" | "uploads_paused" | "uploads_stopped" | "unsupported_type" | "too_large" | "invalid_meta" | "empty_upload" | "invalid_image" | "invalid_raw" | "raw_not_allowed" | "photo_limit" | "storage_full" | "invalid_pdf" | "invalid_layout" | "no_template" | "admin_required" | "wrong_password" | "login_locked" | "invalid_filter" | "unknown_analyzer" | "invalid_cursor" | "no_fingerprint" | "restore_required" | "host_guest" | "invalid_event_name" | "invalid_public_address" | "invalid_theme" | "password_too_short" | "password_unchanged" | "no_filter_enabled" | "unknown_filter" | "export_not_ready" | "export_running" | "invalid_token" | "token_taken" | "code_revoked" | "invalid_target" | "invalid_note" | "invalid_llm_config" | "llm_not_configured" | "llm_no_vision" | "llm_key_invalid" | "llm_budget_exhausted" | "invalid_property" | "property_exists" | "property_not_in_trash" | "property_in_use" | "bad_origin" | "length_required" | "rate_limited" | "invalid_request" | "not_found" | "http_404" | "http_405";
             /**
              * Field
              * @description The form field a 400 is about, when the answer names one (e.g. `invalid_category`: title, line, where, by, count, verdict, ...).
@@ -5033,6 +5066,11 @@ export interface components {
             /** Properties */
             properties: components["schemas"]["PropertyOut"][];
         };
+        /** PropertyActiveIn */
+        PropertyActiveIn: {
+            /** Active */
+            active: boolean;
+        };
         /** PropertyIn */
         PropertyIn: {
             /**
@@ -5048,12 +5086,25 @@ export interface components {
         };
         /** PropertyOut */
         PropertyOut: {
-            /** Archived At */
-            archived_at: string | null;
+            /**
+             * Active
+             * @description The switch „aktiv“: false = not polled, scores stay.
+             */
+            active: boolean;
             /** Created At */
             created_at: string;
+            /**
+             * Deleted At
+             * @description In the Papierkorb since (not polled, hidden from the value pickers); null = not in the Papierkorb. Restoring keeps the switch's state.
+             */
+            deleted_at: string | null;
             /** Id */
             id: number;
+            /**
+             * Inactive At
+             * @description When it was switched off; null = active.
+             */
+            inactive_at: string | null;
             /** Last Scored At */
             last_scored_at: string | null;
             /** Name */
@@ -5065,8 +5116,11 @@ export interface components {
         };
         /** PropertyScores */
         PropertyScores: {
-            /** Archived */
-            archived: boolean;
+            /**
+             * Inactive
+             * @description Not polled any more (switched off or in the Papierkorb).
+             */
+            inactive: boolean;
             /** Name */
             name: string;
             /**
@@ -5877,11 +5931,6 @@ export interface components {
         };
         /** ValueInfo */
         ValueInfo: {
-            /**
-             * Archived
-             * @description A value of an archived property (scores stay readable).
-             */
-            archived: boolean;
             /** Available */
             available: boolean;
             /**
@@ -5889,6 +5938,11 @@ export interface components {
              * @description German group heading (the analyzer, „Objekte“, …).
              */
             group: string;
+            /**
+             * Inactive
+             * @description A value of a property that is switched off (not polled; scores stay readable).
+             */
+            inactive: boolean;
             /** Key */
             key: string;
             /**
@@ -15022,7 +15076,181 @@ export interface operations {
             };
         };
     };
-    archive_property_api_x_wall_admin_llm_properties__name__archive_post: {
+    delete_property_api_x_wall_admin_llm_properties__name__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                name: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PropertiesOut"];
+                };
+            };
+            /** @description Invalid input (see `error`) */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Needs consent or an admin session */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Forbidden: banned, paused, stopped, joining closed or a foreign Origin (CSRF) */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Not found, or no party access (`scan_qr`) */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Request validation failed (`invalid_request`) */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Rate limited (`Retry-After` header) */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    set_property_active_api_x_wall_admin_llm_properties__name__active_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                name: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PropertyActiveIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PropertyOut"];
+                };
+            };
+            /** @description Invalid input (see `error`) */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Needs consent or an admin session */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Forbidden: banned, paused, stopped, joining closed or a foreign Origin (CSRF) */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Not found, or no party access (`scan_qr`) */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Request validation failed (`invalid_request`) */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Rate limited (`Retry-After` header) */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    restore_property_api_x_wall_admin_llm_properties__name__restore_post: {
         parameters: {
             query?: never;
             header?: never;
@@ -15107,7 +15335,7 @@ export interface operations {
             };
         };
     };
-    unarchive_property_api_x_wall_admin_llm_properties__name__unarchive_post: {
+    trash_property_api_x_wall_admin_llm_properties__name__trash_post: {
         parameters: {
             query?: never;
             header?: never;

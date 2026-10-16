@@ -274,7 +274,7 @@ def test_photo_analysis_shows_objects_runs_and_opt_outs(settings, demo_extension
             ]  # fmt: skip
             assert body["opt_out"] == {"analysis": False, "external_ai": True}
             assert body["opt_out_at_analysis"] is False
-            assert body["properties"] == [{"name": "coolness", "archived": False, "scores": [0.7]}]
+            assert body["properties"] == [{"name": "coolness", "inactive": False, "scores": [0.7]}]
             assert body["durations_ms"] == {"objects": 81}
     finally:
         app.state.core.db.close()

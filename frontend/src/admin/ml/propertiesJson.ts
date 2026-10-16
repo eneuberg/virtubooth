@@ -1,7 +1,12 @@
 /**
  * „Exportieren“ / „Importieren“ of the Eigenschaften as JSON (propertiesJson.test.ts).
- * Names are immutable (N7): an import only adds names that do not exist yet and never
- * overwrites one; it goes through the same POST /llm/properties (+ archive) as the sheet.
+ * Names are immutable (N7): an import only adds names that do not exist yet (the
+ * Papierkorb counts) and never overwrites one; it goes through the same POST
+ * /llm/properties (+ the switch „aktiv“, + the Papierkorb) as the card.
+ *
+ * Each entry: `name`, `prompt`, `active` (the switch, default true) and `deleted` (in the
+ * Papierkorb, default false). Older files say `archived: true` instead of `active: false`
+ * (an archived property is an inactive one now); `active` wins when both are there.
  */
 import { isApiError } from '@/api/client';
 import { validateProperty } from './forms';
@@ -14,7 +19,8 @@ export const IMPORT_MAX_BYTES = 1_000_000;
 export interface PropertyEntry {
   name: string;
   prompt: string;
-  archived: boolean;
+  active: boolean;
+  deleted: boolean;
 }
 
 export interface PropertiesFile {
@@ -38,16 +44,23 @@ export interface ImportResult {
   failed: InvalidEntry[];
 }
 
-/** All properties, archived ones included, active first as in the list. */
+/** All properties, inactive ones and the Papierkorb included, in the list's order. */
 export function exportPayload(props: readonly LlmProperty[]): PropertiesFile {
   return {
     version: 1,
-    properties: props.map((p) => ({ name: p.name, prompt: p.prompt, archived: p.archived_at !== null })),
+    properties: props.map((p) => ({
+      name: p.name,
+      prompt: p.prompt,
+      active: p.active,
+      deleted: p.deleted_at !== null,
+    })),
   };
 }
 
 const isRecord = (v: unknown): v is Record<string, unknown> =>
   typeof v === 'object' && v !== null && !Array.isArray(v);
+
+const FLAGS = ['active', 'deleted', 'archived'] as const;
 
 /** Reads a file's text: the whole file fails on bad JSON, version or size; single bad entries are listed. */
 export function parseImport(text: string, bytes: number = new Blob([text]).size): ParsedImport {
@@ -73,14 +86,15 @@ export function parseImport(text: string, bytes: number = new Blob([text]).size)
       invalid.push({ label: fallback, reason: 'kein Objekt' });
       return;
     }
-    const { name, prompt, archived } = item;
+    const { name, prompt } = item;
     const label = typeof name === 'string' && name ? name : fallback;
     if (typeof name !== 'string' || typeof prompt !== 'string') {
       invalid.push({ label, reason: 'name und prompt müssen Text sein' });
       return;
     }
-    if (archived !== undefined && typeof archived !== 'boolean') {
-      invalid.push({ label, reason: 'archived muss true oder false sein' });
+    const badFlag = FLAGS.find((f) => item[f] !== undefined && typeof item[f] !== 'boolean');
+    if (badFlag) {
+      invalid.push({ label, reason: `${badFlag} muss true oder false sein` });
       return;
     }
     const errs = validateProperty(name, prompt);
@@ -89,19 +103,27 @@ export function parseImport(text: string, bytes: number = new Blob([text]).size)
       invalid.push({ label, reason });
       return;
     }
-    entries.push({ name, prompt: prompt.trim(), archived: archived ?? false });
+    const { active, deleted, archived } = item as { active?: boolean; deleted?: boolean; archived?: boolean };
+    entries.push({
+      name,
+      prompt: prompt.trim(),
+      active: active ?? !(archived ?? false),
+      deleted: deleted ?? false,
+    });
   });
   return { ok: true, entries, invalid };
 }
 
 export interface ImportDeps {
   create: (name: string, prompt: string) => Promise<unknown>;
-  archive: (name: string, archive: boolean) => Promise<unknown>;
+  setActive: (name: string, active: boolean) => Promise<unknown>;
+  trash: (name: string, trash: boolean) => Promise<unknown>;
 }
 
 /**
- * Creates each entry whose name is new (archiving it when the file says so), one after
- * the other; existing names and repeats within the file are skipped, never overwritten.
+ * Creates each entry whose name is new (then switches it off and/or moves it into the
+ * Papierkorb when the file says so), one after the other; existing names and repeats
+ * within the file are skipped, never overwritten.
  */
 export async function importProperties(
   entries: readonly PropertyEntry[],
@@ -126,13 +148,14 @@ export async function importProperties(
       continue;
     }
     out.imported.push(e.name);
-    if (e.archived) {
-      try {
-        // oxlint-disable-next-line no-await-in-loop -- right after its create
-        await deps.archive(e.name, true);
-      } catch (err) {
-        out.failed.push({ label: e.name, reason: `angelegt, aber nicht archiviert: ${errorText(err)}` });
-      }
+    try {
+      // oxlint-disable-next-line no-await-in-loop -- right after its create
+      if (!e.active) await deps.setActive(e.name, false);
+      // oxlint-disable-next-line no-await-in-loop -- right after its create
+      if (e.deleted) await deps.trash(e.name, true);
+    } catch (err) {
+      const what = e.deleted ? 'in den Papierkorb gelegt' : 'ausgeschaltet';
+      out.failed.push({ label: e.name, reason: `angelegt, aber nicht ${what}: ${errorText(err)}` });
     }
   }
   return out;

@@ -38,7 +38,7 @@ export interface ObjectViewTabsProps {
 
 export interface PropertyScores {
   name: string;
-  archived: boolean;
+  inactive: boolean;
   scores: ReadonlyArray<number | null>;
 }
 
@@ -51,7 +51,11 @@ function ScoreLine({ idx, properties }: { idx: number; properties: ReadonlyArray
       {properties.map((p) => {
         const score = p.scores[idx];
         return (
-          <span key={p.name} className={cx('mr-3', p.archived && 'line-through')}>
+          <span
+            key={p.name}
+            className={cx('mr-3', p.inactive && 'opacity-60')}
+            title={p.inactive ? 'inaktiv: wird nicht mehr abgefragt' : undefined}
+          >
             <span className="font-mono">{p.name}</span>{' '}
             {score === null || score === undefined ? '–' : score.toFixed(2).replace('.', ',')}
           </span>
