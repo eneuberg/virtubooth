@@ -2,14 +2,14 @@ import { QueryClientProvider } from '@tanstack/react-query';
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
 import { UiProvider } from '@/ui/UiProvider';
-import { bodyField, json, must, stubApi, testClient, type Route } from '../testing';
+import { json, must, stubApi, testClient, type Route } from '../testing';
 import { llmStatus, properties } from './fixtures';
 import { PropertiesCard } from './PropertiesCard';
 import type { LlmProperty } from './types';
 
 const A = '/api/x/wall/admin/llm/properties';
 
-/** The card over a tiny in-memory server: the switch, the Papierkorb, delete for good. */
+/** The card over a tiny in-memory server: the status, the Papierkorb, delete for good. */
 function renderCard(routes: Record<string, Route> = {}) {
   let list: LlmProperty[] = properties();
   const update = (name: string, change: Partial<LlmProperty>) => {
@@ -18,10 +18,6 @@ function renderCard(routes: Record<string, Route> = {}) {
   };
   const requests = stubApi({
     [`GET ${A}`]: () => ({ properties: list }),
-    [`PUT ${A}/coolness/active`]: async (r) => {
-      const active = (await bodyField(r, 'active')) === true;
-      return update('coolness', { active, inactive_at: active ? null : '2026-10-16T10:00:00Z' });
-    },
     [`POST ${A}/coolness/trash`]: () => update('coolness', { deleted_at: '2026-10-16T10:00:00Z' }),
     [`POST ${A}/old_vibe/restore`]: () => update('old_vibe', { deleted_at: null }),
     [`DELETE ${A}/old_vibe`]: () => {
@@ -49,32 +45,23 @@ const openTrash = async () => {
   return trash;
 };
 
-describe('Eigenschaften: the switch „aktiv“ and the Papierkorb', () => {
-  it('shows a switch per property and keeps the Papierkorb out of the list, collapsed', async () => {
+describe('Eigenschaften: the status and the Papierkorb', () => {
+  it('shows a status per property (no switch) and keeps the Papierkorb out of the list, collapsed', async () => {
     renderCard();
     const list = await screen.findByTestId('ml-properties');
-    expect(within(list).getByRole('switch', { name: 'coolness aktiv' })).toHaveProperty('checked', true);
-    expect(within(list).getByRole('switch', { name: 'most_giraffe aktiv' })).toHaveProperty('checked', false);
-    expect(within(list).getByText('Inaktiv')).toBeTruthy();
+    expect(within(await row('coolness')).getByTestId('ml-property-status').textContent).toBe(
+      'wird abgefragt',
+    );
+    expect(within(await row('most_giraffe')).getByTestId('ml-property-status').textContent).toBe(
+      'ruht, keine aktive Kategorie',
+    );
+    expect(within(list).queryByRole('switch')).toBeNull();
     expect(within(list).queryByText('old_vibe')).toBeNull();
     expect(within(list).queryByText(/archiv/i)).toBeNull();
     const trash = screen.getByTestId('ml-properties-trash');
     expect(within(trash).getByRole('button', { name: 'Papierkorb (1)' }).getAttribute('aria-expanded')).toBe(
       'false',
     );
-  });
-
-  it('switches a property off', async () => {
-    const requests = renderCard();
-    fireEvent.click(within(await row('coolness')).getByRole('switch'));
-    await waitFor(() =>
-      expect(
-        within(must(document.querySelector<HTMLElement>('[data-property=coolness]'))).getByRole('switch'),
-      ).toHaveProperty('checked', false),
-    );
-    const put = must(requests.find((r) => r.method === 'PUT'));
-    expect(new URL(put.url).pathname).toBe(`${A}/coolness/active`);
-    expect(await bodyField(put, 'active')).toBe(false);
   });
 
   it('„Löschen“ moves it into the Papierkorb, „Wiederherstellen“ brings one back', async () => {

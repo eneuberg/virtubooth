@@ -109,7 +109,7 @@ export function valueChoices(values: readonly ValueInfo[]): ValueChoice[] {
     kind: v.kind,
     available: v.available,
     reason: v.reason,
-    inactive: v.inactive,
+    inactive: false,
   }));
   const seen = new Set(out.map((c) => c.id));
   const add = (choice: ValueChoice) => {
@@ -139,7 +139,7 @@ function choiceOf(v: ValueInfo): ValueChoice {
     kind: v.kind,
     available: v.available,
     reason: v.reason,
-    inactive: v.inactive,
+    inactive: false,
   };
 }
 

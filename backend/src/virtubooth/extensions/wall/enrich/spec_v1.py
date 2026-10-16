@@ -19,7 +19,7 @@ same) and converts with `upgrade()`, a pure function:
 | `select.by/order top/bottom`         | `rank.by`, `order desc/asc`                     |
 | a `gte` (top) / `lte` (bottom) condition on `select.by` | `rank.threshold`             |
 | `exists` on `select.by` (shown = by) | dropped: a winner needs the shown value anyway  |
-| `select.then_by`                     | `rank.then`                                     |
+| `select.then_by`                     | `rank.then_by`                                  |
 | `label {value, style, one, many}`    | `caption {value, format, one, many, show_object}` |
 | `verdict {prompt}`                   | `verdict {prompt, count: 1, model: null, effort: low}` |
 
@@ -344,7 +344,7 @@ def upgrade(v1: dict[str, Any]) -> dict[str, Any]:
         "pool": [_condition(w) for w in where],
         "rank": {"by": measure_of(by), "order": "desc" if top else "asc",
                  "threshold": threshold,
-                 "then": [{"by": measure_of(t["by"]),
+                 "then_by": [{"by": measure_of(t["by"]),
                            "order": "desc" if t["order"] == "top" else "asc"}
                           for t in sel["then_by"]]},
         "select": {"count": sel["count"], "one_per_guest": sel["one_per_guest"]},
@@ -427,7 +427,7 @@ def downgrade(spec: dict[str, Any]) -> dict[str, Any] | None:
         where.insert(0, {"value": by, "op": "gte" if top else "lte",
                          "operand": rank["threshold"]})  # fmt: skip
     then_by = []
-    for t in rank["then"]:
+    for t in rank["then_by"]:
         key = key_of(t["by"])
         if key is None:
             return None

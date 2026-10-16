@@ -186,7 +186,7 @@ describe('ML-Pipeline section', () => {
     renderSection();
     const list = await screen.findByTestId('ml-properties');
     expect(within(list).getByText('coolness')).toBeTruthy();
-    expect(within(list).getByText('Inaktiv')).toBeTruthy();
+    expect(within(list).getByText('ruht, keine aktive Kategorie')).toBeTruthy();
     expect(within(list).queryByRole('button', { name: /bearbeiten/i })).toBeNull();
     fireEvent.click(screen.getByTestId('ml-property-new'));
     expect((await screen.findByTestId('ml-property-warning')).textContent).toBe(

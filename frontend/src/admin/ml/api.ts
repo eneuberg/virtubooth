@@ -58,11 +58,6 @@ export function createProperty(name: string, prompt: string): Promise<LlmPropert
 
 const propertyPath = (name: string) => `/llm/properties/${encodeURIComponent(name)}`;
 
-/** The switch „aktiv“: inactive = not polled any more, the scores stay. */
-export function setPropertyActive(name: string, active: boolean): Promise<LlmProperty> {
-  return wallFetch(`${propertyPath(name)}/active`, { method: 'PUT', json: { active } });
-}
-
 /** „Löschen“ (into the Papierkorb) or „Wiederherstellen“ (back as it was). */
 export function trashProperty(name: string, trash: boolean): Promise<LlmProperty> {
   return wallFetch(`${propertyPath(name)}/${trash ? 'trash' : 'restore'}`, { method: 'POST' });

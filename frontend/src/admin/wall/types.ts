@@ -107,13 +107,32 @@ export interface CategoryInfo {
   reason: string | null;
 }
 
+/** The focus object of a winner (categories v2): what the wall frames. */
+export interface WinnerObject {
+  idx: number;
+  label: string;
+  label_de: string;
+  /** the measure's value for it (a property's score, else its confidence) */
+  value: number | null;
+  /** 0..1 on the analysed (= shown) photo; null: no frame */
+  box: { x: number; y: number; w: number; h: number } | null;
+}
+
 export interface CategoryWinner {
   photo_id: string;
   thumb_url: string;
   value: number | null;
+  /** headline and detail together („Sonnenbrille · 0,93 Coolness“) */
   label: string;
-  /** the object of the photo's object list the value came from (prop.*, objects.*) */
+  /** the object's name (show_object) or the value text */
+  headline: string;
+  /** the value text when the headline is an object */
+  detail: string | null;
+  /** the focus object's idx in the photo's object list */
   object_idx: number | null;
+  object: WinnerObject | null;
+  /** the AI's cached comment on this winner (the best `verdict.count` only) */
+  comment: { text: string; emoji: string | null } | null;
 }
 
 // ----------------------------------------------------------- category specs (§4.2)
@@ -171,6 +190,7 @@ export interface LabelSpec {
   many: string;
 }
 
+/** A v1 spec (deprecated): what the v1 editor reads (`legacy_spec`) and sends (the server converts). */
 export interface CategorySpec {
   emoji: string;
   title: string;
@@ -179,6 +199,102 @@ export interface CategorySpec {
   select: Selection;
   label: LabelSpec;
   verdict: { prompt: string } | null;
+}
+
+// ------------------------------------------------- category specs v2 (categories v2)
+
+export interface MeasureValue {
+  kind: 'value';
+  /** an analyzer's fact, `photo.created_at` or `photo.guest_photos` */
+  key: string;
+}
+
+export interface ObjectFilter {
+  /** only these labels (any of them); empty = all */
+  labels: string[];
+  exclude: string[];
+  /** 0–1 */
+  min_confidence: number | null;
+}
+
+export const AGGREGATES = ['count', 'max', 'min', 'mean', 'sum', 'top_k_mean', 'count_ge'] as const;
+export type Aggregate = (typeof AGGREGATES)[number];
+
+export interface MeasureObjects {
+  kind: 'objects';
+  where: ObjectFilter;
+  /** `confidence` or `prop:<name>`; null for a plain count */
+  field: string | null;
+  agg: Aggregate;
+  /** top_k_mean: 2–5 */
+  k: number | null;
+  /** count_ge: 0–1 */
+  t: number | null;
+}
+
+export type Measure = MeasureValue | MeasureObjects;
+
+export const POOL_OPS = ['gt', 'lt', 'gte', 'lte', 'eq', 'ne', 'between', 'exists', 'not_exists'] as const;
+export type PoolOp = (typeof POOL_OPS)[number];
+
+export interface PoolCondition {
+  measure: Measure;
+  op: PoolOp;
+  operand: number | [number, number] | null;
+}
+
+export type RankOrder = 'desc' | 'asc';
+
+export interface Rank {
+  by: Measure;
+  order: RankOrder;
+  /** desc: only ≥ threshold, asc: only ≤ threshold */
+  threshold: number | null;
+  then_by: { by: Measure; order: RankOrder }[];
+}
+
+export const CAPTION_FORMATS = ['count', 'percent', 'decimal', 'number', 'time', 'text', 'none'] as const;
+export type CaptionFormat = (typeof CAPTION_FORMATS)[number];
+
+export interface Caption {
+  /** null = rank.by */
+  value: Measure | null;
+  format: CaptionFormat;
+  one: string;
+  many: string;
+  show_object: boolean;
+}
+
+export interface VerdictSpec {
+  /** null = the default prompt */
+  prompt: string | null;
+  /** 1–5 comments, one per best winner */
+  count: number;
+  /** a Haiku/Sonnet-class model (LlmStatus.verdict.models); null = the provider's cheapest */
+  model: string | null;
+  effort: 'low' | 'medium' | 'high';
+}
+
+export interface CategorySpecV2 {
+  version: 2;
+  emoji: string;
+  title: string;
+  /** empty = the generated explanation */
+  line: string;
+  pool: PoolCondition[];
+  rank: Rank;
+  select: { count: number; one_per_guest: boolean };
+  caption: Caption;
+  verdict: VerdictSpec | null;
+}
+
+export type OffReason = 'ai_off' | 'property_trashed' | 'property_missing' | 'migrated_inactive';
+
+export interface CategoryLock {
+  reason: 'ai_off' | 'property_trashed' | 'property_missing';
+  property: string | null;
+  /** German */
+  message: string;
 }
 
 /** The LLM's verdict on a category (the latest poll), as the admin and the wall get it. */
@@ -195,24 +311,45 @@ export interface CategoryItem {
   /** the preset it came from („Vorlage“), null = made by the host */
   preset: string | null;
   position: number;
-  spec: CategorySpec;
+  spec: CategorySpecV2;
+  /** deprecated: the spec in v1 shape for the v1 editor; null when v1 cannot say it */
+  legacy_spec: CategorySpec | null;
+  /** the ranking in plain German (the wall's subtitle when `line` is empty) */
+  explanation: string;
+  /** it reads an LLM property */
+  needs_ai: boolean;
+  properties: string[];
+  /** why it cannot be switched on right now, or null */
+  locked: CategoryLock | null;
+  /** switched off by the app, why (until the host switches it) */
+  off_reason: OffReason | null;
+  off_detail: string | null;
+  off_at: string | null;
   available: boolean;
   reason: string | null;
+  /** an AI verdict while the AI is not ready: no comments meanwhile */
+  verdict_paused: boolean;
+  /** deprecated: the best-ranked winner's comment */
   verdict: CategoryVerdict | null;
   winners: CategoryWinner[];
 }
 
 export interface CategoryPreview {
   winners: CategoryWinner[];
-  /** photos that meet every condition */
+  /** photos in the pool that pass the threshold */
   matched: number;
   /** German, why nothing can win (an analyzer off, no property yet), else null */
   reason: string | null;
+  explanation: string;
+  /** the spec as validated (v2) */
+  spec: CategorySpecV2;
+  locked: CategoryLock | null;
 }
 
 export const VALUE_KINDS = ['number', 'count', 'labels', 'time'] as const;
 export type ValueKind = (typeof VALUE_KINDS)[number];
 
+/** A v1 value key (deprecated: the v1 editor's list). */
 export interface ValueInfo {
   key: string;
   title: string;
@@ -223,7 +360,34 @@ export interface ValueInfo {
   needs: string | string[] | null;
   available: boolean;
   reason: string | null;
-  inactive: boolean;
+}
+
+/** A photo value for `{kind: value, key}` (categories v2). */
+export interface PhotoValueInfo {
+  key: string;
+  title: string;
+  group: string;
+  kind: 'number' | 'count' | 'time';
+  unit: string;
+  needs: string[];
+  available: boolean;
+  reason: string | null;
+}
+
+export interface ObjectFieldInfo {
+  /** `confidence` or `prop:<name>` */
+  field: string;
+  title: string;
+  property: string | null;
+  unit: string;
+}
+
+export interface AggregateInfo {
+  agg: Aggregate;
+  title: string;
+  needs_field: boolean;
+  param: 'k' | 't' | null;
+  focus: 'max' | 'min' | 'surest' | null;
 }
 
 export interface LabelInfo {
@@ -234,8 +398,14 @@ export interface LabelInfo {
 }
 
 export interface ValuesOut {
-  values: ValueInfo[];
+  photo_values: PhotoValueInfo[];
+  object_fields: ObjectFieldInfo[];
+  aggregates: AggregateInfo[];
+  objects_available: boolean;
+  objects_reason: string | null;
   labels: LabelInfo[];
+  /** deprecated: the v1 keys */
+  values: ValueInfo[];
 }
 
 export interface WallAdminOut {

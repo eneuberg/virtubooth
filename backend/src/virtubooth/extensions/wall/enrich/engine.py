@@ -5,7 +5,7 @@ Everything a spec reads is a measure (measures.py). The pipeline:
 
     P      = visible photos (the wall's sources, past the delay, not hidden, no opt-out)
     Pool   = { p ∈ P | every pool condition holds }       (a missing value fails it)
-    Rank   = sort Pool by (rank.by, then[0], then[1], newer photo first)
+    Rank   = sort Pool by (rank.by, then_by[0], then_by[1], newer photo first)
              a missing rank value ranks last; a missing displayed value drops the photo
     Thresh = optional on rank.by: desc ⇒ m ≥ t, asc ⇒ m ≤ t
     Pick   = one photo per guest (optional) → the first `select.count` (1–10)
@@ -213,7 +213,7 @@ def validate(spec: Any) -> dict[str, Any]:
     pool = [_condition(c, i) for i, c in enumerate(pool_raw)]
 
     rank_raw = spec.get("rank")
-    if not isinstance(rank_raw, dict) or set(rank_raw) - {"by", "order", "threshold", "then"}:
+    if not isinstance(rank_raw, dict) or set(rank_raw) - {"by", "order", "threshold", "then_by"}:
         raise InvalidCategory("Rang")
     by = _measure(rank_raw.get("by"), "Rang: Messgröße")
     order = rank_raw.get("order", "desc")
@@ -222,7 +222,7 @@ def validate(spec: Any) -> dict[str, Any]:
     threshold = rank_raw.get("threshold")
     if threshold is not None:
         threshold = _number(threshold, "Rang: Schwelle")
-    then_raw = rank_raw.get("then", [])
+    then_raw = rank_raw.get("then_by", [])
     if not isinstance(then_raw, list) or len(then_raw) > MAX_THEN:
         raise InvalidCategory("Rang: danach")
     then = [_then(t, i) for i, t in enumerate(then_raw)]
@@ -256,7 +256,7 @@ def validate(spec: Any) -> dict[str, Any]:
         raise InvalidCategory("Beschriftung: Objekt zeigen")
     return {
         "version": 2, "emoji": emoji.strip(), "title": title, "line": line, "pool": pool,
-        "rank": {"by": by, "order": order, "threshold": threshold, "then": then},
+        "rank": {"by": by, "order": order, "threshold": threshold, "then_by": then},
         "select": {"count": count, "one_per_guest": one_per_guest},
         "caption": {"value": cvalue, "format": fmt, "one": one, "many": many,
                     "show_object": show_object},
@@ -277,7 +277,7 @@ def spec_measures(spec: Mapping[str, Any]) -> tuple[list[Measure], list[Measure]
     required = [_parsed(c["measure"]) for c in spec["pool"]]
     cap = spec["caption"]["value"]
     required.append(_parsed(cap or spec["rank"]["by"]))
-    optional = [_parsed(spec["rank"]["by"]), *(_parsed(t["by"]) for t in spec["rank"]["then"])]
+    optional = [_parsed(spec["rank"]["by"]), *(_parsed(t["by"]) for t in spec["rank"]["then_by"])]
     req = list(dict.fromkeys(required))
     return req, [m for m in dict.fromkeys(optional) if m not in req]
 
@@ -576,7 +576,7 @@ def run(
     rank, sel, cap = spec["rank"], spec["select"], spec["caption"]
     pool = [(_parsed(c["measure"]), c["op"], c["operand"]) for c in spec["pool"]]
     by = _parsed(rank["by"])
-    then = [(_parsed(t["by"]), t["order"]) for t in rank["then"]]
+    then = [(_parsed(t["by"]), t["order"]) for t in rank["then_by"]]
     shown = _parsed(cap["value"]) if cap["value"] else by
     every = [m for m, _, _ in pool] + [by, shown] + [m for m, _ in then]
     needs_guests = any(m.kind == "value" and m.key == "photo.guest_photos" for m in every)

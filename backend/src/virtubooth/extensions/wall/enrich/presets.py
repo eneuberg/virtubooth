@@ -83,7 +83,7 @@ def _spec(
     return {
         "version": 2, "emoji": emoji, "title": title, "line": line, "pool": list(pool),
         "rank": {"by": by, "order": order, "threshold": threshold,
-                 "then": [{"by": t, "order": "desc"} for t in then]},
+                 "then_by": [{"by": t, "order": "desc"} for t in then]},
         "select": {"count": count, "one_per_guest": one_per_guest},
         "caption": {"value": shown, "format": fmt, "one": one, "many": many,
                     "show_object": show_object},

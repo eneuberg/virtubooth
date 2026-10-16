@@ -285,8 +285,9 @@ export function CategorySheet({ item, values, taken, isOpen, onOpenChange }: Cat
   const choices = useMemo(() => valueChoices(values.values), [values.values]);
   const isNew = item === null;
   const [draft, setDraft] = useState<CategoryDraft>(() =>
-    item
-      ? fromSpec(item.id, item.spec, (key) => kindOf(key, choices) === 'time')
+    // the v1 editor edits the v1 view of a spec (none: the v2 editor's job, Bearbeiten is off)
+    item?.legacy_spec
+      ? fromSpec(item.id, item.legacy_spec, (key) => kindOf(key, choices) === 'time')
       : { ...emptyDraft(), by: choices.some((c) => c.id === 'people') ? 'people' : '' },
   );
   const [idTouched, setIdTouched] = useState(false);

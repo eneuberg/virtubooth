@@ -13,6 +13,7 @@ import type {
   CategoryItem,
   CategoryPreview,
   CategorySpec,
+  CategorySpecV2,
   PasswordState,
   PhotoAnalysis,
   PhotoAnalysisSummary,
@@ -74,7 +75,11 @@ export function createCategory(id: string, spec: CategorySpec, enabled = true): 
   return wallFetch('/categories', { method: 'POST', json: { id, spec, enabled } });
 }
 
-export function saveCategory(id: string, spec: CategorySpec, enabled: boolean): Promise<CategoryItem> {
+export function saveCategory(
+  id: string,
+  spec: CategorySpec | CategorySpecV2,
+  enabled: boolean,
+): Promise<CategoryItem> {
   return wallFetch(`/categories/${encodeURIComponent(id)}`, { method: 'PUT', json: { spec, enabled } });
 }
 

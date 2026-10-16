@@ -352,7 +352,7 @@ class CategoryRank(BaseModel):
     threshold: float | None = Field(
         None, description="Only photos with `by` ≥ threshold (desc) or ≤ threshold (asc)."
     )
-    then: list[CategoryThen] = Field(default_factory=list, description="≤ 2 tie-breakers.")
+    then_by: list[CategoryThen] = Field(default_factory=list, description="≤ 2 tie-breakers.")
 
 
 class CategorySelect(BaseModel):

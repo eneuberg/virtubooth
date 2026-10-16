@@ -2,11 +2,11 @@
  * „Exportieren“ / „Importieren“ of the Eigenschaften as JSON (propertiesJson.test.ts).
  * Names are immutable (N7): an import only adds names that do not exist yet (the
  * Papierkorb counts) and never overwrites one; it goes through the same POST
- * /llm/properties (+ the switch „aktiv“, + the Papierkorb) as the card.
+ * /llm/properties (+ the Papierkorb) as the card.
  *
- * Each entry: `name`, `prompt`, `active` (the switch, default true) and `deleted` (in the
- * Papierkorb, default false). Older files say `archived: true` instead of `active: false`
- * (an archived property is an inactive one now); `active` wins when both are there.
+ * Each entry: `name`, `prompt` and `deleted` (in the Papierkorb, default false). Older
+ * files also have `active` or `archived` (the switch „aktiv“, gone since categories v2: a
+ * property is polled while an enabled category reads it): read and ignored.
  */
 import { isApiError } from '@/api/client';
 import { validateProperty } from './forms';
@@ -19,7 +19,6 @@ export const IMPORT_MAX_BYTES = 1_000_000;
 export interface PropertyEntry {
   name: string;
   prompt: string;
-  active: boolean;
   deleted: boolean;
 }
 
@@ -44,14 +43,13 @@ export interface ImportResult {
   failed: InvalidEntry[];
 }
 
-/** All properties, inactive ones and the Papierkorb included, in the list's order. */
+/** All properties, the Papierkorb included, in the list's order. */
 export function exportPayload(props: readonly LlmProperty[]): PropertiesFile {
   return {
     version: 1,
     properties: props.map((p) => ({
       name: p.name,
       prompt: p.prompt,
-      active: p.active,
       deleted: p.deleted_at !== null,
     })),
   };
@@ -103,27 +101,21 @@ export function parseImport(text: string, bytes: number = new Blob([text]).size)
       invalid.push({ label, reason });
       return;
     }
-    const { active, deleted, archived } = item as { active?: boolean; deleted?: boolean; archived?: boolean };
-    entries.push({
-      name,
-      prompt: prompt.trim(),
-      active: active ?? !(archived ?? false),
-      deleted: deleted ?? false,
-    });
+    const { deleted } = item as { deleted?: boolean };
+    entries.push({ name, prompt: prompt.trim(), deleted: deleted ?? false });
   });
   return { ok: true, entries, invalid };
 }
 
 export interface ImportDeps {
   create: (name: string, prompt: string) => Promise<unknown>;
-  setActive: (name: string, active: boolean) => Promise<unknown>;
   trash: (name: string, trash: boolean) => Promise<unknown>;
 }
 
 /**
- * Creates each entry whose name is new (then switches it off and/or moves it into the
- * Papierkorb when the file says so), one after the other; existing names and repeats
- * within the file are skipped, never overwritten.
+ * Creates each entry whose name is new (then moves it into the Papierkorb when the file
+ * says so), one after the other; existing names and repeats within the file are
+ * skipped, never overwritten.
  */
 export async function importProperties(
   entries: readonly PropertyEntry[],
@@ -150,12 +142,12 @@ export async function importProperties(
     out.imported.push(e.name);
     try {
       // oxlint-disable-next-line no-await-in-loop -- right after its create
-      if (!e.active) await deps.setActive(e.name, false);
-      // oxlint-disable-next-line no-await-in-loop -- right after its create
       if (e.deleted) await deps.trash(e.name, true);
     } catch (err) {
-      const what = e.deleted ? 'in den Papierkorb gelegt' : 'ausgeschaltet';
-      out.failed.push({ label: e.name, reason: `angelegt, aber nicht ${what}: ${errorText(err)}` });
+      out.failed.push({
+        label: e.name,
+        reason: `angelegt, aber nicht in den Papierkorb gelegt: ${errorText(err)}`,
+      });
     }
   }
   return out;

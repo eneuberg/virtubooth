@@ -128,7 +128,14 @@ function Row({
         >
           Zeigen
         </Switch>
-        <Button size="xs" variant="quiet" icon={Pencil} onPress={onEdit} data-testid="category-edit">
+        <Button
+          size="xs"
+          variant="quiet"
+          icon={Pencil}
+          onPress={onEdit}
+          isDisabled={item.legacy_spec === null}
+          data-testid="category-edit"
+        >
           Bearbeiten
         </Button>
       </div>

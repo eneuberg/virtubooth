@@ -362,7 +362,7 @@ def test_validation_normalises():
     assert spec["title"] == "Volles Haus" and spec["version"] == 2
     assert spec["rank"] == {"by": {"kind": "value", "key": "people"}, "order": "desc",
                             "threshold": None,
-                            "then": [{"by": {"kind": "value", "key": "smiles"},
+                            "then_by": [{"by": {"kind": "value", "key": "smiles"},
                                       "order": "desc"}]}  # fmt: skip
     assert spec["select"] == {"count": 3, "one_per_guest": True}
     assert spec["caption"] == {"value": None, "format": "count", "one": "", "many": "",
@@ -392,7 +392,7 @@ OBJ = {"kind": "objects", "field": "prop:coolness", "agg": "max"}
         (v2(rank={"by": {"kind": "value", "key": "people"}, "threshold": "3"}),
          "Rang: Schwelle"),
         (v2(rank={"by": {"kind": "value", "key": "people"},
-                  "then": [{"by": OBJ}] * 3}), "Rang: danach"),
+                  "then_by": [{"by": OBJ}] * 3}), "Rang: danach"),
         (v2(rank={"by": {"kind": "objects", "agg": "max"}}), "Rang: Messgröße"),  # no field
         (v2(rank={"by": {**OBJ, "agg": "top_k_mean"}}), "Rang: Messgröße"),  # no k
         (v2(rank={"by": {**OBJ, "agg": "top_k_mean", "k": 6}}), "Rang: Messgröße"),

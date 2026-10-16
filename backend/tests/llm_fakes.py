@@ -289,7 +289,7 @@ def property_spec(name: str, **changes: Any) -> dict[str, Any]:
             "by": {"kind": "objects", "field": f"prop:{name}", "agg": "max"},
             "order": "desc",
             "threshold": None,
-            "then": [],
+            "then_by": [],
         },
         "select": {"count": 3, "one_per_guest": True},
         "caption": {"value": None, "format": "decimal", "one": "", "many": "",

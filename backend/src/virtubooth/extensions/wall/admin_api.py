@@ -123,7 +123,7 @@ _FORM_FIELDS = (
     ("Untertitel", "line"),
     ("Titel", "title"),
     ("Bedingung", "pool"),
-    ("Rang: danach", "rank.then"),
+    ("Rang: danach", "rank.then_by"),
     ("Rang: Schwelle", "rank.threshold"),
     ("Rang", "rank.by"),
     ("Anzahl", "count"),

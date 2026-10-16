@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { categoryItems, spec, valuesOut } from '../fixtures';
+import { must } from '../../testing';
 import { CONDITION_OPS, LABEL_STYLES, type CategorySpec } from '../types';
 import {
   emptyCondition,
@@ -105,9 +106,10 @@ describe('numbers and times', () => {
 describe('round trip', () => {
   it('keeps every preset spec unchanged', () => {
     for (const item of categoryItems()) {
-      const draft = fromSpec(item.id, item.spec);
+      const legacy = must(item.legacy_spec);
+      const draft = fromSpec(item.id, legacy);
       expect(validate(draft, ctx)).toEqual({});
-      expect(toSpec(draft, choices)).toEqual(item.spec);
+      expect(toSpec(draft, choices)).toEqual(legacy);
     }
   });
 

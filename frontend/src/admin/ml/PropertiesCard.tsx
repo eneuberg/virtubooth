@@ -27,14 +27,7 @@ import { showToast } from '@/ui/Toast';
 import { errorText, showError } from '../common/usePhotoActions';
 import { Card } from '../wall/fields';
 import { wk } from '../wall/keys';
-import {
-  createProperty,
-  deleteProperty,
-  pollNow,
-  saveLlmConfig,
-  setPropertyActive,
-  trashProperty,
-} from './api';
+import { createProperty, deleteProperty, pollNow, saveLlmConfig, trashProperty } from './api';
 import { ExternalAiHint } from './ExternalAiHint';
 import { parseMinutes, PROPERTY_PROMPT_MAX, validateProperty } from './forms';
 import { useProperties } from './hooks';
@@ -278,7 +271,7 @@ function NewPropertySheet({
   );
 }
 
-/** „Exportieren“ (all, inactive ones and the Papierkorb included) and „Importieren“ (only new names, never overwrites). */
+/** „Exportieren“ (all, the Papierkorb included) and „Importieren“ (only new names, never overwrites). */
 function PropertiesJson({
   props,
   ready,
@@ -311,7 +304,7 @@ function PropertiesJson({
       const done = await importProperties(
         parsed.entries,
         props.map((p) => p.name),
-        { create: createProperty, setActive: setPropertyActive, trash: trashProperty },
+        { create: createProperty, trash: trashProperty },
         errorText,
       );
       const result = { ...done, invalid: parsed.invalid };
@@ -404,10 +397,18 @@ function useRefresh() {
   };
 }
 
+/** The derived status (categories v2: no switch; polled while an enabled category reads it). */
+const STATUS_TEXT: Record<LlmProperty['status'], string> = {
+  polled: 'wird abgefragt',
+  idle: 'ruht, keine aktive Kategorie',
+  paused: 'pausiert, externe KI aus',
+  trashed: 'Papierkorb',
+};
+
 function PropertyRow({ property: p }: { property: LlmProperty }) {
   const refresh = useRefresh();
-  const [busy, setBusy] = useState<'active' | 'trash' | null>(null);
-  const run = async (what: 'active' | 'trash', action: () => Promise<unknown>, done?: string) => {
+  const [busy, setBusy] = useState<'trash' | null>(null);
+  const run = async (what: 'trash', action: () => Promise<unknown>, done?: string) => {
     setBusy(what);
     try {
       await action();
@@ -422,18 +423,13 @@ function PropertyRow({ property: p }: { property: LlmProperty }) {
   return (
     <li data-property={p.name} className="grid gap-1 border-b border-line py-3">
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-        <span className={cx('font-mono font-semibold', !p.active && 'text-ink-muted')}>{p.name}</span>
-        {p.active ? null : <Badge tone="neutral">Inaktiv</Badge>}
+        <span className={cx('font-mono font-semibold', p.status !== 'polled' && 'text-ink-muted')}>
+          {p.name}
+        </span>
+        <span data-testid="ml-property-status">
+          <Badge tone="neutral">{STATUS_TEXT[p.status]}</Badge>
+        </span>
         <div className="ml-auto flex items-center gap-2">
-          <Switch
-            isSelected={p.active}
-            isPending={busy === 'active'}
-            onChange={(on) => void run('active', () => setPropertyActive(p.name, on))}
-            aria-label={`${p.name} aktiv`}
-            data-testid="ml-property-active"
-          >
-            aktiv
-          </Switch>
           <Button
             size="xs"
             variant="quiet"

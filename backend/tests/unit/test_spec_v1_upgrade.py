@@ -84,7 +84,7 @@ def test_selection_threshold_and_caption():
                               one_per_guest=False, label={"one": "P", "many": "Ps"}))  # fmt: skip
     # the first `gte` on the ranking value is the threshold; the rest stay conditions
     assert spec["rank"] == {"by": val("people"), "order": "desc", "threshold": 3.0,
-                            "then": [{"by": val("smiles"), "order": "desc"},
+                            "then_by": [{"by": val("smiles"), "order": "desc"},
                                      {"by": val("hands"), "order": "asc"}]}  # fmt: skip
     assert [c["measure"] for c in spec["pool"]] == [val("smiles"), val("people")]
     assert spec["select"] == {"count": 4, "one_per_guest": False}

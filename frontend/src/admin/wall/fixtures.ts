@@ -3,10 +3,14 @@
  * PLAN-NIGHT §4.2/§4.3 shapes (analyzers, objects, values, categories).
  */
 import type {
+  Aggregate,
   Analyzer,
   AnalysisStatus,
   CategoryItem,
   CategorySpec,
+  CategorySpecV2,
+  CategoryWinner,
+  Measure,
   PhotoAnalysis,
   ValuesOut,
   WallAdminOut,
@@ -228,6 +232,11 @@ export function photoAnalysis(state: PhotoAnalysis['state'] = 'done'): PhotoAnal
 // ---------------------------------------------------------------- categories
 
 export const valuesOut: ValuesOut = {
+  photo_values: [],
+  object_fields: [{ field: 'confidence', title: 'Erkennungssicherheit', property: null, unit: '0–1' }],
+  aggregates: [],
+  objects_available: true,
+  objects_reason: null,
   values: [
     v('people', 'Personen', 'Gesichter und Personen', 'count'),
     v('smiles', 'Lächeln', 'Gesichter und Personen', 'count'),
@@ -248,7 +257,62 @@ export const valuesOut: ValuesOut = {
 };
 
 function v(key: string, title: string, group: string, kind: ValuesOut['values'][number]['kind']) {
-  return { key, title, group, kind, unit: null, needs: null, available: true, reason: null, inactive: false };
+  return { key, title, group, kind, unit: null, needs: null, available: true, reason: null };
+}
+
+const NO_FILTER = { labels: [], exclude: [], min_confidence: null };
+
+/** v2 measures for the fixtures */
+export const measure = {
+  value: (key: string): Measure => ({ kind: 'value', key }),
+  objects: (agg: Aggregate, field: string | null = null, labels: string[] = []): Measure => ({
+    kind: 'objects',
+    where: { ...NO_FILTER, labels },
+    field,
+    agg,
+    k: null,
+    t: null,
+  }),
+};
+
+export function specV2(over: Partial<CategorySpecV2> = {}): CategorySpecV2 {
+  return {
+    version: 2,
+    emoji: '👥',
+    title: 'Volles Haus',
+    line: 'Die meisten Leute auf einem Foto',
+    pool: [],
+    rank: { by: measure.value('people'), order: 'desc', threshold: 3, then_by: [] },
+    select: { count: 3, one_per_guest: true },
+    caption: { value: null, format: 'count', one: 'Person', many: 'Personen', show_object: false },
+    verdict: null,
+    ...over,
+  };
+}
+
+const ITEM = {
+  explanation: 'Höchster Wert bei „Personen“, mindestens 3',
+  needs_ai: false,
+  properties: [],
+  locked: null,
+  off_reason: null,
+  off_detail: null,
+  off_at: null,
+  verdict_paused: false,
+} satisfies Partial<CategoryItem>;
+
+export function winner(photo: string, value: number, label: string): CategoryWinner {
+  return {
+    photo_id: photo,
+    thumb_url: `/media/${photo}?thumb=1`,
+    value,
+    label,
+    headline: label,
+    detail: null,
+    object_idx: null,
+    object: null,
+    comment: null,
+  };
 }
 
 export function spec(over: Partial<CategorySpec> = {}): CategorySpec {
@@ -267,45 +331,78 @@ export function spec(over: Partial<CategorySpec> = {}): CategorySpec {
 export function categoryItems(): CategoryItem[] {
   return [
     {
+      ...ITEM,
       id: 'volles_haus',
       enabled: true,
       preset: 'volles_haus',
       position: 0,
-      spec: spec(),
+      spec: specV2(),
+      legacy_spec: spec(),
       available: true,
       reason: null,
       verdict: null,
-      winners: [
-        { photo_id: 'p1', thumb_url: '/media/p1?thumb=1', value: 7, label: '7 Personen', object_idx: null },
-      ],
+      winners: [winner('p1', 7, '7 Personen')],
     },
     {
+      ...ITEM,
       id: 'coolstes_objekt',
       enabled: false,
       preset: 'coolstes_objekt',
       position: 1,
-      spec: spec({
+      spec: specV2({
         emoji: '🏆',
         title: 'Das coolste Objekt',
         line: 'Was die KI am coolsten findet',
-        where: [{ value: 'prop.coolness.max', op: 'exists', operand: null }],
+        rank: { by: measure.objects('max', 'prop:coolness'), order: 'desc', threshold: null, then_by: [] },
+        select: { count: 1, one_per_guest: false },
+        caption: { value: null, format: 'none', one: '', many: '', show_object: true },
+        verdict: {
+          prompt: 'Werte das coolste Objekt aus den Ergebnissen raus und sag mir, von wem und was.',
+          count: 1,
+          model: null,
+          effort: 'low',
+        },
+      }),
+      legacy_spec: spec({
+        emoji: '🏆',
+        title: 'Das coolste Objekt',
+        line: 'Was die KI am coolsten findet',
+        where: [],
         select: { by: 'prop.coolness.max', order: 'top', count: 1, then_by: [], one_per_guest: false },
         label: { value: null, style: 'object', one: '', many: '' },
         verdict: {
           prompt: 'Werte das coolste Objekt aus den Ergebnissen raus und sag mir, von wem und was.',
         },
       }),
+      explanation: 'Höchster coolness-Wert unter allen Objekten',
+      needs_ai: true,
+      properties: ['coolness'],
       available: false,
       reason: 'Braucht die Eigenschaft „coolness“.',
       verdict: { text: 'Der Hut von Gast 3 ist unschlagbar.', emoji: '🎩', photo_id: 'p2' },
       winners: [],
     },
     {
+      ...ITEM,
       id: 'mein_prost',
       enabled: true,
       preset: null,
       position: 2,
-      spec: spec({
+      spec: specV2({
+        emoji: '🥂',
+        title: 'Prost!',
+        line: 'Die meisten Gläser',
+        pool: [{ measure: measure.objects('count', null, ['wine glass']), op: 'gte', operand: 1 }],
+        rank: {
+          by: measure.objects('count', null, ['wine glass']),
+          order: 'desc',
+          threshold: null,
+          then_by: [],
+        },
+        select: { count: 3, one_per_guest: false },
+        caption: { value: null, format: 'count', one: 'Glas', many: 'Gläser', show_object: false },
+      }),
+      legacy_spec: spec({
         emoji: '🥂',
         title: 'Prost!',
         line: 'Die meisten Gläser',
@@ -313,6 +410,7 @@ export function categoryItems(): CategoryItem[] {
         select: { by: 'objects.count:wine glass', order: 'top', count: 3, then_by: [], one_per_guest: false },
         label: { value: null, style: 'count', one: 'Glas', many: 'Gläser' },
       }),
+      explanation: 'Die meisten Objekte (nur wine glass)',
       available: true,
       reason: null,
       verdict: null,
