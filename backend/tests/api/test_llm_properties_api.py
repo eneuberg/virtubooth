@@ -212,8 +212,6 @@ def test_the_trash_is_left_out_of_the_value_pickers(admin, core):
     admin.post(f"{BASE}/coolness/trash", headers=ORIGIN)
     out = values.catalogue(core.db, set())
     assert [f.field for f in out.object_fields] == ["confidence", "prop:lustigkeit"]
-    keys = {v.key for v in out.values}  # the v1 editor's list
-    assert "prop.coolness.max" not in keys and "prop.lustigkeit.max" in keys
     # its scores stay readable: a category using it keeps its data
     assert values.properties_of(core.db) == {"coolness": True, "lustigkeit": False}
 

@@ -221,7 +221,7 @@ def test_object_detection_is_either_or(settings, demo_extension):
         assert r.json()["detection"]["mode"] == "ai"
         assert not objects_on()
         people = next(
-            v for v in admin.get("/api/x/wall/admin/values").json()["values"]
+            v for v in admin.get("/api/x/wall/admin/values").json()["photo_values"]
             if v["key"] == "people"
         )  # fmt: skip
         assert "faces" in people["needs"]
