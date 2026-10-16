@@ -456,7 +456,7 @@ def test_external_ai_detection_poll_properties_and_budget(
         "2 Fotos lokal statt KI · zuletzt: Budget aufgebraucht"
     )
     expect(page.get_by_test_id("ml-usage-table")).to_contain_text("Eigenschaft „coolness“")
-    assert errors(page) == []
+    assert errors(page, 409) == []  # the refused „KI“ above
 
 
 def test_properties_export_import_round_trip(

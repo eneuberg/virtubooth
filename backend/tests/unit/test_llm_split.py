@@ -16,7 +16,6 @@ from virtubooth.extensions.wall.llm.poller import eligible_photos, poll_once
 
 from ..conftest import ORIGIN
 from ..llm_fakes import (
-    store_key,
     COOLEST_SPEC,
     FakeProvider,
     add_category,
@@ -24,6 +23,7 @@ from ..llm_fakes import (
     add_photo,
     add_property,
     setup_llm,
+    store_key,
 )
 
 BASE = "/api/x/wall/admin/llm"

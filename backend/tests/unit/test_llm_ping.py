@@ -167,7 +167,7 @@ def test_anthropic_a_dated_id_in_the_list_counts():
     provider = anthropic_like(AnthropicProvider, api)
     assert provider.ping("claude-haiku-5-5").input_tokens == 0
     assert provider.ping("claude-opus-5-5").input_tokens == 0
-    assert [p for p in api.paths()] == [("GET", "/v1/models")] * 2
+    assert api.paths() == [("GET", "/v1/models")] * 2
     assert api.requests[0].headers["x-api-key"] == KEY
 
 

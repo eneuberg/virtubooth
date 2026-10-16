@@ -22,7 +22,7 @@ import { Card } from '../wall/fields';
 import { wk } from '../wall/keys';
 import { EXTERNAL_AI_CARD } from './ExternalAiHint';
 import { clearLlmKey, saveLlmConfig, setLlmKey, testLlmKey } from './api';
-import { EFFORT_LABELS, keyStatusText } from './forms';
+import { EFFORT_LABELS, keyOf, keyStatusText } from './forms';
 import { modelText } from './text';
 import { EFFORTS, type Effort, type LlmConfig, type LlmKeyState, type LlmStatus } from './types';
 
@@ -39,16 +39,6 @@ function fieldsOf(c: LlmConfig): Fields {
 }
 
 const sameFields = (a: Fields, b: Fields) => JSON.stringify(a) === JSON.stringify(b);
-
-const NO_KEY: Omit<LlmKeyState, 'provider'> = { set: false, set_at: null, valid: false };
-
-/** The stored key state of one provider (one key each). */
-export function keyOf(status: LlmStatus, provider: string): LlmKeyState {
-  return (
-    status.keys.find((k) => k.provider === provider) ??
-    (status.key.provider === provider ? status.key : { ...NO_KEY, provider })
-  );
-}
 
 /** The provider's name without the parenthesis: „Scaleway“, „Anthropic“. */
 const shortTitle = (title: string) => title.split(' (')[0] ?? title;

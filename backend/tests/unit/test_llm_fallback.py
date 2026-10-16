@@ -28,6 +28,7 @@ from ..conftest import ORIGIN
 from ..llm_fakes import API_KEY, FakeProvider, add_guest, add_photo, set_flags, setup_llm
 from .test_llm_either_or import AI, FakeDetector
 
+UNREADABLE = "Der API-Schlüssel für Anthropic (Claude, USA) ist nicht lesbar"
 LIMITS = {"party_usd": None, "party_calls": None, "daily_usd": None, "daily_calls": None}
 
 
@@ -146,8 +147,7 @@ def _budget(core, svc):
     ("cause", "reason", "error"),
     [
         (_no_key, jobs.NO_KEY, "Kein API-Schlüssel für Anthropic (Claude, USA) gesetzt."),
-        (_unreadable_key, jobs.KEY_INVALID, "Der API-Schlüssel für Anthropic (Claude, USA) ist "
-                                            "nicht lesbar"),  # fmt: skip
+        (_unreadable_key, jobs.KEY_INVALID, UNREADABLE),
         (_budget, jobs.BUDGET, "Budget erreicht"),
     ],
 )

@@ -90,7 +90,10 @@ def test_status_shape(admin):
     body = admin.get(BASE).json()
     assert body["key"] == {"set": False, "set_at": None, "provider": "anthropic", "valid": False}
     assert [(k["provider"], k["set"]) for k in body["keys"]] == [
-        ("anthropic", False), ("mistral", False), ("deutschlandgpt", False), ("scaleway", False)
+        ("anthropic", False),
+        ("mistral", False),
+        ("deutschlandgpt", False),
+        ("scaleway", False),
     ]
     assert [p["id"] for p in body["providers"]] == [
         "anthropic",

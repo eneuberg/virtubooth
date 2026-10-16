@@ -71,6 +71,16 @@ export function parseMinutes(text: string): number | null {
   return n >= 1 && n <= 60 ? n : null;
 }
 
+const NO_KEY: Omit<LlmKeyState, 'provider'> = { set: false, set_at: null, valid: false };
+
+/** The stored key state of one provider (one key each). */
+export function keyOf(status: LlmStatus, provider: string): LlmKeyState {
+  return (
+    status.keys.find((k) => k.provider === provider) ??
+    (status.key.provider === provider ? status.key : { ...NO_KEY, provider })
+  );
+}
+
 /** „gesetzt“ / „nicht gesetzt“; never anything of the key itself. */
 export function keyStatusText(key: LlmKeyState): string {
   if (!key.set) return 'nicht gesetzt';
