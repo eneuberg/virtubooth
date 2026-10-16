@@ -828,6 +828,15 @@ def switch_off(db: Database, cid: str, reason: str, detail: str | None) -> None:
         )
 
 
+def mark_off(db: Database, cid: str, reason: str, detail: str | None) -> None:
+    """Off with a reason, whatever it was (an import that cannot switch it on)."""
+    with db.tx() as c:
+        c.execute(
+            "UPDATE wall_categories SET enabled=0, off_reason=?, off_detail=?, off_at=? WHERE id=?",
+            (reason, detail, now_iso(), cid),
+        )
+
+
 def delete(db: Database, cid: str) -> bool:
     with db.tx() as c:
         gone = c.execute("DELETE FROM wall_categories WHERE id=?", (cid,)).rowcount > 0

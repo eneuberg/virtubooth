@@ -89,9 +89,7 @@ def test_presets_are_seeded_once(admin, core):
     assert volles["spec"]["rank"]["threshold"] == 3 and volles["winners"] == []
     assert volles["verdict"] is None and volles["needs_ai"] is False
     assert volles["explanation"] == "Höchster Wert bei „Personen“, mindestens 3"
-    # the v1 editor's view of it
-    assert volles["legacy_spec"]["select"]["by"] == "people"
-    assert volles["legacy_spec"]["where"] == [{"value": "people", "op": "gte", "operand": 3.0}]
+    assert "legacy_spec" not in volles  # the v1 bridge is gone with the v2 editor
     cool = next(c for c in body if c["id"] == "coolstes_objekt")
     assert cool["enabled"] is False and cool["available"] is False
     assert cool["needs_ai"] is True and cool["properties"] == ["coolness"]
@@ -120,8 +118,6 @@ def test_crud_order_restore_and_audit(admin, core):
     assert item["spec"]["version"] == 2
     assert item["spec"]["rank"]["by"]["where"]["labels"] == ["hat"]
     assert item["spec"]["select"] == {"count": 2, "one_per_guest": True}
-    assert item["legacy_spec"]["select"] == {"by": "objects.count:hat", "order": "top",
-                                             "count": 2, "then_by": [], "one_per_guest": True}  # fmt: skip
     r = admin.post(BASE, json={"id": "hutparty", "spec": spec()}, headers=ORIGIN)
     assert r.status_code == 409 and r.json()["error"] == "category_exists"
     # change: spec and switch
@@ -290,6 +286,13 @@ def test_the_comment_reaches_the_screen(admin, guest, core):
                             "box": {"x": 0.1, "y": 0.2, "w": 0.3, "h": 0.4}}  # fmt: skip
     assert (ww["headline"], ww["detail"]) == ("Hut", "0,80 Coolness")
     assert cat["line"] == "Was die KI am coolsten findet"
+    # the Live tile's win chip has the place, the caption and the comment
+    summary = admin.get("/api/x/wall/admin/photos/analysis", params={"ids": pid_pub}).json()
+    win = next(w for w in summary["items"][0]["wins"] if w["id"] == "coolstes_objekt")
+    assert win == {"id": "coolstes_objekt", "emoji": "🏆", "title": "Das coolste Objekt",
+                   "verdict": True, "rank": 1, "headline": "Hut", "detail": "0,80 Coolness",
+                   "object_label": "Hut",
+                   "comment": {"text": "Der Hut von Otter 3!", "emoji": "🎩"}}  # fmt: skip
     # the guest opts out of the external AI: the comment is not shown any more
     with core.db.tx() as tx:
         tx.execute("UPDATE users SET ai_opt_out=1 WHERE id=?", (user_of(core, g).id,))
@@ -381,10 +384,7 @@ def test_values_catalogue(admin, guest, core):
     assert aggs["top_k_mean"]["param"] == "k" and aggs["min"]["focus"] == "min"
     assert aggs["count"]["needs_field"] is False and aggs["count"]["focus"] == "surest"
     assert body["labels"] == [{"label": "hat", "label_de": "Hut", "count": 1}]
-    # the v1 editor's keys (deprecated)
-    values = {v["key"]: v for v in body["values"]}
-    assert values["objects"]["kind"] == "labels"
-    assert values["prop.lustigkeit.count"]["kind"] == "count"
+    assert "values" not in body  # the v1 editor's keys went with it
 
 
 def test_the_hub_announces_a_finished_llm_poll(core, fake):

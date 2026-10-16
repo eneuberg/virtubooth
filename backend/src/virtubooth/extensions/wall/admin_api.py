@@ -8,6 +8,7 @@ list, create, change, delete, reorder, restore the presets, preview.
 # no `from __future__ import annotations`: FastAPI must resolve the routes'
 # annotations, and some name dependencies local to build_router()
 
+import dataclasses
 import re
 from collections.abc import Collection, Mapping
 from typing import Annotated, Any
@@ -29,18 +30,19 @@ from .config import (
     parse_settings,
     store_config,
 )
-from .enrich import engine, jobs, lifecycle, objects, presets, spec_v1, values
+from .enrich import engine, jobs, lifecycle, objects, presets, transfer, values
 from .enrich.engine import Comment, InvalidCategory, PhotoFilter, Winner
 from .enrich.schemas import (
     AnalysisSummariesOut,
+    CategoriesFile,
     CategoriesOut,
     CategoryCommentOut,
+    CategoryImportOut,
     CategoryItem,
     CategoryLockOut,
     CategoryOrderIn,
     CategoryPreviewOut,
     CategorySpec,
-    CategorySpecV1,
     CategoryVerdictOut,
     CategoryWin,
     CategoryWinnerOut,
@@ -91,12 +93,9 @@ async def json_body(request: Request) -> Any:
 
 
 _CATEGORY_ID = re.compile(CATEGORY_ID_PATTERN)
-# a v2 spec, or a v1 spec (deprecated: converted)
+# a v2 spec (a v1 spec, deprecated, is still taken and converted)
 _SPEC_REF = {
-    "oneOf": [
-        {"$ref": "#/components/schemas/CategorySpec"},
-        {"$ref": "#/components/schemas/CategorySpecV1"},
-    ]
+    "$ref": "#/components/schemas/CategorySpec",
 }
 
 
@@ -113,6 +112,11 @@ _CREATE_BODY = _body(
 )  # fmt: skip
 _PUT_BODY = _body({"spec": _SPEC_REF, "enabled": {"type": "boolean"}}, ["spec", "enabled"])
 _PREVIEW_BODY = _body({"spec": _SPEC_REF}, ["spec"])
+_IMPORT_BODY = _body(
+    {"file": {"type": "object", "description": "A categories file („Exportieren“; v1 too)."},
+     "on_conflict": {"type": "string", "enum": ["copy", "replace"], "default": "copy"}},
+    ["file"],
+)  # fmt: skip
 
 
 # the category editor's input for a field the engine names in German (the
@@ -252,11 +256,6 @@ def category_items(core: Core, hub: WallHub, config: WallConfig,
     return [_item(core, config, e, photos, ready, props) for e in entries]
 
 
-def _legacy(spec: dict[str, Any]) -> CategorySpecV1 | None:
-    old = spec_v1.downgrade(spec)
-    return CategorySpecV1.model_validate(old) if old is not None else None
-
-
 def _item(core: Core, config: WallConfig, e: BoardEntry, photos: dict[int, Any], ready: bool,
           props: Mapping[str, bool]) -> CategoryItem:  # fmt: skip
     cat = e.category
@@ -270,7 +269,7 @@ def _item(core: Core, config: WallConfig, e: BoardEntry, photos: dict[int, Any],
     )  # fmt: skip
     return CategoryItem(
         id=cat.id, enabled=cat.enabled, preset=cat.preset, position=cat.position,
-        spec=CategorySpec.model_validate(cat.spec), legacy_spec=_legacy(cat.spec),
+        spec=CategorySpec.model_validate(cat.spec),
         explanation=engine.explain(cat.spec), needs_ai=bool(names), properties=names,
         locked=lock_out(lifecycle.lock_of(cat.spec, props, ready)),
         off_reason=cat.off_reason, off_detail=cat.off_detail,  # type: ignore[arg-type]
@@ -337,11 +336,16 @@ def analysis_summaries(core: Core, hub: WallHub, public_ids: list[str]) -> Analy
                     enabled_only=True)  # fmt: skip
     for e in entries:
         spec = e.category.spec
-        for w in e.winners:
+        for rank, w in enumerate(e.winners, start=1):
             if w.photo_id in wanted:
+                c = e.comments.get(w.photo_id)
                 wins.setdefault(w.photo_id, []).append(CategoryWin(
                     id=e.category.id, emoji=spec["emoji"], title=spec["title"],
-                    verdict=w.photo_id in e.comments))  # fmt: skip
+                    verdict=c is not None, rank=rank, headline=w.headline, detail=w.detail,
+                    object_label=w.object.label_de if w.object is not None else None,
+                    comment=CategoryCommentOut(text=c.text, emoji=c.emoji) if c else None,
+                ))  # fmt: skip
+    off = objects.detection_off(db, internal)
     items: list[PhotoAnalysisSummary] = []
     for public_id in ids:
         r = by_public.get(public_id)
@@ -373,6 +377,7 @@ def analysis_summaries(core: Core, hub: WallHub, public_ids: list[str]) -> Analy
                 opt_out=OptOutState(
                     analysis=bool(r["analysis_opt_out"]), external_ai=bool(r["ai_opt_out"])
                 ),
+                objects_off=pid in off and not found.get(pid),
                 wins=wins.get(pid, []),
             )
         )
@@ -630,6 +635,59 @@ def build_router(wall: Wall) -> APIRouter:
                 audit(core, admin.actor, None, "restore")
                 announce_categories(hub)
         return RestoreOut(added=added)
+
+    @router.get("/categories/export")
+    def export_categories(
+        core: CoreDep,
+        ids: Annotated[
+            list[str] | None,
+            Query(description="Category ids (repeat the parameter); none = every category."),
+        ] = None,
+    ) -> CategoriesFile:
+        """„Exportieren“: the categories (position order) with the properties they
+        read (name and prompt), as a file for „Importieren“."""
+        presets.ensure_seeded(core.db, core.repos.app_settings)
+        return CategoriesFile.model_validate(transfer.export(core.db, ids or []))
+
+    @router.post("/categories/import", openapi_extra=_IMPORT_BODY)
+    def import_categories(
+        core: CoreDep, hub: HubDep, admin: AdminDep, body: Annotated[Any, Depends(json_body)]
+    ) -> CategoryImportOut:
+        """„Importieren“ of a categories file (version 2, or 1: converted).
+        `on_conflict`: an id that exists is taken as a copy under a free id
+        (`copy`, the default) or overwrites it (`replace`). A property a
+        category reads is created from the file when it does not exist; one
+        that exists keeps its prompt (`prompt_conflicts`). A category the file
+        has on that cannot be switched on right now is imported off with the
+        reason; one whose property is missing everywhere is off with
+        `property_missing`. 400 `invalid_import` for a file that is not one."""
+        from .llm import properties as llm_properties
+
+        if not isinstance(body, dict):
+            raise errors.bad_request("Ungültiger Import.", "invalid_import")
+        on_conflict = body.get("on_conflict", "copy")
+        if on_conflict not in ("copy", "replace"):
+            raise errors.bad_request("on_conflict: copy oder replace.", "invalid_import")
+        presets.ensure_seeded(core.db, core.repos.app_settings)
+
+        def create_property(name: str, prompt: str) -> None:
+            llm_properties.create(core.db, core.repos.audit, name, prompt, actor=admin.actor)
+
+        try:
+            with core.db.tx():
+                result = transfer.run_import(
+                    core.db, body.get("file"), on_conflict, ai_ready=ai_ready(core),
+                    by=admin.actor, create_property=create_property,
+                )  # fmt: skip
+                if result.imported:
+                    core.repos.audit.log(admin.actor, "wall.category", "",
+                                         {"action": "import", **transfer.summary(result)},
+                                         at=now_iso())  # fmt: skip
+                    announce_categories(hub)
+        except transfer.InvalidFile as exc:
+            raise errors.bad_request(str(exc), "invalid_import") from None
+        after_change(core)
+        return CategoryImportOut.model_validate(dataclasses.asdict(result))
 
     @router.post("/categories/preview", openapi_extra=_PREVIEW_BODY)
     def preview_category(

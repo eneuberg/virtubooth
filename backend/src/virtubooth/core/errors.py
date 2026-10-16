@@ -31,6 +31,7 @@ ErrorCode = Literal[
     "invalid_category",
     "category_exists",
     "category_locked",
+    "invalid_import",
     "invalid_analyzer_settings",
     "worker_off",
     "ml_missing",

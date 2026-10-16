@@ -1356,6 +1356,54 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/x/wall/admin/categories/export": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Export Categories
+         * @description „Exportieren“: the categories (position order) with the properties they
+         *     read (name and prompt), as a file for „Importieren“.
+         */
+        get: operations["export_categories_api_x_wall_admin_categories_export_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/x/wall/admin/categories/import": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Import Categories
+         * @description „Importieren“ of a categories file (version 2, or 1: converted).
+         *     `on_conflict`: an id that exists is taken as a copy under a free id
+         *     (`copy`, the default) or overwrites it (`replace`). A property a
+         *     category reads is created from the file when it does not exist; one
+         *     that exists keeps its prompt (`prompt_conflicts`). A category the file
+         *     has on that cannot be switched on right now is imported off with the
+         *     reason; one whose property is missing everywhere is off with
+         *     `property_missing`. 400 `invalid_import` for a file that is not one.
+         */
+        post: operations["import_categories_api_x_wall_admin_categories_import_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/x/wall/admin/categories/order": {
         parameters: {
             query?: never;
@@ -2776,6 +2824,31 @@ export interface components {
             /** Unchanged */
             unchanged: string[];
         };
+        /**
+         * CategoriesFile
+         * @description „Exportieren“: the categories and the properties they read (by name).
+         */
+        CategoriesFile: {
+            /** Categories */
+            categories: components["schemas"]["CategoryFileEntry"][];
+            /** Exported At */
+            exported_at: string;
+            /**
+             * Format
+             * @constant
+             */
+            format: "virtubooth-categories";
+            /**
+             * Properties
+             * @description Each property a category reads, with its prompt.
+             */
+            properties: components["schemas"]["CategoryFileProperty"][];
+            /**
+             * Version
+             * @constant
+             */
+            version: 2;
+        };
         /** CategoriesOut */
         CategoriesOut: {
             /** Categories */
@@ -2841,23 +2914,49 @@ export interface components {
                 number
             ] | null;
         };
-        /** CategoryConditionV1 */
-        CategoryConditionV1: {
+        /** CategoryFileEntry */
+        CategoryFileEntry: {
+            /** Enabled */
+            enabled: boolean;
+            /** Id */
+            id: string;
+            /** Preset */
+            preset: string | null;
+            spec: components["schemas"]["CategorySpec"];
+        };
+        /** CategoryFileProperty */
+        CategoryFileProperty: {
+            /** Name */
+            name: string;
+            /** Prompt */
+            prompt: string;
+        };
+        /** CategoryImportOut */
+        CategoryImportOut: {
+            /** Imported */
+            imported: components["schemas"]["ImportedCategory"][];
             /**
-             * Op
-             * @enum {string}
+             * Notes
+             * @description German hints (e.g. an old file's `active`).
              */
-            op: "gt" | "lt" | "gte" | "lte" | "eq" | "ne" | "between" | "exists" | "not_exists" | "contains" | "not_contains" | "contains_any";
-            /** Operand */
-            operand?: number | string | [
-                number,
-                number
-            ] | string[] | null;
+            notes: string[];
             /**
-             * Value
-             * @description A v1 value key, e.g. `people`, `objects.count:hat`.
+             * Prompt Conflicts
+             * @description Properties that exist here with another prompt: theirs stays.
              */
-            value: string;
+            prompt_conflicts: string[];
+            /**
+             * Properties Created
+             * @description Created from the file (or a preset).
+             */
+            properties_created: string[];
+            /** Skipped */
+            skipped: components["schemas"]["SkippedCategory"][];
+            /**
+             * Switched Off
+             * @description Imported switched off although the file had them on (or a property is missing), and why.
+             */
+            switched_off: components["schemas"]["SwitchedOffCategory"][];
         };
         /** CategoryItem */
         CategoryItem: {
@@ -2872,8 +2971,6 @@ export interface components {
             explanation: string;
             /** Id */
             id: string;
-            /** @description Deprecated: the spec in v1 shape for the v1 editor; null when v1 cannot say it. */
-            legacy_spec: components["schemas"]["CategorySpecV1"] | null;
             /** @description Why it cannot be switched on (the switch is disabled), or null. */
             locked: components["schemas"]["CategoryLockOut"] | null;
             /**
@@ -2922,27 +3019,6 @@ export interface components {
              * @description Right now, best first (≤ count).
              */
             winners: components["schemas"]["CategoryWinnerOut"][];
-        };
-        /** CategoryLabelV1 */
-        CategoryLabelV1: {
-            /**
-             * Many
-             * @default
-             */
-            many: string;
-            /**
-             * One
-             * @default
-             */
-            one: string;
-            /**
-             * Style
-             * @default count
-             * @enum {string}
-             */
-            style: "count" | "percent" | "number" | "time" | "fixed" | "object";
-            /** Value */
-            value?: string | null;
         };
         /**
          * CategoryLockOut
@@ -3032,34 +3108,11 @@ export interface components {
              */
             one_per_guest: boolean;
         };
-        /** CategorySelectV1 */
-        CategorySelectV1: {
-            /** By */
-            by: string;
-            /**
-             * Count
-             * @default 3
-             */
-            count: number;
-            /**
-             * One Per Guest
-             * @default true
-             */
-            one_per_guest: boolean;
-            /**
-             * Order
-             * @default top
-             * @enum {string}
-             */
-            order: "top" | "bottom";
-            /** Then By */
-            then_by?: components["schemas"]["CategoryThenByV1"][];
-        };
         /**
          * CategorySpec
          * @description A rule-based wall category, spec version 2. Invalid input → 400
-         *     `invalid_category` naming the field in German. Writes also take a v1 spec
-         *     (`CategorySpecV1`, converted).
+         *     `invalid_category` naming the field in German. Writes also take a spec in the
+         *     old version 1 shape (deprecated: converted).
          */
         CategorySpec: {
             caption?: components["schemas"]["CategoryCaption"];
@@ -3094,26 +3147,6 @@ export interface components {
              */
             version: 2;
         };
-        /**
-         * CategorySpecV1
-         * @description Spec version 1 (deprecated): converted to version 2 when written.
-         */
-        CategorySpecV1: {
-            /** Emoji */
-            emoji: string;
-            label?: components["schemas"]["CategoryLabelV1"];
-            /**
-             * Line
-             * @default
-             */
-            line: string;
-            select: components["schemas"]["CategorySelectV1"];
-            /** Title */
-            title: string;
-            verdict?: components["schemas"]["CategoryVerdictSpecV1"] | null;
-            /** Where */
-            where?: components["schemas"]["CategoryConditionV1"][];
-        };
         /** CategoryThen */
         CategoryThen: {
             /** By */
@@ -3124,17 +3157,6 @@ export interface components {
              * @enum {string}
              */
             order: "desc" | "asc";
-        };
-        /** CategoryThenByV1 */
-        CategoryThenByV1: {
-            /** By */
-            by: string;
-            /**
-             * Order
-             * @default top
-             * @enum {string}
-             */
-            order: "top" | "bottom";
         };
         /**
          * CategoryVerdictOut
@@ -3182,20 +3204,39 @@ export interface components {
              */
             prompt?: string | null;
         };
-        /** CategoryVerdictSpecV1 */
-        CategoryVerdictSpecV1: {
-            /** Prompt */
-            prompt: string;
-        };
         /** CategoryWin */
         CategoryWin: {
+            /** @description The AI's cached comment on this photo in this category. */
+            comment?: components["schemas"]["CategoryCommentOut"] | null;
+            /**
+             * Detail
+             * @description The value text when the headline is an object.
+             */
+            detail?: string | null;
             /** Emoji */
             emoji: string;
+            /**
+             * Headline
+             * @description The object's name or the value text.
+             * @default
+             */
+            headline: string;
             /**
              * Id
              * @description The category's id.
              */
             id: string;
+            /**
+             * Object Label
+             * @description The focus object's German name, if any.
+             */
+            object_label?: string | null;
+            /**
+             * Rank
+             * @description Its place among the category's winners (1 = best).
+             * @default 1
+             */
+            rank: number;
             /** Title */
             title: string;
             /**
@@ -3618,7 +3659,7 @@ export interface components {
              * @description Machine-readable error code.
              * @enum {string}
              */
-            error: "scan_qr" | "needs_consent" | "banned" | "consent_outdated" | "invalid_instagram" | "join_closed" | "invalid_display_name" | "display_name_taken" | "wall_login_required" | "wall_no_password" | "wall_password_too_short" | "invalid_wall_config" | "invalid_category" | "category_exists" | "category_locked" | "invalid_analyzer_settings" | "worker_off" | "ml_missing" | "uploads_paused" | "uploads_stopped" | "unsupported_type" | "too_large" | "invalid_meta" | "empty_upload" | "invalid_image" | "invalid_raw" | "raw_not_allowed" | "photo_limit" | "storage_full" | "invalid_pdf" | "invalid_layout" | "no_template" | "admin_required" | "wrong_password" | "login_locked" | "invalid_filter" | "unknown_analyzer" | "invalid_cursor" | "no_fingerprint" | "restore_required" | "host_guest" | "invalid_event_name" | "invalid_public_address" | "invalid_theme" | "password_too_short" | "password_unchanged" | "no_filter_enabled" | "unknown_filter" | "export_not_ready" | "export_running" | "invalid_token" | "token_taken" | "code_revoked" | "invalid_target" | "invalid_note" | "invalid_llm_config" | "llm_not_configured" | "llm_no_vision" | "llm_key_invalid" | "llm_budget_exhausted" | "ai_detection_unavailable" | "invalid_property" | "property_exists" | "property_not_in_trash" | "property_in_use" | "bad_origin" | "length_required" | "rate_limited" | "invalid_request" | "not_found" | "gone" | "http_404" | "http_405";
+            error: "scan_qr" | "needs_consent" | "banned" | "consent_outdated" | "invalid_instagram" | "join_closed" | "invalid_display_name" | "display_name_taken" | "wall_login_required" | "wall_no_password" | "wall_password_too_short" | "invalid_wall_config" | "invalid_category" | "category_exists" | "category_locked" | "invalid_import" | "invalid_analyzer_settings" | "worker_off" | "ml_missing" | "uploads_paused" | "uploads_stopped" | "unsupported_type" | "too_large" | "invalid_meta" | "empty_upload" | "invalid_image" | "invalid_raw" | "raw_not_allowed" | "photo_limit" | "storage_full" | "invalid_pdf" | "invalid_layout" | "no_template" | "admin_required" | "wrong_password" | "login_locked" | "invalid_filter" | "unknown_analyzer" | "invalid_cursor" | "no_fingerprint" | "restore_required" | "host_guest" | "invalid_event_name" | "invalid_public_address" | "invalid_theme" | "password_too_short" | "password_unchanged" | "no_filter_enabled" | "unknown_filter" | "export_not_ready" | "export_running" | "invalid_token" | "token_taken" | "code_revoked" | "invalid_target" | "invalid_note" | "invalid_llm_config" | "llm_not_configured" | "llm_no_vision" | "llm_key_invalid" | "llm_budget_exhausted" | "ai_detection_unavailable" | "invalid_property" | "property_exists" | "property_not_in_trash" | "property_in_use" | "bad_origin" | "length_required" | "rate_limited" | "invalid_request" | "not_found" | "gone" | "http_404" | "http_405";
             /**
              * Field
              * @description The form field a 400 is about, when the answer names one (e.g. `invalid_category`: title, line, where, by, count, verdict, ...).
@@ -4143,6 +4184,28 @@ export interface components {
             fp?: components["schemas"]["Fingerprint"] | null;
             /** Uid */
             uid?: string | null;
+        };
+        /** ImportedCategory */
+        ImportedCategory: {
+            /** Enabled */
+            enabled: boolean;
+            /**
+             * From Id
+             * @description The id in the file when it was taken as a copy.
+             */
+            from_id: string | null;
+            /**
+             * Id
+             * @description Its id here (a copy: a free one, `<id>_2` …).
+             */
+            id: string;
+            /**
+             * Replaced
+             * @description It overwrote the category with that id.
+             */
+            replaced: boolean;
+            /** Title */
+            title: string;
         };
         /** InstagramDoneData */
         InstagramDoneData: {
@@ -5111,6 +5174,12 @@ export interface components {
             };
             /** Objects */
             objects: components["schemas"]["SummaryObject"][];
+            /**
+             * Objects Off
+             * @description Analysed while object detection was „Aus“ (every detection run skipped as switched off, no objects): „Objekterkennung aus“, not „Nichts erkannt“.
+             * @default false
+             */
+            objects_off: boolean;
             opt_out: components["schemas"]["OptOutState"];
             /** Photo Id */
             photo_id: string;
@@ -5687,6 +5756,19 @@ export interface components {
              */
             type: "settings.event";
         };
+        /** SkippedCategory */
+        SkippedCategory: {
+            /**
+             * Id
+             * @description The id in the file, or „Eintrag 3“.
+             */
+            id: string;
+            /**
+             * Reason
+             * @description German.
+             */
+            reason: string;
+        };
         /**
          * SourceObject
          * @description An object as one source found it (its own list, frozen).
@@ -5849,6 +5931,26 @@ export interface components {
              * @description Every source that found it.
              */
             sources: string[];
+        };
+        /** SwitchedOffCategory */
+        SwitchedOffCategory: {
+            /**
+             * Detail
+             * @description The property it is about.
+             */
+            detail: string | null;
+            /** Id */
+            id: string;
+            /**
+             * Message
+             * @description German.
+             */
+            message: string;
+            /**
+             * Reason
+             * @enum {string}
+             */
+            reason: "ai_off" | "property_trashed" | "property_missing";
         };
         /** TestImageOut */
         TestImageOut: {
@@ -6341,40 +6443,6 @@ export interface components {
             /** Error Type */
             type: string;
         };
-        /**
-         * ValueInfo
-         * @description A v1 value key (deprecated: the v1 category editor's list).
-         */
-        ValueInfo: {
-            /** Available */
-            available: boolean;
-            /**
-             * Group
-             * @description German group heading (the analyzer, „Objekte“, …).
-             */
-            group: string;
-            /** Key */
-            key: string;
-            /**
-             * Kind
-             * @enum {string}
-             */
-            kind: "number" | "count" | "labels" | "time";
-            /**
-             * Needs
-             * @description Analyzer names (any of them) or `prop:<name>`; empty = always there.
-             */
-            needs: string[];
-            /** Reason */
-            reason: string | null;
-            /**
-             * Title
-             * @description German.
-             */
-            title: string;
-            /** Unit */
-            unit: string;
-        };
         /** ValuesOut */
         ValuesOut: {
             /** Aggregates */
@@ -6398,11 +6466,6 @@ export interface components {
             objects_reason: string | null;
             /** Photo Values */
             photo_values: components["schemas"]["PhotoValueInfo"][];
-            /**
-             * Values
-             * @description Deprecated: the v1 keys (`objects.count:<label>`, `prop.<name>.max`, …) for the v1 editor.
-             */
-            values: components["schemas"]["ValueInfo"][];
         };
         /** VerdictEffortOut */
         VerdictEffortOut: {
@@ -14212,7 +14275,7 @@ export interface operations {
                     /** @default true */
                     enabled?: boolean;
                     id: string;
-                    spec: components["schemas"]["CategorySpec"] | components["schemas"]["CategorySpecV1"];
+                    spec: components["schemas"]["CategorySpec"];
                 };
             };
         };
@@ -14264,6 +14327,169 @@ export interface operations {
             };
             /** @description Conflict */
             409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Request validation failed (`invalid_request`) */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Rate limited (`Retry-After` header) */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    export_categories_api_x_wall_admin_categories_export_get: {
+        parameters: {
+            query?: {
+                /** @description Category ids (repeat the parameter); none = every category. */
+                ids?: string[] | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CategoriesFile"];
+                };
+            };
+            /** @description Invalid input (see `error`) */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Needs consent or an admin session */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Forbidden: banned, paused, stopped, joining closed or a foreign Origin (CSRF) */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Not found, or no party access (`scan_qr`) */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Request validation failed (`invalid_request`) */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Rate limited (`Retry-After` header) */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    import_categories_api_x_wall_admin_categories_import_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /** @description A categories file („Exportieren“; v1 too). */
+                    file: Record<string, never>;
+                    /**
+                     * @default copy
+                     * @enum {string}
+                     */
+                    on_conflict?: "copy" | "replace";
+                };
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CategoryImportOut"];
+                };
+            };
+            /** @description Invalid input (see `error`) */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Needs consent or an admin session */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Forbidden: banned, paused, stopped, joining closed or a foreign Origin (CSRF) */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Not found, or no party access (`scan_qr`) */
+            404: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -14379,7 +14605,7 @@ export interface operations {
         requestBody: {
             content: {
                 "application/json": {
-                    spec: components["schemas"]["CategorySpec"] | components["schemas"]["CategorySpecV1"];
+                    spec: components["schemas"]["CategorySpec"];
                 };
             };
         };
@@ -14536,7 +14762,7 @@ export interface operations {
             content: {
                 "application/json": {
                     enabled: boolean;
-                    spec: components["schemas"]["CategorySpec"] | components["schemas"]["CategorySpecV1"];
+                    spec: components["schemas"]["CategorySpec"];
                 };
             };
         };

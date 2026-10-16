@@ -1875,6 +1875,49 @@
         "title": "BulkOut",
         "type": "object"
       },
+      "CategoriesFile": {
+        "description": "„Exportieren“: the categories and the properties they read (by name).",
+        "properties": {
+          "categories": {
+            "items": {
+              "$ref": "#/components/schemas/CategoryFileEntry"
+            },
+            "title": "Categories",
+            "type": "array"
+          },
+          "exported_at": {
+            "title": "Exported At",
+            "type": "string"
+          },
+          "format": {
+            "const": "virtubooth-categories",
+            "title": "Format",
+            "type": "string"
+          },
+          "properties": {
+            "description": "Each property a category reads, with its prompt.",
+            "items": {
+              "$ref": "#/components/schemas/CategoryFileProperty"
+            },
+            "title": "Properties",
+            "type": "array"
+          },
+          "version": {
+            "const": 2,
+            "title": "Version",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "format",
+          "version",
+          "exported_at",
+          "properties",
+          "categories"
+        ],
+        "title": "CategoriesFile",
+        "type": "object"
+      },
       "CategoriesOut": {
         "properties": {
           "categories": {
@@ -2049,70 +2092,116 @@
         "title": "CategoryCondition",
         "type": "object"
       },
-      "CategoryConditionV1": {
+      "CategoryFileEntry": {
         "properties": {
-          "op": {
-            "enum": [
-              "gt",
-              "lt",
-              "gte",
-              "lte",
-              "eq",
-              "ne",
-              "between",
-              "exists",
-              "not_exists",
-              "contains",
-              "not_contains",
-              "contains_any"
-            ],
-            "title": "Op",
+          "enabled": {
+            "title": "Enabled",
+            "type": "boolean"
+          },
+          "id": {
+            "title": "Id",
             "type": "string"
           },
-          "operand": {
+          "preset": {
             "anyOf": [
               {
-                "type": "number"
-              },
-              {
                 "type": "string"
-              },
-              {
-                "maxItems": 2,
-                "minItems": 2,
-                "prefixItems": [
-                  {
-                    "type": "number"
-                  },
-                  {
-                    "type": "number"
-                  }
-                ],
-                "type": "array"
-              },
-              {
-                "items": {
-                  "type": "string"
-                },
-                "type": "array"
               },
               {
                 "type": "null"
               }
             ],
-            "title": "Operand"
+            "title": "Preset"
           },
-          "value": {
-            "description": "A v1 value key, e.g. `people`, `objects.count:hat`.",
-            "title": "Value",
+          "spec": {
+            "$ref": "#/components/schemas/CategorySpec"
+          }
+        },
+        "required": [
+          "id",
+          "enabled",
+          "preset",
+          "spec"
+        ],
+        "title": "CategoryFileEntry",
+        "type": "object"
+      },
+      "CategoryFileProperty": {
+        "properties": {
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "prompt": {
+            "title": "Prompt",
             "type": "string"
           }
         },
         "required": [
-          "value",
-          "op"
+          "name",
+          "prompt"
         ],
-        "title": "CategoryConditionV1",
+        "title": "CategoryFileProperty",
+        "type": "object"
+      },
+      "CategoryImportOut": {
+        "properties": {
+          "imported": {
+            "items": {
+              "$ref": "#/components/schemas/ImportedCategory"
+            },
+            "title": "Imported",
+            "type": "array"
+          },
+          "notes": {
+            "description": "German hints (e.g. an old file's `active`).",
+            "items": {
+              "type": "string"
+            },
+            "title": "Notes",
+            "type": "array"
+          },
+          "prompt_conflicts": {
+            "description": "Properties that exist here with another prompt: theirs stays.",
+            "items": {
+              "type": "string"
+            },
+            "title": "Prompt Conflicts",
+            "type": "array"
+          },
+          "properties_created": {
+            "description": "Created from the file (or a preset).",
+            "items": {
+              "type": "string"
+            },
+            "title": "Properties Created",
+            "type": "array"
+          },
+          "skipped": {
+            "items": {
+              "$ref": "#/components/schemas/SkippedCategory"
+            },
+            "title": "Skipped",
+            "type": "array"
+          },
+          "switched_off": {
+            "description": "Imported switched off although the file had them on (or a property is missing), and why.",
+            "items": {
+              "$ref": "#/components/schemas/SwitchedOffCategory"
+            },
+            "title": "Switched Off",
+            "type": "array"
+          }
+        },
+        "required": [
+          "imported",
+          "skipped",
+          "properties_created",
+          "prompt_conflicts",
+          "switched_off",
+          "notes"
+        ],
+        "title": "CategoryImportOut",
         "type": "object"
       },
       "CategoryItem": {
@@ -2133,17 +2222,6 @@
           "id": {
             "title": "Id",
             "type": "string"
-          },
-          "legacy_spec": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/CategorySpecV1"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "description": "Deprecated: the spec in v1 shape for the v1 editor; null when v1 cannot say it."
           },
           "locked": {
             "anyOf": [
@@ -2271,7 +2349,6 @@
           "preset",
           "position",
           "spec",
-          "legacy_spec",
           "explanation",
           "needs_ai",
           "properties",
@@ -2286,46 +2363,6 @@
           "winners"
         ],
         "title": "CategoryItem",
-        "type": "object"
-      },
-      "CategoryLabelV1": {
-        "properties": {
-          "many": {
-            "default": "",
-            "title": "Many",
-            "type": "string"
-          },
-          "one": {
-            "default": "",
-            "title": "One",
-            "type": "string"
-          },
-          "style": {
-            "default": "count",
-            "enum": [
-              "count",
-              "percent",
-              "number",
-              "time",
-              "fixed",
-              "object"
-            ],
-            "title": "Style",
-            "type": "string"
-          },
-          "value": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Value"
-          }
-        },
-        "title": "CategoryLabelV1",
         "type": "object"
       },
       "CategoryLockOut": {
@@ -2515,47 +2552,8 @@
         "title": "CategorySelect",
         "type": "object"
       },
-      "CategorySelectV1": {
-        "properties": {
-          "by": {
-            "title": "By",
-            "type": "string"
-          },
-          "count": {
-            "default": 3,
-            "title": "Count",
-            "type": "integer"
-          },
-          "one_per_guest": {
-            "default": true,
-            "title": "One Per Guest",
-            "type": "boolean"
-          },
-          "order": {
-            "default": "top",
-            "enum": [
-              "top",
-              "bottom"
-            ],
-            "title": "Order",
-            "type": "string"
-          },
-          "then_by": {
-            "items": {
-              "$ref": "#/components/schemas/CategoryThenByV1"
-            },
-            "title": "Then By",
-            "type": "array"
-          }
-        },
-        "required": [
-          "by"
-        ],
-        "title": "CategorySelectV1",
-        "type": "object"
-      },
       "CategorySpec": {
-        "description": "A rule-based wall category, spec version 2. Invalid input → 400\n`invalid_category` naming the field in German. Writes also take a v1 spec\n(`CategorySpecV1`, converted).",
+        "description": "A rule-based wall category, spec version 2. Invalid input → 400\n`invalid_category` naming the field in German. Writes also take a spec in the\nold version 1 shape (deprecated: converted).",
         "properties": {
           "caption": {
             "$ref": "#/components/schemas/CategoryCaption"
@@ -2615,54 +2613,6 @@
         "title": "CategorySpec",
         "type": "object"
       },
-      "CategorySpecV1": {
-        "description": "Spec version 1 (deprecated): converted to version 2 when written.",
-        "properties": {
-          "emoji": {
-            "title": "Emoji",
-            "type": "string"
-          },
-          "label": {
-            "$ref": "#/components/schemas/CategoryLabelV1"
-          },
-          "line": {
-            "default": "",
-            "title": "Line",
-            "type": "string"
-          },
-          "select": {
-            "$ref": "#/components/schemas/CategorySelectV1"
-          },
-          "title": {
-            "title": "Title",
-            "type": "string"
-          },
-          "verdict": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/CategoryVerdictSpecV1"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "where": {
-            "items": {
-              "$ref": "#/components/schemas/CategoryConditionV1"
-            },
-            "title": "Where",
-            "type": "array"
-          }
-        },
-        "required": [
-          "emoji",
-          "title",
-          "select"
-        ],
-        "title": "CategorySpecV1",
-        "type": "object"
-      },
       "CategoryThen": {
         "properties": {
           "by": {
@@ -2697,28 +2647,6 @@
           "by"
         ],
         "title": "CategoryThen",
-        "type": "object"
-      },
-      "CategoryThenByV1": {
-        "properties": {
-          "by": {
-            "title": "By",
-            "type": "string"
-          },
-          "order": {
-            "default": "top",
-            "enum": [
-              "top",
-              "bottom"
-            ],
-            "title": "Order",
-            "type": "string"
-          }
-        },
-        "required": [
-          "by"
-        ],
-        "title": "CategoryThenByV1",
         "type": "object"
       },
       "CategoryVerdictOut": {
@@ -2808,29 +2736,63 @@
         "title": "CategoryVerdictSpec",
         "type": "object"
       },
-      "CategoryVerdictSpecV1": {
-        "properties": {
-          "prompt": {
-            "title": "Prompt",
-            "type": "string"
-          }
-        },
-        "required": [
-          "prompt"
-        ],
-        "title": "CategoryVerdictSpecV1",
-        "type": "object"
-      },
       "CategoryWin": {
         "properties": {
+          "comment": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CategoryCommentOut"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The AI's cached comment on this photo in this category."
+          },
+          "detail": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The value text when the headline is an object.",
+            "title": "Detail"
+          },
           "emoji": {
             "title": "Emoji",
+            "type": "string"
+          },
+          "headline": {
+            "default": "",
+            "description": "The object's name or the value text.",
+            "title": "Headline",
             "type": "string"
           },
           "id": {
             "description": "The category's id.",
             "title": "Id",
             "type": "string"
+          },
+          "object_label": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The focus object's German name, if any.",
+            "title": "Object Label"
+          },
+          "rank": {
+            "default": 1,
+            "description": "Its place among the category's winners (1 = best).",
+            "title": "Rank",
+            "type": "integer"
           },
           "title": {
             "title": "Title",
@@ -3760,6 +3722,7 @@
               "invalid_category",
               "category_exists",
               "category_locked",
+              "invalid_import",
               "invalid_analyzer_settings",
               "worker_off",
               "ml_missing",
@@ -4940,6 +4903,49 @@
           }
         },
         "title": "IdentifyIn",
+        "type": "object"
+      },
+      "ImportedCategory": {
+        "properties": {
+          "enabled": {
+            "title": "Enabled",
+            "type": "boolean"
+          },
+          "from_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The id in the file when it was taken as a copy.",
+            "title": "From Id"
+          },
+          "id": {
+            "description": "Its id here (a copy: a free one, `<id>_2` …).",
+            "title": "Id",
+            "type": "string"
+          },
+          "replaced": {
+            "description": "It overwrote the category with that id.",
+            "title": "Replaced",
+            "type": "boolean"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "title",
+          "enabled",
+          "from_id",
+          "replaced"
+        ],
+        "title": "ImportedCategory",
         "type": "object"
       },
       "InstagramDoneData": {
@@ -7031,6 +7037,12 @@
             "title": "Objects",
             "type": "array"
           },
+          "objects_off": {
+            "default": false,
+            "description": "Analysed while object detection was „Aus“ (every detection run skipped as switched off, no objects): „Objekterkennung aus“, not „Nichts erkannt“.",
+            "title": "Objects Off",
+            "type": "boolean"
+          },
           "opt_out": {
             "$ref": "#/components/schemas/OptOutState"
           },
@@ -8239,6 +8251,26 @@
         "title": "SettingsEventEvent",
         "type": "object"
       },
+      "SkippedCategory": {
+        "properties": {
+          "id": {
+            "description": "The id in the file, or „Eintrag 3“.",
+            "title": "Id",
+            "type": "string"
+          },
+          "reason": {
+            "description": "German.",
+            "title": "Reason",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "reason"
+        ],
+        "title": "SkippedCategory",
+        "type": "object"
+      },
       "SourceObject": {
         "description": "An object as one source found it (its own list, frozen).",
         "properties": {
@@ -8596,6 +8628,48 @@
           "box"
         ],
         "title": "SummaryObject",
+        "type": "object"
+      },
+      "SwitchedOffCategory": {
+        "properties": {
+          "detail": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The property it is about.",
+            "title": "Detail"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "message": {
+            "description": "German.",
+            "title": "Message",
+            "type": "string"
+          },
+          "reason": {
+            "enum": [
+              "ai_off",
+              "property_trashed",
+              "property_missing"
+            ],
+            "title": "Reason",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "reason",
+          "detail",
+          "message"
+        ],
+        "title": "SwitchedOffCategory",
         "type": "object"
       },
       "TestImageOut": {
@@ -9688,74 +9762,6 @@
         "title": "ValidationError",
         "type": "object"
       },
-      "ValueInfo": {
-        "description": "A v1 value key (deprecated: the v1 category editor's list).",
-        "properties": {
-          "available": {
-            "title": "Available",
-            "type": "boolean"
-          },
-          "group": {
-            "description": "German group heading (the analyzer, „Objekte“, …).",
-            "title": "Group",
-            "type": "string"
-          },
-          "key": {
-            "title": "Key",
-            "type": "string"
-          },
-          "kind": {
-            "enum": [
-              "number",
-              "count",
-              "labels",
-              "time"
-            ],
-            "title": "Kind",
-            "type": "string"
-          },
-          "needs": {
-            "description": "Analyzer names (any of them) or `prop:<name>`; empty = always there.",
-            "items": {
-              "type": "string"
-            },
-            "title": "Needs",
-            "type": "array"
-          },
-          "reason": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Reason"
-          },
-          "title": {
-            "description": "German.",
-            "title": "Title",
-            "type": "string"
-          },
-          "unit": {
-            "title": "Unit",
-            "type": "string"
-          }
-        },
-        "required": [
-          "key",
-          "title",
-          "group",
-          "kind",
-          "unit",
-          "needs",
-          "available",
-          "reason"
-        ],
-        "title": "ValueInfo",
-        "type": "object"
-      },
       "ValuesOut": {
         "properties": {
           "aggregates": {
@@ -9803,14 +9809,6 @@
             },
             "title": "Photo Values",
             "type": "array"
-          },
-          "values": {
-            "description": "Deprecated: the v1 keys (`objects.count:<label>`, `prop.<name>.max`, …) for the v1 editor.",
-            "items": {
-              "$ref": "#/components/schemas/ValueInfo"
-            },
-            "title": "Values",
-            "type": "array"
           }
         },
         "required": [
@@ -9819,8 +9817,7 @@
           "aggregates",
           "objects_available",
           "objects_reason",
-          "labels",
-          "values"
+          "labels"
         ],
         "title": "ValuesOut",
         "type": "object"
@@ -19837,14 +19834,7 @@
                     "type": "string"
                   },
                   "spec": {
-                    "oneOf": [
-                      {
-                        "$ref": "#/components/schemas/CategorySpec"
-                      },
-                      {
-                        "$ref": "#/components/schemas/CategorySpecV1"
-                      }
-                    ]
+                    "$ref": "#/components/schemas/CategorySpec"
                   }
                 },
                 "required": [
@@ -19940,6 +19930,220 @@
           }
         },
         "summary": "Create Category",
+        "tags": [
+          "extension:wall"
+        ]
+      }
+    },
+    "/api/x/wall/admin/categories/export": {
+      "get": {
+        "description": "„Exportieren“: the categories (position order) with the properties they\nread (name and prompt), as a file for „Importieren“.",
+        "operationId": "export_categories_api_x_wall_admin_categories_export_get",
+        "parameters": [
+          {
+            "description": "Category ids (repeat the parameter); none = every category.",
+            "in": "query",
+            "name": "ids",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Category ids (repeat the parameter); none = every category.",
+              "title": "Ids"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CategoriesFile"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Invalid input (see `error`)"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Needs consent or an admin session"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Forbidden: banned, paused, stopped, joining closed or a foreign Origin (CSRF)"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Not found, or no party access (`scan_qr`)"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Request validation failed (`invalid_request`)"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Rate limited (`Retry-After` header)"
+          }
+        },
+        "summary": "Export Categories",
+        "tags": [
+          "extension:wall"
+        ]
+      }
+    },
+    "/api/x/wall/admin/categories/import": {
+      "post": {
+        "description": "„Importieren“ of a categories file (version 2, or 1: converted).\n`on_conflict`: an id that exists is taken as a copy under a free id\n(`copy`, the default) or overwrites it (`replace`). A property a\ncategory reads is created from the file when it does not exist; one\nthat exists keeps its prompt (`prompt_conflicts`). A category the file\nhas on that cannot be switched on right now is imported off with the\nreason; one whose property is missing everywhere is off with\n`property_missing`. 400 `invalid_import` for a file that is not one.",
+        "operationId": "import_categories_api_x_wall_admin_categories_import_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "properties": {
+                  "file": {
+                    "description": "A categories file („Exportieren“; v1 too).",
+                    "type": "object"
+                  },
+                  "on_conflict": {
+                    "default": "copy",
+                    "enum": [
+                      "copy",
+                      "replace"
+                    ],
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "file"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CategoryImportOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Invalid input (see `error`)"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Needs consent or an admin session"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Forbidden: banned, paused, stopped, joining closed or a foreign Origin (CSRF)"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Not found, or no party access (`scan_qr`)"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Request validation failed (`invalid_request`)"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Rate limited (`Retry-After` header)"
+          }
+        },
+        "summary": "Import Categories",
         "tags": [
           "extension:wall"
         ]
@@ -20047,14 +20251,7 @@
               "schema": {
                 "properties": {
                   "spec": {
-                    "oneOf": [
-                      {
-                        "$ref": "#/components/schemas/CategorySpec"
-                      },
-                      {
-                        "$ref": "#/components/schemas/CategorySpecV1"
-                      }
-                    ]
+                    "$ref": "#/components/schemas/CategorySpec"
                   }
                 },
                 "required": [
@@ -20341,14 +20538,7 @@
                     "type": "boolean"
                   },
                   "spec": {
-                    "oneOf": [
-                      {
-                        "$ref": "#/components/schemas/CategorySpec"
-                      },
-                      {
-                        "$ref": "#/components/schemas/CategorySpecV1"
-                      }
-                    ]
+                    "$ref": "#/components/schemas/CategorySpec"
                   }
                 },
                 "required": [

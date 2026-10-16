@@ -6,9 +6,6 @@ Photo values are the analyzers' facts (`wall_facts`) plus `photo.created_at`
 (unix seconds) and `photo.guest_photos` (the guest's visible photos). Object
 fields are `confidence` and `prop:<name>` (every property not in the
 Papierkorb). The aggregates are measures.AGGREGATES.
-
-`values` is the v1 key list the v1 category editor still reads (deprecated: it
-goes with the v2 editor).
 """
 
 from __future__ import annotations
@@ -23,7 +20,6 @@ from .analyzers import BY_NAME, INFOS
 from .measures import Measure
 
 ValueKind = Literal["number", "count", "labels", "time"]
-LEGACY_AGGREGATES = ("max", "min", "sum", "mean", "count")
 
 # fact → (German title, kind, unit)
 FACTS: dict[str, tuple[str, ValueKind, str]] = {
@@ -67,10 +63,6 @@ AGG_INFO: dict[str, tuple[str, bool, str | None, str | None]] = {
     "top_k_mean": ("Mittel der besten k", True, "k", "max"),
     "count_ge": ("Anzahl mit Wert ≥ t", True, "t", "max"),
 }
-LEGACY_AGG_TITLES = {
-    "max": "höchster Wert", "min": "niedrigster Wert", "sum": "Summe", "mean": "Durchschnitt",
-    "count": "Anzahl bewerteter Objekte",
-}  # fmt: skip
 
 
 def producers(fact: str) -> tuple[str, ...]:
@@ -161,21 +153,6 @@ class AggregateInfo(BaseModel):
     )
 
 
-class ValueInfo(BaseModel):
-    """A v1 value key (deprecated: the v1 category editor's list)."""
-
-    key: str
-    title: str = Field(description="German.")
-    group: str = Field(description="German group heading (the analyzer, „Objekte“, …).")
-    kind: ValueKind
-    unit: str
-    needs: list[str] = Field(
-        description="Analyzer names (any of them) or `prop:<name>`; empty = always there."
-    )
-    available: bool
-    reason: str | None
-
-
 class LabelInfo(BaseModel):
     label: str
     label_de: str
@@ -193,10 +170,6 @@ class ValuesOut(BaseModel):
     objects_reason: str | None
     labels: list[LabelInfo] = Field(
         description="Object labels seen so far, most frequent first (for object filters)."
-    )
-    values: list[ValueInfo] = Field(
-        description="Deprecated: the v1 keys (`objects.count:<label>`, `prop.<name>.max`, …) "
-        "for the v1 editor."
     )
 
 
@@ -239,33 +212,5 @@ def catalogue(db: Database, active: Collection[str]) -> ValuesOut:
     return ValuesOut(
         photo_values=photo_values, object_fields=fields, aggregates=aggregates,
         objects_available=obj_reason is None, objects_reason=obj_reason,
-        labels=labels_seen(db), values=_legacy(photo_values, names, obj_reason),
+        labels=labels_seen(db),
     )  # fmt: skip
-
-
-def _legacy(photo_values: list[PhotoValueInfo], names: list[str], obj_reason: str | None
-            ) -> list[ValueInfo]:  # fmt: skip
-    out = [
-        ValueInfo(key=v.key, title=v.title, group=v.group, kind=v.kind, unit=v.unit,
-                  needs=v.needs, available=v.available, reason=v.reason)
-        for v in photo_values if not v.key.startswith("photo.")
-    ]  # fmt: skip
-    group = BY_NAME["objects"].title
-    for key, title, kind in (("objects", "Erkannte Objekte", "labels"),
-                             ("objects.count", "Anzahl Objekte", "count")):  # fmt: skip
-        out.append(ValueInfo(key=key, title=title, group=group, kind=kind, unit="",  # type: ignore[arg-type]
-                             needs=["objects"], available=obj_reason is None,
-                             reason=obj_reason))  # fmt: skip
-    out += [
-        ValueInfo(key=v.key, title=v.title, group=v.group, kind=v.kind, unit=v.unit,
-                  needs=v.needs, available=v.available, reason=v.reason)
-        for v in photo_values if v.key.startswith("photo.")
-    ]  # fmt: skip
-    for name in names:
-        for agg in LEGACY_AGGREGATES:
-            out.append(ValueInfo(
-                key=f"prop.{name}.{agg}", title=f"{name}: {LEGACY_AGG_TITLES[agg]}",
-                group=f"Eigenschaft „{name}“", kind="count" if agg == "count" else "number",
-                unit="" if agg == "count" else "0–1", needs=[f"prop:{name}"],
-                available=obj_reason is None, reason=obj_reason))  # fmt: skip
-    return out

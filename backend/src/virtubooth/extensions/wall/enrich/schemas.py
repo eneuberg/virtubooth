@@ -267,6 +267,13 @@ class CategoryWin(BaseModel):
     emoji: str
     title: str
     verdict: bool = Field(description="The AI commented on it in this category.")
+    rank: int = Field(1, description="Its place among the category's winners (1 = best).")
+    headline: str = Field("", description="The object's name or the value text.")
+    detail: str | None = Field(None, description="The value text when the headline is an object.")
+    object_label: str | None = Field(None, description="The focus object's German name, if any.")
+    comment: CategoryCommentOut | None = Field(
+        None, description="The AI's cached comment on this photo in this category."
+    )
 
 
 class PhotoAnalysisSummary(BaseModel):
@@ -284,6 +291,11 @@ class PhotoAnalysisSummary(BaseModel):
     objects: list[SummaryObject]
     boxes: list[SummaryBox] = Field(description="Face and hand frames (objects carry their own).")
     opt_out: OptOutState
+    objects_off: bool = Field(
+        False,
+        description="Analysed while object detection was „Aus“ (every detection run "
+        "skipped as switched off, no objects): „Objekterkennung aus“, not „Nichts erkannt“.",
+    )
     wins: list[CategoryWin]
 
 
@@ -388,8 +400,8 @@ class CategoryVerdictSpec(BaseModel):
 
 class CategorySpec(BaseModel):
     """A rule-based wall category, spec version 2. Invalid input → 400
-    `invalid_category` naming the field in German. Writes also take a v1 spec
-    (`CategorySpecV1`, converted)."""
+    `invalid_category` naming the field in German. Writes also take a spec in the
+    old version 1 shape (deprecated: converted)."""
 
     version: Literal[2] = 2
     emoji: str = Field(description="One emoji.")
@@ -402,57 +414,6 @@ class CategorySpec(BaseModel):
     select: CategorySelect = Field(default_factory=CategorySelect)
     caption: CategoryCaption = Field(default_factory=CategoryCaption)
     verdict: CategoryVerdictSpec | None = None
-
-
-# ---- v1 (deprecated): what the v1 editor reads (`legacy_spec`) and may still send
-
-CategoryOpV1 = Literal[
-    "gt", "lt", "gte", "lte", "eq", "ne", "between", "exists", "not_exists", "contains",
-    "not_contains", "contains_any",
-]  # fmt: skip
-LabelStyle = Literal["count", "percent", "number", "time", "fixed", "object"]
-
-
-class CategoryConditionV1(BaseModel):
-    value: str = Field(description="A v1 value key, e.g. `people`, `objects.count:hat`.")
-    op: CategoryOpV1
-    operand: float | str | tuple[float, float] | list[str] | None = None
-
-
-class CategoryThenByV1(BaseModel):
-    by: str
-    order: Literal["top", "bottom"] = "top"
-
-
-class CategorySelectV1(BaseModel):
-    by: str
-    order: Literal["top", "bottom"] = "top"
-    count: int = 3
-    then_by: list[CategoryThenByV1] = Field(default_factory=list)
-    one_per_guest: bool = True
-
-
-class CategoryLabelV1(BaseModel):
-    value: str | None = None
-    style: LabelStyle = "count"
-    one: str = ""
-    many: str = ""
-
-
-class CategoryVerdictSpecV1(BaseModel):
-    prompt: str
-
-
-class CategorySpecV1(BaseModel):
-    """Spec version 1 (deprecated): converted to version 2 when written."""
-
-    emoji: str
-    title: str
-    line: str = ""
-    where: list[CategoryConditionV1] = Field(default_factory=list)
-    select: CategorySelectV1
-    label: CategoryLabelV1 = Field(default_factory=CategoryLabelV1)
-    verdict: CategoryVerdictSpecV1 | None = None
 
 
 # ------------------------------------------------------ category answers
@@ -512,10 +473,6 @@ class CategoryItem(BaseModel):
     preset: str | None = Field(description="The preset it came from; null = made by the host.")
     position: int
     spec: CategorySpec
-    legacy_spec: CategorySpecV1 | None = Field(
-        description="Deprecated: the spec in v1 shape for the v1 editor; null when v1 cannot "
-        "say it."
-    )
     explanation: str = Field(description="The ranking in plain German (the wall's subtitle "
                              "when `line` is empty).")  # fmt: skip
     needs_ai: bool = Field(description="It reads an LLM property (external AI).")
@@ -563,3 +520,64 @@ class RestoreOut(BaseModel):
 
 class OkOut(BaseModel):
     ok: Literal[True]
+
+
+# ------------------------------------------------------ export / import
+
+
+class CategoryFileProperty(BaseModel):
+    name: str
+    prompt: str
+
+
+class CategoryFileEntry(BaseModel):
+    id: str
+    enabled: bool
+    preset: str | None
+    spec: CategorySpec
+
+
+class CategoriesFile(BaseModel):
+    """„Exportieren“: the categories and the properties they read (by name)."""
+
+    format: Literal["virtubooth-categories"]
+    version: Literal[2]
+    exported_at: str
+    properties: list[CategoryFileProperty] = Field(
+        description="Each property a category reads, with its prompt."
+    )
+    categories: list[CategoryFileEntry]
+
+
+class ImportedCategory(BaseModel):
+    id: str = Field(description="Its id here (a copy: a free one, `<id>_2` …).")
+    title: str
+    enabled: bool
+    from_id: str | None = Field(description="The id in the file when it was taken as a copy.")
+    replaced: bool = Field(description="It overwrote the category with that id.")
+
+
+class SkippedCategory(BaseModel):
+    id: str = Field(description="The id in the file, or „Eintrag 3“.")
+    reason: str = Field(description="German.")
+
+
+class SwitchedOffCategory(BaseModel):
+    id: str
+    reason: Literal["ai_off", "property_trashed", "property_missing"]
+    detail: str | None = Field(description="The property it is about.")
+    message: str = Field(description="German.")
+
+
+class CategoryImportOut(BaseModel):
+    imported: list[ImportedCategory]
+    skipped: list[SkippedCategory]
+    properties_created: list[str] = Field(description="Created from the file (or a preset).")
+    prompt_conflicts: list[str] = Field(
+        description="Properties that exist here with another prompt: theirs stays."
+    )
+    switched_off: list[SwitchedOffCategory] = Field(
+        description="Imported switched off although the file had them on (or a property "
+        "is missing), and why."
+    )
+    notes: list[str] = Field(description="German hints (e.g. an old file's `active`).")
